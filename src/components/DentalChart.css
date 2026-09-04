@@ -1,0 +1,38 @@
+/* ═══════════════════════════════════════════════════════════════
+   DentalChart.css — SVG-specific styles for the Dental Odontogram
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Tooth group hover interaction */
+.tooth-group {
+  cursor: pointer;
+  transition: filter 0.2s ease, opacity 0.2s ease;
+}
+
+.tooth-group:hover {
+  filter: brightness(1.12) drop-shadow(0 3px 7px rgba(0, 0, 0, 0.28));
+}
+
+.tooth-group:active {
+  filter: brightness(0.95);
+}
+
+/* Tooth outline thickens on hover */
+.tooth-group:hover .tooth-body {
+  stroke-width: 1.2;
+}
+
+/* Badge fade-in animation */
+.tooth-badge {
+  pointer-events: none;
+  opacity: 0;
+  animation: badgeFadeIn 0.35s ease forwards;
+}
+
+@keyframes badgeFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

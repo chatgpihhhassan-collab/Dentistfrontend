@@ -1,0 +1,290 @@
+@import url('https://fonts.googleapis.com/css2?family=Urbanist:ital,wght@0,100..900;1,100..900&family=Inter:wght@100..900&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Urbanist", sans-serif;
+  --font-sans: "Inter", sans-serif;
+  
+  --color-primary-teal: #4A7CD2;
+  --color-primary-hover: #3665B7;
+  --color-light-teal: #EAF0FC;
+  --color-light-teal-hover: #D4E2F9;
+  --color-dark-slate: #10244B;
+  --color-muted-text: #93A0AF;
+  --color-warm-cream: #F4F6FA; /* Slightly darker cream for more gradient contrast */
+  --color-accent-gold: #EAA638;
+}
+
+html, body, #root {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100%;
+    background: linear-gradient(135deg, #F4F6FA 0%, #EAF0FC 100%);
+    color: var(--color-dark-slate);
+    font-family: var(--font-sans);
+}
+
+/* Animations for new layout (Dentia scheme) */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes zoomIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes floatTooth {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg) scale(1);
+  }
+  50% {
+    transform: translateY(-7px) rotate(1.5deg) scale(1.02);
+  }
+}
+
+@keyframes scanLaser {
+  0%, 100% {
+    top: 12%;
+    opacity: 0.2;
+  }
+  50% {
+    top: 82%;
+    opacity: 0.85;
+  }
+}
+
+@keyframes orbitSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes orbitSpinReverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+.animate-float-tooth {
+  animation: floatTooth 4s ease-in-out infinite;
+}
+
+.animate-scan-laser {
+  animation: scanLaser 2.8s ease-in-out infinite;
+}
+
+.animate-orbit-spin {
+  animation: orbitSpin 14s linear infinite;
+}
+
+.animate-orbit-spin-reverse {
+  animation: orbitSpinReverse 18s linear infinite;
+}
+
+@keyframes toothRadar {
+  0% {
+    transform: translate(-50%, -50%) scale(0.85);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.65);
+    opacity: 0.35;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.2);
+    opacity: 0;
+  }
+}
+
+@keyframes toothGlowPulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 4px rgba(74, 124, 210, 0.6)) drop-shadow(0 0 10px rgba(59, 130, 246, 0.4));
+    transform: scale(1.28);
+  }
+  50% {
+    filter: drop-shadow(0 0 10px rgba(74, 124, 210, 0.95)) drop-shadow(0 0 20px rgba(37, 99, 235, 0.8));
+    transform: scale(1.42);
+  }
+}
+
+.animate-tooth-radar {
+  animation: toothRadar 1.8s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+}
+
+.animate-tooth-spotlight {
+  animation: toothGlowPulse 1.6s ease-in-out infinite;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-zoom-in {
+  animation: zoomIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Hover effects matching Dentia premium layout */
+.btn-main {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  z-index: 1;
+}
+
+.btn-main::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 0;
+  background-color: var(--color-dark-slate);
+  transition: all 0.3s ease;
+  z-index: -1;
+}
+
+.btn-main:hover::after {
+  height: 100%;
+}
+
+/* HIGHLY ENHANCED GRADIENT BLOCK STYLES */
+.card-hover {
+  background: linear-gradient(145deg, #ffffff 0%, #F8FAFC 100%);
+  border: 1px solid rgba(74, 124, 210, 0.15) !important;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-hover:hover {
+  transform: translateY(-8px);
+  background: linear-gradient(145deg, #ffffff 0%, #EAF0FC 100%);
+  border-color: rgba(74, 124, 210, 0.4) !important;
+  box-shadow: 0 22px 40px rgba(16, 36, 75, 0.08);
+}
+
+/* Custom scrollbar and teeth mapping styles */
+.tooth-hover {
+    transition: all 0.3s ease;
+}
+.tooth-hover:hover {
+    transform: scale(1.1);
+    filter: drop-shadow(0 4px 12px rgba(74, 124, 210, 0.15));
+}
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+@media (max-width: 1024px) {
+    .dental-chart-responsive-wrap {
+        width: 100%;
+        overflow-x: auto;
+        display: block;
+        padding: 1rem;
+        -webkit-overflow-scrolling: touch;
+        border: 1px dashed #e2e8f0;
+        border-radius: 1rem;
+        background: #f8fafc;
+    }
+    .dental-chart-inner {
+        min-width: 800px;
+        margin: 0 auto;
+    }
+}
+
+/* Print specific styles for AI Notes */
+@media print {
+  .print-hide, nav, header, footer, .lg\:w-\[40\%\], .w-\[180px\] {
+    display: none !important;
+  }
+  
+  /* Reset all containers to allow natural pagination */
+  *, html, body, #root, main {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+  }
+
+  body {
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .lg\:w-\[60\%\] {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 100% !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #ai-notes-print-area {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Ensure backgrounds like bg-amber-50 are printed */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Precision Dental Jaw & Tooth Socket Overlay Rules
+   ═══════════════════════════════════════════════════════════════ */
+.dental-jaw-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  user-select: none;
+}
+
+.dental-socket-anchor {
+  position: absolute;
+  transform-origin: center center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dynamic-tooth {
+  position: absolute;
+  transform-origin: center center;
+  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
+  transition: transform 0.25s ease, filter 0.25s ease;
+}
+
