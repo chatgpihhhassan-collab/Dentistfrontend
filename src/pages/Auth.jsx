@@ -20,8 +20,12 @@ export default function Auth() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(formData)
                 });
+                // If static host returns 405 or 404, fallback directly
+                if (res.status === 405 || res.status === 404) {
+                    throw new Error(`Proxy status ${res.status}`);
+                }
             } catch (netErr) {
-                // Direct fallback to dentist-api-dev.vitonta.com if proxy fails
+                // Direct fallback to dentist-api-dev.vitonta.com
                 res = await fetch(`https://dentist-api-dev.vitonta.com/api/auth/${endpoint}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -37,18 +41,20 @@ export default function Auth() {
             } else {
                 let errMsg = "Invalid username or password. Please check your credentials.";
                 try {
-                    const errData = await res.json();
-                    if (errData && errData.message) {
-                        errMsg = errData.message;
-                    } else if (typeof errData === 'string') {
-                        errMsg = errData;
+                    const raw = await res.text();
+                    try {
+                        const errData = JSON.parse(raw);
+                        if (errData && errData.message) {
+                            errMsg = errData.message;
+                        } else if (typeof errData === 'string') {
+                            errMsg = errData;
+                        }
+                    } catch {
+                        if (raw && raw.length < 150 && !raw.includes("<!DOCTYPE")) {
+                            errMsg = raw;
+                        }
                     }
-                } catch {
-                    const textErr = await res.text();
-                    if (textErr && textErr.length < 150) {
-                        errMsg = textErr;
-                    }
-                }
+                } catch { }
                 setError(errMsg);
             }
         } catch (err) {
