@@ -57,7 +57,8 @@ export default function ImpactedTeethXRayVisualizer({
         angulation_degrees: selectedImpaction === 'horizontal' ? 90 : (selectedImpaction === 'canine' ? canineAngulation : angulationDegrees),
         nerve_distance_mm: nerveDistanceMm,
         eruption_percent: eruptionCoveragePct,
-        cdt_code: cdt
+        cdt_code: cdt,
+        isManualSave: true
       });
     }
 

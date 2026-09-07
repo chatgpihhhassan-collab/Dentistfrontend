@@ -98,7 +98,8 @@ export default function OcclusionBiteVisualizer({
         crossbite_side: crossbiteSide,
         wear_severity: wearSeverity,
         palatal_impingement: palatalImpingement,
-        cdt_code: cdt
+        cdt_code: cdt,
+        isManualSave: true
       });
     }
 

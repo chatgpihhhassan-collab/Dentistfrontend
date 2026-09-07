@@ -1099,7 +1099,7 @@ export default function ChartPage() {
     if (!assessmentData) return;
     const { suite_category, bite_type, impaction_type, tmj_state, cdt_code, overbite_percent, overjet_mm, open_bite_gap_mm, crossbite_side, wear_severity, angulation_degrees, nerve_distance_mm, eruption_percent, mouth_opening_mm } = assessmentData;
 
-    const isPediatric = dentitionMode === 'pediatric';
+    const isPediatric = dentitionMode === 'pediatric' || dentitionMode === 'mixed';
     let targetTeeth = [];
     let statusLabel = 'Ortho Malocclusion';
     let conditionColor = '#2563EB';
@@ -1157,7 +1157,7 @@ export default function ChartPage() {
     }
     // 3. TMJ Suite
     else if (suite_category === 'tmj' || tmj_state) {
-      targetTeeth = [1, 16, 17, 32];
+      targetTeeth = isPediatric ? ['A', 'J', 'K', 'T'] : [1, 16, 17, 32];
       statusLabel = tmj_state === 'closed_lock' ? 'TMJ Closed Lock / Trismus' : tmj_state === 'clicking' ? 'TMJ Disc Reduction (Clicking)' : 'Normal TMJ Articulation';
       conditionColor = tmj_state === 'closed_lock' ? '#EF4444' : tmj_state === 'clicking' ? '#F59E0B' : '#10B981';
       commentText = `TMJ Articulation: ${statusLabel} (Opening: ${mouth_opening_mm ?? 42}mm) (CDT ${cdt_code || 'D7880'}).`;
