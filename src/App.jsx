@@ -20,9 +20,16 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { useLocation } from 'react-router-dom';
 
 const ProtectedRoute = ({ children }) => {
-    const doctor = JSON.parse(localStorage.getItem('doctor'));
+    let doctor = null;
+    try {
+        const stored = localStorage.getItem('doctor');
+        if (stored) doctor = JSON.parse(stored);
+    } catch {
+        doctor = null;
+    }
     const location = useLocation();
     
+    // Strict authentication check: Must have doctor session with valid token
     if (!doctor || !doctor.token) {
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
@@ -33,18 +40,44 @@ const ProtectedRoute = ({ children }) => {
 };
 
 const BlockSuperAdmin = ({ children }) => {
-    const doctor = JSON.parse(localStorage.getItem('doctor'));
+    let doctor = null;
+    try {
+        const stored = localStorage.getItem('doctor');
+        if (stored) doctor = JSON.parse(stored);
+    } catch {
+        doctor = null;
+    }
     if (doctor && doctor.isSuperAdmin) {
         return <Navigate to="/admin/doctors" replace />;
     }
     return children;
 };
 
+const PublicOnlyRoute = ({ children }) => {
+    let doctor = null;
+    try {
+        const stored = localStorage.getItem('doctor');
+        if (stored) doctor = JSON.parse(stored);
+    } catch {
+        doctor = null;
+    }
+    if (doctor && doctor.token) {
+        return <Navigate to={doctor.isSuperAdmin ? "/admin/doctors" : "/directory"} replace />;
+    }
+    return children;
+};
+
 const AdminRoute = ({ children }) => {
-    const doctor = JSON.parse(localStorage.getItem('doctor'));
+    let doctor = null;
+    try {
+        const stored = localStorage.getItem('doctor');
+        if (stored) doctor = JSON.parse(stored);
+    } catch {
+        doctor = null;
+    }
     
     if (!doctor || !doctor.token || !doctor.isSuperAdmin) {
-        return <Navigate to="/" replace />;
+        return <Navigate to="/login" replace />;
     }
     return children;
 };
@@ -54,39 +87,37 @@ export default function App() {
     <BrowserRouter>
       <ErrorBoundary>
         <Routes>
+          {/* Public Information Pages */}
           <Route path="/" element={<BlockSuperAdmin><LandingDashboard /></BlockSuperAdmin>} />
-          <Route path="/dashboard" element={<BlockSuperAdmin><LandingDashboard /></BlockSuperAdmin>} />
-          <Route path="/login" element={<BlockSuperAdmin><Auth /></BlockSuperAdmin>} />
-          <Route path="/directory" element={<BlockSuperAdmin><PatientDirectory /></BlockSuperAdmin>} />
-          <Route path="/chart/:patientId" element={<BlockSuperAdmin><ChartPage /></BlockSuperAdmin>} />
-          <Route path="/chart/:patientId/tooth" element={<BlockSuperAdmin><ToothDetailPage /></BlockSuperAdmin>} />
-          <Route path="/chart/:patientId/tooth/:toothNumber" element={<BlockSuperAdmin><ToothDetailPage /></BlockSuperAdmin>} />
-          <Route path="/new-patient" element={<BlockSuperAdmin><NewPatientPage /></BlockSuperAdmin>} />
-          <Route path="/history/:patientId" element={<BlockSuperAdmin><HistoryPage /></BlockSuperAdmin>} />
-          <Route path="/ai-notes" element={<BlockSuperAdmin><AIDentalNotesPage /></BlockSuperAdmin>} />
-          <Route path="/ai-notes/detail/:noteId" element={<BlockSuperAdmin><AIDentalNoteDetailPage /></BlockSuperAdmin>} />
+          <Route path="/about" element={<BlockSuperAdmin><AboutUs /></BlockSuperAdmin>} />
+          <Route path="/treatment" element={<BlockSuperAdmin><Treatment /></BlockSuperAdmin>} />
+          <Route path="/terms" element={<BlockSuperAdmin><TermsAndConditions /></BlockSuperAdmin>} />
+          <Route path="/privacy" element={<BlockSuperAdmin><PrivacyPolicy /></BlockSuperAdmin>} />
+
+          {/* Clinician Authentication Page */}
+          <Route path="/login" element={<PublicOnlyRoute><Auth /></PublicOnlyRoute>} />
+
+          {/* Strictly Protected Clinical Routes (Login Required) */}
+          <Route path="/dashboard" element={<ProtectedRoute><LandingDashboard /></ProtectedRoute>} />
+          <Route path="/directory" element={<ProtectedRoute><PatientDirectory /></ProtectedRoute>} />
+          <Route path="/chart/:patientId" element={<ProtectedRoute><ChartPage /></ProtectedRoute>} />
+          <Route path="/chart/:patientId/tooth" element={<ProtectedRoute><ToothDetailPage /></ProtectedRoute>} />
+          <Route path="/chart/:patientId/tooth/:toothNumber" element={<ProtectedRoute><ToothDetailPage /></ProtectedRoute>} />
+          <Route path="/new-patient" element={<ProtectedRoute><NewPatientPage /></ProtectedRoute>} />
+          <Route path="/history/:patientId" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
+          <Route path="/ai-notes" element={<ProtectedRoute><AIDentalNotesPage /></ProtectedRoute>} />
+          <Route path="/ai-notes/detail/:noteId" element={<ProtectedRoute><AIDentalNoteDetailPage /></ProtectedRoute>} />
+          <Route path="/appointments" element={<ProtectedRoute><AppointmentsList /></ProtectedRoute>} />
+          <Route path="/book" element={<ProtectedRoute><BookAppointment /></ProtectedRoute>} />
           
-          {/* Protected Standalone Pages */}
-          <Route path="/book" element={
-              <ProtectedRoute>
-                  <BookAppointment />
-              </ProtectedRoute>
-          } />
-          
-          {/* Admin Pages */}
+          {/* Admin Protected Pages */}
           <Route path="/admin/doctors" element={
               <AdminRoute>
                   <DoctorManagement />
               </AdminRoute>
           } />
           
-          {/* Public Pages */}
-          <Route path="/about" element={<BlockSuperAdmin><AboutUs /></BlockSuperAdmin>} />
-          <Route path="/treatment" element={<BlockSuperAdmin><Treatment /></BlockSuperAdmin>} />
-          <Route path="/appointments" element={<BlockSuperAdmin><AppointmentsList /></BlockSuperAdmin>} />
-          <Route path="/terms" element={<BlockSuperAdmin><TermsAndConditions /></BlockSuperAdmin>} />
-          <Route path="/privacy" element={<BlockSuperAdmin><PrivacyPolicy /></BlockSuperAdmin>} />
-          
+          {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </ErrorBoundary>
