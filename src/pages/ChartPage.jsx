@@ -835,6 +835,7 @@ export default function ChartPage() {
 
   // Live Speech Stream & Waveform states
   const [liveSpeechStream, setLiveSpeechStream] = useState('');
+  const liveSpeechStreamRef = useRef('');
   const [audioLevel, setAudioLevel] = useState(0);
   const speechRecognitionRef = useRef(null);
   const animationFrameRef = useRef(null);
@@ -2344,12 +2345,26 @@ export default function ChartPage() {
         }
 
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        console.log("[MIC LOG] Audio blob generated successfully. Total blob size:", audioBlob.size, "bytes. Dispatching submission...");
-        submitAudioToAI(audioBlob, duration);
+        const finalTranscript = (liveSpeechStreamRef.current || '').trim();
+        console.log("[MIC LOG] Audio blob generated successfully. Total blob size:", audioBlob.size, "bytes. Final recognized transcript:", finalTranscript);
+        
+        // Instant visual feedback: if the user mentioned tooth operations (e.g. 'tooth number 18 required root canal'),
+        // execute odontogram update immediately so tooth 18 updates on screen!
+        if (finalTranscript) {
+          try {
+            console.log("[MIC LOG] Triggering instant clinical tooth assessment for:", finalTranscript);
+            handleSendMessage(null, finalTranscript);
+          } catch (toothErr) {
+            console.warn("Direct voice tooth parse notice:", toothErr);
+          }
+        }
+        
+        submitAudioToAI(audioBlob, duration, finalTranscript);
       };
 
       mediaRecorderRef.current.start();
       setIsRecording(true);
+      liveSpeechStreamRef.current = '';
       setLiveSpeechStream('');
       setVoiceStreamText("Listening to voice... speak now");
       setChecklist({
@@ -2393,6 +2408,7 @@ export default function ChartPage() {
               .map(r => r[0].transcript)
               .join('');
             const cleanStream = deduplicateStreamText(transcript);
+            liveSpeechStreamRef.current = cleanStream;
             setLiveSpeechStream(cleanStream);
             setVoiceStreamText(cleanStream);
             evaluateTranscriptChecklist(cleanStream);
@@ -2466,8 +2482,11 @@ export default function ChartPage() {
   };
 
   // Dispatch Audio to AI endpoints with progress bar simulator
-  const submitAudioToAI = async (audioBlob, durationSeconds) => {
-    const recognizedText = (liveSpeechStream || voiceStreamText || '').trim();
+  const submitAudioToAI = async (audioBlob, durationSeconds, explicitTranscript = '') => {
+    let recognizedText = (explicitTranscript || liveSpeechStreamRef.current || liveSpeechStream || '').trim();
+    if (recognizedText.includes('Click mic to start recording') || recognizedText.includes('Listening to voice')) {
+      recognizedText = '';
+    }
     console.log("[MIC LOG] submitAudioToAI triggered. Audio size:", audioBlob?.size, "bytes, Duration:", durationSeconds, "seconds, Recognized text length:", recognizedText.length);
     setAiNotesLoading(true);
     setAiNotesProgress(10);
