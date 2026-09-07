@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { LogOut, Home, Users, Calendar, Stethoscope, Info, CalendarPlus, Phone, Clock, Mail } from 'lucide-react';
+import { LogOut, Home, Users, Calendar, Stethoscope, Info, CalendarPlus, Phone, Clock, Mail, Star, UserCheck } from 'lucide-react';
 
 export default function Navigation() {
     const navigate = useNavigate();
@@ -20,12 +20,11 @@ export default function Navigation() {
         navigate('/');
     };
 
-    const getLinkClass = (path) => {
-        const isActive = location.pathname === path || (path === '/dashboard' && location.pathname === '/');
-        const baseClasses = "flex items-center justify-center p-3 rounded-full transition-all duration-300";
+    const getLinkClass = (isActive) => {
+        const baseClasses = "flex items-center justify-center p-3 rounded-full transition-all duration-200 relative group cursor-pointer";
         return isActive 
-            ? `${baseClasses} text-primary-teal font-bold bg-white shadow-md scale-105`
-            : `${baseClasses} text-muted-text font-semibold hover:text-primary-teal hover:bg-white/50`;
+            ? `${baseClasses} text-primary-teal font-bold bg-white shadow-md scale-105 ring-1 ring-[#4A7CD2]/25`
+            : `${baseClasses} text-slate-600 hover:text-primary-teal hover:bg-white/60 hover:scale-105`;
     };
 
     return (
@@ -55,72 +54,82 @@ export default function Navigation() {
                     <img src="/images/logo-black.webp" alt="Dentia Logo" className="h-8 object-contain" />
                 </div>
                 
-                <nav className="hidden lg:flex items-center space-x-1 bg-gradient-to-r from-[#EAF0FC]/80 via-white/80 to-[#EAF0FC]/95 p-1.5 rounded-full border border-[#4A7CD2]/20 shadow-inner">
+                <nav className="hidden lg:flex items-center space-x-1.5 bg-gradient-to-r from-[#EAF0FC]/80 via-white/80 to-[#EAF0FC]/95 p-1.5 rounded-full border border-[#4A7CD2]/20 shadow-inner">
                     <Link 
                         to="/" 
-                        className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
-                            location.pathname === '/' || location.pathname === '/dashboard'
-                                ? 'text-primary-teal font-bold bg-white shadow-sm'
-                                : 'text-slate-700 hover:text-primary-teal hover:bg-white/60'
-                        }`}
+                        className={getLinkClass(location.pathname === '/' || location.pathname === '/dashboard')}
+                        title="Home"
                     >
-                        Home
+                        <Home className="w-5 h-5" />
+                        <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-[10.5px] font-bold px-2 py-0.5 rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                            Home
+                        </span>
                     </Link>
                     
                     {doctor && (
                         <>
                             <Link 
                                 to="/directory" 
-                                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 flex items-center gap-1.5 ${
-                                    location.pathname === '/directory' || location.pathname.startsWith('/chart')
-                                        ? 'text-primary-teal font-bold bg-white shadow-sm'
-                                        : 'text-slate-700 hover:text-primary-teal hover:bg-white/60'
-                                }`}
+                                className={getLinkClass(location.pathname === '/directory' || location.pathname.startsWith('/chart'))}
+                                title="Patients"
                             >
-                                <Users className="w-4 h-4" />
-                                <span>Patients</span>
+                                <Users className="w-5 h-5" />
+                                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-[10.5px] font-bold px-2 py-0.5 rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                                    Patients
+                                </span>
                             </Link>
                             <Link 
                                 to="/appointments" 
-                                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 flex items-center gap-1.5 ${
-                                    location.pathname === '/appointments'
-                                        ? 'text-primary-teal font-bold bg-white shadow-sm'
-                                        : 'text-slate-700 hover:text-primary-teal hover:bg-white/60'
-                                }`}
+                                className={getLinkClass(location.pathname === '/appointments')}
+                                title="Schedule"
                             >
-                                <Calendar className="w-4 h-4" />
-                                <span>Schedule</span>
+                                <Calendar className="w-5 h-5" />
+                                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-[10.5px] font-bold px-2 py-0.5 rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                                    Schedule
+                                </span>
                             </Link>
                         </>
                     )}
                     
                     <Link 
                         to="/treatment" 
-                        className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
-                            location.pathname === '/treatment'
-                                ? 'text-primary-teal font-bold bg-white shadow-sm'
-                                : 'text-slate-700 hover:text-primary-teal hover:bg-white/60'
-                        }`}
+                        className={getLinkClass(location.pathname === '/treatment')}
+                        title="Treatments"
                     >
-                        Treatments
+                        <Stethoscope className="w-5 h-5" />
+                        <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-[10.5px] font-bold px-2 py-0.5 rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                            Treatments
+                        </span>
                     </Link>
                     <a 
                         href="/#about" 
-                        className="px-4 py-2 rounded-full text-sm font-semibold text-slate-700 hover:text-primary-teal hover:bg-white/60 transition-all duration-200"
+                        className={getLinkClass(location.hash === '#about')}
+                        title="About Us"
                     >
-                        About Us
+                        <Info className="w-5 h-5" />
+                        <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-[10.5px] font-bold px-2 py-0.5 rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                            About Us
+                        </span>
                     </a>
                     <a 
                         href="/#team" 
-                        className="px-4 py-2 rounded-full text-sm font-semibold text-slate-700 hover:text-primary-teal hover:bg-white/60 transition-all duration-200"
+                        className={getLinkClass(location.hash === '#team')}
+                        title="Our Doctors"
                     >
-                        Our Doctors
+                        <UserCheck className="w-5 h-5" />
+                        <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-[10.5px] font-bold px-2 py-0.5 rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                            Our Doctors
+                        </span>
                     </a>
                     <a 
                         href="/#reviews" 
-                        className="px-4 py-2 rounded-full text-sm font-semibold text-slate-700 hover:text-primary-teal hover:bg-white/60 transition-all duration-200"
+                        className={getLinkClass(location.hash === '#reviews')}
+                        title="Reviews"
                     >
-                        Reviews
+                        <Star className="w-5 h-5" />
+                        <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-[10.5px] font-bold px-2 py-0.5 rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                            Reviews
+                        </span>
                     </a>
                 </nav>
 
