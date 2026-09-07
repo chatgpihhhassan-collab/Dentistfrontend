@@ -1353,10 +1353,8 @@ export default function ChartPage() {
       const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
       const doctorId = doctorData.doctorID || doctorData.DoctorID || null;
 
-      // Load AI notes filtered by this doctor for this patient
-      const url = doctorId
-        ? `/api/ai-dental-notes/patient/${patientId}?dentistId=${doctorId}&includeDeleted=${isBoolDeleted}`
-        : `/api/ai-dental-notes/patient/${patientId}?includeDeleted=${isBoolDeleted}`;
+      // Load all AI clinical notes for this patient across clinic doctors
+      const url = `/api/ai-dental-notes/patient/${patientId}?includeDeleted=${isBoolDeleted}`;
 
       const res = await fetch(url);
       if (res.ok) {
@@ -1393,7 +1391,7 @@ export default function ChartPage() {
     setNotesLoadProgress(10);
     try {
       const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
-      const doctorId = doctorData.doctorID || doctorData.DoctorID || 2;
+      const doctorId = doctorData.doctorID || doctorData.DoctorID || patient?.doctorID || patient?.DoctorID || 1;
       await fetch('/api/ai-dental-notes/process-lazy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2485,7 +2483,7 @@ export default function ChartPage() {
     }, 400);
 
     const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
-    const doctorId = doctorData.doctorID || doctorData.DoctorID || 2;
+    const doctorId = doctorData.doctorID || doctorData.DoctorID || patient?.doctorID || patient?.DoctorID || 1;
     const targetUrl = 'https://dentist-api-dev.vitonta.com/api/ai-dental-notes/recordings';
 
     const makeFormData = (includeBlob = true) => {
@@ -2505,17 +2503,25 @@ export default function ChartPage() {
     try {
       console.log("[MIC LOG] Dispatching recording upload directly to:", targetUrl);
       let response;
-      try {
-        response = await fetch(targetUrl, {
-          method: 'POST',
-          body: makeFormData(true)
-        });
-      } catch (uploadErr) {
-        console.warn("[MIC LOG] Binary audio upload encountered network issue, falling back to recognized transcript:", uploadErr);
+      if (recognizedText && recognizedText.length > 3) {
+        console.log("[MIC LOG] Prioritizing instant recognized speech transcript:", recognizedText);
         response = await fetch(targetUrl, {
           method: 'POST',
           body: makeFormData(false)
         });
+      } else {
+        try {
+          response = await fetch(targetUrl, {
+            method: 'POST',
+            body: makeFormData(true)
+          });
+        } catch (uploadErr) {
+          console.warn("[MIC LOG] Binary audio upload encountered network issue, falling back to recognized transcript:", uploadErr);
+          response = await fetch(targetUrl, {
+            method: 'POST',
+            body: makeFormData(false)
+          });
+        }
       }
 
       clearInterval(interval);
