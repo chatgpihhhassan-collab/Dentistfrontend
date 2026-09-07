@@ -2495,10 +2495,22 @@ export default function ChartPage() {
 
     try {
       console.log("[MIC LOG] Sending POST request to /api/ai-dental-notes/recordings...");
-      const response = await fetch('/api/ai-dental-notes/recordings', {
-        method: 'POST',
-        body: formData
-      });
+      let response;
+      try {
+        response = await fetch('/api/ai-dental-notes/recordings', {
+          method: 'POST',
+          body: formData
+        });
+        if (response.status === 404 || response.status === 405) {
+          throw new Error(`Static route fallback: ${response.status}`);
+        }
+      } catch (proxyErr) {
+        console.warn("[MIC LOG] Fallback directly to https://dentist-api-dev.vitonta.com:", proxyErr);
+        response = await fetch('https://dentist-api-dev.vitonta.com/api/ai-dental-notes/recordings', {
+          method: 'POST',
+          body: formData
+        });
+      }
       clearInterval(interval);
       setAiNotesProgress(100);
 
