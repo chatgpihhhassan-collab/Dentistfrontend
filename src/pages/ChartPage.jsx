@@ -1219,7 +1219,7 @@ export default function ChartPage() {
       try {
         const storedDoc = localStorage.getItem('doctor');
         const docObj = storedDoc ? JSON.parse(storedDoc) : null;
-        const docId = docObj?.doctorID || docObj?.DoctorID || 1;
+        const docId = docObj?.doctorID || docObj?.DoctorID || 2;
         await fetch(`/api/patients/${pid}/clinical-logs`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1393,7 +1393,7 @@ export default function ChartPage() {
     setNotesLoadProgress(10);
     try {
       const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
-      const doctorId = doctorData.doctorID || 1;
+      const doctorId = doctorData.doctorID || doctorData.DoctorID || 2;
       await fetch('/api/ai-dental-notes/process-lazy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2484,7 +2484,7 @@ export default function ChartPage() {
     }, 400);
 
     const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
-    const doctorId = doctorData.doctorID || 1;
+    const doctorId = doctorData.doctorID || doctorData.DoctorID || 2;
 
     console.log("[MIC LOG] Constructing multipart form upload. DentistId:", doctorId, "PatientId:", patientId, "DurationSeconds:", durationSeconds);
     const formData = new FormData();
@@ -2635,15 +2635,14 @@ export default function ChartPage() {
 
         // Add doctor clinical log entry
         const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
-        const docId = doctorData.doctorID || 1;
+        const docId = doctorData.doctorID || doctorData.DoctorID || 2;
         await fetch(`/api/patients/${pid}/clinical-logs`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             doctorID: docId,
             action: `Updated observation for Tooth #${toothNum}: ${updatedStatus}`
-          })
-        }).catch(() => {});
+          })}).catch(() => {});
 
         setEditingToothData(null);
       }
@@ -2706,7 +2705,7 @@ export default function ChartPage() {
       if (res.ok) {
         // Post save log
         const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
-        const docId = doctorData.doctorID || 1;
+        const docId = doctorData.doctorID || doctorData.DoctorID || 2;
         await fetch(`/api/patients/${patientId}/clinical-logs`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2714,8 +2713,7 @@ export default function ChartPage() {
             doctorID: docId,
             message: "Patient chart state saved successfully.",
             action: `Saved Dental Chart with ${teethState.length} teeth observations`
-          })
-        }).catch(() => {});
+          })}).catch(() => {});
 
         setToast({ visible: true, message: "Patient Chart and Odontogram saved successfully!" });
         setTimeout(() => setToast({ visible: false, message: '' }), 3000);
@@ -2817,7 +2815,7 @@ export default function ChartPage() {
   const registerPatientAPI = async (data) => {
     try {
       const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
-      const docId = doctorData.doctorID || 1;
+      const docId = doctorData.doctorID || doctorData.DoctorID || 2;
       // The user enters a single name, so we'll just split it or pass it as FirstName for now
       const nameParts = data.name.split(' ');
       const payload = {
@@ -2848,7 +2846,7 @@ export default function ChartPage() {
   const bookAppointmentAPI = async (data) => {
     try {
       const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
-      const docId = doctorData.doctorID || 1;
+      const docId = doctorData.doctorID || doctorData.DoctorID || 2;
       
       const targetId = (data.patientId && data.patientId !== "null" && data.patientId !== "undefined") 
         ? data.patientId 

@@ -341,7 +341,7 @@ export default function ToothDetailPage() {
       const surfacesToSave = customSurfaces || surfaceData;
 
       const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
-      const docId = doctorData.doctorID || doctorData.DoctorID || 1;
+      const docId = doctorData.doctorID || doctorData.DoctorID || 2;
 
       const updates = [{
         toothNumber: isPediatric ? tKey : tNum,
@@ -371,13 +371,13 @@ export default function ToothDetailPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            doctorID: docId,
+            doctorId: docId,
             message: `Tooth ${isPediatric ? `Primary ${tKey}` : `#${tNum}`} Diagnosis: ${statusToSave}. ${commentToSave}`,
             logType: 'ToothObservation'
           })
-        });
+        }).catch(() => {});
       } catch (logErr) {
-        console.warn("[ToothDetailPage] Clinical log save warning:", logErr);
+        // Safe fallback
       }
 
       if (res.ok) {
