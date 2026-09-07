@@ -10,6 +10,7 @@ export default function TMJJointArticulationViewer({
   const [selectedJointState, setSelectedJointState] = useState(initialJointState); // 'normal', 'clicking', 'closed_lock'
   const [mouthOpeningMm, setMouthOpeningMm] = useState(initialMouthOpening || 42.0); // 18mm to 55mm
   const [showAcousticClick, setShowAcousticClick] = useState(true);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const debounceTimerRef = useRef(null);
 
   // Sync with initial props if they update
@@ -26,14 +27,19 @@ export default function TMJJointArticulationViewer({
   }, []);
 
   // Save assessment to patient record & DB
-  const commitAssessment = (jointState = selectedJointState, opening = mouthOpeningMm) => {
+  const commitAssessment = (jointState = selectedJointState, opening = mouthOpeningMm, isManual = false) => {
     if (onSaveAssessment) {
       onSaveAssessment({
         suite_category: 'tmj',
         tmj_state: jointState,
         mouth_opening_mm: opening,
-        cdt_code: jointState === 'normal' ? 'D0140' : 'D7880'
+        cdt_code: jointState === 'normal' ? 'D0140' : 'D7880',
+        isManualSave: isManual
       });
+    }
+    if (isManual) {
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2500);
     }
   };
 
@@ -441,11 +447,22 @@ export default function TMJJointArticulationViewer({
             <div className="pt-2">
               <button
                 type="button"
-                onClick={() => commitAssessment(selectedJointState, mouthOpeningMm)}
-                className="w-full py-2 px-3 rounded-xl bg-[#0F766E] hover:bg-[#0D9488] active:scale-98 text-white font-black text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                onClick={() => commitAssessment(selectedJointState, mouthOpeningMm, true)}
+                className={`w-full py-2 px-3 rounded-xl active:scale-98 text-white font-black text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer ${
+                  saveSuccess ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-[#0F766E] hover:bg-[#0D9488]'
+                }`}
               >
-                <Save className="w-3.5 h-3.5" />
-                <span>Save TMJ Assessment to DB</span>
+                {saveSuccess ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-white stroke-[3]" />
+                    <span>Saved Assessment to DB!</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Save TMJ Assessment to DB</span>
+                  </>
+                )}
               </button>
             </div>
 

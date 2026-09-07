@@ -870,6 +870,49 @@ export default function ChartPage() {
 
           const dbTeethMap = activeMode === 'pediatric' ? pediatricMap : adultMap;
 
+          // Restore TMJ / Ortho assessment if saved on patient teeth in DB
+          try {
+            const tmjRecord = rawList.find(t => {
+              const comm = (t.comments || t.Comments || t.comment || t.Comment || '');
+              const stat = (t.conditionStatus || t.ConditionStatus || t.status || t.Status || '');
+              return /TMJ Articulation|TMJ Closed Lock|TMJ Disc Reduction|Trismus/i.test(comm) || /TMJ/i.test(stat);
+            });
+
+            if (tmjRecord) {
+              const comm = (tmjRecord.comments || tmjRecord.Comments || tmjRecord.comment || tmjRecord.Comment || '');
+              const stat = (tmjRecord.conditionStatus || tmjRecord.ConditionStatus || tmjRecord.status || tmjRecord.Status || '');
+              let detectedState = 'normal';
+              if (/closed.?lock|trismus/i.test(stat) || /closed.?lock|trismus/i.test(comm)) {
+                detectedState = 'closed_lock';
+              } else if (/click|reduction/i.test(stat) || /click|reduction/i.test(comm)) {
+                detectedState = 'clicking';
+              }
+
+              let detectedOpening = 42.0;
+              const openMatch = comm.match(/Opening:\s*([\d\.]+)mm/i);
+              if (openMatch) {
+                detectedOpening = parseFloat(openMatch[1]);
+              } else if (detectedState === 'closed_lock') {
+                detectedOpening = 24.0;
+              } else if (detectedState === 'clicking') {
+                detectedOpening = 35.0;
+              }
+
+              const restoredTmj = {
+                suite_category: 'tmj',
+                tmj_state: detectedState,
+                mouth_opening_mm: detectedOpening,
+                cdt_code: detectedState === 'normal' ? 'D0140' : 'D7880'
+              };
+              setLiveOrthoAssessment(restoredTmj);
+              try {
+                localStorage.setItem(`dentist_ortho_tmj_${patientId}`, JSON.stringify(restoredTmj));
+              } catch (e) {}
+            }
+          } catch (restoreErr) {
+            console.warn('Could not auto-restore TMJ assessment:', restoreErr);
+          }
+
           if (activeMode === 'pediatric') {
             // Build 20 primary deciduous teeth A through T
             const full20Primary = PEDIATRIC_KEYS.map((letterKey, idx) => {
