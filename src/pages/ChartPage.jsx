@@ -2469,7 +2469,8 @@ export default function ChartPage() {
 
   // Dispatch Audio to AI endpoints with progress bar simulator
   const submitAudioToAI = async (audioBlob, durationSeconds) => {
-    console.log("[MIC LOG] submitAudioToAI triggered. Size:", audioBlob.size, "bytes, Duration:", durationSeconds, "seconds");
+    const recognizedText = (liveSpeechStream || voiceStreamText || '').trim();
+    console.log("[MIC LOG] submitAudioToAI triggered. Audio size:", audioBlob?.size, "bytes, Duration:", durationSeconds, "seconds, Recognized text length:", recognizedText.length);
     setAiNotesLoading(true);
     setAiNotesProgress(10);
     
@@ -2485,36 +2486,42 @@ export default function ChartPage() {
 
     const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
     const doctorId = doctorData.doctorID || doctorData.DoctorID || 2;
+    const targetUrl = 'https://dentist-api-dev.vitonta.com/api/ai-dental-notes/recordings';
 
-    console.log("[MIC LOG] Constructing multipart form upload. DentistId:", doctorId, "PatientId:", patientId, "DurationSeconds:", durationSeconds);
-    const formData = new FormData();
-    formData.append('audio', audioBlob, 'recording.webm');
-    formData.append('patientId', patientId);
-    formData.append('dentistId', doctorId);
-    formData.append('durationSeconds', durationSeconds);
+    const makeFormData = (includeBlob = true) => {
+      const fd = new FormData();
+      if (includeBlob && audioBlob && audioBlob.size > 0) {
+        fd.append('audio', audioBlob, 'recording.webm');
+      }
+      fd.append('patientId', patientId);
+      fd.append('dentistId', doctorId);
+      fd.append('durationSeconds', durationSeconds);
+      if (recognizedText) {
+        fd.append('transcript', recognizedText);
+      }
+      return fd;
+    };
 
     try {
-      console.log("[MIC LOG] Sending POST request to /api/ai-dental-notes/recordings...");
+      console.log("[MIC LOG] Dispatching recording upload directly to:", targetUrl);
       let response;
       try {
-        response = await fetch('/api/ai-dental-notes/recordings', {
+        response = await fetch(targetUrl, {
           method: 'POST',
-          body: formData
+          body: makeFormData(true)
         });
-        if (response.status === 404 || response.status === 405) {
-          throw new Error(`Static route fallback: ${response.status}`);
-        }
-      } catch (proxyErr) {
-        console.warn("[MIC LOG] Fallback directly to https://dentist-api-dev.vitonta.com:", proxyErr);
-        response = await fetch('https://dentist-api-dev.vitonta.com/api/ai-dental-notes/recordings', {
+      } catch (uploadErr) {
+        console.warn("[MIC LOG] Binary audio upload encountered network issue, falling back to recognized transcript:", uploadErr);
+        response = await fetch(targetUrl, {
           method: 'POST',
-          body: formData
+          body: makeFormData(false)
         });
       }
+
       clearInterval(interval);
       setAiNotesProgress(100);
 
-      if (response.ok) {
+      if (response && response.ok) {
         const data = await response.json();
         
         // Update speech stream box with high-fidelity server AI transcript
@@ -2552,14 +2559,26 @@ export default function ChartPage() {
         }, 1000);
         setAutoTimer(timer);
       } else {
-        alert("Failed to compile AI Clinical notes.");
+        if (recognizedText) {
+          console.log("[MIC LOG] Server recording status non-OK, compiling notes directly from recognized speech...");
+          await compileAndLoadNotes();
+        } else {
+          alert("Failed to compile AI Clinical notes.");
+        }
         setAiNotesLoading(false);
       }
     } catch (err) {
-      console.error(err);
+      console.error("[MIC LOG] Recording submission error:", err);
       clearInterval(interval);
+      if (recognizedText) {
+        console.log("[MIC LOG] Attempting compileAndLoadNotes as resilient speech fallback...");
+        try {
+          await compileAndLoadNotes();
+        } catch {}
+      } else {
+        alert("Error sending recording to AI server. Please verify your connection.");
+      }
       setAiNotesLoading(false);
-      alert("Error sending recording to AI server.");
     }
   };
 
