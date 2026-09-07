@@ -75,7 +75,7 @@ export default function Auth() {
                 
                 <div className="absolute top-8 left-8 flex items-center space-x-3 z-10">
                     <Sparkles className="w-8 h-8 text-light-teal" />
-                    <h1 className="text-xl font-serif font-bold tracking-wide text-white">LUMINA DENTAL <span className="font-sans font-light text-white/70">STUDIO</span></h1>
+                    <h1 className="text-xl font-serif font-bold tracking-wide text-white">DENTIA <span className="font-sans font-light text-white/70">CLINICAL WORKSPACE</span></h1>
                 </div>
 
                 <div className="absolute bottom-16 left-12 z-10">

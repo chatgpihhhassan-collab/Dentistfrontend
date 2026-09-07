@@ -100,6 +100,7 @@ export default function App() {
           {/* Strictly Protected Clinical Routes (Login Required) */}
           <Route path="/dashboard" element={<ProtectedRoute><LandingDashboard /></ProtectedRoute>} />
           <Route path="/directory" element={<ProtectedRoute><PatientDirectory /></ProtectedRoute>} />
+          <Route path="/chart" element={<ProtectedRoute><Navigate to="/directory" replace /></ProtectedRoute>} />
           <Route path="/chart/:patientId" element={<ProtectedRoute><ChartPage /></ProtectedRoute>} />
           <Route path="/chart/:patientId/tooth" element={<ProtectedRoute><ToothDetailPage /></ProtectedRoute>} />
           <Route path="/chart/:patientId/tooth/:toothNumber" element={<ProtectedRoute><ToothDetailPage /></ProtectedRoute>} />

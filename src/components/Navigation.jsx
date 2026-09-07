@@ -69,11 +69,27 @@ export default function Navigation() {
                     
                     {doctor && (
                         <>
-                            <Link to="/directory" className={getLinkClass('/directory')} title="Patient Directory">
-                                <Users className="w-5 h-5" />
+                            <Link 
+                                to="/directory" 
+                                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 flex items-center gap-1.5 ${
+                                    location.pathname === '/directory'
+                                        ? 'text-primary-teal font-bold bg-white shadow-sm'
+                                        : 'text-slate-700 hover:text-primary-teal hover:bg-white/60'
+                                }`}
+                            >
+                                <Users className="w-4 h-4" />
+                                <span>Patients</span>
                             </Link>
-                            <Link to="/appointments" className={getLinkClass('/appointments')} title="Appointments">
-                                <Calendar className="w-5 h-5" />
+                            <Link 
+                                to="/appointments" 
+                                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 flex items-center gap-1.5 ${
+                                    location.pathname === '/appointments'
+                                        ? 'text-primary-teal font-bold bg-white shadow-sm'
+                                        : 'text-slate-700 hover:text-primary-teal hover:bg-white/60'
+                                }`}
+                            >
+                                <Calendar className="w-4 h-4" />
+                                <span>Schedule</span>
                             </Link>
                         </>
                     )}

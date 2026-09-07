@@ -59,7 +59,7 @@ const SLIDES = [
     img: '/images/hero_clinic.jpg',
     badge: 'State-of-the-Art Care',
     title: 'Experience professional and personalized dental excellence.',
-    accent: 'Lumina Digital Workspace'
+    accent: 'Dentia Clinical Workspace'
   },
   {
     img: '/images/hero_slide2.jpg',
