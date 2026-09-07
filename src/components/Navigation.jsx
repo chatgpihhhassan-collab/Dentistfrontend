@@ -61,9 +61,6 @@ export default function Navigation() {
                         title="Home"
                     >
                         <Home className="w-5 h-5" />
-                        <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-[10.5px] font-bold px-2 py-0.5 rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                            Home
-                        </span>
                     </Link>
                     
                     {doctor && (
@@ -71,22 +68,16 @@ export default function Navigation() {
                             <Link 
                                 to="/directory" 
                                 className={getLinkClass(location.pathname === '/directory' || location.pathname.startsWith('/chart'))}
-                                title="Patients"
+                                title="Patient Directory"
                             >
                                 <Users className="w-5 h-5" />
-                                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-[10.5px] font-bold px-2 py-0.5 rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                                    Patients
-                                </span>
                             </Link>
                             <Link 
                                 to="/appointments" 
                                 className={getLinkClass(location.pathname === '/appointments')}
-                                title="Schedule"
+                                title="Appointments Schedule"
                             >
                                 <Calendar className="w-5 h-5" />
-                                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-[10.5px] font-bold px-2 py-0.5 rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                                    Schedule
-                                </span>
                             </Link>
                         </>
                     )}
@@ -97,9 +88,6 @@ export default function Navigation() {
                         title="Treatments"
                     >
                         <Stethoscope className="w-5 h-5" />
-                        <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-[10.5px] font-bold px-2 py-0.5 rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                            Treatments
-                        </span>
                     </Link>
                     <a 
                         href="/#about" 
@@ -107,9 +95,6 @@ export default function Navigation() {
                         title="About Us"
                     >
                         <Info className="w-5 h-5" />
-                        <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-[10.5px] font-bold px-2 py-0.5 rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                            About Us
-                        </span>
                     </a>
                     <a 
                         href="/#team" 
@@ -117,19 +102,13 @@ export default function Navigation() {
                         title="Our Doctors"
                     >
                         <UserCheck className="w-5 h-5" />
-                        <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-[10.5px] font-bold px-2 py-0.5 rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                            Our Doctors
-                        </span>
                     </a>
                     <a 
                         href="/#reviews" 
                         className={getLinkClass(location.hash === '#reviews')}
-                        title="Reviews"
+                        title="Patient Reviews"
                     >
                         <Star className="w-5 h-5" />
-                        <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-[10.5px] font-bold px-2 py-0.5 rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                            Reviews
-                        </span>
                     </a>
                 </nav>
 
