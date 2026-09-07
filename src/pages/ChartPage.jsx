@@ -6726,7 +6726,7 @@ export default function ChartPage() {
                           <button
                             type="button"
                             onClick={() => setShowOrthoTmjModal(false)}
-                            className="text-slate-400 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-100 cursor-pointer transition-colors"
+                            className="text-slate-500 hover:text-slate-800 p-2 rounded-xl hover:bg-slate-100 cursor-pointer transition-colors"
                           >
                             <X className="w-5 h-5" />
                           </button>
@@ -6827,7 +6827,7 @@ export default function ChartPage() {
                                   setDetailedTooth(null);
                                   setShowPaletteDrawer(false);
                                 }}
-                                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors"
+                                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer transition-colors"
                               >
                                 <X className="w-4 h-4" />
                               </button>
@@ -7141,7 +7141,7 @@ export default function ChartPage() {
                             <button
                               type="button"
                               onClick={() => setShowObservationsDrawer(false)}
-                              className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+                              className="text-slate-500 hover:text-slate-800 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
                               title="Close Drawer"
                             >
                               <X className="w-5 h-5" />
@@ -7506,7 +7506,7 @@ export default function ChartPage() {
                               <button
                                 type="button"
                                 onClick={() => setEditingToothData(null)}
-                                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+                                className="text-slate-500 hover:text-slate-800 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
                               >
                                 <X className="w-5 h-5" />
                               </button>
@@ -7869,7 +7869,7 @@ export default function ChartPage() {
 
                 {/* Clean Rotated Vertical Clinical Copilot Badge */}
                 <div className="flex-1 flex items-center justify-center my-4 overflow-hidden">
-                  <div className="-rotate-90 whitespace-nowrap text-[10px] font-black tracking-widest text-slate-400 group-hover:text-blue-600 uppercase transition-colors flex items-center gap-2">
+                  <div className="-rotate-90 whitespace-nowrap text-[10px] font-black tracking-widest text-slate-500 group-hover:text-blue-600 uppercase transition-colors flex items-center gap-2">
                     <Brain className="w-3.5 h-3.5 text-blue-500 rotate-90" />
                     <span>Clinical AI Copilot</span>
                   </div>
@@ -7880,7 +7880,7 @@ export default function ChartPage() {
                   <div className="w-6 h-6 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center shadow-2xs">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                   </div>
-                  <span className="text-[8px] font-black tracking-wider text-slate-400 uppercase">Online</span>
+                  <span className="text-[8px] font-black tracking-wider text-slate-500 uppercase">Online</span>
                 </div>
               </div>
             ) : (
@@ -7952,7 +7952,7 @@ export default function ChartPage() {
                     <button
                       type="button"
                       onClick={() => setIsChatCollapsed(true)}
-                      className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                      className="p-1.5 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
                       title="Collapse Messages Panel"
                     >
                       <ChevronRight className="w-4 h-4" />
@@ -8193,7 +8193,7 @@ export default function ChartPage() {
                           </div>
 
                           {/* Footer Timestamp */}
-                          <div className="flex items-center justify-between pt-1 border-t border-blue-100 text-[9px] text-slate-400 font-medium">
+                          <div className="flex items-center justify-between pt-1 border-t border-blue-100 text-[9px] text-slate-500 font-medium">
                             <span>Live EHR Database Connected</span>
                             <span>{m.time || 'Today'}</span>
                           </div>
@@ -8426,7 +8426,7 @@ export default function ChartPage() {
                                         >
                                           {item.surfaceCode ? `${item.surfaceCode} ` : ''}{item.finalStatus}
                                         </span>
-                                        <span className="text-[9px] font-bold text-slate-400">
+                                        <span className="text-[9px] font-bold text-slate-500">
                                           CDT: {item.cdtCode}
                                         </span>
                                       </div>
@@ -8812,7 +8812,7 @@ export default function ChartPage() {
                             />
                           )}
 
-                          <span className={`text-[8.5px] block mt-1 text-right ${isDoc ? 'text-slate-300' : 'text-slate-400'}`}>{m.time}</span>
+                          <span className={`text-[8.5px] block mt-1 text-right ${isDoc ? 'text-slate-300' : 'text-slate-500'}`}>{m.time}</span>
                         </div>
                       </div>
                     );
@@ -8836,7 +8836,7 @@ export default function ChartPage() {
                         }
                       }}
                       placeholder="Type clinical notes, diagnosis, or prescriptions..."
-                      className="min-w-0 flex-1 bg-transparent border-0 focus:outline-none text-xs text-slate-800 font-medium placeholder-slate-400 resize-none max-h-20 min-h-[34px] py-1.5 leading-snug"
+                      className="min-w-0 flex-1 bg-transparent border-0 focus:outline-none text-xs text-slate-800 font-medium placeholder-slate-500 resize-none max-h-20 min-h-[34px] py-1.5 leading-snug"
                     />
 
                     {/* Action buttons inside dock */}
@@ -8863,7 +8863,7 @@ export default function ChartPage() {
                       </button>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between text-[9.5px] text-slate-400 font-bold mt-1.5 px-1">
+                  <div className="flex items-center justify-between text-[9.5px] text-slate-500 font-bold mt-1.5 px-1">
                     <span>Press <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 font-mono text-[8.5px]">Enter ↵</kbd> to send</span>
                     <span className="flex items-center gap-1 text-emerald-600 font-extrabold">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />

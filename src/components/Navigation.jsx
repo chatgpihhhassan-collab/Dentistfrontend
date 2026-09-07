@@ -72,7 +72,7 @@ export default function Navigation() {
                             <Link 
                                 to="/directory" 
                                 className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 flex items-center gap-1.5 ${
-                                    location.pathname === '/directory'
+                                    location.pathname === '/directory' || location.pathname.startsWith('/chart')
                                         ? 'text-primary-teal font-bold bg-white shadow-sm'
                                         : 'text-slate-700 hover:text-primary-teal hover:bg-white/60'
                                 }`}

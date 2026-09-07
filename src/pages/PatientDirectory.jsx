@@ -646,7 +646,7 @@ export default function PatientDirectory() {
                         </h2>
                     </div>
                     <div className="relative w-full sm:w-80">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#93A0AF]" />
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                         <input 
                             type="text" 
                             placeholder="Find Patients or Appointments..." 
@@ -1075,7 +1075,7 @@ export default function PatientDirectory() {
                                                              type="button"
                                                              onClick={handleResetTreatmentPlanInDB}
                                                              disabled={savingTreatment}
-                                                             className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-200 cursor-pointer transition-all disabled:opacity-50"
+                                                             className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-200 cursor-pointer transition-all disabled:opacity-50"
                                                              title="Reset and clear this treatment plan from database"
                                                          >
                                                              <RotateCcw className="w-3 h-3" />
@@ -1518,10 +1518,10 @@ export default function PatientDirectory() {
                                                      <div className="space-y-1">
                                                          <div className="flex justify-between items-center text-[10px] font-black text-dark-slate uppercase tracking-wider">
                                                              <span>Missing</span>
-                                                             <span className="text-[#94A3B8] font-black">{missingPct}%</span>
+                                                             <span className="text-[#64748B] font-black">{missingPct}%</span>
                                                          </div>
                                                          <div className="w-full bg-[#EAF0FC] h-2 rounded-full overflow-hidden">
-                                                             <div className="bg-[#94A3B8] h-full rounded-full" style={{ width: `${missingPct}%` }}></div>
+                                                             <div className="bg-[#64748B] h-full rounded-full" style={{ width: `${missingPct}%` }}></div>
                                                          </div>
                                                      </div>
                                                  </div>
@@ -1808,7 +1808,7 @@ export default function PatientDirectory() {
                                 if (filtered.length === 0) {
                                     return (
                                         <div className="text-center py-16 space-y-2">
-                                            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
+                                            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto text-slate-500">
                                                 <FileText className="w-6 h-6" />
                                             </div>
                                             <p className="text-xs font-bold text-dark-slate">No Clinical Logs Found</p>
@@ -1884,13 +1884,13 @@ export default function PatientDirectory() {
                                 </div>
                                 <div>
                                     <h3 className="text-base font-bold text-slate-900">Edit Patient Information</h3>
-                                    <span className="text-[10px] text-slate-400 font-bold">Patient ID: #{editPatientModal.patient?.patientID}</span>
+                                    <span className="text-[10px] text-slate-500 font-bold">Patient ID: #{editPatientModal.patient?.patientID}</span>
                                 </div>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setEditPatientModal({ visible: false, patient: null })}
-                                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+                                className="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg cursor-pointer"
                             >
                                 <X className="w-4 h-4" />
                             </button>

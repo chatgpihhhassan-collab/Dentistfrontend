@@ -193,10 +193,33 @@ export default function Auth() {
 
                         <button 
                             type="submit" 
-                            className="w-full bg-primary-teal hover:bg-primary-hover text-white font-bold py-4 px-4 rounded-full shadow-sm transition-all transform hover:-translate-y-0.5 cursor-pointer"
+                            className="w-full bg-primary-teal hover:bg-primary-hover text-white font-bold py-3.5 px-4 rounded-full shadow-sm transition-all transform hover:-translate-y-0.5 cursor-pointer"
                         >
                             {isLogin ? 'Open patient chart' : 'Create Account'}
                         </button>
+
+                        {isLogin && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const demoDoctor = {
+                                        doctorID: 1,
+                                        firstName: 'Sarah',
+                                        lastName: 'Bennett',
+                                        name: 'Dr. Sarah Bennett',
+                                        email: 's.bennett@dentia.com',
+                                        region: 'NZ',
+                                        token: 'demo-session-token'
+                                    };
+                                    localStorage.setItem('doctor', JSON.stringify(demoDoctor));
+                                    navigate('/directory');
+                                }}
+                                className="w-full py-3 px-4 rounded-full border border-[#4A7CD2]/40 bg-[#EAF0FC]/80 hover:bg-[#EAF0FC] text-[#4A7CD2] font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs mt-2"
+                            >
+                                <Sparkles className="w-4 h-4 text-[#4A7CD2]" />
+                                Instant Clinician Demo Access (Dr. Sarah Bennett)
+                            </button>
+                        )}
                     </form>
 
                     <div className="mt-6 text-center">
