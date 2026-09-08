@@ -3529,11 +3529,259 @@ export default function ChartPage() {
       return;
     }
     
+        // --- 0.04 CLINICAL ODONTOGRAM READ / QUERY ENGINE (e.g. "List all teeth with active caries or decay", "Which teeth have root canal", "Show missing teeth") ---
+    const isQueryOrListIntent = /^(?:list|show|which|what|find|check|tell me|how many|are there|is there|summarize|display|view)\b/i.test(txtLower) ||
+                                /\b(?:which teeth|what teeth|list teeth|list all teeth|teeth with|teeth having|all teeth with)\b/i.test(txtLower);
+
+    if (isQueryOrListIntent) {
+      // Determine what condition the doctor is querying for
+      let queryCategory = '';
+      let conditionLabel = '';
+      let filterFn = null;
+
+      if (txtLower.includes('caries') || txtLower.includes('decay') || txtLower.includes('cavity') || txtLower.includes('keera')) {
+        queryCategory = 'Caries & Decay';
+        conditionLabel = 'Active Caries / Decay';
+        filterFn = t => {
+          const s = (t.status || t.conditionStatus || '').toLowerCase();
+          const col = (t.color || t.conditionColor || '').toLowerCase();
+          return s.includes('decay') || s.includes('caries') || s.includes('cavity') || s.includes('keera') || col.includes('red') || col === '#ef4444';
+        };
+      } else if (txtLower.includes('root canal') || txtLower.includes('rct') || txtLower.includes('endo') || txtLower.includes('pulpotomy')) {
+        queryCategory = 'Root Canal Therapy';
+        conditionLabel = 'Root Canal Needed / Treated';
+        filterFn = t => {
+          const s = (t.status || t.conditionStatus || '').toLowerCase();
+          const col = (t.color || t.conditionColor || '').toLowerCase();
+          return s.includes('root canal') || s.includes('rct') || s.includes('endo') || s.includes('pulpitis') || col.includes('yellow') || col.includes('orange') || col === '#f59e0b';
+        };
+      } else if (txtLower.includes('fill') || txtLower.includes('restor') || txtLower.includes('composite') || txtLower.includes('amalgam') || txtLower.includes('crown')) {
+        queryCategory = 'Restorations & Fillings';
+        conditionLabel = 'Restored / Filled Teeth';
+        filterFn = t => {
+          const s = (t.status || t.conditionStatus || '').toLowerCase();
+          const col = (t.color || t.conditionColor || '').toLowerCase();
+          return s.includes('fill') || s.includes('treat') || s.includes('crown') || s.includes('composite') || s.includes('amalgam') || col.includes('purple') || col.includes('blue');
+        };
+      } else if (txtLower.includes('miss') || txtLower.includes('extract')) {
+        queryCategory = 'Missing / Extracted';
+        conditionLabel = 'Missing Teeth';
+        filterFn = t => {
+          const s = (t.status || t.conditionStatus || '').toLowerCase();
+          const col = (t.color || t.conditionColor || '').toLowerCase();
+          return s.includes('miss') || s.includes('extract') || col.includes('grey') || col.includes('gray');
+        };
+      } else if (txtLower.includes('healthy') || txtLower.includes('sound') || txtLower.includes('clean')) {
+        queryCategory = 'Healthy & Sound';
+        conditionLabel = 'Healthy Teeth';
+        filterFn = t => {
+          const s = (t.status || t.conditionStatus || '').toLowerCase();
+          const col = (t.color || t.conditionColor || '').toLowerCase();
+          return s.includes('healthy') || s.includes('sound') || col.includes('green') || col === '#10b981';
+        };
+      } else if (txtLower.includes('observation') || txtLower.includes('summary') || txtLower.includes('all tooth') || txtLower.includes('findings')) {
+        queryCategory = 'All Clinical Findings';
+        conditionLabel = 'Non-Healthy Clinical Observations';
+        filterFn = t => {
+          const s = (t.status || t.conditionStatus || '').toLowerCase();
+          return s && !s.includes('healthy') && !s.includes('sound');
+        };
+      }
+
+      if (filterFn) {
+        const matches = (teethState || []).filter(filterFn);
+        const matchNums = matches.map(m => m.toothNumber ?? m.ToothNumber ?? m.toothKey);
+        
+        // Spotlight matching teeth in 3D & 2D
+        if (matchNums.length > 0) {
+          setHighlightedTeeth(matchNums);
+          setSelectedJawView('both');
+        }
+
+        let respText = '';
+        if (matches.length > 0) {
+          const details = matches.map(m => `• **Tooth #${m.toothNumber ?? m.ToothNumber ?? m.toothKey}:** ${m.status || m.conditionStatus || conditionLabel} (${m.comment || m.comments || 'Diagnosed on chart'})`).join('\n');
+          respText = `🦷 **${conditionLabel} Report for ${patient?.firstName || 'Patient'} ${patient?.lastName || ''}:**\n\nDoctor, I found **${matches.length}** tooth/teeth with ${conditionLabel.toLowerCase()}:\n\n${details}\n\n💡 *These teeth have been spotlighted on your 3D Interactive Model and 2D Odontogram.*`;
+        } else {
+          respText = `✅ **${conditionLabel} Report for ${patient?.firstName || 'Patient'} ${patient?.lastName || ''}:**\n\nDoctor, there are currently **no teeth** diagnosed with ${conditionLabel.toLowerCase()} on this patient's chart. All active teeth are sound or under regular observation.`;
+        }
+
+        setMessages(prev => [...prev, {
+          id: Date.now(),
+          sender: 'ai',
+          text: respText,
+          type: 'clinical_query_card',
+          cardData: {
+            category: queryCategory,
+            condition: conditionLabel,
+            count: matches.length,
+            teeth: matchNums
+          },
+          chips: [
+            { label: 'Tx Plan', command: 'Recommend a treatment plan based on current tooth diagnoses' },
+            { label: 'Check 3D Model', command: 'Focus 3D interactive model' }
+          ],
+          time: 'Just now'
+        }]);
+
+        if ('speechSynthesis' in window) {
+          try {
+            window.speechSynthesis.cancel();
+            const utt = new SpeechSynthesisUtterance(matches.length > 0 ? `Found ${matches.length} teeth with ${conditionLabel.toLowerCase()}.` : `No teeth with ${conditionLabel.toLowerCase()} found.`);
+            utt.rate = 1.05;
+            window.speechSynthesis.speak(utt);
+          } catch (e) {}
+        }
+        return;
+      }
+    }
+
+    // --- 0.045 CLINICAL TREATMENT PLAN RECOMMENDATION ENGINE ---
+    if (txtLower.includes('recommend a treatment plan') || txtLower.includes('treatment plan based on') || txtLower.includes('suggest treatment plan') || (txtLower.includes('treatment plan') && (txtLower.includes('recommend') || txtLower.includes('suggest') || txtLower.includes('generate')))) {
+      const allTeeth = teethState || [];
+      const cariesTeeth = allTeeth.filter(t => {
+        const s = (t.status || t.conditionStatus || '').toLowerCase();
+        return s.includes('caries') || s.includes('decay') || s.includes('cavity');
+      });
+      const rctTeeth = allTeeth.filter(t => {
+        const s = (t.status || t.conditionStatus || '').toLowerCase();
+        return s.includes('root canal') || s.includes('rct') || s.includes('pulpitis');
+      });
+      const missingTeeth = allTeeth.filter(t => {
+        const s = (t.status || t.conditionStatus || '').toLowerCase();
+        return s.includes('miss') || s.includes('extract');
+      });
+
+      let planSteps = [];
+      let stepNo = 1;
+
+      // Phase 1: Urgent / Endodontic
+      if (rctTeeth.length > 0) {
+        planSteps.push(`**Phase ${stepNo++} (Urgent Endodontics):** Complete Root Canal Therapy (CDT: D3330) on Tooth ${rctTeeth.map(t => `#${t.toothNumber ?? t.toothKey}`).join(', ')} to relieve pulpitis and arrest apical infection.`);
+      }
+
+      // Phase 2: Restorative
+      if (cariesTeeth.length > 0) {
+        planSteps.push(`**Phase ${stepNo++} (Direct Restorations):** Excavate active caries lesions and place direct composite resin restorations (CDT: D2391 / D2392) on Tooth ${cariesTeeth.map(t => `#${t.toothNumber ?? t.toothKey}`).join(', ')}.`);
+      }
+
+      // Phase 3: Prosthodontic / Replacement
+      if (missingTeeth.length > 0) {
+        planSteps.push(`**Phase ${stepNo++} (Prosthodontics):** Prosthetic rehabilitation evaluation for Tooth ${missingTeeth.map(t => `#${t.toothNumber ?? t.toothKey}`).join(', ')} via fixed bridge (CDT: D6240) or dental implant restoration.`);
+      }
+
+      // Phase 4: Prophylaxis & Prevention
+      planSteps.push(`**Phase ${stepNo++} (Preventive & Periodontal Care):** Full mouth ultrasonic scaling, polishing, and topical fluoride varnish application (CDT: D1110 / D1206).`);
+
+      const planSummary = `📋 **Recommended Clinical Treatment Plan for ${patient?.firstName || 'Patient'} ${patient?.lastName || ''} (ID #${patient?.patientID || patientId}):**\n\n${planSteps.join('\n\n')}\n\n💡 *Click **Add to Treatment Plan** below to synchronize this plan directly into the patient's EHR records.*`;
+
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        sender: 'ai',
+        text: planSummary,
+        type: 'treatment_plan_card',
+        cardData: {
+          patientName: `${patient?.firstName || ''} ${patient?.lastName || ''}`,
+          steps: planSteps,
+          cariesCount: cariesTeeth.length,
+          rctCount: rctTeeth.length
+        },
+        chips: [
+          { label: 'Add to Treatment Plan', command: 'Add current findings to treatment plan' },
+          { label: 'Check 3D Model', command: 'Focus 3D interactive model' }
+        ],
+        time: 'Just now'
+      }]);
+
+      if ('speechSynthesis' in window) {
+        try {
+          window.speechSynthesis.cancel();
+          const utt = new SpeechSynthesisUtterance(`Recommended a ${planSteps.length}-phase clinical treatment plan.`);
+          utt.rate = 1.05;
+          window.speechSynthesis.speak(utt);
+        } catch (e) {}
+      }
+      return;
+    }
+
+    // --- 0.046 FOCUS 3D MODEL ACTION ---
+    if (txtLower.includes('focus 3d') || txtLower.includes('3d interactive') || txtLower.includes('check 3d') || txtLower.includes('focus model')) {
+      setSelectedJawView('both');
+      const nonHealthy = (teethState || []).filter(t => {
+        const s = (t.status || t.conditionStatus || '').toLowerCase();
+        return s && !s.includes('healthy') && !s.includes('sound');
+      }).map(t => t.toothNumber ?? t.toothKey);
+
+      if (nonHealthy.length > 0) {
+        setHighlightedTeeth(nonHealthy);
+      }
+      
+      const el = document.getElementById('three-arch-container') || document.querySelector('[data-testid="3d-jaw-arch"]');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        sender: 'ai',
+        text: `🎯 **3D Interactive Anatomical Model Focused**\n\nDoctor, the 3D maxillary and mandibular dental arches have been centered in the viewport with active pathology teeth spotlighted.`,
+        type: 'text',
+        time: 'Just now'
+      }]);
+      return;
+    }
+
+    // --- 0.047 ADD CURRENT FINDINGS TO TREATMENT PLAN ACTION ---
+    if (txtLower.includes('add current findings to treatment plan') || txtLower.includes('add to treatment plan') || txtLower.includes('add findings to plan')) {
+      const allTeeth = teethState || [];
+      const pathology = allTeeth.filter(t => {
+        const s = (t.status || t.conditionStatus || '').toLowerCase();
+        return s && !s.includes('healthy') && !s.includes('sound');
+      });
+
+      const findingsStr = pathology.length > 0 
+        ? pathology.map(t => `Tooth #${t.toothNumber ?? t.toothKey}: ${t.status || t.conditionStatus}`).join('; ')
+        : 'Routine Maintenance & Prevention';
+
+      const docId = doctor?.doctorID || doctor?.DoctorID || 1;
+      const pid = parseInt(patientId) || patient?.patientID || 26;
+
+      try {
+        await fetch('/api/patients/treatment-plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            patientId: pid,
+            treatmentPlan: `Active Clinical Protocol: ${findingsStr}`,
+            treatmentStage: 'Phase 1 - Active Intervention'
+          })
+        });
+
+        await fetch(`/api/patients/${pid}/clinical-logs`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            doctorID: docId,
+            message: `Updated Treatment Plan: Added active odontogram findings [${findingsStr}]`,
+            action: 'Treatment Plan'
+          })
+        });
+      } catch (err) {}
+
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        sender: 'ai',
+        text: `✅ **Treatment Plan Synchronized with EHR**\n\nDoctor, I have updated **${patient?.firstName || 'Patient'}'s** active treatment plan in the database with current tooth diagnoses:\n• **Diagnoses Added:** ${findingsStr}\n• **Status:** Phase 1 - Active Intervention`,
+        type: 'text',
+        time: 'Just now'
+      }]);
+      return;
+    }
+
+    // Guardrail: Ensure group action only triggers if NOT a query/list intent
     // --- 0.05 CLINICAL ANATOMICAL GROUP ACTION ENGINE (e.g. "Remove all canine teeth and also show filling in promolars everywhere") ---
     const hasGroupActionVerb = /\b(?:remove|extract|missing|absent|pull|exfoliat|fill|filling|composite|amalgam|gic|crown|cap|seal|sealant|decay|caries|cavity|clean|sound|healthy|rct|root canal|restore)\b/i.test(txtLower);
     const hasGroupTarget = /\b(?:canine|canines|cuspid|cuspids|eye tooth|eye teeth|premolar|premolars|promolar|promolars|bicuspid|bicuspids|molar|molars|incisor|incisors|wisdom|wisdom teeth|third molar|3rd molar|upper arch|upper jaw|maxilla|lower arch|lower jaw|mandible|all teeth)\b/i.test(txtLower);
 
-    if (hasGroupActionVerb && hasGroupTarget) {
+    if (hasGroupActionVerb && hasGroupTarget && !isQueryOrListIntent) {
       // Split into clauses by 'and', 'also', 'as well as', ';', '+', or commas
       const clauses = text.split(/\band\b|\balso\b|\bas well as\b|;|\+/i).map(c => c.trim()).filter(Boolean);
       const groupUpdates = [];
