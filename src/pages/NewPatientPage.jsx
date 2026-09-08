@@ -4,12 +4,14 @@ import {
     ArrowLeft, UserPlus, ShieldCheck, Sparkles, Mic, MicOff, 
     Loader2, CheckCircle2, Zap, Check, AlertCircle, 
     User, Calendar, Phone, MapPin, Globe, Mail, FileText, Send, RefreshCw, Bot, UserCheck,
-    Camera, UploadCloud, Trash2, Image as ImageIcon, HeartPulse, Stethoscope, Activity, BadgeCheck
+    Camera, UploadCloud, Trash2, Image as ImageIcon, HeartPulse, Stethoscope, Activity, BadgeCheck,
+    Volume2, VolumeX
 } from 'lucide-react';
 import { SearchBox } from '@mapbox/search-js-react';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
 import { getPatientAvatarUrl, validateImageFile, fileToDataUrl } from '../utils/avatarUtils';
+import aiVoice from '../utils/aiVoiceAssistant';
 
 export default function NewPatientPage() {
     const [doctor, setDoctor] = useState(null);
@@ -72,6 +74,98 @@ export default function NewPatientPage() {
     const [recentlySyncedField, setRecentlySyncedField] = useState({});
     const [askedClinicalDetails, setAskedClinicalDetails] = useState(false);
     const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
+
+    // Validation & AI Voice Assistant States
+    const [errors, setErrors] = useState({});
+    const [touched, setTouched] = useState({});
+    const [voiceStatus, setVoiceStatus] = useState({ enabled: true, speaking: false, currentText: '' });
+
+    // Listen to AI voice assistant state changes
+    useEffect(() => {
+        const unsubscribe = aiVoice.subscribe(state => {
+            setVoiceStatus(state);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    const validateField = (field, value) => {
+        const val = typeof value === 'string' ? value.trim() : value;
+        switch (field) {
+            case 'firstName':
+                if (!val) return 'First name is required.';
+                if (val.length < 2) return 'First name must contain at least 2 letters.';
+                if (/[0-9]/.test(val)) return 'First name should only contain letters.';
+                if (!/^[a-zA-Z\s.'-]+$/.test(val)) return 'Invalid characters in first name.';
+                return '';
+            case 'lastName':
+                if (!val) return 'Last name is required.';
+                if (val.length < 2) return 'Last name must contain at least 2 letters.';
+                if (/[0-9]/.test(val)) return 'Last name should only contain letters.';
+                if (!/^[a-zA-Z\s.'-]+$/.test(val)) return 'Invalid characters in last name.';
+                return '';
+            case 'dob':
+                if (!val) return 'Date of birth is required.';
+                const birthDate = new Date(val);
+                if (isNaN(birthDate.getTime())) return 'Please enter a valid calendar date.';
+                const now = new Date();
+                if (birthDate > now) return 'Date of birth cannot be in the future.';
+                if (birthDate.getFullYear() < 1900) return 'Date of birth year is too far in past.';
+                return '';
+            case 'gender':
+                if (!val || val === '') return 'Please select patient gender.';
+                return '';
+            case 'phone':
+                if (!val) return 'Contact phone number is required.';
+                const digits = String(val).replace(/\D/g, '');
+                if (digits.length < 10) return 'Phone number must contain at least 10 digits.';
+                if (/[a-zA-Z]/.test(val)) return 'Phone number should not contain letters.';
+                return '';
+            case 'email':
+                if (val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+                    return 'Please enter a valid email format (e.g. name@domain.com).';
+                }
+                return '';
+            default:
+                return '';
+        }
+    };
+
+    const validateAll = () => {
+        const newErrors = {};
+        const fieldsToValidate = ['firstName', 'lastName', 'dob', 'gender', 'phone'];
+        if (newPatient.email) fieldsToValidate.push('email');
+
+        fieldsToValidate.forEach(field => {
+            const err = validateField(field, newPatient[field]);
+            if (err) newErrors[field] = err;
+        });
+
+        return newErrors;
+    };
+
+    const handleFieldBlur = (field) => {
+        setTouched(prev => ({ ...prev, [field]: true }));
+        const fieldError = validateField(field, newPatient[field]);
+        setErrors(prev => {
+            const updated = { ...prev };
+            if (fieldError) {
+                updated[field] = fieldError;
+                // AI Assistant alerts the doctor aloud if wrong entry
+                const labels = {
+                    firstName: 'first name',
+                    lastName: 'last name',
+                    dob: 'date of birth',
+                    gender: 'gender',
+                    phone: 'contact phone number',
+                    email: 'email address'
+                };
+                aiVoice.speakDoctorError(labels[field] || field, fieldError);
+            } else {
+                delete updated[field];
+            }
+            return updated;
+        });
+    };
     
     const chatScrollContainerRef = useRef(null);
     const recognitionRef = useRef(null);
@@ -442,6 +536,43 @@ export default function NewPatientPage() {
 
     const handleCreatePatient = async (e) => {
         if (e) e.preventDefault();
+
+        // 1. Run Complete Form Validation
+        const validationErrors = validateAll();
+        if (Object.keys(validationErrors).length > 0) {
+            setErrors(validationErrors);
+            const allTouched = { firstName: true, lastName: true, dob: true, gender: true, phone: true };
+            if (newPatient.email) allTouched.email = true;
+            setTouched(allTouched);
+
+            const fieldKeys = ['firstName', 'lastName', 'dob', 'gender', 'phone', 'email'];
+            const firstFailedKey = fieldKeys.find(k => validationErrors[k]);
+            const labels = {
+                firstName: 'first name',
+                lastName: 'last name',
+                dob: 'date of birth',
+                gender: 'gender selection',
+                phone: 'contact phone number',
+                email: 'email address'
+            };
+
+            const spokenAlert = aiVoice.speakDoctorError(labels[firstFailedKey] || firstFailedKey, validationErrors[firstFailedKey]);
+            showToast(`⚠️ ${validationErrors[firstFailedKey]}`, 'error');
+
+            // Log diagnostic guidance in AI chatbot ledger
+            setMessages(prev => [...prev, {
+                id: Date.now() + 1,
+                sender: 'ai',
+                text: `⚠️ **Registration Validation Notice**\n\nDoctor, please complete the required patient fields:\n${Object.entries(validationErrors).map(([k, v]) => `• **${labels[k] || k}**: ${v}`).join('\n')}\n\n*AI Voice Assistant advised: "${spokenAlert}"*`,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            }]);
+
+            // Scroll or focus the invalid input
+            const inputEl = document.querySelector(`[name="${firstFailedKey}"]`);
+            if (inputEl) inputEl.focus();
+            return;
+        }
+
         try {
             const city = newPatient.city;
             const postcode = newPatient.postcode;
@@ -489,6 +620,7 @@ export default function NewPatientPage() {
                 }
 
                 showToast(`Patient ${created.firstName} registered successfully!`, "success");
+                aiVoice.speak(`Doctor, patient ${created.firstName} ${created.lastName} has been registered successfully.`);
                 setTimeout(() => {
                     navigate(`/chart/${created.patientID}`);
                 }, 1000);
@@ -563,12 +695,46 @@ export default function NewPatientPage() {
                         </div>
                     </div>
                     
-                    <button 
-                        onClick={() => navigate('/directory')} 
-                        className="text-[#4A7CD2] hover:text-[#3665B7] bg-[#EAF0FC] border border-light-teal/50 hover:bg-[#D5E1F7] px-3.5 py-1.5 rounded-xl shadow-2xs flex items-center font-bold text-xs transition-all cursor-pointer"
-                    >
-                        <ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Back to Directory
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {/* AI Voice Assistant Toggle & Speaking Indicator */}
+                        <div className="flex items-center gap-1.5 bg-[#EAF0FC]/80 border border-[#4A7CD2]/40 rounded-xl px-2.5 py-1.5 shadow-2xs">
+                            <button
+                                type="button"
+                                onClick={() => aiVoice.toggle()}
+                                title={voiceStatus.enabled ? "Mute AI Voice Assistant" : "Unmute AI Voice Assistant"}
+                                className={`flex items-center gap-1.5 text-xs font-bold transition-colors cursor-pointer ${
+                                    voiceStatus.enabled ? 'text-[#4A7CD2]' : 'text-slate-400'
+                                }`}
+                            >
+                                {voiceStatus.enabled ? (
+                                    <>
+                                        <Volume2 className={`w-4 h-4 ${voiceStatus.speaking ? 'text-blue-600 animate-bounce' : ''}`} />
+                                        <span className="text-[10px] font-black hidden sm:inline">
+                                            {voiceStatus.speaking ? 'AI Speaking...' : 'AI Voice: Active'}
+                                        </span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <VolumeX className="w-4 h-4 text-slate-400" />
+                                        <span className="text-[10px] font-black text-slate-400 hidden sm:inline">AI Voice: Muted</span>
+                                    </>
+                                )}
+                            </button>
+                            {voiceStatus.speaking && (
+                                <span className="flex h-2 w-2 relative">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
+                                </span>
+                            )}
+                        </div>
+
+                        <button 
+                            onClick={() => navigate('/directory')} 
+                            className="text-[#4A7CD2] hover:text-[#3665B7] bg-[#EAF0FC] border border-light-teal/50 hover:bg-[#D5E1F7] px-3.5 py-1.5 rounded-xl shadow-2xs flex items-center font-bold text-xs transition-all cursor-pointer"
+                        >
+                            <ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Back to Directory
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -648,6 +814,28 @@ export default function NewPatientPage() {
                             </div>
                         </div>
 
+                        {/* Live AI Spoken Alert Banner */}
+                        {voiceStatus.speaking && voiceStatus.currentText && (
+                            <div className="p-2.5 bg-blue-50/95 border-2 border-blue-300 rounded-xl flex items-center justify-between gap-2 shadow-sm animate-fade-in flex-shrink-0">
+                                <div className="flex items-center gap-2 overflow-hidden">
+                                    <div className="w-6 h-6 rounded-lg bg-[#2563EB] text-white flex items-center justify-center flex-shrink-0 shadow-2xs">
+                                        <Volume2 className="w-3.5 h-3.5 animate-bounce" />
+                                    </div>
+                                    <p className="text-xs font-bold text-blue-950 truncate">
+                                        <span className="font-black text-[#2563EB] uppercase text-[10px] mr-1">AI Voice:</span>
+                                        {voiceStatus.currentText}
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => aiVoice.stop()}
+                                    className="text-[10px] font-black text-blue-600 hover:text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-200 cursor-pointer flex-shrink-0"
+                                >
+                                    Dismiss
+                                </button>
+                            </div>
+                        )}
+
                         {/* Zero-Scroll Optimized Form Grid */}
                         <form onSubmit={handleCreatePatient} className="flex-1 flex flex-col justify-between space-y-2 min-h-0 overflow-hidden">
                             
@@ -663,17 +851,29 @@ export default function NewPatientPage() {
                                         )}
                                     </div>
                                     <input 
-                                        required 
+                                        name="firstName"
                                         type="text" 
                                         value={newPatient.firstName} 
-                                        onChange={e => setNewPatient({...newPatient, firstName: e.target.value})} 
-                                        className={`w-full border rounded-xl px-3 py-2 text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/25 font-bold transition-all ${
-                                            recentlySyncedField.firstName 
+                                        onBlur={() => handleFieldBlur('firstName')}
+                                        onChange={e => {
+                                            setNewPatient({...newPatient, firstName: e.target.value});
+                                            if (errors.firstName) setErrors(prev => ({ ...prev, firstName: '' }));
+                                        }} 
+                                        className={`w-full border rounded-xl px-3 py-2 text-xs text-dark-slate focus:outline-none focus:ring-2 font-bold transition-all ${
+                                            errors.firstName && touched.firstName
+                                                ? 'bg-red-50/50 border-red-500 focus:ring-red-400/30 text-red-900 ring-2 ring-red-400/20'
+                                                : recentlySyncedField.firstName 
                                                 ? 'bg-emerald-50/70 border-emerald-400 ring-2 ring-emerald-400/20' 
-                                                : 'bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2]'
+                                                : 'bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2] focus:ring-[#4A7CD2]/25'
                                         }`} 
                                         placeholder="Waiting for AI or manual input..." 
                                     />
+                                    {errors.firstName && touched.firstName && (
+                                        <p className="text-[10px] font-bold text-red-600 flex items-center gap-1 mt-1 animate-fade-in">
+                                            <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                                            <span>{errors.firstName}</span>
+                                        </p>
+                                    )}
                                 </div>
                                 <div>
                                     <div className="flex justify-between items-center mb-0.5 ml-1">
@@ -685,17 +885,29 @@ export default function NewPatientPage() {
                                         )}
                                     </div>
                                     <input 
-                                        required 
+                                        name="lastName"
                                         type="text" 
                                         value={newPatient.lastName} 
-                                        onChange={e => setNewPatient({...newPatient, lastName: e.target.value})} 
-                                        className={`w-full border rounded-xl px-3 py-2 text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/25 font-bold transition-all ${
-                                            recentlySyncedField.lastName 
+                                        onBlur={() => handleFieldBlur('lastName')}
+                                        onChange={e => {
+                                            setNewPatient({...newPatient, lastName: e.target.value});
+                                            if (errors.lastName) setErrors(prev => ({ ...prev, lastName: '' }));
+                                        }} 
+                                        className={`w-full border rounded-xl px-3 py-2 text-xs text-dark-slate focus:outline-none focus:ring-2 font-bold transition-all ${
+                                            errors.lastName && touched.lastName
+                                                ? 'bg-red-50/50 border-red-500 focus:ring-red-400/30 text-red-900 ring-2 ring-red-400/20'
+                                                : recentlySyncedField.lastName 
                                                 ? 'bg-emerald-50/70 border-emerald-400 ring-2 ring-emerald-400/20' 
-                                                : 'bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2]'
+                                                : 'bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2] focus:ring-[#4A7CD2]/25'
                                         }`} 
                                         placeholder="Waiting for AI or manual input..." 
                                     />
+                                    {errors.lastName && touched.lastName && (
+                                        <p className="text-[10px] font-bold text-red-600 flex items-center gap-1 mt-1 animate-fade-in">
+                                            <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                                            <span>{errors.lastName}</span>
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
@@ -711,16 +923,28 @@ export default function NewPatientPage() {
                                         )}
                                     </div>
                                     <input 
-                                        required 
+                                        name="dob"
                                         type="date" 
                                         value={newPatient.dob} 
-                                        onChange={e => handleDobChange(e.target.value)} 
-                                        className={`w-full border rounded-xl px-3 py-2 text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/25 font-bold transition-all cursor-pointer ${
-                                            recentlySyncedField.dob 
+                                        onBlur={() => handleFieldBlur('dob')}
+                                        onChange={e => {
+                                            handleDobChange(e.target.value);
+                                            if (errors.dob) setErrors(prev => ({ ...prev, dob: '' }));
+                                        }} 
+                                        className={`w-full border rounded-xl px-3 py-2 text-xs text-dark-slate focus:outline-none focus:ring-2 font-bold transition-all cursor-pointer ${
+                                            errors.dob && touched.dob
+                                                ? 'bg-red-50/50 border-red-500 focus:ring-red-400/30 text-red-900 ring-2 ring-red-400/20'
+                                                : recentlySyncedField.dob 
                                                 ? 'bg-emerald-50/70 border-emerald-400 ring-2 ring-emerald-400/20' 
-                                                : 'bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2]'
+                                                : 'bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2] focus:ring-[#4A7CD2]/25'
                                         }`} 
                                     />
+                                    {errors.dob && touched.dob && (
+                                        <p className="text-[10px] font-bold text-red-600 flex items-center gap-1 mt-1 animate-fade-in">
+                                            <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                                            <span>{errors.dob}</span>
+                                        </p>
+                                    )}
                                 </div>
                                 <div>
                                     <div className="flex justify-between items-center mb-0.5 ml-1">
@@ -733,13 +957,19 @@ export default function NewPatientPage() {
                                     </div>
                                     <div className="relative">
                                         <select 
-                                            required 
+                                            name="gender"
                                             value={newPatient.gender} 
-                                            onChange={e => setNewPatient({...newPatient, gender: e.target.value})} 
-                                            className={`w-full border rounded-xl px-3 py-2 text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/25 font-bold transition-all appearance-none cursor-pointer ${
-                                                recentlySyncedField.gender 
+                                            onBlur={() => handleFieldBlur('gender')}
+                                            onChange={e => {
+                                                setNewPatient({...newPatient, gender: e.target.value});
+                                                if (errors.gender) setErrors(prev => ({ ...prev, gender: '' }));
+                                            }} 
+                                            className={`w-full border rounded-xl px-3 py-2 text-xs text-dark-slate focus:outline-none focus:ring-2 font-bold transition-all appearance-none cursor-pointer ${
+                                                errors.gender && touched.gender
+                                                    ? 'bg-red-50/50 border-red-500 focus:ring-red-400/30 text-red-900 ring-2 ring-red-400/20'
+                                                    : recentlySyncedField.gender 
                                                     ? 'bg-emerald-50/70 border-emerald-400 ring-2 ring-emerald-400/20' 
-                                                    : 'bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2]'
+                                                    : 'bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2] focus:ring-[#4A7CD2]/25'
                                             }`}
                                         >
                                             <option value="" disabled>Select Gender...</option>
@@ -751,6 +981,12 @@ export default function NewPatientPage() {
                                             ▼
                                         </div>
                                     </div>
+                                    {errors.gender && touched.gender && (
+                                        <p className="text-[10px] font-bold text-red-600 flex items-center gap-1 mt-1 animate-fade-in">
+                                            <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                                            <span>{errors.gender}</span>
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
@@ -846,17 +1082,29 @@ export default function NewPatientPage() {
                                         )}
                                     </div>
                                     <input 
-                                        required 
+                                        name="phone"
                                         type="tel" 
                                         value={newPatient.phone} 
-                                        onChange={e => setNewPatient({...newPatient, phone: e.target.value})} 
-                                        className={`w-full border rounded-xl px-3 py-2 text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/25 font-bold transition-all ${
-                                            recentlySyncedField.phone 
+                                        onBlur={() => handleFieldBlur('phone')}
+                                        onChange={e => {
+                                            setNewPatient({...newPatient, phone: e.target.value});
+                                            if (errors.phone) setErrors(prev => ({ ...prev, phone: '' }));
+                                        }} 
+                                        className={`w-full border rounded-xl px-3 py-2 text-xs text-dark-slate focus:outline-none focus:ring-2 font-bold transition-all ${
+                                            errors.phone && touched.phone
+                                                ? 'bg-red-50/50 border-red-500 focus:ring-red-400/30 text-red-900 ring-2 ring-red-400/20'
+                                                : recentlySyncedField.phone 
                                                 ? 'bg-emerald-50/70 border-emerald-400 ring-2 ring-emerald-400/20' 
-                                                : 'bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2]'
+                                                : 'bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2] focus:ring-[#4A7CD2]/25'
                                         }`} 
                                         placeholder={newPatient.region === 'PK' ? "e.g. 0321 4455667" : "e.g. 021 123 4567"} 
                                     />
+                                    {errors.phone && touched.phone && (
+                                        <p className="text-[10px] font-bold text-red-600 flex items-center gap-1 mt-1 animate-fade-in">
+                                            <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                                            <span>{errors.phone}</span>
+                                        </p>
+                                    )}
                                 </div>
                                 <div>
                                     <div className="flex justify-between items-center mb-0.5 ml-1">
@@ -1071,8 +1319,7 @@ export default function NewPatientPage() {
                         <button 
                             type="button" 
                             onClick={handleCreatePatient}
-                            disabled={!newPatient.firstName || !newPatient.lastName}
-                            className="px-5 py-2 bg-[#4A7CD2] hover:bg-[#3665B7] disabled:opacity-50 text-white font-black rounded-xl shadow-md hover:shadow-lg transition-all text-xs cursor-pointer flex items-center gap-1.5"
+                            className="px-5 py-2 bg-[#4A7CD2] hover:bg-[#3665B7] text-white font-black rounded-xl shadow-md hover:shadow-lg transition-all text-xs cursor-pointer flex items-center gap-1.5 transform hover:scale-[1.02] active:scale-[0.98]"
                         >
                             <UserPlus className="w-3.5 h-3.5" />
                             <span>Create Patient Profile</span>

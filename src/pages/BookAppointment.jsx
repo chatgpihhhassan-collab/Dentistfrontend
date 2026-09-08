@@ -5,10 +5,11 @@ import Footer from '../components/Footer';
 import { 
     Calendar, User, Phone, Mail, CheckCircle2, Stethoscope, 
     ChevronRight, CalendarCheck, ExternalLink, ArrowRight, 
-    Search, Check, Users, Sparkles
+    Search, Check, Users, Sparkles, AlertCircle, Volume2, VolumeX
 } from 'lucide-react';
 import { downloadIcsFile, getGoogleCalendarUrl } from './AppointmentsList';
 import { getPatientAvatarUrl } from '../utils/avatarUtils';
+import aiVoice from '../utils/aiVoiceAssistant';
 
 export default function BookAppointment() {
     const navigate = useNavigate();
@@ -33,6 +34,85 @@ export default function BookAppointment() {
     const [lastBookedAppointment, setLastBookedAppointment] = useState(null);
     const [error, setError] = useState('');
     const [emailStatus, setEmailStatus] = useState(null);
+
+    // Form Validation & AI Voice Assistant States
+    const [errors, setErrors] = useState({});
+    const [touched, setTouched] = useState({});
+    const [voiceStatus, setVoiceStatus] = useState({ enabled: true, speaking: false, currentText: '' });
+
+    useEffect(() => {
+        const unsubscribe = aiVoice.subscribe(state => setVoiceStatus(state));
+        return () => unsubscribe();
+    }, []);
+
+    const validateField = (field, value) => {
+        const val = typeof value === 'string' ? value.trim() : value;
+        switch (field) {
+            case 'doctorID':
+                if (!val) return 'Please select an attending specialist.';
+                return '';
+            case 'fullName':
+                if (!val) return 'Patient full name is required.';
+                if (val.length < 2) return 'Patient name must contain at least 2 letters.';
+                if (/[0-9]/.test(val)) return 'Patient name should not contain numbers.';
+                if (!/^[a-zA-Z\s.'-]+$/.test(val)) return 'Invalid characters in patient name.';
+                return '';
+            case 'phone':
+                if (!val) return 'Contact phone number is required.';
+                const digits = String(val).replace(/\D/g, '');
+                if (digits.length < 10) return 'Phone number must contain at least 10 digits.';
+                if (/[a-zA-Z]/.test(val)) return 'Phone number should not contain letters.';
+                return '';
+            case 'preferredDate':
+                if (!val) return 'Appointment date and time is required.';
+                const selectedTime = new Date(val).getTime();
+                if (isNaN(selectedTime)) return 'Please choose a valid calendar date and time.';
+                if (selectedTime < Date.now() - 60000) return 'Appointment date and time cannot be in the past.';
+                return '';
+            case 'email':
+                if (val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+                    return 'Please enter a valid email format (e.g. name@domain.com).';
+                }
+                return '';
+            default:
+                return '';
+        }
+    };
+
+    const validateAll = () => {
+        const errs = {};
+        ['doctorID', 'fullName', 'phone', 'preferredDate'].forEach(k => {
+            const e = validateField(k, formData[k]);
+            if (e) errs[k] = e;
+        });
+        if (formData.email) {
+            const e = validateField('email', formData.email);
+            if (e) errs.email = e;
+        }
+        return errs;
+    };
+
+    const handleFieldBlur = (field) => {
+        setTouched(prev => ({ ...prev, [field]: true }));
+        const fieldError = validateField(field, formData[field]);
+        setErrors(prev => {
+            const updated = { ...prev };
+            if (fieldError) {
+                updated[field] = fieldError;
+                const labels = {
+                    doctorID: 'attending specialist',
+                    fullName: 'patient full name',
+                    phone: 'contact phone number',
+                    preferredDate: 'appointment date and time',
+                    email: 'email address'
+                };
+                aiVoice.speakDoctorError(labels[field] || field, fieldError);
+            } else {
+                delete updated[field];
+            }
+            return updated;
+        });
+    };
 
     const dropdownRef = useRef(null);
 
@@ -108,6 +188,33 @@ export default function BookAppointment() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        // 1. Full Form Validation Check
+        const validationErrors = validateAll();
+        if (Object.keys(validationErrors).length > 0) {
+            setErrors(validationErrors);
+            const allT = { doctorID: true, fullName: true, phone: true, preferredDate: true };
+            if (formData.email) allT.email = true;
+            setTouched(allT);
+
+            const fieldKeys = ['doctorID', 'fullName', 'phone', 'preferredDate', 'email'];
+            const firstFailedKey = fieldKeys.find(k => validationErrors[k]);
+            const labels = {
+                doctorID: 'attending specialist',
+                fullName: 'patient full name',
+                phone: 'contact phone number',
+                preferredDate: 'appointment date and time',
+                email: 'email address'
+            };
+
+            const spokenAlert = aiVoice.speakDoctorError(labels[firstFailedKey] || firstFailedKey, validationErrors[firstFailedKey]);
+            setError(`Doctor, please correct: ${validationErrors[firstFailedKey]}`);
+
+            const el = document.querySelector(`[name="${firstFailedKey}"]`);
+            if (el) el.focus();
+            return;
+        }
+
         try {
             const response = await fetch('/api/appointments', {
                 method: 'POST',
@@ -120,12 +227,17 @@ export default function BookAppointment() {
                 setLastBookedAppointment({ ...formData, appointmentID: data.appointmentID || Date.now(), status: 'Confirmed' });
                 setEmailStatus({ sent: data.emailSent, error: data.emailError });
                 setError('');
+                setErrors({});
+                aiVoice.speak(`Doctor, consultation appointment for ${formData.fullName} has been confirmed successfully.`);
             } else {
                 const errorData = await response.json().catch(() => ({}));
-                setError(errorData.message || 'Failed to book appointment. Please try again.');
+                const msg = errorData.message || 'Failed to book appointment. Please try again.';
+                setError(msg);
+                aiVoice.speakDoctorError(null, msg);
             }
         } catch (err) {
             setError('Server connection error.');
+            aiVoice.speakDoctorError(null, 'Server connection error occurred.');
         }
     };
 
@@ -218,17 +330,74 @@ export default function BookAppointment() {
                             </div>
                         ) : (
                             <div>
-                                <div className="mb-8 space-y-2">
-                                  <span className="text-[#4A7CD2] font-bold tracking-widest uppercase text-xs">Direct Clinic Reservation</span>
-                                  <h3 className="text-3xl font-bold text-slate-900">Request an Appointment</h3>
-                                  <p className="text-slate-500 text-xs font-medium">Select your specialist and pick an existing patient or enter a new one.</p>
+                                <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+                                    <div className="space-y-1">
+                                        <span className="text-[#4A7CD2] font-bold tracking-widest uppercase text-xs">Direct Clinic Reservation</span>
+                                        <h3 className="text-3xl font-bold text-slate-900">Request an Appointment</h3>
+                                        <p className="text-slate-500 text-xs font-medium">Select your specialist and pick an existing patient or enter a new one.</p>
+                                    </div>
+
+                                    {/* AI Voice Assistant Toggle & Speaking Indicator */}
+                                    <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-xl px-2.5 py-1.5 shadow-2xs">
+                                        <button
+                                            type="button"
+                                            onClick={() => aiVoice.toggle()}
+                                            title={voiceStatus.enabled ? "Mute AI Voice Assistant" : "Unmute AI Voice Assistant"}
+                                            className={`flex items-center gap-1.5 text-xs font-bold transition-colors cursor-pointer ${
+                                                voiceStatus.enabled ? 'text-[#4A7CD2]' : 'text-slate-400'
+                                            }`}
+                                        >
+                                            {voiceStatus.enabled ? (
+                                                <>
+                                                    <Volume2 className={`w-4 h-4 ${voiceStatus.speaking ? 'text-blue-600 animate-bounce' : ''}`} />
+                                                    <span className="text-[10.5px] font-black">
+                                                        {voiceStatus.speaking ? 'AI Speaking...' : 'AI Voice: Active'}
+                                                    </span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <VolumeX className="w-4 h-4 text-slate-400" />
+                                                    <span className="text-[10.5px] font-black text-slate-400">AI Voice: Muted</span>
+                                                </>
+                                            )}
+                                        </button>
+                                        {voiceStatus.speaking && (
+                                            <span className="flex h-2 w-2 relative">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
+
+                                {/* Live AI Spoken Alert Banner */}
+                                {voiceStatus.speaking && voiceStatus.currentText && (
+                                    <div className="mb-4 p-2.5 bg-blue-50/95 border-2 border-blue-300 rounded-xl flex items-center justify-between gap-2 shadow-sm animate-fade-in">
+                                        <div className="flex items-center gap-2 overflow-hidden">
+                                            <div className="w-6 h-6 rounded-lg bg-[#2563EB] text-white flex items-center justify-center flex-shrink-0 shadow-2xs">
+                                                <Volume2 className="w-3.5 h-3.5 animate-bounce" />
+                                            </div>
+                                            <p className="text-xs font-bold text-blue-950 truncate">
+                                                <span className="font-black text-[#2563EB] uppercase text-[10px] mr-1">AI Voice:</span>
+                                                {voiceStatus.currentText}
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => aiVoice.stop()}
+                                            className="text-[10px] font-black text-blue-600 hover:text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-200 cursor-pointer flex-shrink-0"
+                                        >
+                                            Dismiss
+                                        </button>
+                                    </div>
+                                )}
                                 
                                 <form className="space-y-4" onSubmit={handleSubmit}>
                                     
                                     {error && (
-                                        <div className="bg-red-50 text-red-600 p-4 rounded-2xl border border-red-100 text-xs font-bold">
-                                            {error}
+                                        <div className="bg-red-50 text-red-600 p-3.5 rounded-2xl border border-red-200 text-xs font-bold flex items-center gap-2">
+                                            <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-500" />
+                                            <span>{error}</span>
                                         </div>
                                     )}
 
@@ -245,10 +414,18 @@ export default function BookAppointment() {
                                         <div className="relative">
                                             <Stethoscope className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                             <select
-                                                required
+                                                name="doctorID"
                                                 value={formData.doctorID}
-                                                onChange={(e) => setFormData({...formData, doctorID: e.target.value})}
-                                                className="w-full pl-11 pr-8 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+                                                onBlur={() => handleFieldBlur('doctorID')}
+                                                onChange={(e) => {
+                                                    setFormData({...formData, doctorID: e.target.value});
+                                                    if (errors.doctorID) setErrors(prev => ({ ...prev, doctorID: '' }));
+                                                }}
+                                                className={`w-full pl-11 pr-8 py-3 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none cursor-pointer border transition-all ${
+                                                    errors.doctorID && touched.doctorID
+                                                        ? 'bg-red-50/40 border-red-500 focus:ring-2 focus:ring-red-400/20'
+                                                        : 'bg-[#F8FAFC] border-[#E2E8F0] focus:ring-2 focus:ring-[#4A7CD2]/20'
+                                                }`}
                                             >
                                                 <option value="" disabled>Choose a Doctor...</option>
                                                 {doctors.map(doc => (
@@ -258,6 +435,12 @@ export default function BookAppointment() {
                                                 ))}
                                             </select>
                                         </div>
+                                        {errors.doctorID && touched.doctorID && (
+                                            <p className="text-[10.5px] font-bold text-red-600 flex items-center gap-1 animate-fade-in">
+                                                <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                                                <span>{errors.doctorID}</span>
+                                            </p>
+                                        )}
                                     </div>
 
                                     {/* 2. Full Name field with Loaded Patient List Dropdown */}
@@ -270,16 +453,22 @@ export default function BookAppointment() {
                                         <div className="relative">
                                             <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                             <input 
-                                                type="text"
-                                                required 
+                                                name="fullName"
+                                                type="text" 
                                                 value={formData.fullName}
                                                 onFocus={() => setShowPatientDropdown(true)}
+                                                onBlur={() => handleFieldBlur('fullName')}
                                                 onChange={(e) => {
                                                     setFormData({...formData, fullName: e.target.value});
                                                     setShowPatientDropdown(true);
+                                                    if (errors.fullName) setErrors(prev => ({ ...prev, fullName: '' }));
                                                 }}
                                                 placeholder="Click to select registered patient or type..." 
-                                                className="w-full pl-11 pr-10 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/20"
+                                                className={`w-full pl-11 pr-10 py-3 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none border transition-all ${
+                                                    errors.fullName && touched.fullName
+                                                        ? 'bg-red-50/40 border-red-500 focus:ring-2 focus:ring-red-400/20'
+                                                        : 'bg-[#F8FAFC] border-[#E2E8F0] focus:ring-2 focus:ring-[#4A7CD2]/20'
+                                                }`}
                                             />
                                             {loadingPatients ? (
                                                 <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
@@ -295,6 +484,12 @@ export default function BookAppointment() {
                                                 </button>
                                             )}
                                         </div>
+                                        {errors.fullName && touched.fullName && (
+                                            <p className="text-[10.5px] font-bold text-red-600 flex items-center gap-1 animate-fade-in">
+                                                <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                                                <span>{errors.fullName}</span>
+                                            </p>
+                                        )}
 
                                         {/* Dropdown Suggestions List */}
                                         {showPatientDropdown && (
@@ -349,27 +544,56 @@ export default function BookAppointment() {
                                             <div className="relative">
                                                 <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                                 <input 
+                                                    name="phone"
                                                     type="tel" 
-                                                    required
                                                     value={formData.phone}
-                                                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                                                    onBlur={() => handleFieldBlur('phone')}
+                                                    onChange={(e) => {
+                                                        setFormData({...formData, phone: e.target.value});
+                                                        if (errors.phone) setErrors(prev => ({ ...prev, phone: '' }));
+                                                    }}
                                                     placeholder="0300 1234567" 
-                                                    className="w-full pl-11 pr-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl text-xs font-medium text-slate-800 focus:outline-none"
+                                                    className={`w-full pl-11 pr-4 py-3 rounded-2xl text-xs font-medium text-slate-800 focus:outline-none border transition-all ${
+                                                        errors.phone && touched.phone
+                                                            ? 'bg-red-50/40 border-red-500 focus:ring-2 focus:ring-red-400/20'
+                                                            : 'bg-[#F8FAFC] border-[#E2E8F0] focus:ring-2 focus:ring-[#4A7CD2]/20'
+                                                    }`}
                                                 />
                                             </div>
+                                            {errors.phone && touched.phone && (
+                                                <p className="text-[10.5px] font-bold text-red-600 flex items-center gap-1 animate-fade-in">
+                                                    <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                                                    <span>{errors.phone}</span>
+                                                </p>
+                                            )}
                                         </div>
                                         <div className="space-y-1.5">
                                             <label className="text-xs font-bold text-slate-700 block">Email Address</label>
                                             <div className="relative">
                                                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                                 <input 
+                                                    name="email"
                                                     type="email" 
                                                     value={formData.email}
-                                                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                                                    onBlur={() => handleFieldBlur('email')}
+                                                    onChange={(e) => {
+                                                        setFormData({...formData, email: e.target.value});
+                                                        if (errors.email) setErrors(prev => ({ ...prev, email: '' }));
+                                                    }}
                                                     placeholder="patient@gmail.com" 
-                                                    className="w-full pl-11 pr-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl text-xs font-medium text-slate-800 focus:outline-none"
+                                                    className={`w-full pl-11 pr-4 py-3 rounded-2xl text-xs font-medium text-slate-800 focus:outline-none border transition-all ${
+                                                        errors.email && touched.email
+                                                            ? 'bg-red-50/40 border-red-500 focus:ring-2 focus:ring-red-400/20'
+                                                            : 'bg-[#F8FAFC] border-[#E2E8F0] focus:ring-2 focus:ring-[#4A7CD2]/20'
+                                                    }`}
                                                 />
                                             </div>
+                                            {errors.email && touched.email && (
+                                                <p className="text-[10.5px] font-bold text-red-600 flex items-center gap-1 animate-fade-in">
+                                                    <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                                                    <span>{errors.email}</span>
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
 
@@ -379,13 +603,27 @@ export default function BookAppointment() {
                                         <div className="relative">
                                             <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                             <input 
+                                                name="preferredDate"
                                                 type="datetime-local" 
-                                                required
                                                 value={formData.preferredDate}
-                                                onChange={(e) => setFormData({...formData, preferredDate: e.target.value})}
-                                                className="w-full pl-11 pr-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+                                                onBlur={() => handleFieldBlur('preferredDate')}
+                                                onChange={(e) => {
+                                                    setFormData({...formData, preferredDate: e.target.value});
+                                                    if (errors.preferredDate) setErrors(prev => ({ ...prev, preferredDate: '' }));
+                                                }}
+                                                className={`w-full pl-11 pr-4 py-3 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none cursor-pointer border transition-all ${
+                                                    errors.preferredDate && touched.preferredDate
+                                                        ? 'bg-red-50/40 border-red-500 focus:ring-2 focus:ring-red-400/20'
+                                                        : 'bg-[#F8FAFC] border-[#E2E8F0] focus:ring-2 focus:ring-[#4A7CD2]/20'
+                                                }`}
                                             />
                                         </div>
+                                        {errors.preferredDate && touched.preferredDate && (
+                                            <p className="text-[10.5px] font-bold text-red-600 flex items-center gap-1 animate-fade-in">
+                                                <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                                                <span>{errors.preferredDate}</span>
+                                            </p>
+                                        )}
                                     </div>
 
                                     {/* 5. Reason for Visit */}
