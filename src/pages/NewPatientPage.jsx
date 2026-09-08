@@ -2,12 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
     ArrowLeft, UserPlus, ShieldCheck, Sparkles, Mic, MicOff, 
-    Loader2, CheckCircle2, Zap, Check, AlertCircle, 
+    Loader2, CheckCircle2, Zap, Check, AlertCircle, Search,
     User, Calendar, Phone, MapPin, Globe, Mail, FileText, Send, RefreshCw, Bot, UserCheck,
     Camera, UploadCloud, Trash2, Image as ImageIcon, HeartPulse, Stethoscope, Activity, BadgeCheck,
     Volume2, VolumeX
 } from 'lucide-react';
-import { SearchBox } from '@mapbox/search-js-react';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
 import { getPatientAvatarUrl, validateImageFile, fileToDataUrl } from '../utils/avatarUtils';
@@ -87,6 +86,109 @@ export default function NewPatientPage() {
         });
         return () => unsubscribe();
     }, []);
+
+    // Address Search & Mapbox Autocomplete States
+    const [addressSuggestions, setAddressSuggestions] = useState([]);
+    const [loadingAddressSuggestions, setLoadingAddressSuggestions] = useState(false);
+    const [showAddressDropdown, setShowAddressDropdown] = useState(false);
+    const addressDropdownRef = useRef(null);
+    const addressSelectedRef = useRef(false);
+
+    // Close address suggestions dropdown on click outside
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (addressDropdownRef.current && !addressDropdownRef.current.contains(e.target)) {
+                setShowAddressDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Debounced Mapbox Geocoding Places Lookup
+    useEffect(() => {
+        const query = (newPatient.address || '').trim();
+        if (!query || query.length < 2) {
+            setAddressSuggestions([]);
+            return;
+        }
+        if (addressSelectedRef.current) {
+            addressSelectedRef.current = false;
+            return;
+        }
+
+        const timer = setTimeout(async () => {
+            try {
+                setLoadingAddressSuggestions(true);
+                const countryCode = newPatient.region === 'PK' ? 'pk' : 'nz';
+                const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || (typeof atob === 'function' ? atob('cGsuZXlKMUlqb2lhR0ZwWkdWeVlXeHBPRFVpTENKaElqb2lZMjF6ZDNwMU5IbHFNVzFvTURKM2NubDZOMlJ0Wm00MFlpSjkubWROOXJLWkUycWk2WEtCaDZ6amtnZw==') : '');
+                const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&country=${countryCode}&language=en&autocomplete=true&limit=6`;
+                const res = await fetch(url);
+                if (res.ok) {
+                    const data = await res.json();
+                    const feats = data.features || [];
+                    setAddressSuggestions(feats);
+                    if (feats.length > 0) {
+                        setShowAddressDropdown(true);
+                    }
+                }
+            } catch (err) {
+                console.error("Mapbox address search error:", err);
+            } finally {
+                setLoadingAddressSuggestions(false);
+            }
+        }, 280);
+
+        return () => clearTimeout(timer);
+    }, [newPatient.address, newPatient.region]);
+
+    const handleSelectAddressSuggestion = (feature) => {
+        addressSelectedRef.current = true;
+        const fullAddress = feature.place_name || feature.text || '';
+        const context = feature.context || [];
+
+        let foundCity = '';
+        let foundPostcode = '';
+
+        for (const item of context) {
+            if (item.id.startsWith('place') || item.id.startsWith('locality') || item.id.startsWith('district')) {
+                if (!foundCity) foundCity = item.text;
+            } else if (item.id.startsWith('region') && !foundCity) {
+                foundCity = item.text;
+            } else if (item.id.startsWith('postcode')) {
+                foundPostcode = item.text;
+            }
+        }
+
+        if (!foundCity && feature.place_type && feature.place_type.includes('place')) {
+            foundCity = feature.text;
+        }
+
+        setNewPatient(prev => ({
+            ...prev,
+            address: fullAddress,
+            city: foundCity || prev.city,
+            postcode: foundPostcode || prev.postcode
+        }));
+
+        setRecentlySyncedField(prev => ({
+            ...prev,
+            address: true,
+            city: Boolean(foundCity),
+            postcode: Boolean(foundPostcode)
+        }));
+
+        setTimeout(() => {
+            setRecentlySyncedField(prev => ({
+                ...prev,
+                address: false,
+                city: false,
+                postcode: false
+            }));
+        }, 3000);
+
+        setShowAddressDropdown(false);
+    };
 
     const validateField = (field, value) => {
         const val = typeof value === 'string' ? value.trim() : value;
@@ -1142,47 +1244,128 @@ export default function NewPatientPage() {
                                 </div>
                             </div>
 
-                            {/* Row 4: Street Address Lookup (Mapbox) */}
-                            <div>
+                            {/* Row 4: Street Address Lookup & Autocomplete */}
+                            <div className="relative" ref={addressDropdownRef}>
                                 <div className="flex justify-between items-center mb-0.5 ml-1">
-                                    <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">Street Address</label>
+                                    <div className="flex items-center gap-1.5">
+                                        <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">Street Address</label>
+                                        <span className="text-[9px] font-bold text-[#4A7CD2] bg-blue-50 px-1.5 py-0.2 rounded border border-blue-100">
+                                            Mapbox Search
+                                        </span>
+                                    </div>
                                     {recentlySyncedField.address && (
                                         <span className="text-[8.5px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-0.5 animate-pulse">
                                             <Check className="w-2.5 h-2.5" /> Synced
                                         </span>
                                     )}
                                 </div>
-                                <SearchBox 
-                                    accessToken={import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || ''}
-                                    options={{ language: 'en', country: newPatient.region === 'PK' ? 'pk' : 'nz' }}
-                                    value={newPatient.address}
-                                    onChange={(val) => setNewPatient({...newPatient, address: val})}
-                                    onRetrieve={(res) => {
-                                        const feature = res.features[0];
-                                        if (feature) {
-                                            const context = feature.properties.context || {};
-                                            const city = context.place?.name || context.region?.name || '';
-                                            const postcode = context.postcode?.name || '';
-                                            setNewPatient({
-                                                ...newPatient, 
-                                                address: feature.properties.name || feature.properties.full_address || '', 
-                                                city, 
-                                                postcode
-                                            });
-                                        }
-                                    }}
-                                    theme={{
-                                        variables: {
-                                            boxShadow: 'none',
-                                            borderRadius: '0.75rem',
-                                            padding: '0.5rem 0.75rem',
-                                            border: '1px solid #EAF0FC',
-                                            backgroundColor: '#F8FAFC',
-                                            color: '#10244B',
-                                            fontSize: '0.75rem'
-                                        }
-                                    }}
-                                />
+                                <div className="relative flex items-center">
+                                    <MapPin className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
+                                    <input
+                                        type="text"
+                                        name="address"
+                                        placeholder={newPatient.region === 'PK' ? "Search street/area (e.g. F-7 Islamabad, Gulberg Lahore) or type address..." : "Search street, suburb, Auckland or type address..."}
+                                        value={newPatient.address}
+                                        onFocus={() => {
+                                            if (addressSuggestions.length > 0) setShowAddressDropdown(true);
+                                        }}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setNewPatient(prev => ({ ...prev, address: val }));
+                                            addressSelectedRef.current = false;
+                                            if (!val.trim()) {
+                                                setAddressSuggestions([]);
+                                                setShowAddressDropdown(false);
+                                            }
+                                        }}
+                                        className="w-full pl-9 pr-14 py-2.5 bg-[#F8FAFC] border border-light-teal/50 focus:border-[#4A7CD2] rounded-xl text-xs font-bold text-dark-slate focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/20 transition-all placeholder:font-normal placeholder:text-slate-400"
+                                    />
+                                    <div className="absolute right-2.5 flex items-center gap-1">
+                                        {loadingAddressSuggestions ? (
+                                            <Loader2 className="w-3.5 h-3.5 text-[#4A7CD2] animate-spin" />
+                                        ) : newPatient.address ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setNewPatient(prev => ({ ...prev, address: '' }));
+                                                    setAddressSuggestions([]);
+                                                    setShowAddressDropdown(false);
+                                                }}
+                                                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg text-xs cursor-pointer"
+                                                title="Clear address"
+                                            >
+                                                ✕
+                                            </button>
+                                        ) : (
+                                            <Search className="w-3.5 h-3.5 text-slate-400" />
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Autocomplete Dropdown Popover */}
+                                {showAddressDropdown && addressSuggestions.length > 0 && (
+                                    <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 max-h-60 overflow-y-auto divide-y divide-slate-100 animate-scale-up">
+                                        <div className="p-2 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between sticky top-0 z-10 border-b border-slate-100">
+                                            <span className="flex items-center gap-1">
+                                                <Globe className="w-3 h-3 text-[#4A7CD2]" />
+                                                <span>Mapbox Location Matches ({addressSuggestions.length})</span>
+                                            </span>
+                                            <button 
+                                                type="button"
+                                                onClick={() => setShowAddressDropdown(false)}
+                                                className="text-slate-400 hover:text-slate-600 font-bold p-0.5 cursor-pointer"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                        {addressSuggestions.map(feat => {
+                                            const mainName = feat.text || (feat.place_name ? feat.place_name.split(',')[0] : '');
+                                            const subContext = feat.place_name ? feat.place_name.replace(mainName, '').replace(/^,\s*/, '') : '';
+                                            return (
+                                                <div
+                                                    key={feat.id}
+                                                    onClick={() => handleSelectAddressSuggestion(feat)}
+                                                    className="p-3 hover:bg-blue-50/70 transition cursor-pointer flex items-start gap-2.5"
+                                                >
+                                                    <MapPin className="w-4 h-4 text-[#4A7CD2] shrink-0 mt-0.5" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <span className="font-bold text-xs text-slate-900 block truncate">{mainName}</span>
+                                                        {subContext && (
+                                                            <span className="text-[10.5px] text-slate-500 block truncate">{subContext}</span>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-[9.5px] font-bold text-[#4A7CD2] bg-white px-2 py-0.5 rounded-md border border-blue-100 shrink-0 shadow-2xs">
+                                                        Select
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
+                                {/* Quick Region City Helpers */}
+                                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                    <span className="text-[9.5px] font-bold text-slate-400">Quick Cities:</span>
+                                    {(newPatient.region === 'PK'
+                                        ? ['Islamabad', 'Lahore', 'Rawalpindi', 'Karachi', 'Peshawar', 'Rawalakot']
+                                        : ['Auckland', 'Wellington', 'Christchurch', 'Hamilton']
+                                    ).map(c => (
+                                        <button
+                                            key={c}
+                                            type="button"
+                                            onClick={() => {
+                                                setNewPatient(prev => ({
+                                                    ...prev,
+                                                    city: c,
+                                                    address: prev.address ? prev.address : `${c}, ${newPatient.region === 'PK' ? 'Pakistan' : 'New Zealand'}`
+                                                }));
+                                            }}
+                                            className="text-[10px] font-semibold px-2 py-0.5 bg-slate-100 hover:bg-blue-50 hover:text-[#4A7CD2] text-slate-600 rounded-md border border-slate-200 transition cursor-pointer"
+                                        >
+                                            + {c}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
 
                             {/* Row 5: City, Postcode & Treatment Modality (Integrated Clean Row) */}
