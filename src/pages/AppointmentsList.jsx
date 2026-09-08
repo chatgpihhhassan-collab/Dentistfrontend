@@ -5,11 +5,12 @@ import {
     ListFilter, ChevronLeft, ChevronRight, ChevronDown, Download, Plus, 
     ExternalLink, CalendarDays, Eye, RefreshCw, Check, X, ShieldAlert,
     Share2, CalendarCheck, Stethoscope, ArrowRight, UserCheck, 
-    FileText, Activity, MapPin
+    FileText, Activity, MapPin, Volume2, VolumeX
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import jsPDF from 'jspdf';
+import aiVoice from '../utils/aiVoiceAssistant';
 
 // Helper: Download .ics calendar event file for Apple / Google / Outlook / Notion Calendar
 export const downloadIcsFile = (appointment, clinicName = "DENTIA Dental Care") => {
@@ -99,15 +100,21 @@ export default function AppointmentsList() {
     const [modalPatients, setModalPatients] = useState([]);
     const [loadingModalPatients, setLoadingModalPatients] = useState(false);
     const [showModalPatientDropdown, setShowModalPatientDropdown] = useState(false);
-    const [newApptForm, setNewApptForm] = useState({
-        fullName: '',
-        phone: '',
-        email: '',
-        preferredDate: new Date().toISOString().slice(0, 16),
-        doctorID: '',
-        reason: 'General Consultation'
+    const [newApptForm, setNewApptForm] = useState(() => {
+        const doc = JSON.parse(localStorage.getItem('doctor') || '{}');
+        return {
+            fullName: '',
+            phone: '',
+            email: '',
+            preferredDate: new Date().toISOString().slice(0, 16),
+            doctorID: doc.doctorID || doc.DoctorID || '',
+            reason: 'General Consultation'
+        };
     });
     const [submittingNew, setSubmittingNew] = useState(false);
+    const [modalErrors, setModalErrors] = useState({});
+    const [modalTouched, setModalTouched] = useState({});
+    const [voiceStatus, setVoiceStatus] = useState({ enabled: true, speaking: false, currentText: '' });
 
     // Kanban Drag & Drop State
     const [draggingApptId, setDraggingApptId] = useState(null);
@@ -182,26 +189,143 @@ export default function AppointmentsList() {
             .catch(err => console.error("Failed to fetch doctors:", err));
     }, []);
 
-    // Fetch patients for modal doctor
+    useEffect(() => {
+        const unsubscribe = aiVoice.subscribe(state => setVoiceStatus(state));
+        return () => unsubscribe();
+    }, []);
+
+    // Helper: open modal with doctor & defaults pre-configured
+    const openNewAppointmentModal = (customFields = {}) => {
+        const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
+        const defaultDocId = doctorData.doctorID || doctorData.DoctorID || (doctors.length > 0 ? doctors[0].doctorID : '');
+        setNewApptForm(prev => ({
+            ...prev,
+            doctorID: prev.doctorID || defaultDocId || '',
+            ...customFields
+        }));
+        setModalErrors({});
+        setModalTouched({});
+        setShowNewModal(true);
+    };
+
+    // Fetch patients for modal doctor with multi-doctor clinic fallback
     useEffect(() => {
         if (!showNewModal) return;
+        let isMounted = true;
+
         const fetchPatients = async () => {
             try {
                 setLoadingModalPatients(true);
-                const url = newApptForm.doctorID ? `/api/patients/doctor/${newApptForm.doctorID}` : '/api/patients';
-                const res = await fetch(url);
-                if (res.ok) {
-                    const data = await res.json();
-                    setModalPatients(Array.isArray(data) ? data : []);
+                const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
+                const loggedInDocId = doctorData.doctorID || doctorData.DoctorID;
+
+                // 1. If a specific doctor is selected, fetch their patients
+                if (newApptForm.doctorID) {
+                    const res = await fetch(`/api/patients/doctor/${newApptForm.doctorID}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (isMounted) setModalPatients(Array.isArray(data) ? data : []);
+                        return;
+                    }
+                }
+
+                // 2. If "Any Specialist" is selected or doctorID is empty,
+                // fetch patients across all doctors in the clinic
+                let targetDoctorIds = [];
+                if (doctors && doctors.length > 0) {
+                    targetDoctorIds = doctors.map(d => d.doctorID);
+                } else if (loggedInDocId) {
+                    targetDoctorIds = [loggedInDocId];
+                } else {
+                    targetDoctorIds = [2];
+                }
+
+                const responses = await Promise.all(
+                    targetDoctorIds.map(id =>
+                        fetch(`/api/patients/doctor/${id}`)
+                            .then(r => (r.ok ? r.json() : []))
+                            .catch(() => [])
+                    )
+                );
+
+                const merged = responses.flat();
+                const uniqueMap = new Map();
+                for (const p of merged) {
+                    if (p && p.patientID && !uniqueMap.has(p.patientID)) {
+                        uniqueMap.set(p.patientID, p);
+                    }
+                }
+
+                const result = Array.from(uniqueMap.values());
+                if (isMounted) {
+                    setModalPatients(result);
                 }
             } catch (e) {
                 console.error("Failed to load modal patients:", e);
+                if (isMounted) setModalPatients([]);
             } finally {
-                setLoadingModalPatients(false);
+                if (isMounted) setLoadingModalPatients(false);
             }
         };
+
         fetchPatients();
-    }, [newApptForm.doctorID, showNewModal]);
+
+        return () => {
+            isMounted = false;
+        };
+    }, [newApptForm.doctorID, showNewModal, doctors]);
+
+    const validateModalField = (field, value) => {
+        const val = typeof value === 'string' ? value.trim() : value;
+        switch (field) {
+            case 'doctorID':
+                if (!val) return 'Please select an attending specialist.';
+                return '';
+            case 'fullName':
+                if (!val) return 'Patient full name is required.';
+                if (val.length < 2) return 'Patient name must contain at least 2 letters.';
+                if (/[0-9]/.test(val)) return 'Patient name should not contain numbers.';
+                if (!/^[a-zA-Z\s.'-]+$/.test(val)) return 'Invalid characters in patient name.';
+                return '';
+            case 'phone':
+                if (!val) return 'Phone number is required.';
+                const cleanPhone = val.replace(/[\s\-\(\)\+]/g, '');
+                if (!/^\d+$/.test(cleanPhone)) return 'Phone number can only contain digits.';
+                if (cleanPhone.length < 10) return 'Phone number must be at least 10 digits.';
+                if (cleanPhone.length > 15) return 'Phone number cannot exceed 15 digits.';
+                return '';
+            case 'email':
+                if (val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+                    return 'Please enter a valid email address (e.g. name@domain.com).';
+                }
+                return '';
+            case 'preferredDate':
+                if (!val) return 'Please choose an appointment date and time.';
+                const selectedTime = new Date(val).getTime();
+                const nowTime = new Date().getTime();
+                if (selectedTime < nowTime - 60000) {
+                    return 'Appointment time cannot be in the past.';
+                }
+                return '';
+            default:
+                return '';
+        }
+    };
+
+    const validateModalAll = () => {
+        const newErrors = {};
+        const fields = ['doctorID', 'fullName', 'phone', 'preferredDate'];
+        if (newApptForm.email) fields.push('email');
+
+        fields.forEach(f => {
+            const err = validateModalField(f, newApptForm[f]);
+            if (err) newErrors[f] = err;
+        });
+
+        setModalErrors(newErrors);
+        setModalTouched(fields.reduce((acc, f) => ({ ...acc, [f]: true }), {}));
+        return newErrors;
+    };
 
     // Status Update Handler
     const handleUpdateStatus = async () => {
@@ -236,8 +360,24 @@ export default function AppointmentsList() {
     // Quick Book Appointment Handler
     const handleCreateAppointment = async (e) => {
         e.preventDefault();
-        setSubmittingNew(true);
         setError('');
+
+        const validationErrors = validateModalAll();
+        if (Object.keys(validationErrors).length > 0) {
+            const firstKey = Object.keys(validationErrors)[0];
+            const errorMsg = validationErrors[firstKey];
+            const labels = {
+                doctorID: 'Attending Specialist',
+                fullName: 'Patient Full Name',
+                phone: 'Phone Number',
+                email: 'Email Address',
+                preferredDate: 'Appointment Date and Time'
+            };
+            aiVoice.speakDoctorError(labels[firstKey] || firstKey, errorMsg);
+            return;
+        }
+
+        setSubmittingNew(true);
         try {
             const res = await fetch('/api/appointments', {
                 method: 'POST',
@@ -250,21 +390,29 @@ export default function AppointmentsList() {
             if (res.ok) {
                 setShowNewModal(false);
                 setToastMessage('New Appointment Scheduled & Confirmed!');
+                aiVoice.speakDoctorSuccess(`Appointment scheduled successfully for ${newApptForm.fullName}.`);
+                const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
+                const defaultDocId = doctorData.doctorID || doctorData.DoctorID || (doctors.length > 0 ? doctors[0].doctorID : '');
                 setNewApptForm({
                     fullName: '',
                     phone: '',
                     email: '',
                     preferredDate: new Date().toISOString().slice(0, 16),
-                    doctorID: '',
+                    doctorID: defaultDocId,
                     reason: 'General Consultation'
                 });
+                setModalErrors({});
+                setModalTouched({});
                 fetchAppointments();
             } else {
                 const data = await res.json().catch(() => ({}));
-                setError(data.message || 'Failed to schedule appointment.');
+                const msg = data.message || 'Failed to schedule appointment.';
+                setError(msg);
+                aiVoice.speak(`Doctor, the appointment could not be scheduled: ${msg}`);
             }
         } catch (err) {
             setError('Server error while scheduling.');
+            aiVoice.speak("Doctor, connection error. Please try again.");
         } finally {
             setSubmittingNew(false);
         }
@@ -569,7 +717,7 @@ export default function AppointmentsList() {
                         <div className="flex items-center justify-end flex-shrink-0">
                             <button
                                 type="button"
-                                onClick={() => setShowNewModal(true)}
+                                onClick={() => openNewAppointmentModal()}
                                 className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-[#4A7CD2] hover:bg-[#3b66b2] active:scale-[0.98] text-white rounded-xl text-xs font-bold transition-all shadow-xs hover:shadow-sm cursor-pointer"
                             >
                                 <Plus className="w-4 h-4" />
@@ -847,8 +995,7 @@ export default function AppointmentsList() {
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         const dateIso = getLocalDateKey(cell.date);
-                                                        setNewApptForm(prev => ({ ...prev, preferredDate: `${dateIso}T10:00` }));
-                                                        setShowNewModal(true);
+                                                        openNewAppointmentModal({ preferredDate: `${dateIso}T10:00` });
                                                     }}
                                                     className="text-[9px] font-bold text-slate-400 hover:text-[#4A7CD2] flex items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100 transition pt-0.5 border-t border-slate-100"
                                                 >
@@ -878,8 +1025,7 @@ export default function AppointmentsList() {
                                     <button
                                         onClick={() => {
                                             const dateIso = getLocalDateKey(selectedDate);
-                                            setNewApptForm(prev => ({ ...prev, preferredDate: `${dateIso}T10:00` }));
-                                            setShowNewModal(true);
+                                            openNewAppointmentModal({ preferredDate: `${dateIso}T10:00` });
                                         }}
                                         className="px-2.5 py-1.5 bg-blue-50 text-[#4A7CD2] hover:bg-[#4A7CD2] hover:text-white rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
                                         title="Book on this date"
@@ -903,8 +1049,7 @@ export default function AppointmentsList() {
                                             <button
                                                 onClick={() => {
                                                     const dateIso = getLocalDateKey(selectedDate);
-                                                    setNewApptForm(prev => ({ ...prev, preferredDate: `${dateIso}T10:00` }));
-                                                    setShowNewModal(true);
+                                                    openNewAppointmentModal({ preferredDate: `${dateIso}T10:00` });
                                                 }}
                                                 className="px-3.5 py-1.5 bg-[#4A7CD2] hover:bg-[#3b66b2] text-white rounded-xl text-xs font-bold transition shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
                                             >
@@ -1507,43 +1652,101 @@ export default function AppointmentsList() {
                                 <Plus className="w-5 h-5 text-[#4A7CD2]" />
                                 <h3 className="text-base font-bold text-slate-900">Schedule New Appointment</h3>
                             </div>
-                            <button
-                                onClick={() => setShowNewModal(false)}
-                                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => aiVoice.toggleMute()}
+                                    className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition flex items-center gap-1.5 cursor-pointer ${
+                                        voiceStatus.enabled
+                                            ? 'bg-blue-50 text-[#4A7CD2] border-blue-200 hover:bg-blue-100'
+                                            : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+                                    }`}
+                                    title={voiceStatus.enabled ? "AI Voice alerts enabled" : "AI Voice alerts muted"}
+                                >
+                                    {voiceStatus.enabled ? (
+                                        <>
+                                            <Volume2 className={`w-3 h-3 text-[#4A7CD2] ${voiceStatus.speaking ? 'animate-bounce' : ''}`} />
+                                            <span>AI Voice: Active</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <VolumeX className="w-3 h-3 text-slate-400" />
+                                            <span>AI Voice: Muted</span>
+                                        </>
+                                    )}
+                                </button>
+                                <button
+                                    onClick={() => setShowNewModal(false)}
+                                    className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
 
-                        <form onSubmit={handleCreateAppointment} className="space-y-4">
+                        {/* Live AI Voice Assistant Spoken Alert Banner */}
+                        {voiceStatus.speaking && voiceStatus.currentText && (
+                            <div className="p-2.5 bg-blue-50/90 border border-blue-200 rounded-2xl flex items-center gap-2.5 text-xs text-[#2A5298] animate-pulse">
+                                <Volume2 className="w-4 h-4 text-[#4A7CD2] shrink-0 animate-bounce" />
+                                <div className="flex-1">
+                                    <span className="font-bold text-[10px] uppercase tracking-wider text-[#4A7CD2] block">AI Clinical Assistant</span>
+                                    <span className="font-semibold text-slate-800">{voiceStatus.currentText}</span>
+                                </div>
+                            </div>
+                        )}
+
+                        <form onSubmit={handleCreateAppointment} className="space-y-3.5" noValidate>
                             {/* 1. Attending Doctor */}
                             <div>
                                 <div className="flex justify-between items-center mb-1">
-                                    <label className="block text-xs font-bold text-slate-600">Attending Specialist</label>
+                                    <label className="block text-xs font-bold text-slate-600">Attending Specialist *</label>
                                     {modalPatients.length > 0 && (
                                         <span className="text-[10px] font-bold text-[#4A7CD2] bg-blue-50 px-2 py-0.5 rounded-md">
-                                            {modalPatients.length} registered patients
+                                            {modalPatients.length} registered patients available
                                         </span>
                                     )}
                                 </div>
                                 <select
                                     value={newApptForm.doctorID}
-                                    onChange={(e) => setNewApptForm(prev => ({ ...prev, doctorID: e.target.value }))}
-                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+                                    onChange={(e) => {
+                                        const docId = e.target.value;
+                                        setNewApptForm(prev => ({ ...prev, doctorID: docId }));
+                                        if (modalTouched.doctorID) {
+                                            const err = validateModalField('doctorID', docId);
+                                            setModalErrors(prev => ({ ...prev, doctorID: err }));
+                                        }
+                                    }}
+                                    onBlur={() => {
+                                        setModalTouched(prev => ({ ...prev, doctorID: true }));
+                                        const err = validateModalField('doctorID', newApptForm.doctorID);
+                                        setModalErrors(prev => ({ ...prev, doctorID: err }));
+                                        if (err) aiVoice.speakDoctorError('Attending Specialist', err);
+                                    }}
+                                    className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-xs font-bold text-slate-800 focus:outline-none cursor-pointer transition ${
+                                        modalTouched.doctorID && modalErrors.doctorID
+                                            ? 'border-rose-400 bg-rose-50/20 ring-1 ring-rose-300'
+                                            : 'border-slate-200 focus:border-[#4A7CD2]'
+                                    }`}
                                 >
-                                    <option value="">Any Specialist</option>
+                                    <option value="">Any Specialist (All Clinic Patients)</option>
                                     {doctors.map(d => (
                                         <option key={d.doctorID} value={d.doctorID}>
                                             Dr. {d.firstName} {d.lastName} ({d.speciality || 'General Dentistry'})
                                         </option>
                                     ))}
                                 </select>
+                                {modalTouched.doctorID && modalErrors.doctorID && (
+                                    <p className="text-[11px] text-rose-500 font-semibold mt-1 flex items-center gap-1">
+                                        <AlertCircle className="w-3 h-3 shrink-0" />
+                                        <span>{modalErrors.doctorID}</span>
+                                    </p>
+                                )}
                             </div>
 
                             {/* 2. Full Name with registered patient dropdown */}
                             <div className="relative">
                                 <label className="block text-xs font-bold text-slate-600 mb-1">
-                                    Patient Full Name * <span className="text-[10px] text-slate-400 font-normal">(select from list or type new)</span>
+                                    Patient Full Name * <span className="text-[10px] text-slate-400 font-normal">(pick from clinic list or type new)</span>
                                 </label>
                                 <div className="relative">
                                     <input
@@ -1552,11 +1755,25 @@ export default function AppointmentsList() {
                                         value={newApptForm.fullName}
                                         onFocus={() => setShowModalPatientDropdown(true)}
                                         onChange={(e) => {
-                                            setNewApptForm(prev => ({ ...prev, fullName: e.target.value }));
+                                            const val = e.target.value;
+                                            setNewApptForm(prev => ({ ...prev, fullName: val }));
                                             setShowModalPatientDropdown(true);
+                                            if (modalTouched.fullName) {
+                                                const err = validateModalField('fullName', val);
+                                                setModalErrors(prev => ({ ...prev, fullName: err }));
+                                            }
+                                        }}
+                                        onBlur={() => {
+                                            setModalTouched(prev => ({ ...prev, fullName: true }));
+                                            const err = validateModalField('fullName', newApptForm.fullName);
+                                            setModalErrors(prev => ({ ...prev, fullName: err }));
                                         }}
                                         placeholder="Click to pick patient or type..."
-                                        className="w-full pl-4 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/20"
+                                        className={`w-full pl-4 pr-9 py-2.5 bg-slate-50 border rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/20 transition ${
+                                            modalTouched.fullName && modalErrors.fullName
+                                                ? 'border-rose-400 bg-rose-50/20 ring-1 ring-rose-300'
+                                                : 'border-slate-200'
+                                        }`}
                                     />
                                     {loadingModalPatients ? (
                                         <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -1566,77 +1783,160 @@ export default function AppointmentsList() {
                                         <button
                                             type="button"
                                             onClick={() => setShowModalPatientDropdown(!showModalPatientDropdown)}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-[10px]"
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-[10px] cursor-pointer"
                                         >
                                             ▼
                                         </button>
                                     )}
                                 </div>
+                                {modalTouched.fullName && modalErrors.fullName && (
+                                    <p className="text-[11px] text-rose-500 font-semibold mt-1 flex items-center gap-1">
+                                        <AlertCircle className="w-3 h-3 shrink-0" />
+                                        <span>{modalErrors.fullName}</span>
+                                    </p>
+                                )}
 
                                 {showModalPatientDropdown && (
-                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto divide-y divide-slate-100">
-                                        <div className="p-2 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                                            <span>Doctor's Patients ({modalPatients.length})</span>
+                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto divide-y divide-slate-100">
+                                        <div className="p-2 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between sticky top-0 z-10 border-b border-slate-100">
+                                            <span>{newApptForm.doctorID ? "Doctor's Patients" : "All Clinic Patients"} ({modalPatients.length})</span>
                                             <button 
                                                 type="button"
                                                 onClick={() => setShowModalPatientDropdown(false)}
-                                                className="text-slate-400 hover:text-slate-600 font-bold"
+                                                className="text-slate-400 hover:text-slate-600 font-bold p-0.5 cursor-pointer"
                                             >
                                                 ✕
                                             </button>
                                         </div>
-                                        {modalPatients
-                                            .filter(p => `${p.firstName || ''} ${p.lastName || ''}`.toLowerCase().includes((newApptForm.fullName || '').toLowerCase()) || (p.phone && p.phone.includes(newApptForm.fullName || '')))
-                                            .map(p => (
-                                                <div
-                                                    key={p.patientID}
-                                                    onClick={() => {
-                                                        const name = `${p.firstName || ''} ${p.lastName || ''}`.trim();
-                                                        setNewApptForm(prev => ({
-                                                            ...prev,
-                                                            fullName: name,
-                                                            phone: p.phone || prev.phone,
-                                                            email: p.email || prev.email
-                                                        }));
-                                                        setShowModalPatientDropdown(false);
-                                                    }}
-                                                    className="p-2.5 hover:bg-blue-50/60 transition cursor-pointer flex items-center justify-between"
-                                                >
-                                                    <div>
-                                                        <span className="font-bold text-xs text-slate-900 block">{p.firstName} {p.lastName}</span>
-                                                        <span className="text-[10px] text-slate-500 block">ID: #{p.patientID} • {p.phone || 'No phone'}</span>
+
+                                        {loadingModalPatients ? (
+                                            <div className="p-4 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                                                <span className="w-3.5 h-3.5 border-2 border-[#4A7CD2] border-t-transparent rounded-full animate-spin"></span>
+                                                <span>Loading clinic patients...</span>
+                                            </div>
+                                        ) : modalPatients.length === 0 ? (
+                                            <div className="p-4 text-center text-xs text-slate-400">
+                                                No patients found. Type patient name above to register for this booking.
+                                            </div>
+                                        ) : (
+                                            (() => {
+                                                const searchVal = (newApptForm.fullName || '').toLowerCase().trim();
+                                                const filtered = modalPatients.filter(p => {
+                                                    if (!searchVal) return true;
+                                                    const name = `${p.firstName || ''} ${p.lastName || ''}`.toLowerCase();
+                                                    const phone = (p.phone || '').replace(/[\s\-]/g, '');
+                                                    return name.includes(searchVal) || phone.includes(searchVal);
+                                                });
+
+                                                if (filtered.length === 0) {
+                                                    return (
+                                                        <div className="p-4 text-center text-xs text-slate-500">
+                                                            No patients match "<span className="font-semibold text-slate-700">{newApptForm.fullName}</span>".
+                                                            <div className="text-[11px] text-slate-400 mt-1">You can proceed with this name as a new booking.</div>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                return filtered.map(p => (
+                                                    <div
+                                                        key={p.patientID}
+                                                        onClick={() => {
+                                                            const name = `${p.firstName || ''} ${p.lastName || ''}`.trim();
+                                                            setNewApptForm(prev => ({
+                                                                ...prev,
+                                                                fullName: name,
+                                                                phone: p.phone || prev.phone,
+                                                                email: p.email || prev.email,
+                                                                doctorID: prev.doctorID || (p.doctorID ? String(p.doctorID) : prev.doctorID)
+                                                            }));
+                                                            setModalErrors(prev => ({ ...prev, fullName: '', phone: '' }));
+                                                            setShowModalPatientDropdown(false);
+                                                        }}
+                                                        className="p-2.5 hover:bg-blue-50/70 transition cursor-pointer flex items-center justify-between"
+                                                    >
+                                                        <div>
+                                                            <span className="font-bold text-xs text-slate-900 block">{p.firstName} {p.lastName}</span>
+                                                            <span className="text-[10px] text-slate-500 block">ID: #{p.patientID} • {p.phone || 'No phone'}</span>
+                                                        </div>
+                                                        <span className="text-[10px] font-bold text-[#4A7CD2] bg-white px-2 py-0.5 rounded border border-blue-100 shadow-2xs">
+                                                            Select
+                                                        </span>
                                                     </div>
-                                                    <span className="text-[10px] font-bold text-[#4A7CD2] bg-white px-2 py-0.5 rounded border border-blue-100 shadow-2xs">
-                                                        Select
-                                                    </span>
-                                                </div>
-                                            ))}
+                                                ));
+                                            })()
+                                        )}
                                     </div>
                                 )}
                             </div>
 
                             {/* 3. Phone & Email */}
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-600 mb-1">Phone Number *</label>
                                     <input
                                         type="tel"
                                         required
                                         value={newApptForm.phone}
-                                        onChange={(e) => setNewApptForm(prev => ({ ...prev, phone: e.target.value }))}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setNewApptForm(prev => ({ ...prev, phone: val }));
+                                            if (modalTouched.phone) {
+                                                const err = validateModalField('phone', val);
+                                                setModalErrors(prev => ({ ...prev, phone: err }));
+                                            }
+                                        }}
+                                        onBlur={() => {
+                                            setModalTouched(prev => ({ ...prev, phone: true }));
+                                            const err = validateModalField('phone', newApptForm.phone);
+                                            setModalErrors(prev => ({ ...prev, phone: err }));
+                                            if (err) aiVoice.speakDoctorError('Phone Number', err);
+                                        }}
                                         placeholder="0300 1234567"
-                                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none"
+                                        className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-xs font-medium text-slate-800 focus:outline-none transition ${
+                                            modalTouched.phone && modalErrors.phone
+                                                ? 'border-rose-400 bg-rose-50/20 ring-1 ring-rose-300'
+                                                : 'border-slate-200'
+                                        }`}
                                     />
+                                    {modalTouched.phone && modalErrors.phone && (
+                                        <p className="text-[11px] text-rose-500 font-semibold mt-1 flex items-center gap-1">
+                                            <AlertCircle className="w-3 h-3 shrink-0" />
+                                            <span>{modalErrors.phone}</span>
+                                        </p>
+                                    )}
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-600 mb-1">Email Address</label>
+                                    <label className="block text-xs font-bold text-slate-600 mb-1">Email Address (Optional)</label>
                                     <input
                                         type="email"
                                         value={newApptForm.email}
-                                        onChange={(e) => setNewApptForm(prev => ({ ...prev, email: e.target.value }))}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setNewApptForm(prev => ({ ...prev, email: val }));
+                                            if (modalTouched.email) {
+                                                const err = validateModalField('email', val);
+                                                setModalErrors(prev => ({ ...prev, email: err }));
+                                            }
+                                        }}
+                                        onBlur={() => {
+                                            setModalTouched(prev => ({ ...prev, email: true }));
+                                            const err = validateModalField('email', newApptForm.email);
+                                            setModalErrors(prev => ({ ...prev, email: err }));
+                                            if (err) aiVoice.speakDoctorError('Email Address', err);
+                                        }}
                                         placeholder="patient@gmail.com"
-                                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none"
+                                        className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-xs font-medium text-slate-800 focus:outline-none transition ${
+                                            modalTouched.email && modalErrors.email
+                                                ? 'border-rose-400 bg-rose-50/20 ring-1 ring-rose-300'
+                                                : 'border-slate-200'
+                                        }`}
                                     />
+                                    {modalTouched.email && modalErrors.email && (
+                                        <p className="text-[11px] text-rose-500 font-semibold mt-1 flex items-center gap-1">
+                                            <AlertCircle className="w-3 h-3 shrink-0" />
+                                            <span>{modalErrors.email}</span>
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
@@ -1647,9 +1947,32 @@ export default function AppointmentsList() {
                                     type="datetime-local"
                                     required
                                     value={newApptForm.preferredDate}
-                                    onChange={(e) => setNewApptForm(prev => ({ ...prev, preferredDate: e.target.value }))}
-                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none"
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setNewApptForm(prev => ({ ...prev, preferredDate: val }));
+                                        if (modalTouched.preferredDate) {
+                                            const err = validateModalField('preferredDate', val);
+                                            setModalErrors(prev => ({ ...prev, preferredDate: err }));
+                                        }
+                                    }}
+                                    onBlur={() => {
+                                        setModalTouched(prev => ({ ...prev, preferredDate: true }));
+                                        const err = validateModalField('preferredDate', newApptForm.preferredDate);
+                                        setModalErrors(prev => ({ ...prev, preferredDate: err }));
+                                        if (err) aiVoice.speakDoctorError('Appointment Date and Time', err);
+                                    }}
+                                    className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-xs font-bold text-slate-800 focus:outline-none transition ${
+                                        modalTouched.preferredDate && modalErrors.preferredDate
+                                            ? 'border-rose-400 bg-rose-50/20 ring-1 ring-rose-300'
+                                            : 'border-slate-200'
+                                    }`}
                                 />
+                                {modalTouched.preferredDate && modalErrors.preferredDate && (
+                                    <p className="text-[11px] text-rose-500 font-semibold mt-1 flex items-center gap-1">
+                                        <AlertCircle className="w-3 h-3 shrink-0" />
+                                        <span>{modalErrors.preferredDate}</span>
+                                    </p>
+                                )}
                             </div>
 
                             <div>
@@ -1664,8 +1987,9 @@ export default function AppointmentsList() {
                             </div>
 
                             {error && (
-                                <div className="p-3 bg-red-50 rounded-xl text-xs text-red-600 font-bold">
-                                    {error}
+                                <div className="p-3 bg-red-50 rounded-xl text-xs text-red-600 font-bold flex items-center gap-1.5">
+                                    <AlertCircle className="w-4 h-4 shrink-0" />
+                                    <span>{error}</span>
                                 </div>
                             )}
 

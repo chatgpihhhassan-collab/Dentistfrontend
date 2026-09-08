@@ -134,26 +134,63 @@ export default function BookAppointment() {
 
     // Fetch patients whenever selected doctorID changes
     useEffect(() => {
+        let isMounted = true;
         const fetchPatientsForDoctor = async () => {
             try {
                 setLoadingPatients(true);
-                const url = formData.doctorID 
-                    ? `/api/patients/doctor/${formData.doctorID}` 
-                    : '/api/patients';
-                const res = await fetch(url);
-                if (res.ok) {
-                    const data = await res.json();
-                    setPatients(Array.isArray(data) ? data : []);
+                // 1. If a specific doctor is selected, fetch their patients
+                if (formData.doctorID) {
+                    const res = await fetch(`/api/patients/doctor/${formData.doctorID}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (isMounted) setPatients(Array.isArray(data) ? data : []);
+                        return;
+                    }
+                }
+
+                // 2. If no specific doctor is selected, fetch patients for all doctors in clinic
+                let targetDoctorIds = [];
+                if (doctors && doctors.length > 0) {
+                    targetDoctorIds = doctors.map(d => d.doctorID);
+                } else {
+                    const doc = JSON.parse(localStorage.getItem('doctor') || '{}');
+                    const loggedInDocId = doc.doctorID || doc.DoctorID;
+                    targetDoctorIds = loggedInDocId ? [loggedInDocId] : [2];
+                }
+
+                const responses = await Promise.all(
+                    targetDoctorIds.map(id =>
+                        fetch(`/api/patients/doctor/${id}`)
+                            .then(r => (r.ok ? r.json() : []))
+                            .catch(() => [])
+                    )
+                );
+
+                const merged = responses.flat();
+                const uniqueMap = new Map();
+                for (const p of merged) {
+                    if (p && p.patientID && !uniqueMap.has(p.patientID)) {
+                        uniqueMap.set(p.patientID, p);
+                    }
+                }
+
+                if (isMounted) {
+                    setPatients(Array.from(uniqueMap.values()));
                 }
             } catch (err) {
                 console.error("Failed to fetch patients:", err);
+                if (isMounted) setPatients([]);
             } finally {
-                setLoadingPatients(false);
+                if (isMounted) setLoadingPatients(false);
             }
         };
 
         fetchPatientsForDoctor();
-    }, [formData.doctorID]);
+
+        return () => {
+            isMounted = false;
+        };
+    }, [formData.doctorID, doctors]);
 
     // Close dropdown on click outside
     useEffect(() => {
