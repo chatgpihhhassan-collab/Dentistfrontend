@@ -25,7 +25,8 @@ export default function Tooth3DCanvasViewer({
 
     const status = (currentToothData?.status || 'Healthy').toLowerCase();
     const comments = (currentToothData?.comments || currentToothData?.comment || '').toLowerCase();
-    const fullDiag = `${status} ${comments}`;
+    const fullDiag = `${status} ${comments} ${Object.values(activeSurfaces).join(' ')}`.toLowerCase();
+    const isCleaning = fullDiag.includes('clean') || fullDiag.includes('scaling') || fullDiag.includes('calculus') || fullDiag.includes('tartar') || fullDiag.includes('plaque') || fullDiag.includes('prophylaxis');
 
     const isPediatricTooth = typeof toothIdentifier === 'string' && isNaN(parseInt(toothIdentifier, 10));
     const tUpper = String(toothIdentifier).toUpperCase();
@@ -796,6 +797,111 @@ export default function Tooth3DCanvasViewer({
       ctx.restore();
     }
 
+    // Prophylaxis & Teeth Cleaning Needed (Supragingival Calculus, Plaque Deposits & Ultrasonic Scaling Aura)
+    if (isCleaning) {
+      ctx.save();
+      // 1. Luminous Sapphire / Azure Prophylaxis Scaling Aura
+      const scalingGlow = ctx.createRadialGradient(256, 256, 110, 256, 256, 225);
+      scalingGlow.addColorStop(0, 'rgba(59, 130, 246, 0.05)');
+      scalingGlow.addColorStop(0.65, 'rgba(59, 130, 246, 0.28)');
+      scalingGlow.addColorStop(1, 'rgba(37, 99, 235, 0.65)');
+      ctx.fillStyle = scalingGlow;
+      ctx.beginPath();
+      if (isPremolar) ctx.ellipse(256, 256, 150, 175, 0, 0, Math.PI * 2);
+      else if (isMolar) ctx.roundRect(80, 90, 352, 332, [60, 60, 60, 60]);
+      else if (isCanine) {
+        ctx.moveTo(256, 75);
+        ctx.bezierCurveTo(395, 150, 405, 350, 256, 435);
+        ctx.bezierCurveTo(107, 350, 117, 150, 256, 75);
+      } else ctx.roundRect(102, 102, 308, 308, [46, 46, 46, 46]);
+      ctx.fill();
+
+      // 2. High-Precision Ultrasonic Scaling Guide Line (Dashed Medical Blue)
+      ctx.strokeStyle = '#3B82F6';
+      ctx.lineWidth = 4.5;
+      ctx.setLineDash([10, 6]);
+      ctx.beginPath();
+      if (isPremolar) ctx.ellipse(256, 256, 142, 168, 0, 0, Math.PI * 2);
+      else if (isMolar) ctx.roundRect(88, 98, 336, 316, [52, 52, 52, 52]);
+      else if (isCanine) {
+        ctx.moveTo(256, 85);
+        ctx.bezierCurveTo(385, 160, 395, 340, 256, 425);
+        ctx.bezierCurveTo(117, 340, 127, 160, 256, 85);
+      } else ctx.roundRect(108, 108, 296, 296, [40, 40, 40, 40]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 3. Supragingival Marginal Calculus & Tartar Mineralized Shelf (Ochre / Dark Amber)
+      const calculusGrad = ctx.createRadialGradient(256, 256, 90, 256, 256, 165);
+      calculusGrad.addColorStop(0, 'rgba(217, 119, 6, 0)');
+      calculusGrad.addColorStop(0.65, 'rgba(245, 158, 11, 0.45)');
+      calculusGrad.addColorStop(0.85, 'rgba(217, 119, 6, 0.85)');
+      calculusGrad.addColorStop(1, 'rgba(180, 83, 9, 0.95)');
+      ctx.fillStyle = calculusGrad;
+      ctx.beginPath();
+      if (isPremolar) ctx.ellipse(256, 256, 138, 162, 0, 0, Math.PI * 2);
+      else if (isMolar) ctx.roundRect(94, 104, 324, 304, [46, 46, 46, 46]);
+      else if (isCanine) {
+        ctx.moveTo(256, 95);
+        ctx.bezierCurveTo(370, 170, 380, 330, 256, 410);
+        ctx.bezierCurveTo(132, 330, 142, 170, 256, 95);
+      } else ctx.roundRect(114, 114, 284, 284, [34, 34, 34, 34]);
+      ctx.fill();
+
+      // 4. Realistic Mineralized Calculus Nodules & Interproximal Plaque Stipples
+      ctx.fillStyle = '#B45309';
+      const noduleAngles = [0.2, 0.55, 0.95, 1.35, 1.85, 2.25, 2.7, 3.2, 3.65, 4.15, 4.65, 5.1, 5.55, 5.95];
+      noduleAngles.forEach((ang, i) => {
+        const radX = isPremolar ? 128 : (isMolar ? 140 : 124);
+        const radY = isPremolar ? 150 : (isMolar ? 134 : 124);
+        const cx = 256 + Math.cos(ang) * (radX + (i % 3) * 5);
+        const cy = 256 + Math.sin(ang) * (radY + ((i + 1) % 3) * 5);
+        ctx.beginPath();
+        ctx.arc(cx, cy, 4.5 + (i % 3) * 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Inner lighter plaque highlight
+        ctx.fillStyle = '#FDE68A';
+        ctx.beginPath();
+        ctx.arc(cx - 1.2, cy - 1.2, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#B45309';
+      });
+
+      // 5. Hygiene Prophylaxis Water Jet / Scaling Indicator Sparkle
+      ctx.save();
+      ctx.strokeStyle = '#60A5FA';
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = '#3B82F6';
+      ctx.shadowBlur = 10;
+      const sx = 328, sy = 182;
+      ctx.beginPath();
+      ctx.moveTo(sx - 15, sy); ctx.lineTo(sx + 15, sy);
+      ctx.moveTo(sx, sy - 15); ctx.lineTo(sx, sy + 15);
+      ctx.stroke();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // 6. Center Ultrasonic Scaling Badge
+      ctx.fillStyle = 'rgba(30, 64, 175, 0.9)';
+      ctx.beginPath();
+      ctx.roundRect(144, 238, 224, 36, [10, 10, 10, 10]);
+      ctx.fill();
+      ctx.strokeStyle = '#60A5FA';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('✨ CLEANING & SCALING', 256, 256);
+
+      ctx.restore();
+    }
+
     return canvas;
   };
 
@@ -966,6 +1072,7 @@ export default function Tooth3DCanvasViewer({
   }, [toothNumber, tNum, tKey, toothData, surfaceData, isPediatric, patient]);
 
   const fullDiagnosisText = `${toothData?.status || ''} ${toothData?.comments || ''} ${toothData?.comment || ''}`.toLowerCase();
+  const isCleaningDiag = fullDiagnosisText.includes('clean') || fullDiagnosisText.includes('scaling') || fullDiagnosisText.includes('calculus') || fullDiagnosisText.includes('tartar') || fullDiagnosisText.includes('plaque') || fullDiagnosisText.includes('prophylaxis');
   const isImplantDiag = fullDiagnosisText.includes('implant');
   const isCrownDiag = (fullDiagnosisText.includes('crown') || fullDiagnosisText.includes('zirconia') || fullDiagnosisText.includes('pfm') || fullDiagnosisText.includes('ceramic')) && !isImplantDiag && !fullDiagnosisText.includes('ssc');
   const isBoneLossDiag = fullDiagnosisText.includes('bone loss') || fullDiagnosisText.includes('periodont') || fullDiagnosisText.includes('furcation');
@@ -1125,6 +1232,13 @@ export default function Tooth3DCanvasViewer({
               <span className="text-xs">🟡</span>
               <span className="text-[11px] font-black tracking-wide uppercase">
                 FIXED SPACE MAINTAINER (CDT D1510)
+              </span>
+            </div>
+          ) : isCleaningDiag ? (
+            <div className="bg-blue-600 text-white px-3.5 py-1.5 rounded-xl shadow-lg border border-blue-400 flex items-center gap-2 animate-pulse">
+              <span className="text-xs">✨</span>
+              <span className="text-[11px] font-black tracking-wide uppercase">
+                TEETH CLEANING & SCALING NEEDED · CALCULUS / PLAQUE (CDT D1110 / D4346)
               </span>
             </div>
           ) : (

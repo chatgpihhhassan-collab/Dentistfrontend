@@ -59,6 +59,7 @@ export const CLINICAL_PRESET_CATEGORIES = [
     shortName: 'Periodontics',
     icon: '⚠️',
     presets: [
+      { id: 'Cleaning Needed', label: 'Cleaning & Scaling Needed', color: '#3B82F6', cdt: 'D1110', icon: '✨' },
       { id: 'Gum Recession', label: 'Gingival Recession', color: '#E0665A', cdt: 'D4341', icon: '🔴' },
       { id: 'Periodontal Bone Loss', label: 'Bone Loss (Furcation)', color: '#E0665A', cdt: 'D4341', icon: '⚠️' },
       { id: 'Pathologic Tooth Mobility', label: 'Tooth Mobility (I-III)', color: '#F43F5E', cdt: 'D4342', icon: '〰️' },
@@ -166,6 +167,11 @@ export const PRESET_CLINICAL_DESCRIPTIONS = {
     title: 'Healthy Intact Enamel & Sound Periodontium',
     meaning: 'Dentition is structurally intact with no detectable caries, pulpal inflammation, or periodontal pockets.',
     clinicalTip: 'Routine preventive prophylaxis and oral hygiene maintenance recommended.'
+  },
+  'Cleaning Needed': {
+    title: 'Dental Prophylaxis & Ultrasonic Scaling Needed',
+    meaning: 'Supragingival and subgingival calculus deposits, plaque biofilm, and extrinsic staining requiring comprehensive dental prophylaxis or scaling (CDT D1110 / D4346).',
+    clinicalTip: 'Perform ultrasonic scaling followed by fine-grit paste polishing and subgingival chlorhexidine irrigation.'
   },
   'Caries — O': {
     title: 'Occlusal Pit & Fissure Caries (Class I)',
@@ -407,6 +413,10 @@ export default function ToothQuickPresetSelector({
       return (s === 'healthy' || s === 'sound' || s.includes('intact primary')) && 
              !fullText.includes('caries') && 
              !fullText.includes('decay') && 
+             !fullText.includes('clean') && 
+             !fullText.includes('scaling') && 
+             !fullText.includes('calculus') && 
+             !fullText.includes('tartar') && 
              !fullText.includes('rct') && 
              !fullText.includes('crown') && 
              !fullText.includes('bone loss') && 
@@ -416,6 +426,10 @@ export default function ToothQuickPresetSelector({
              !fullText.includes('missing') &&
              !fullText.includes('extracted') &&
              !fullText.includes('space maintainer');
+    }
+
+    if (cid === 'Cleaning Needed') {
+      return fullText.includes('clean') || fullText.includes('scaling') || fullText.includes('calculus') || fullText.includes('tartar') || fullText.includes('prophylaxis');
     }
 
     // Pediatric Specific Conditions

@@ -37,6 +37,9 @@ export default function ToothCrossSectionDiagram({
     if (raw.includes('sensitivity') || raw.includes('exposed root')) {
       return '#3B82F6';
     }
+    if (raw.includes('clean') || raw.includes('scaling') || raw.includes('calculus') || raw.includes('tartar') || raw.includes('plaque') || raw.includes('prophylaxis')) {
+      return '#3B82F6';
+    }
     if (raw.includes('implant')) {
       return '#0E8A80';
     }
@@ -74,6 +77,9 @@ export default function ToothCrossSectionDiagram({
     }
     if (raw.includes('implant')) {
       return '#0F766E';
+    }
+    if (raw.includes('clean') || raw.includes('scaling') || raw.includes('calculus') || raw.includes('tartar') || raw.includes('plaque')) {
+      return '#1D4ED8';
     }
     if (raw.includes('caries') || raw.includes('decay') || raw.includes('cavity') || raw.includes('ecc')) {
       return '#991B1B';
@@ -253,6 +259,8 @@ export default function ToothCrossSectionDiagram({
                   <span className={`text-sm font-black ${
                     cleanPal === 'Healthy' 
                       ? 'text-emerald-600' 
+                      : cleanPal.includes('Clean') || cleanPal.includes('Scaling')
+                      ? 'text-blue-600'
                       : cleanPal === 'Caries (Decay)' 
                       ? 'text-rose-600' 
                       : cleanPal.includes('Ortho') || cleanPal.includes('Malocclusion')
@@ -275,11 +283,12 @@ export default function ToothCrossSectionDiagram({
           {/* Palette Selector Buttons */}
           <div className="flex flex-wrap gap-1.5">
             {(isPediatric 
-              ? ['Healthy', 'Ortho Malocclusion', 'Caries (Decay)', 'Composite Filling', 'Pulpotomy (MTA)', 'Stainless Steel Crown (SSC)', 'Space Maintainer', 'Extracted / Missing'] 
-              : ['Healthy', 'Ortho Malocclusion', 'Crown (Zirconia / PFM)', 'Caries (Decay)', 'Composite Filling', 'Amalgam', 'Root Canal (RCT)', 'Dental Implant', 'Extracted / Missing']
+              ? ['Healthy', 'Cleaning Needed', 'Ortho Malocclusion', 'Caries (Decay)', 'Composite Filling', 'Pulpotomy (MTA)', 'Stainless Steel Crown (SSC)', 'Space Maintainer', 'Extracted / Missing'] 
+              : ['Healthy', 'Cleaning Needed', 'Ortho Malocclusion', 'Crown (Zirconia / PFM)', 'Caries (Decay)', 'Composite Filling', 'Amalgam', 'Root Canal (RCT)', 'Dental Implant', 'Extracted / Missing']
             ).map(pal => {
               const isSel = activePaletteItem === pal;
               const isH = pal === 'Healthy';
+              const isClean = pal.includes('Clean') || pal.includes('Scaling');
               const isOrtho = pal.includes('Ortho') || pal.includes('Malocclusion');
               const isCrown = pal.includes('Crown') || pal.includes('Zirconia');
               const isCar = pal.includes('Caries') || pal.includes('Decay');
@@ -291,6 +300,7 @@ export default function ToothCrossSectionDiagram({
 
               let activeClass = 'bg-[#4A7CD2] text-white border-[#4A7CD2] font-black shadow-xs';
               if (isH) activeClass = 'bg-emerald-600 text-white border-emerald-600 font-black shadow-xs';
+              else if (isClean) activeClass = 'bg-blue-600 text-white border-blue-600 font-black shadow-xs';
               else if (isOrtho) activeClass = 'bg-[#2563EB] text-white border-[#2563EB] font-black shadow-xs';
               else if (isCrown) activeClass = 'bg-amber-600 text-white border-amber-600 font-black shadow-xs';
               else if (isCar) activeClass = 'bg-rose-600 text-white border-rose-600 font-black shadow-xs';
@@ -349,9 +359,11 @@ export default function ToothCrossSectionDiagram({
             const isF = clean.toLowerCase().includes('fill') || clean.toLowerCase().includes('composite');
             const isExt = clean.toLowerCase().includes('miss') || clean.toLowerCase().includes('extract') || clean.toLowerCase().includes('absent');
             const isH = clean.toLowerCase() === 'healthy' || clean.toLowerCase() === 'sound';
+            const isClean = clean.toLowerCase().includes('clean') || clean.toLowerCase().includes('calculus') || clean.toLowerCase().includes('scaling');
 
             let badgeStyle = 'bg-blue-50 text-blue-700 border-blue-200';
             if (isH) badgeStyle = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+            else if (isClean) badgeStyle = 'bg-blue-50 text-blue-700 border-blue-200';
             else if (isC) badgeStyle = 'bg-rose-50 text-rose-700 border-rose-200';
             else if (isR) badgeStyle = 'bg-purple-50 text-purple-700 border-purple-200';
             else if (isF) badgeStyle = 'bg-sky-50 text-sky-700 border-sky-200';

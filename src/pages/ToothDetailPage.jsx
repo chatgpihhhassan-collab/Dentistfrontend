@@ -201,8 +201,10 @@ export default function ToothDetailPage() {
       setActivePaletteItem('Caries (DO)');
     } else if (full.includes('caries (o)') || full.includes('caries') || full.includes('decay') || full.includes('cavity') || full.includes('ecc') || full.includes('damaged')) {
       setActivePaletteItem('Caries (O)');
-    } else if (s === 'healthy' || s === 'sound' || s.includes('cleaning') || (!toothData.status && !toothData.comments)) {
+    } else if (s === 'healthy' || s === 'sound' || (!toothData.status && !toothData.comments)) {
       setActivePaletteItem('Healthy');
+    } else if (s.includes('cleaning') || s.includes('scaling') || s.includes('calculus') || s.includes('tartar') || s.includes('plaque') || s.includes('prophylaxis')) {
+      setActivePaletteItem('Cleaning Needed');
     } else {
       setActivePaletteItem(toothData.status || 'Healthy');
     }
