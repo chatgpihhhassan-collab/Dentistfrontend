@@ -379,18 +379,31 @@ export default function AppointmentsList() {
 
         setSubmittingNew(true);
         try {
+            const bookedName = (newApptForm.fullName || '').trim();
+            const payload = {
+                fullName: bookedName,
+                phone: (newApptForm.phone || '').trim(),
+                email: (newApptForm.email || '').trim() || null,
+                preferredDate: newApptForm.preferredDate,
+                doctorID: newApptForm.doctorID ? parseInt(newApptForm.doctorID, 10) : null,
+                reason: newApptForm.reason || 'General Consultation',
+                status: 'Confirmed'
+            };
+
             const res = await fetch('/api/appointments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    ...newApptForm,
-                    status: 'Confirmed'
-                })
+                body: JSON.stringify(payload)
             });
+
             if (res.ok) {
                 setShowNewModal(false);
                 setToastMessage('New Appointment Scheduled & Confirmed!');
-                aiVoice.speakDoctorSuccess(`Appointment scheduled successfully for ${newApptForm.fullName}.`);
+                try {
+                    aiVoice.speakDoctorSuccess(`Appointment scheduled successfully for ${bookedName}.`);
+                } catch (vErr) {
+                    console.warn("Voice success notification notice:", vErr);
+                }
                 const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
                 const defaultDocId = doctorData.doctorID || doctorData.DoctorID || (doctors.length > 0 ? doctors[0].doctorID : '');
                 setNewApptForm({
@@ -408,11 +421,16 @@ export default function AppointmentsList() {
                 const data = await res.json().catch(() => ({}));
                 const msg = data.message || 'Failed to schedule appointment.';
                 setError(msg);
-                aiVoice.speak(`Doctor, the appointment could not be scheduled: ${msg}`);
+                try {
+                    aiVoice.speak(`Doctor, the appointment could not be scheduled: ${msg}`);
+                } catch (vErr) {}
             }
         } catch (err) {
-            setError('Server error while scheduling.');
-            aiVoice.speak("Doctor, connection error. Please try again.");
+            console.error("Booking error:", err);
+            setError('Server connection error. Please try again.');
+            try {
+                aiVoice.speak("Doctor, connection error. Please try again.");
+            } catch (vErr) {}
         } finally {
             setSubmittingNew(false);
         }

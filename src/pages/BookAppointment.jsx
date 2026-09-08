@@ -253,10 +253,20 @@ export default function BookAppointment() {
         }
 
         try {
+            const payload = {
+                fullName: (formData.fullName || '').trim(),
+                phone: (formData.phone || '').trim(),
+                email: (formData.email || '').trim() || null,
+                preferredDate: formData.preferredDate,
+                doctorID: formData.doctorID ? parseInt(formData.doctorID, 10) : null,
+                reason: formData.reason || 'General Consultation',
+                status: 'Confirmed'
+            };
+
             const response = await fetch('/api/appointments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...formData, status: 'Confirmed' })
+                body: JSON.stringify(payload)
             });
             if (response.ok) {
                 const data = await response.json().catch(() => ({}));
@@ -265,16 +275,23 @@ export default function BookAppointment() {
                 setEmailStatus({ sent: data.emailSent, error: data.emailError });
                 setError('');
                 setErrors({});
-                aiVoice.speak(`Doctor, consultation appointment for ${formData.fullName} has been confirmed successfully.`);
+                try {
+                    aiVoice.speakDoctorSuccess(`consultation appointment for ${formData.fullName} has been confirmed successfully.`);
+                } catch (vErr) {}
             } else {
                 const errorData = await response.json().catch(() => ({}));
                 const msg = errorData.message || 'Failed to book appointment. Please try again.';
                 setError(msg);
-                aiVoice.speakDoctorError(null, msg);
+                try {
+                    aiVoice.speakDoctorError(null, msg);
+                } catch (vErr) {}
             }
         } catch (err) {
+            console.error("Booking submit error:", err);
             setError('Server connection error.');
-            aiVoice.speakDoctorError(null, 'Server connection error occurred.');
+            try {
+                aiVoice.speakDoctorError(null, 'Server connection error occurred.');
+            } catch (vErr) {}
         }
     };
 

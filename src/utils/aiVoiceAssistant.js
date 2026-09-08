@@ -32,6 +32,14 @@ class AIVoiceAssistant {
         return this.enabled;
     }
 
+    toggleMute() {
+        return this.toggle();
+    }
+
+    cancel() {
+        this.stop();
+    }
+
     setEnabled(val) {
         this.enabled = Boolean(val);
         if (!this.enabled) {
@@ -149,6 +157,20 @@ class AIVoiceAssistant {
             msg = `Doctor, ${reason}`;
         } else {
             msg = `Doctor, please check the required fields. Some entries are incomplete or invalid.`;
+        }
+        this.speak(msg);
+        return msg;
+    }
+
+    /**
+     * Announce success confirmation to the doctor
+     */
+    speakDoctorSuccess(message) {
+        let msg = '';
+        if (message) {
+            msg = message.startsWith('Doctor') ? message : `Doctor, ${message}`;
+        } else {
+            msg = `Doctor, action completed successfully.`;
         }
         this.speak(msg);
         return msg;
