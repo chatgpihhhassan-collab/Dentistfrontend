@@ -116,6 +116,10 @@ export default function ThreeDentalJawArch({
     : (isMaxilla ? 'MAXILLA (UPPER JAW - 16 TEETH)' : 'MANDIBLE (LOWER JAW - 16 TEETH)');
 
   const [hoveredTooth, setHoveredTooth] = useState(null);
+  const highlightedTeethRef = useRef(highlightedTeeth);
+  useEffect(() => {
+    highlightedTeethRef.current = highlightedTeeth;
+  }, [highlightedTeeth]);
 
   useEffect(() => {
     const container = mountRef.current;
@@ -746,6 +750,7 @@ function createClinicalOverlayCanvas(status, comments, toothNum, isMaxilla) {
         baseX: worldX,
         baseY: worldY,
         baseZ: 0.5,
+        defaultColor: toothColor,
         isMobility: (
           ((status || '').toLowerCase().includes('mobility') && !(status || '').toLowerCase().includes('grade 0')) ||
           (toothComments || '').toLowerCase().includes('mobility grade i') ||
@@ -845,7 +850,8 @@ function createClinicalOverlayCanvas(status, comments, toothNum, isMaxilla) {
       clickableObjects.forEach((mesh, idx) => {
         const tNum = mesh.userData.toothNum;
         const isHovered = currentHoveredNum === tNum;
-        const isHighlighted = highlightedTeeth.includes(tNum);
+        const curHighlights = highlightedTeethRef.current || [];
+        const isHighlighted = curHighlights.includes(tNum) || curHighlights.includes(String(tNum));
         const hasRotation = mesh.userData.rotationDeg !== 0;
         const toothDelay = idx * 0.045;
 
@@ -897,15 +903,18 @@ function createClinicalOverlayCanvas(status, comments, toothNum, isMaxilla) {
           mesh.rotation.z = mesh.userData.baseRotationZ + rotWobble;
           mesh.scale.set(1.16, 1.16, 1.0);
           mesh.position.z = mesh.userData.baseZ + 0.22;
+          if (mesh.material && mesh.material.color) mesh.material.color.setHex(0x7dd3fc);
         } else if (isHovered) {
           const hoverPulse = 1.12 + Math.sin(elapsed * 6) * 0.03;
           mesh.scale.set(hoverPulse, hoverPulse, 1.0);
           mesh.position.z = mesh.userData.baseZ + 0.18;
           mesh.rotation.z = mesh.userData.baseRotationZ;
-        } else if (isHighlighted && highlightedTeeth.length <= 4) {
+          if (mesh.material && mesh.material.color) mesh.material.color.setHex(0x7dd3fc);
+        } else if (isHighlighted && curHighlights.length <= 4) {
           mesh.scale.set(1.08, 1.08, 1.0);
           mesh.position.z = mesh.userData.baseZ + 0.08;
           mesh.rotation.z = mesh.userData.baseRotationZ;
+          if (mesh.material && mesh.material.color) mesh.material.color.setHex(0x7dd3fc);
         } else {
           // Combined Entrance Wave + Idle Clinical state
           const finalScale = mesh.userData.baseScale * entranceScaleMult * idleScaleMult;
@@ -916,6 +925,9 @@ function createClinicalOverlayCanvas(status, comments, toothNum, isMaxilla) {
             mesh.rotation.z = mesh.userData.baseRotationZ + rotIdleSway;
           } else {
             mesh.rotation.z = mesh.userData.baseRotationZ;
+          }
+          if (mesh.material && mesh.material.color && mesh.userData.defaultColor) {
+            mesh.material.color.copy(mesh.userData.defaultColor);
           }
         }
       });
@@ -971,7 +983,7 @@ function createClinicalOverlayCanvas(status, comments, toothNum, isMaxilla) {
         renderer.dispose();
       } catch (e) {}
     };
-  }, [jawType, teethState, highlightedTeeth]);
+  }, [jawType, teethState]);
 
   return (
     <div className={`relative w-full aspect-square select-none flex items-center justify-center ${className}`}>

@@ -208,18 +208,121 @@ export default function ToothDetailPage() {
     }
   }, [toothData, tKey, patientId]);
 
-  // Fetch Patient & Accurate Teeth Data from API
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const pid = parseInt(patientId) || 17;
+  // Helper to extract and format specific tooth record from in-memory chart
+  const applyToothSelection = (teethArray, targetKey, pid) => {
+    const isPed = typeof targetKey === 'string' && isNaN(parseInt(targetKey, 10));
+    const tNumeric = parseInt(targetKey, 10) || 1;
+    const PEDIATRIC_KEYS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
+    const pIdx = PEDIATRIC_KEYS.indexOf(String(targetKey).toUpperCase());
 
-      // 1. Fetch Patient Profile
+    const current = (teethArray || []).find(t => {
+      const cat = (t.dentitionCategory || t.DentitionCategory || 'Adult').trim().toLowerCase();
+      const tk = String(t.toothKey || t.ToothKey || '').trim().toUpperCase();
+      const tn = String(t.toothNumber ?? t.ToothNumber ?? '').trim().toUpperCase();
+
+      if (isPed) {
+        if (cat === 'pediatric') {
+          return tk === String(targetKey).toUpperCase() || (pIdx >= 0 && parseInt(tn, 10) === (pIdx + 1));
+        }
+        return tk === String(targetKey).toUpperCase();
+      } else {
+        if (cat === 'adult') {
+          return tk === String(targetKey).toUpperCase() || parseInt(tn, 10) === tNumeric;
+        }
+        return !/^[A-T]$/i.test(tk) && parseInt(tn, 10) === tNumeric;
+      }
+    });
+
+    if (current) {
+      let status = current.conditionStatus || current.status || 'Healthy';
+      if (status.includes('All 5 Surfaces') && status.includes('All 5 Surfaces (MODBL) — All 5 Surfaces')) {
+        const base = status.split('—')[0].trim() || 'Healthy Enamel';
+        status = `${base} — All 5 Surfaces (MODBL)`;
+      }
+      let comments = current.comments || current.Comments || current.comment || (isPed ? `Intact primary deciduous enamel, physiological baseline` : 'Intact enamel, physiological mobility (Grade 0)');
+      if (comments.includes('All 5 Surfaces (MODBL) — All 5 Surfaces')) {
+        comments = `Clinical diagnosis: ${status} recorded on ${isPed ? `Primary Tooth ${targetKey}` : `Tooth #${tNumeric}`} via 5-Zone Odontogram`;
+      }
+      const color = current.conditionColor || current.color || getHexColor(status);
+      const rotationDeg = current.rotationDeg || 0;
+
+      setToothData({
+        toothNumber: targetKey,
+        status,
+        comments,
+        comment: comments,
+        color,
+        rotationDeg,
+        isPediatric: isPed
+      });
+      setEditingNotes(comments);
+
+      // Restore persistent surface zones from localStorage or derive from status
       try {
-        const pRes = await fetch(`/api/patients/${pid}`);
-        if (pRes.ok) {
-          const pData = await pRes.json();
+        const savedZones = localStorage.getItem(`dentist_surface_zones_patient_${pid}_tooth_${targetKey}`);
+        if (savedZones) {
+          setSurfaceData(JSON.parse(savedZones));
+        } else if (status.includes('MODBL') || status.includes('All 5 Surfaces')) {
+          const base = status.split('—')[0].trim() || 'Healthy';
+          setSurfaceData({ O: base, M: base, D: base, B: base, L: base });
+        } else {
+          setSurfaceData({ O: 'Healthy', M: 'Healthy', D: 'Healthy', B: 'Healthy', L: 'Healthy' });
+        }
+      } catch (e) {
+        setSurfaceData({ O: 'Healthy', M: 'Healthy', D: 'Healthy', B: 'Healthy', L: 'Healthy' });
+      }
+    } else {
+      const defaultComments = isPed ? `Intact primary deciduous enamel on Tooth ${targetKey}` : `Intact enamel on Tooth #${tNumeric}`;
+      setToothData({
+        toothNumber: targetKey,
+        status: 'Healthy',
+        comments: defaultComments,
+        comment: defaultComments,
+        color: '#10B981',
+        rotationDeg: 0,
+        isPediatric: isPed
+      });
+      setEditingNotes(defaultComments);
+      setSurfaceData({ O: 'Healthy', M: 'Healthy', D: 'Healthy', B: 'Healthy', L: 'Healthy' });
+    }
+  };
+
+  // Fetch Patient & Accurate Teeth Data from API (Parallelized & Cached)
+  const lastLoadedPatientIdRef = React.useRef(null);
+
+  useEffect(() => {
+    const pid = parseInt(patientId) || 17;
+
+    // Fast Path: If patient and teeth chart are already in memory, switch tooth in 0ms!
+    if (patient && lastLoadedPatientIdRef.current === pid && allTeeth && allTeeth.length > 0) {
+      applyToothSelection(allTeeth, tKey, pid);
+      return;
+    }
+
+    // Initial / Full Fetch Path: Fetch profile and teeth chart concurrently in parallel
+    let isCancelled = false;
+    const loadData = async () => {
+      try {
+        setLoading(true);
+
+        const [pRes, teethRes] = await Promise.all([
+          fetch(`/api/patients/${pid}`).catch(err => {
+            console.error("[ToothDetailPage] Patient fetch error:", err);
+            return null;
+          }),
+          fetch(`/api/patients/${pid}/chart`).catch(err => {
+            console.error("[ToothDetailPage] Chart fetch error:", err);
+            return null;
+          })
+        ]);
+
+        if (isCancelled) return;
+
+        let pData = null;
+        if (pRes && pRes.ok) {
+          pData = await pRes.json();
           setPatient(pData);
+          lastLoadedPatientIdRef.current = pid;
 
           // If no tooth specified in URL, redirect to default
           if (!toothNumber) {
@@ -231,103 +334,30 @@ export default function ToothDetailPage() {
             return;
           }
         }
-      } catch (pErr) {
-        console.error("[ToothDetailPage] Patient fetch error:", pErr);
-      }
 
-      // 2. Fetch Complete Odontogram Teeth Chart
-      try {
-        const teethRes = await fetch(`/api/patients/${pid}/chart`);
-        if (teethRes.ok) {
-          const teethArray = await teethRes.json();
-          setAllTeeth(teethArray || []);
-
-          const PEDIATRIC_KEYS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
-          const pIdx = PEDIATRIC_KEYS.indexOf(String(tKey).toUpperCase());
-
-          const current = (teethArray || []).find(t => {
-            const cat = (t.dentitionCategory || t.DentitionCategory || 'Adult').trim().toLowerCase();
-            const tk = String(t.toothKey || t.ToothKey || '').trim().toUpperCase();
-            const tn = String(t.toothNumber ?? t.ToothNumber ?? '').trim().toUpperCase();
-
-            if (isPediatric) {
-              if (cat === 'pediatric') {
-                return tk === String(tKey).toUpperCase() || (pIdx >= 0 && parseInt(tn, 10) === (pIdx + 1));
-              }
-              return tk === String(tKey).toUpperCase();
-            } else {
-              if (cat === 'adult') {
-                return tk === String(tKey).toUpperCase() || parseInt(tn, 10) === tNum;
-              }
-              return !/^[A-T]$/i.test(tk) && parseInt(tn, 10) === tNum;
-            }
-          });
-
-          if (current) {
-            let status = current.conditionStatus || current.status || 'Healthy';
-            if (status.includes('All 5 Surfaces') && status.includes('All 5 Surfaces (MODBL) — All 5 Surfaces')) {
-              const base = status.split('—')[0].trim() || 'Healthy Enamel';
-              status = `${base} — All 5 Surfaces (MODBL)`;
-            }
-            let comments = current.comments || current.Comments || current.comment || (isPediatric ? `Intact primary deciduous enamel, physiological baseline` : 'Intact enamel, physiological mobility (Grade 0)');
-            if (comments.includes('All 5 Surfaces (MODBL) — All 5 Surfaces')) {
-              comments = `Clinical diagnosis: ${status} recorded on ${isPediatric ? `Primary Tooth ${tKey}` : `Tooth #${tNum}`} via 5-Zone Odontogram`;
-            }
-            const color = current.conditionColor || current.color || getHexColor(status);
-            const rotationDeg = current.rotationDeg || 0;
-
-            setToothData({
-              toothNumber: tKey,
-              status,
-              comments,
-              comment: comments,
-              color,
-              rotationDeg,
-              isPediatric
-            });
-            setEditingNotes(comments);
-
-            // Restore persistent surface zones from localStorage or derive from status
-            try {
-              const savedZones = localStorage.getItem(`dentist_surface_zones_patient_${pid}_tooth_${tKey}`);
-              if (savedZones) {
-                setSurfaceData(JSON.parse(savedZones));
-              } else if (status.includes('MODBL') || status.includes('All 5 Surfaces')) {
-                const base = status.split('—')[0].trim() || 'Healthy';
-                setSurfaceData({ O: base, M: base, D: base, B: base, L: base });
-              } else {
-                setSurfaceData({ O: 'Healthy', M: 'Healthy', D: 'Healthy', B: 'Healthy', L: 'Healthy' });
-              }
-            } catch (e) {
-              setSurfaceData({ O: 'Healthy', M: 'Healthy', D: 'Healthy', B: 'Healthy', L: 'Healthy' });
-            }
-          } else {
-            const defaultComments = isPediatric ? `Intact primary deciduous enamel on Tooth ${tKey}` : `Intact enamel on Tooth #${tNum}`;
-            setToothData({
-              toothNumber: tKey,
-              status: 'Healthy',
-              comments: defaultComments,
-              comment: defaultComments,
-              color: '#10B981',
-              rotationDeg: 0,
-              isPediatric
-            });
-            setEditingNotes(defaultComments);
-            setSurfaceData({ O: 'Healthy', M: 'Healthy', D: 'Healthy', B: 'Healthy', L: 'Healthy' });
-          }
+        let teethArray = [];
+        if (teethRes && teethRes.ok) {
+          teethArray = await teethRes.json();
+          const safeArray = Array.isArray(teethArray) ? teethArray : [];
+          setAllTeeth(safeArray);
+          applyToothSelection(safeArray, tKey, pid);
+        } else {
+          applyToothSelection([], tKey, pid);
         }
-      } catch (tErr) {
-        console.error("[ToothDetailPage] Teeth chart fetch error:", tErr);
+      } catch (err) {
+        console.error("[ToothDetailPage] General fetch error:", err);
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
       }
-    } catch (err) {
-      console.error("[ToothDetailPage] General fetch error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  useEffect(() => {
-    fetchData();
+    loadData();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [patientId, toothNumber]);
 
   // Handle Save / Update Observation

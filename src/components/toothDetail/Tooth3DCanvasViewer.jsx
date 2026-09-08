@@ -799,26 +799,41 @@ export default function Tooth3DCanvasViewer({
     return canvas;
   };
 
-  // Three.js Interactive 3D Single Tooth Visualizer
+  // Refs to persist Three.js scene across tooth navigations (Zero WebGL teardowns)
+  const rendererRef = useRef(null);
+  const sceneRef = useRef(null);
+  const cameraRef = useRef(null);
+  const crownMeshRef = useRef(null);
+  const textureMapRef = useRef(null);
+  const animIdRef = useRef(null);
+
+  // 1. Initialize Three.js Scene, Camera, Renderer & Mesh (Only once on mount)
   useEffect(() => {
-    if (!canvasRef.current || !toothData) return;
+    if (!canvasRef.current) return;
+
+    let isDisposed = false;
+    let renderer, scene, camera, crownMesh, textureMap, crownGeo, crownMat;
+    let animId;
 
     try {
       const container = canvasRef.current;
       const width = container.clientWidth || 340;
       const height = container.clientHeight || 300;
 
-      const scene = new THREE.Scene();
+      scene = new THREE.Scene();
       scene.background = new THREE.Color(0xF8FAFC);
+      sceneRef.current = scene;
 
-      const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+      camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
       camera.position.set(0, 0, 4.6);
+      cameraRef.current = camera;
 
-      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setSize(width, height);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.1;
+      rendererRef.current = renderer;
 
       container.innerHTML = '';
       container.appendChild(renderer.domElement);
@@ -835,31 +850,30 @@ export default function Tooth3DCanvasViewer({
       backLight.position.set(-5, -5, -5);
       scene.add(backLight);
 
-      // High-Definition Procedural Canvas Texture for THIS EXACT TOOTH
-      const customCanvas = createDetailedToothOcclusalCanvas(isPediatric ? tKey : tNum, toothData, patient, surfaceData);
-      const textureMap = new THREE.CanvasTexture(customCanvas);
+      // Initial Canvas & Texture
+      const initialCanvas = createDetailedToothOcclusalCanvas(isPediatric ? tKey : tNum, toothData, patient, surfaceData);
+      textureMap = new THREE.CanvasTexture(initialCanvas);
       textureMap.colorSpace = THREE.SRGBColorSpace;
+      textureMapRef.current = textureMap;
 
-      // Tooth Crown Geometry & Material
-      const crownGeo = new THREE.PlaneGeometry(2.35, 2.35);
-      const crownMat = new THREE.MeshStandardMaterial({
+      crownGeo = new THREE.PlaneGeometry(2.35, 2.35);
+      crownMat = new THREE.MeshStandardMaterial({
         map: textureMap,
         transparent: true,
         roughness: 0.2,
         metalness: 0.05
       });
 
-      const crownMesh = new THREE.Mesh(crownGeo, crownMat);
+      crownMesh = new THREE.Mesh(crownGeo, crownMat);
       crownMesh.position.set(0, 0, 0);
 
-      // Apply Physical Axial Rotation if diagnosed
       const toothDiagStr = `${toothData?.status || ''} ${toothData?.comments || ''}`.toLowerCase();
       if (toothData?.rotationDeg) {
         crownMesh.rotation.z = (toothData.rotationDeg * Math.PI) / 180;
       } else if (toothDiagStr.includes('rotation') || toothDiagStr.includes('rotated')) {
-        crownMesh.rotation.z = (35 * Math.PI) / 180; // 35° physical anatomical twist
+        crownMesh.rotation.z = (35 * Math.PI) / 180;
       }
-
+      crownMeshRef.current = crownMesh;
       scene.add(crownMesh);
 
       // Drag / Orbit Rotation
@@ -872,7 +886,7 @@ export default function Tooth3DCanvasViewer({
       };
 
       const onMouseMove = (e) => {
-        if (!isDragging) return;
+        if (!isDragging || !crownMesh) return;
         const deltaX = e.clientX - previousMousePosition.x;
         const deltaY = e.clientY - previousMousePosition.y;
 
@@ -890,14 +904,14 @@ export default function Tooth3DCanvasViewer({
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('mouseup', onMouseUp);
 
-      // Animation Loop with gentle 3D perspective yaw (Never rotates upside down)
-      let animId;
+      // Animation Loop with gentle 3D perspective yaw
       let startTime = Date.now();
       const animate = () => {
+        if (isDisposed) return;
         animId = requestAnimationFrame(animate);
-        if (!isDragging) {
+        animIdRef.current = animId;
+        if (!isDragging && crownMesh) {
           const elapsed = (Date.now() - startTime) * 0.001;
-          // Gentle 3D perspective rocking along Y axis
           crownMesh.rotation.y = Math.sin(elapsed * 0.8) * 0.15;
           crownMesh.rotation.x = Math.cos(elapsed * 0.6) * 0.08;
         }
@@ -905,33 +919,49 @@ export default function Tooth3DCanvasViewer({
       };
       animate();
 
-      const handleResetOrientation = () => {
-        crownMesh.rotation.set(0, 0, toothData?.rotationDeg ? (toothData.rotationDeg * Math.PI) / 180 : 0);
-      };
-
       return () => {
-        cancelAnimationFrame(animId);
+        isDisposed = true;
+        if (animId) cancelAnimationFrame(animId);
         container.removeEventListener('mousedown', onMouseDown);
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('mouseup', onMouseUp);
 
-        // Thorough WebGL Context Disinfection & Resource Release
         try {
-          crownGeo.dispose();
-          crownMat.dispose();
-          textureMap.dispose();
-          scene.clear();
-          renderer.dispose();
-          renderer.forceContextLoss();
-          if (renderer.domElement && renderer.domElement.parentNode) {
+          crownGeo?.dispose();
+          crownMat?.dispose();
+          textureMap?.dispose();
+          scene?.clear();
+          renderer?.dispose();
+          renderer?.forceContextLoss();
+          if (renderer?.domElement?.parentNode) {
             renderer.domElement.parentNode.removeChild(renderer.domElement);
           }
-        } catch (cleanupErr) {
-          // Ignore harmless disposal race conditions
-        }
+        } catch (cleanupErr) {}
       };
     } catch (threeErr) {
       console.error("[ToothDetailPage] Error initializing Three.js canvas:", threeErr);
+    }
+  }, []);
+
+  // 2. High-Speed Texture & Rotation Update (Zero WebGL Rebuild, < 2ms instant update)
+  useEffect(() => {
+    if (!crownMeshRef.current || !textureMapRef.current || !toothData) return;
+
+    try {
+      const updatedCanvas = createDetailedToothOcclusalCanvas(isPediatric ? tKey : tNum, toothData, patient, surfaceData);
+      textureMapRef.current.image = updatedCanvas;
+      textureMapRef.current.needsUpdate = true;
+
+      const toothDiagStr = `${toothData?.status || ''} ${toothData?.comments || ''}`.toLowerCase();
+      if (toothData?.rotationDeg) {
+        crownMeshRef.current.rotation.z = (toothData.rotationDeg * Math.PI) / 180;
+      } else if (toothDiagStr.includes('rotation') || toothDiagStr.includes('rotated')) {
+        crownMeshRef.current.rotation.z = (35 * Math.PI) / 180;
+      } else {
+        crownMeshRef.current.rotation.z = 0;
+      }
+    } catch (updateErr) {
+      console.warn("[Tooth3DCanvasViewer] Error updating texture:", updateErr);
     }
   }, [toothNumber, tNum, tKey, toothData, surfaceData, isPediatric, patient]);
 

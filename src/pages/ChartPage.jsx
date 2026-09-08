@@ -884,14 +884,32 @@ export default function ChartPage() {
   const [isEngineModalOpen, setIsEngineModalOpen] = useState(false);
   const [isRefreshingEngine, setIsRefreshingEngine] = useState(false);
 
-  const fetchEngineDiagnostics = async () => {
+  const fetchEngineDiagnostics = async (force = false) => {
     try {
+      if (!force) {
+        try {
+          const cached = sessionStorage.getItem('dentia_engine_diagnostics');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && parsed.timestamp && (Date.now() - parsed.timestamp < 10 * 60 * 1000)) {
+              if (parsed.data && parsed.data.activeEngine) {
+                setEngineDiagnostics(parsed.data);
+                return;
+              }
+            }
+          }
+        } catch (e) {}
+      }
+
       setIsRefreshingEngine(true);
       const res = await fetch('/api/ai-dental-notes/engine-status');
       if (res.ok) {
         const data = await res.json();
         if (data && data.activeEngine) {
           setEngineDiagnostics(data);
+          try {
+            sessionStorage.setItem('dentia_engine_diagnostics', JSON.stringify({ timestamp: Date.now(), data }));
+          } catch (e) {}
         }
       }
     } catch (err) {
@@ -909,10 +927,7 @@ export default function ChartPage() {
 
   const PEDIATRIC_KEYS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
 
-  const fetchTeethChart = (activeMode = dentitionMode) => {
-    fetch(`/api/patients/${patientId}/chart`)
-      .then(res => res.json())
-      .then(data => {
+  const applyTeethChartData = (data, activeMode = dentitionMode) => {
           const pediatricMap = {};
           const adultMap = {};
 
@@ -1069,6 +1084,13 @@ export default function ChartPage() {
           });
 
           setTeethState(full32Teeth);
+  };
+
+  const fetchTeethChart = (activeMode = dentitionMode) => {
+    fetch(`/api/patients/${patientId}/chart`)
+      .then(res => res.json())
+      .then(data => {
+        applyTeethChartData(data, activeMode);
       })
       .catch(err => {
         console.error("Chart fetch error:", err);
@@ -1305,45 +1327,62 @@ export default function ChartPage() {
     }
     const docObj = JSON.parse(storedDoc);
     const loggedInDocId = docObj.doctorID || docObj.DoctorID;
-    fetchEngineDiagnostics();
 
-    fetch(`/api/patients/${patientId}`)
-      .then(res => {
+    // Run engine diagnostics deferred and non-blocking in the background
+    const diagTimer = setTimeout(() => {
+      fetchEngineDiagnostics();
+    }, 200);
+
+    let isCancelled = false;
+
+    // Parallel concurrent loading: Patient Profile, Teeth Chart, and Prescriptions
+    Promise.all([
+      fetch(`/api/patients/${patientId}`).then(res => {
         if (!res.ok) throw new Error("Patient not found");
         return res.json();
-      })
-      .then(data => {
-        const patientDocId = data.doctorID || data.DoctorID;
-        if (patientDocId && patientDocId !== loggedInDocId) {
-          console.warn("Access denied: Patient does not belong to this doctor");
-          navigate('/directory');
-          return;
-        }
-        setPatient(data);
+      }),
+      fetch(`/api/patients/${patientId}/chart`).then(res => res.ok ? res.json() : []).catch(() => []),
+      fetch(`/api/patients/${patientId}/prescriptions`).then(res => res.ok ? res.json() : []).catch(() => [])
+    ])
+    .then(([patientData, chartData, presData]) => {
+      if (isCancelled) return;
 
-        // Auto-detect dentition mode directly from patient record & age
-        let autoDentition = 'permanent';
-        const pAge = calculatePatientAge(data.dob);
-        const rawType = (data.dentitionType || data.DentitionType || '').trim().toLowerCase();
-        if (rawType.includes('mixed') || (pAge !== null && pAge >= 6 && pAge <= 12)) {
-          autoDentition = 'mixed';
-        } else if (rawType === 'pediatric' || (pAge !== null && pAge < 6)) {
-          autoDentition = 'pediatric';
-        } else {
-          autoDentition = 'permanent';
-        }
-        setDentitionMode(autoDentition);
-        fetchTeethChart(autoDentition);
-      })
-      .catch(err => {
-        console.error(err);
+      const patientDocId = patientData.doctorID || patientData.DoctorID;
+      if (patientDocId && patientDocId !== loggedInDocId) {
+        console.warn("Access denied: Patient does not belong to this doctor");
         navigate('/directory');
-      });
+        return;
+      }
 
-    fetch(`/api/patients/${patientId}/prescriptions`)
-      .then(res => res.json())
-      .then(data => setPrescriptions(data))
-      .catch(err => console.error(err));
+      setPatient(patientData);
+      setPrescriptions(presData || []);
+
+      // Auto-detect dentition mode directly from patient record & age
+      let autoDentition = 'permanent';
+      const pAge = calculatePatientAge(patientData.dob);
+      const rawType = (patientData.dentitionType || patientData.DentitionType || '').trim().toLowerCase();
+      if (rawType.includes('mixed') || (pAge !== null && pAge >= 6 && pAge <= 12)) {
+        autoDentition = 'mixed';
+      } else if (rawType === 'pediatric' || (pAge !== null && pAge < 6)) {
+        autoDentition = 'pediatric';
+      } else {
+        autoDentition = 'permanent';
+      }
+      setDentitionMode(autoDentition);
+
+      // Populate chart data directly in memory (zero second network waterfall!)
+      applyTeethChartData(chartData, autoDentition);
+    })
+    .catch(err => {
+      if (isCancelled) return;
+      console.error("[ChartPage] Parallel data load error:", err);
+      navigate('/directory');
+    });
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(diagTimer);
+    };
   }, [patientId, navigate]);
 
   useEffect(() => {

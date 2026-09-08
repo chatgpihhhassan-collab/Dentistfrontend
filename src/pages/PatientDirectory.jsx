@@ -292,18 +292,43 @@ export default function PatientDirectory() {
         };
     }, []);
 
+    const patientChartsCacheRef = useRef({});
     const fetchPatientChart = (pId) => {
+        if (!pId) return;
+        if (patientChartsCacheRef.current[pId]) {
+            setSelectedTeethState(patientChartsCacheRef.current[pId]);
+            return;
+        }
         fetch(`/api/patients/${pId}/chart`)
             .then(res => res.json())
-            .then(data => setSelectedTeethState(data))
+            .then(data => {
+                const safeData = Array.isArray(data) ? data : [];
+                patientChartsCacheRef.current[pId] = safeData;
+                setSelectedTeethState(safeData);
+            })
             .catch(err => console.error(err));
     };
 
-    const handleExportLogsPDF = () => {
+    const handleExportLogsPDF = async () => {
         if (!selectedPatient) {
             showToast('Please select a patient first', 'error');
             return;
         }
+
+        let exportLogs = clinicalLogs;
+        if (!exportLogs || exportLogs.length === 0) {
+            try {
+                const res = await fetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data)) {
+                        exportLogs = data;
+                        setClinicalLogs(data);
+                    }
+                }
+            } catch (e) {}
+        }
+        exportLogs = Array.isArray(exportLogs) ? exportLogs : [];
 
         const pName = `${selectedPatient.firstName || ''} ${selectedPatient.lastName || ''}`.trim() || 'Patient';
         const pId = selectedPatient.patientID || 'N/A';
@@ -364,17 +389,17 @@ export default function PatientDirectory() {
             pdf.text(docName, margin + 128, 30);
             pdf.text(`${getAge(selectedPatient.dob)} yrs · ${selectedPatient.gender || 'Unspecified'}`, margin + 32, 38);
             pdf.text(`${exportDate} ${exportTime}`, margin + 128, 38);
-            pdf.text(`${clinicalLogs.length} Entries`, margin + 32, 44);
+            pdf.text(`${exportLogs.length} Entries`, margin + 32, 44);
 
             let currentY = 54;
 
-            if (clinicalLogs.length === 0) {
+            if (exportLogs.length === 0) {
                 pdf.setFont('helvetica', 'italic');
                 pdf.setFontSize(9);
                 pdf.setTextColor(148, 163, 184);
                 pdf.text('No clinical activity logs recorded for this patient yet.', margin + 4, currentY + 10);
             } else {
-                clinicalLogs.forEach((log, index) => {
+                exportLogs.forEach((log, index) => {
                     if (currentY > pageHeight - 35) {
                         pdf.addPage();
                         pageNumber++;
@@ -534,6 +559,9 @@ export default function PatientDirectory() {
             setClinicalLogs([]);
             return;
         }
+        // Defer clinical logs fetching: Only fetch if clinical logs drawer is actually open
+        if (!isLogsDrawerOpen) return;
+
         setLoadingLogs(true);
         fetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`)
             .then(res => res.ok ? res.json() : [])
@@ -545,7 +573,7 @@ export default function PatientDirectory() {
                 console.error("Clinical logs fetch failed:", err);
                 setLoadingLogs(false);
             });
-    }, [selectedPatient]);
+    }, [selectedPatient, isLogsDrawerOpen]);
 
     const cleanSearch = searchTerm.trim().toLowerCase();
 
