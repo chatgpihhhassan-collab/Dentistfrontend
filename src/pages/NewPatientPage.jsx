@@ -5,7 +5,7 @@ import {
     Loader2, CheckCircle2, Zap, Check, AlertCircle, Search,
     User, Calendar, Phone, MapPin, Globe, Mail, FileText, Send, RefreshCw, Bot, UserCheck,
     Camera, UploadCloud, Trash2, Image as ImageIcon, HeartPulse, Stethoscope, Activity, BadgeCheck,
-    Volume2, VolumeX
+    Volume2, VolumeX, ChevronDown, Sliders
 } from 'lucide-react';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
@@ -73,6 +73,14 @@ export default function NewPatientPage() {
     const [recentlySyncedField, setRecentlySyncedField] = useState({});
     const [askedClinicalDetails, setAskedClinicalDetails] = useState(false);
     const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
+    const [isExtendedOpen, setIsExtendedOpen] = useState(false);
+
+    // Auto-open extended drawer if AI or preset fills any optional field
+    useEffect(() => {
+        if (newPatient.phone || newPatient.address || newPatient.city || newPatient.postcode || newPatient.medicalNotes || (newPatient.selectedAllergies && newPatient.selectedAllergies.length > 0)) {
+            setIsExtendedOpen(true);
+        }
+    }, [newPatient.phone, newPatient.address, newPatient.city, newPatient.postcode, newPatient.medicalNotes, newPatient.selectedAllergies]);
 
     // Validation & AI Voice Assistant States
     const [errors, setErrors] = useState({});
@@ -263,9 +271,9 @@ export default function NewPatientPage() {
                 if (!val || val === '') return 'Please select patient gender.';
                 return '';
             case 'phone':
-                if (!val) return 'Contact phone number is required.';
+                if (!val) return ''; // Optional
                 const digits = String(val).replace(/\D/g, '');
-                if (digits.length < 10) return 'Phone number must contain at least 10 digits.';
+                if (digits.length < 7) return 'Phone number must contain at least 7 digits.';
                 if (/[a-zA-Z]/.test(val)) return 'Phone number should not contain letters.';
                 return '';
             case 'email':
@@ -280,8 +288,10 @@ export default function NewPatientPage() {
 
     const validateAll = () => {
         const newErrors = {};
-        const fieldsToValidate = ['firstName', 'lastName', 'dob', 'gender', 'phone'];
-        if (newPatient.email) fieldsToValidate.push('email');
+        // Section 1: Only Essential Intake fields are mandatory
+        const fieldsToValidate = ['firstName', 'lastName', 'dob', 'gender'];
+        if (newPatient.phone && newPatient.phone.trim()) fieldsToValidate.push('phone');
+        if (newPatient.email && newPatient.email.trim()) fieldsToValidate.push('email');
 
         fieldsToValidate.forEach(field => {
             const err = validateField(field, newPatient[field]);
@@ -689,7 +699,8 @@ export default function NewPatientPage() {
         const validationErrors = validateAll();
         if (Object.keys(validationErrors).length > 0) {
             setErrors(validationErrors);
-            const allTouched = { firstName: true, lastName: true, dob: true, gender: true, phone: true };
+            const allTouched = { firstName: true, lastName: true, dob: true, gender: true };
+            if (newPatient.phone) allTouched.phone = true;
             if (newPatient.email) allTouched.email = true;
             setTouched(allTouched);
 
@@ -793,17 +804,26 @@ export default function NewPatientPage() {
         }
     };
 
-    // Calculate filled percentage
-    const filledFieldsCount = [
+    // Calculate Essential & Optional filled counts
+    const essentialFieldsCount = [
         newPatient.firstName,
         newPatient.lastName,
         newPatient.dob,
-        newPatient.gender,
-        newPatient.phone,
-        newPatient.city,
-        newPatient.region
+        newPatient.gender
     ].filter(Boolean).length;
-    const progressPct = Math.round((filledFieldsCount / 7) * 100);
+
+    const optionalFilledCount = [
+        newPatient.phone,
+        newPatient.address,
+        newPatient.city,
+        newPatient.postcode,
+        newPatient.medicalNotes,
+        newPatient.profileImageDataUrl,
+        (newPatient.selectedAllergies && newPatient.selectedAllergies.length > 0)
+    ].filter(Boolean).length;
+
+    // Essential completion: 4 essential fields = 100% intake ready
+    const progressPct = Math.round((essentialFieldsCount / 4) * 100);
 
     if (!doctor) return null;
 
@@ -986,6 +1006,27 @@ export default function NewPatientPage() {
                     {/* Form Body: Scrollable with custom-scrollbar */}
                     <form onSubmit={handleCreatePatient} className="flex-1 overflow-y-auto pr-1.5 space-y-3.5 min-h-0 custom-scrollbar">
                             
+                        {/* ============================================================ */}
+                        {/* SECTION 1: ESSENTIAL CLINICAL INTAKE (MANDATORY / MUST) */}
+                        {/* ============================================================ */}
+                        <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 space-y-3 shadow-2xs">
+                            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-5 h-5 rounded-lg bg-[#4A7CD2]/10 text-[#4A7CD2] flex items-center justify-center text-[10px] font-black">
+                                        1
+                                    </span>
+                                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                                        Essential Clinical Intake
+                                    </h4>
+                                    <span className="text-[9px] font-black bg-amber-50 text-amber-700 border border-amber-200/80 px-1.5 py-0.5 rounded-full">
+                                        Required
+                                    </span>
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-400">
+                                    Fill to register patient
+                                </span>
+                            </div>
+
                             {/* Row 1: First & Last Name */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
@@ -1217,11 +1258,102 @@ export default function NewPatientPage() {
                                 )}
                             </div>
 
-                            {/* Row 3: Phone & Healthcare Region */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {/* Healthcare Region (Must Field in Section 1) */}
+                            <div className="bg-[#F8FAFC] border border-light-teal/45 rounded-2xl p-3">
+                                <div className="flex justify-between items-center mb-1.5">
+                                    <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider flex items-center gap-1.5">
+                                        <Globe className="w-3 h-3 text-[#4A7CD2]" /> Healthcare Region *
+                                    </label>
+                                    {recentlySyncedField.region && (
+                                        <span className="text-[8.5px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-0.5 animate-pulse">
+                                            <Check className="w-2.5 h-2.5" /> Synced
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setNewPatient({...newPatient, region: 'PK'})}
+                                        className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                            newPatient.region === 'PK'
+                                                ? 'bg-[#EAF0FC] border-[#4A7CD2] text-[#4A7CD2] shadow-xs'
+                                                : 'bg-white border-slate-200 text-muted-text hover:text-dark-slate'
+                                        }`}
+                                    >
+                                        <Globe className="w-3.5 h-3.5" /> Pakistan (PK)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setNewPatient({...newPatient, region: 'NZ'})}
+                                        className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                            newPatient.region === 'NZ'
+                                                ? 'bg-[#EAF0FC] border-[#4A7CD2] text-[#4A7CD2] shadow-xs'
+                                                : 'bg-white border-slate-200 text-muted-text hover:text-dark-slate'
+                                        }`}
+                                    >
+                                        <Globe className="w-3.5 h-3.5" /> New Zealand (NZ)
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ============================================================ */}
+                        {/* SECTION 2: EXTENDED DETAILS (100% OPTIONAL - SMOOTH DRAWER) */}
+                        {/* ============================================================ */}
+                        <div className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden shadow-2xs transition-all duration-300">
+                            {/* Accordion Toggle Header */}
+                            <button
+                                type="button"
+                                onClick={() => setIsExtendedOpen(prev => !prev)}
+                                className="w-full flex items-center justify-between p-3.5 bg-slate-50/70 hover:bg-slate-100/80 transition-colors text-left cursor-pointer group"
+                            >
+                                <div className="flex items-center gap-2.5">
+                                    <span className="w-5 h-5 rounded-lg bg-slate-200 text-slate-700 flex items-center justify-center text-[10px] font-black group-hover:bg-[#4A7CD2] group-hover:text-white transition-colors">
+                                        2
+                                    </span>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                                                Extended Clinical & Contact Info
+                                            </span>
+                                            <span className="text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded-full">
+                                                100% Optional
+                                            </span>
+                                            {optionalFilledCount > 0 && (
+                                                <span className="text-[9px] font-black bg-blue-100 text-[#2563EB] border border-blue-200 px-2 py-0.5 rounded-full animate-fade-in">
+                                                    {optionalFilledCount} Added
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                                            Phone, Street Geocoding, Visit Purpose, Allergy Tags & Notes
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10.5px] font-bold text-[#4A7CD2] hidden sm:inline">
+                                        {isExtendedOpen ? 'Collapse' : 'Slide to Open'}
+                                    </span>
+                                    <div className={`w-6 h-6 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-500 group-hover:text-[#4A7CD2] group-hover:border-[#4A7CD2]/40 transition-transform duration-300 ${isExtendedOpen ? 'rotate-180 bg-blue-50 text-[#4A7CD2]' : ''}`}>
+                                        <ChevronDown className="w-3.5 h-3.5" />
+                                    </div>
+                                </div>
+                            </button>
+
+                            {/* Sliding Animated Body */}
+                            <div 
+                                className={`transition-all duration-300 ease-in-out overflow-hidden ${
+                                    isExtendedOpen 
+                                        ? 'max-h-[1400px] opacity-100 p-3.5 pt-2 space-y-3.5 border-t border-slate-100' 
+                                        : 'max-h-0 opacity-0 p-0 pointer-events-none'
+                                }`}
+                            >
+                                {/* Phone Number (Optional) */}
                                 <div>
                                     <div className="flex justify-between items-center mb-0.5 ml-1">
-                                        <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">Phone Number *</label>
+                                        <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider flex items-center gap-1.5">
+                                            <Phone className="w-3 h-3 text-slate-400" /> Phone Number <span className="text-[9.5px] text-slate-400 font-normal lowercase">(optional)</span>
+                                        </label>
                                         {recentlySyncedField.phone && (
                                             <span className="text-[8.5px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-0.5 animate-pulse">
                                                 <Check className="w-2.5 h-2.5" /> Synced
@@ -1244,7 +1376,7 @@ export default function NewPatientPage() {
                                                 ? 'bg-emerald-50/70 border-emerald-400 ring-2 ring-emerald-400/20' 
                                                 : 'bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2] focus:ring-[#4A7CD2]/25'
                                         }`} 
-                                        placeholder={newPatient.region === 'PK' ? "e.g. 0321 4455667" : "e.g. 021 123 4567"} 
+                                        placeholder={newPatient.region === 'PK' ? "e.g. 0321 4455667 (Optional)" : "e.g. 021 123 4567 (Optional)"} 
                                     />
                                     {errors.phone && touched.phone && (
                                         <p className="text-[10px] font-bold text-red-600 flex items-center gap-1 mt-1 animate-fade-in">
@@ -1253,301 +1385,268 @@ export default function NewPatientPage() {
                                         </p>
                                     )}
                                 </div>
-                                <div>
+
+                                {/* Street Address Lookup & Autocomplete */}
+                                <div className="relative" ref={addressDropdownRef}>
                                     <div className="flex justify-between items-center mb-0.5 ml-1">
-                                        <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">Healthcare Region *</label>
-                                        {recentlySyncedField.region && (
+                                        <div className="flex items-center gap-1.5">
+                                            <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">Street Address</label>
+                                            <span className="text-[8.5px] font-extrabold text-[#4A7CD2] bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 flex items-center gap-1">
+                                                <Globe className="w-2.5 h-2.5" />
+                                                <span>Live Address Lookup</span>
+                                            </span>
+                                        </div>
+                                        {recentlySyncedField.address && (
                                             <span className="text-[8.5px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-0.5 animate-pulse">
                                                 <Check className="w-2.5 h-2.5" /> Synced
                                             </span>
                                         )}
                                     </div>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => setNewPatient({...newPatient, region: 'PK'})}
-                                            className={`py-1.5 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                                                newPatient.region === 'PK'
-                                                    ? 'bg-[#EAF0FC] border-[#4A7CD2] text-[#4A7CD2] shadow-xs'
-                                                    : 'bg-[#F8FAFC] border-light-teal/50 text-muted-text hover:text-dark-slate'
-                                            }`}
-                                        >
-                                            <Globe className="w-3 h-3" /> Pakistan (PK)
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setNewPatient({...newPatient, region: 'NZ'})}
-                                            className={`py-1.5 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                                                newPatient.region === 'NZ'
-                                                    ? 'bg-[#EAF0FC] border-[#4A7CD2] text-[#4A7CD2] shadow-xs'
-                                                    : 'bg-[#F8FAFC] border-light-teal/50 text-muted-text hover:text-dark-slate'
-                                            }`}
-                                        >
-                                            <Globe className="w-3 h-3" /> New Zealand (NZ)
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Row 4: Street Address Lookup & Autocomplete */}
-                            <div className="relative" ref={addressDropdownRef}>
-                                <div className="flex justify-between items-center mb-0.5 ml-1">
-                                    <div className="flex items-center gap-1.5">
-                                        <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">Street Address</label>
-                                        <span className="text-[8.5px] font-extrabold text-[#4A7CD2] bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 flex items-center gap-1">
-                                            <Globe className="w-2.5 h-2.5" />
-                                            <span>Live Address Lookup</span>
-                                        </span>
-                                    </div>
-                                    {recentlySyncedField.address && (
-                                        <span className="text-[8.5px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-0.5 animate-pulse">
-                                            <Check className="w-2.5 h-2.5" /> Synced
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="relative flex items-center">
-                                    <MapPin className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
-                                    <input
-                                        type="text"
-                                        name="address"
-                                        placeholder={newPatient.region === 'PK' ? "Search street, sector (e.g. F-7, Gulberg) or type custom address..." : "Search street, suburb, Auckland or type custom address..."}
-                                        value={newPatient.address}
-                                        onFocus={() => {
-                                            if (addressSuggestions.length > 0) setShowAddressDropdown(true);
-                                        }}
-                                        onChange={(e) => {
-                                            const val = e.target.value;
-                                            setNewPatient(prev => ({ ...prev, address: val }));
-                                            addressSelectedRef.current = false;
-                                            if (!val.trim()) {
-                                                setAddressSuggestions([]);
-                                                setShowAddressDropdown(false);
-                                            }
-                                        }}
-                                        className="w-full pl-9 pr-16 py-2.5 bg-[#F8FAFC] border border-light-teal/50 focus:border-[#4A7CD2] rounded-xl text-xs font-bold text-dark-slate focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/20 transition-all placeholder:font-normal placeholder:text-slate-400"
-                                    />
-                                    <div className="absolute right-2.5 flex items-center gap-1.5">
-                                        {loadingAddressSuggestions ? (
-                                            <div className="flex items-center gap-1 text-[10px] text-[#4A7CD2] font-bold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
-                                                <Loader2 className="w-3 h-3 animate-spin" />
-                                                <span className="hidden sm:inline">Searching...</span>
-                                            </div>
-                                        ) : newPatient.address ? (
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setNewPatient(prev => ({ ...prev, address: '' }));
+                                    <div className="relative flex items-center">
+                                        <MapPin className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
+                                        <input
+                                            type="text"
+                                            name="address"
+                                            placeholder={newPatient.region === 'PK' ? "Search street, sector (e.g. F-7, Gulberg) or type custom address..." : "Search street, suburb, Auckland or type custom address..."}
+                                            value={newPatient.address}
+                                            onFocus={() => {
+                                                if (addressSuggestions.length > 0) setShowAddressDropdown(true);
+                                            }}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setNewPatient(prev => ({ ...prev, address: val }));
+                                                addressSelectedRef.current = false;
+                                                if (!val.trim()) {
                                                     setAddressSuggestions([]);
                                                     setShowAddressDropdown(false);
-                                                }}
-                                                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg text-xs cursor-pointer"
-                                                title="Clear address"
-                                            >
-                                                ✕
-                                            </button>
-                                        ) : (
-                                            <Search className="w-3.5 h-3.5 text-slate-400" />
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Inline Expandable Verified Suggestions (Never clips or covers inputs!) */}
-                                {showAddressDropdown && addressSuggestions.length > 0 && (
-                                    <div className="mt-2 bg-white border border-blue-200 rounded-2xl shadow-sm p-2.5 space-y-1.5 animate-scale-up">
-                                        <div className="flex items-center justify-between pb-1 px-1 border-b border-slate-100 text-[10px] font-bold text-slate-500">
-                                            <span className="flex items-center gap-1 text-[#4A7CD2]">
-                                                <MapPin className="w-3 h-3" />
-                                                <span>Verified Location Matches ({addressSuggestions.length})</span>
-                                            </span>
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowAddressDropdown(false)}
-                                                className="text-slate-400 hover:text-slate-700 px-1.5 py-0.5 rounded hover:bg-slate-100 text-[10px] cursor-pointer"
-                                            >
-                                                ✕ Close
-                                            </button>
-                                        </div>
-                                        <div className="max-h-44 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-                                            {addressSuggestions.map(item => (
-                                                <div
-                                                    key={item.id}
-                                                    onClick={() => handleSelectAddressSuggestion(item)}
-                                                    className="p-2 bg-slate-50/70 hover:bg-blue-50/80 border border-slate-100 hover:border-blue-200 rounded-xl transition cursor-pointer flex items-center justify-between gap-2 group"
+                                                }
+                                            }}
+                                            className="w-full pl-9 pr-16 py-2.5 bg-[#F8FAFC] border border-light-teal/50 focus:border-[#4A7CD2] rounded-xl text-xs font-bold text-dark-slate focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/20 transition-all placeholder:font-normal placeholder:text-slate-400"
+                                        />
+                                        <div className="absolute right-2.5 flex items-center gap-1.5">
+                                            {loadingAddressSuggestions ? (
+                                                <div className="flex items-center gap-1 text-[10px] text-[#4A7CD2] font-bold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                                    <span className="hidden sm:inline">Searching...</span>
+                                                </div>
+                                            ) : newPatient.address ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setNewPatient(prev => ({ ...prev, address: '' }));
+                                                        setAddressSuggestions([]);
+                                                        setShowAddressDropdown(false);
+                                                    }}
+                                                    className="p-1 text-slate-400 hover:text-slate-600 rounded-lg text-xs cursor-pointer"
+                                                    title="Clear address"
                                                 >
-                                                    <div className="flex items-start gap-2 min-w-0">
-                                                        <MapPin className="w-3.5 h-3.5 text-[#4A7CD2] shrink-0 mt-0.5" />
-                                                        <div className="min-w-0">
-                                                            <div className="text-xs font-black text-slate-900 truncate group-hover:text-[#4A7CD2]">
-                                                                {item.title}
-                                                            </div>
-                                                            <div className="text-[10px] text-slate-500 truncate">
-                                                                {item.subtitle}
+                                                    ✕
+                                                </button>
+                                            ) : (
+                                                <Search className="w-3.5 h-3.5 text-slate-400" />
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Inline Expandable Verified Suggestions */}
+                                    {showAddressDropdown && addressSuggestions.length > 0 && (
+                                        <div className="mt-2 bg-white border border-blue-200 rounded-2xl shadow-sm p-2.5 space-y-1.5 animate-scale-up">
+                                            <div className="flex items-center justify-between pb-1 px-1 border-b border-slate-100 text-[10px] font-bold text-slate-500">
+                                                <span className="flex items-center gap-1 text-[#4A7CD2]">
+                                                    <MapPin className="w-3 h-3" />
+                                                    <span>Verified Location Matches ({addressSuggestions.length})</span>
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowAddressDropdown(false)}
+                                                    className="text-slate-400 hover:text-slate-700 px-1.5 py-0.5 rounded hover:bg-slate-100 text-[10px] cursor-pointer"
+                                                >
+                                                    ✕ Close
+                                                </button>
+                                            </div>
+                                            <div className="max-h-44 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                                                {addressSuggestions.map(item => (
+                                                    <div
+                                                        key={item.id}
+                                                        onClick={() => handleSelectAddressSuggestion(item)}
+                                                        className="p-2 bg-slate-50/70 hover:bg-blue-50/80 border border-slate-100 hover:border-blue-200 rounded-xl transition cursor-pointer flex items-center justify-between gap-2 group"
+                                                    >
+                                                        <div className="flex items-start gap-2 min-w-0">
+                                                            <MapPin className="w-3.5 h-3.5 text-[#4A7CD2] shrink-0 mt-0.5" />
+                                                            <div className="min-w-0">
+                                                                <div className="text-xs font-black text-slate-900 truncate group-hover:text-[#4A7CD2]">
+                                                                    {item.title}
+                                                                </div>
+                                                                <div className="text-[10px] text-slate-500 truncate">
+                                                                    {item.subtitle}
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5 shrink-0">
-                                                        {item.city && (
-                                                            <span className="text-[9.5px] font-bold bg-white text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">
-                                                                {item.city}
+                                                        <div className="flex items-center gap-1.5 shrink-0">
+                                                            {item.city && (
+                                                                <span className="text-[9.5px] font-bold bg-white text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">
+                                                                    {item.city}
+                                                                </span>
+                                                            )}
+                                                            <span className="text-[9.5px] font-black text-white bg-[#4A7CD2] px-2 py-0.5 rounded-lg group-hover:bg-[#3665B7] shadow-2xs">
+                                                                Select & Fill
                                                             </span>
-                                                        )}
-                                                        <span className="text-[9.5px] font-black text-white bg-[#4A7CD2] px-2 py-0.5 rounded-lg group-hover:bg-[#3665B7] shadow-2xs">
-                                                            Select & Fill
-                                                        </span>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            ))}
+                                                ))}
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    )}
 
-                                {/* Quick Region City Helpers */}
-                                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                                    <span className="text-[9.5px] font-bold text-slate-400">Quick Cities:</span>
-                                    {(newPatient.region === 'PK'
-                                        ? ['Islamabad', 'Lahore', 'Rawalpindi', 'Karachi', 'Peshawar', 'Rawalakot']
-                                        : ['Auckland', 'Wellington', 'Christchurch', 'Hamilton']
-                                    ).map(c => (
-                                        <button
-                                            key={c}
-                                            type="button"
-                                            onClick={() => {
-                                                setNewPatient(prev => ({
-                                                    ...prev,
-                                                    city: c,
-                                                    address: prev.address ? prev.address : `${c}, ${newPatient.region === 'PK' ? 'Pakistan' : 'New Zealand'}`
-                                                }));
-                                            }}
-                                            className="text-[10px] font-semibold px-2 py-0.5 bg-slate-100 hover:bg-blue-50 hover:text-[#4A7CD2] text-slate-600 rounded-md border border-slate-200 transition cursor-pointer"
-                                        >
-                                            + {c}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Row 5: City, Postcode & Treatment Modality (Integrated Clean Row) */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <div className="flex justify-between items-center mb-0.5 ml-1">
-                                            <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">City</label>
-                                            {recentlySyncedField.city && (
-                                                <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-1 rounded border border-emerald-200">Synced</span>
-                                            )}
-                                        </div>
-                                        <input 
-                                            name="city" 
-                                            placeholder="City" 
-                                            type="text" 
-                                            value={newPatient.city} 
-                                            onChange={(e) => setNewPatient({...newPatient, city: e.target.value})} 
-                                            className={`w-full border rounded-xl px-3 py-2 text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/25 font-bold transition-all ${
-                                                recentlySyncedField.city 
-                                                    ? 'bg-emerald-50/70 border-emerald-400 ring-2 ring-emerald-400/20' 
-                                                    : 'bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2]'
-                                            }`} 
-                                        />
-                                    </div>
-                                    <div>
-                                        <div className="flex justify-between items-center mb-0.5 ml-1">
-                                            <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">Postcode</label>
-                                            {recentlySyncedField.postcode && (
-                                                <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-1 rounded border border-emerald-200">Synced</span>
-                                            )}
-                                        </div>
-                                        <input 
-                                            name="postcode" 
-                                            placeholder="Code" 
-                                            type="text" 
-                                            value={newPatient.postcode} 
-                                            onChange={(e) => setNewPatient({...newPatient, postcode: e.target.value})} 
-                                            className={`w-full border rounded-xl px-3 py-2 text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/25 font-bold transition-all ${
-                                                recentlySyncedField.postcode 
-                                                    ? 'bg-emerald-50/70 border-emerald-400 ring-2 ring-emerald-400/20' 
-                                                    : 'bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2]'
-                                            }`} 
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="flex justify-between items-center mb-0.5 ml-1">
-                                        <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">Visit Purpose / Plan</label>
-                                        <span className="text-[8.5px] text-[#4A7CD2] font-bold">Modality</span>
-                                    </div>
-                                    <div className="relative">
-                                        <select 
-                                            value={newPatient.currentTreatmentPlan} 
-                                            onChange={e => setNewPatient({...newPatient, currentTreatmentPlan: e.target.value})} 
-                                            className="w-full border rounded-xl px-3 py-2 text-xs text-dark-slate bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2] focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/25 font-bold transition-all appearance-none cursor-pointer"
-                                        >
-                                            <option value="General Consultation">General Consultation & Routine Checkup</option>
-                                            <option value="Toothache & Emergency">Toothache & Emergency Relief</option>
-                                            <option value="Teeth Whitening (Cosmetic)">Teeth Whitening (Cosmetic)</option>
-                                            <option value="Braces (Orthodontics)">Braces (Orthodontics)</option>
-                                            <option value="Cavity Restorative">Cavity Restorative & Filling</option>
-                                            <option value="Root Canal Treatment (RCT)">Root Canal Treatment (RCT)</option>
-                                            <option value="Scaling & Deep Cleaning">Scaling & Deep Cleaning</option>
-                                            <option value="Crown & Bridge Prosthesis">Crown & Bridge Prosthesis</option>
-                                        </select>
-                                        <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-text">
-                                            ▼
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Row 6: Medical Alerts & Allergy Quick Tags (Compact Pill Strip) */}
-                            <div className="bg-[#FAFBFD] border border-light-teal/40 rounded-xl px-3 py-2 space-y-1">
-                                <div className="flex justify-between items-center ml-0.5">
-                                    <label className="text-[10px] font-black text-dark-slate uppercase tracking-wider flex items-center gap-1">
-                                        <HeartPulse className="w-3 h-3 text-rose-500" /> Medical Alerts & Allergies
-                                    </label>
-                                    <span className="text-[8.5px] text-muted-text font-bold">Click to tag</span>
-                                </div>
-                                <div className="flex flex-wrap gap-1">
-                                    {["No Known Allergies", "Penicillin Allergy", "Latex Sensitive", "Hypertension", "Diabetic", "Local Anesthetic", "Aspirin/NSAID"].map(tag => {
-                                        const isSelected = newPatient.selectedAllergies?.includes(tag);
-                                        return (
+                                    {/* Quick Region City Helpers */}
+                                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                        <span className="text-[9.5px] font-bold text-slate-400">Quick Cities:</span>
+                                        {(newPatient.region === 'PK'
+                                            ? ['Islamabad', 'Lahore', 'Rawalpindi', 'Karachi', 'Peshawar', 'Rawalakot']
+                                            : ['Auckland', 'Wellington', 'Christchurch', 'Hamilton']
+                                        ).map(c => (
                                             <button
-                                                key={tag}
+                                                key={c}
                                                 type="button"
                                                 onClick={() => {
-                                                    const cur = newPatient.selectedAllergies || [];
-                                                    const updated = isSelected ? cur.filter(t => t !== tag) : [...cur, tag];
-                                                    setNewPatient({ ...newPatient, selectedAllergies: updated });
+                                                    setNewPatient(prev => ({
+                                                        ...prev,
+                                                        city: c,
+                                                        address: prev.address ? prev.address : `${c}, ${newPatient.region === 'PK' ? 'Pakistan' : 'New Zealand'}`
+                                                    }));
                                                 }}
-                                                className={`px-2 py-0.5 rounded-md text-[9.5px] font-bold border transition-all cursor-pointer ${
-                                                    isSelected 
-                                                        ? 'bg-rose-500 text-white border-rose-600 shadow-2xs scale-102' 
-                                                        : 'bg-white text-slate-600 border-slate-200/80 hover:border-slate-300 hover:bg-slate-50'
-                                                }`}
+                                                className="text-[10px] font-semibold px-2 py-0.5 bg-slate-100 hover:bg-blue-50 hover:text-[#4A7CD2] text-slate-600 rounded-md border border-slate-200 transition cursor-pointer"
                                             >
-                                                {isSelected ? `✓ ${tag}` : `+ ${tag}`}
+                                                + {c}
                                             </button>
-                                        );
-                                    })}
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Row: City, Postcode & Treatment Modality */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <div className="flex justify-between items-center mb-0.5 ml-1">
+                                                <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">City</label>
+                                                {recentlySyncedField.city && (
+                                                    <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-1 rounded border border-emerald-200">Synced</span>
+                                                )}
+                                            </div>
+                                            <input 
+                                                name="city" 
+                                                placeholder="City" 
+                                                type="text" 
+                                                value={newPatient.city} 
+                                                onChange={(e) => setNewPatient({...newPatient, city: e.target.value})} 
+                                                className={`w-full border rounded-xl px-3 py-2 text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/25 font-bold transition-all ${
+                                                    recentlySyncedField.city 
+                                                        ? 'bg-emerald-50/70 border-emerald-400 ring-2 ring-emerald-400/20' 
+                                                        : 'bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2]'
+                                                }`} 
+                                            />
+                                        </div>
+                                        <div>
+                                            <div className="flex justify-between items-center mb-0.5 ml-1">
+                                                <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">Postcode</label>
+                                                {recentlySyncedField.postcode && (
+                                                    <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-1 rounded border border-emerald-200">Synced</span>
+                                                )}
+                                            </div>
+                                            <input 
+                                                name="postcode" 
+                                                placeholder="Code" 
+                                                type="text" 
+                                                value={newPatient.postcode} 
+                                                onChange={(e) => setNewPatient({...newPatient, postcode: e.target.value})} 
+                                                className={`w-full border rounded-xl px-3 py-2 text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/25 font-bold transition-all ${
+                                                    recentlySyncedField.postcode 
+                                                        ? 'bg-emerald-50/70 border-emerald-400 ring-2 ring-emerald-400/20' 
+                                                        : 'bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2]'
+                                                }`} 
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between items-center mb-0.5 ml-1">
+                                            <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">Visit Purpose / Plan</label>
+                                            <span className="text-[8.5px] text-[#4A7CD2] font-bold">Modality</span>
+                                        </div>
+                                        <div className="relative">
+                                            <select 
+                                                value={newPatient.currentTreatmentPlan} 
+                                                onChange={e => setNewPatient({...newPatient, currentTreatmentPlan: e.target.value})} 
+                                                className="w-full border rounded-xl px-3 py-2 text-xs text-dark-slate bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2] focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/25 font-bold transition-all appearance-none cursor-pointer"
+                                            >
+                                                <option value="General Consultation">General Consultation & Routine Checkup</option>
+                                                <option value="Toothache & Emergency">Toothache & Emergency Relief</option>
+                                                <option value="Teeth Whitening (Cosmetic)">Teeth Whitening (Cosmetic)</option>
+                                                <option value="Braces (Orthodontics)">Braces (Orthodontics)</option>
+                                                <option value="Cavity Restorative">Cavity Restorative & Filling</option>
+                                                <option value="Root Canal Treatment (RCT)">Root Canal Treatment (RCT)</option>
+                                                <option value="Scaling & Deep Cleaning">Scaling & Deep Cleaning</option>
+                                                <option value="Crown & Bridge Prosthesis">Crown & Bridge Prosthesis</option>
+                                            </select>
+                                            <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-text">
+                                                ▼
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Row: Medical Alerts & Allergy Quick Tags (Compact Pill Strip) */}
+                                <div className="bg-[#FAFBFD] border border-light-teal/40 rounded-xl px-3 py-2 space-y-1">
+                                    <div className="flex justify-between items-center ml-0.5">
+                                        <label className="text-[10px] font-black text-dark-slate uppercase tracking-wider flex items-center gap-1">
+                                            <HeartPulse className="w-3 h-3 text-rose-500" /> Medical Alerts & Allergies
+                                        </label>
+                                        <span className="text-[8.5px] text-muted-text font-bold">Click to tag</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1">
+                                        {["No Known Allergies", "Penicillin Allergy", "Latex Sensitive", "Hypertension", "Diabetic", "Local Anesthetic", "Aspirin/NSAID"].map(tag => {
+                                            const isSelected = newPatient.selectedAllergies?.includes(tag);
+                                            return (
+                                                <button
+                                                    key={tag}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const cur = newPatient.selectedAllergies || [];
+                                                        const updated = isSelected ? cur.filter(t => t !== tag) : [...cur, tag];
+                                                        setNewPatient({ ...newPatient, selectedAllergies: updated });
+                                                    }}
+                                                    className={`px-2 py-0.5 rounded-md text-[9.5px] font-bold border transition-all cursor-pointer ${
+                                                        isSelected 
+                                                            ? 'bg-rose-500 text-white border-rose-600 shadow-2xs scale-102' 
+                                                            : 'bg-white text-slate-600 border-slate-200/80 hover:border-slate-300 hover:bg-slate-50'
+                                                    }`}
+                                                >
+                                                    {isSelected ? `✓ ${tag}` : `+ ${tag}`}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Row: Clinical Intake Notes / Chief Complaint */}
+                                <div>
+                                    <div className="flex justify-between items-center mb-0.5 ml-1">
+                                        <label className="text-[10px] font-black text-dark-slate uppercase tracking-wider flex items-center gap-1">
+                                            <FileText className="w-3 h-3 text-[#4A7CD2]" /> Chief Complaint / Intake Clinical Notes
+                                        </label>
+                                        <span className="text-[8.5px] text-muted-text font-bold">Optional</span>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={newPatient.medicalNotes}
+                                        onChange={e => setNewPatient({ ...newPatient, medicalNotes: e.target.value })}
+                                        placeholder="e.g. Patient experiencing sensitivity on upper molar with cold drinks..."
+                                        className="w-full border rounded-xl px-3 py-2 text-xs text-dark-slate bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2] focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/25 font-medium transition-all"
+                                    />
                                 </div>
                             </div>
+                        </div>
 
-                            {/* Row 7: Clinical Intake Notes / Chief Complaint */}
-                            <div>
-                                <div className="flex justify-between items-center mb-0.5 ml-1">
-                                    <label className="text-[10px] font-black text-dark-slate uppercase tracking-wider flex items-center gap-1">
-                                        <FileText className="w-3 h-3 text-[#4A7CD2]" /> Chief Complaint / Intake Clinical Notes
-                                    </label>
-                                    <span className="text-[8.5px] text-muted-text font-bold">Optional</span>
-                                </div>
-                                <input
-                                    type="text"
-                                    value={newPatient.medicalNotes}
-                                    onChange={e => setNewPatient({ ...newPatient, medicalNotes: e.target.value })}
-                                    placeholder="e.g. Patient experiencing sensitivity on upper molar with cold drinks..."
-                                    className="w-full border rounded-xl px-3 py-2 text-xs text-dark-slate bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2] focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/25 font-medium transition-all"
-                                />
-                            </div>
-
-                        </form>
+                    </form>
 
                     {/* Bottom Action Row (Docked at bottom of Left Card) */}
                     <div className="pt-3 border-t border-light-teal/20 flex flex-wrap justify-between items-center gap-3 flex-shrink-0 mt-2 bg-white">
