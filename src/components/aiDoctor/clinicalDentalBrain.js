@@ -474,6 +474,16 @@ export function resolveDoctorInstruction(transcript, context = {}) {
     };
   }
 
+  // 1.6 Single Incomplete Command Guard (e.g. user only said "open" or "show" before completing sentence)
+  if (clean === 'open' || clean === 'open the' || clean === 'go' || clean === 'go to' || clean === 'show' || clean === 'show me' || clean === 'navigate' || clean === 'please open') {
+    return {
+      title: 'Command Incomplete',
+      category: 'Assistant',
+      text: `Doctor, what would you like me to open? You can say "patient directory", "appointments", "new patient", or a patient chart like "chart of Tayyab".`,
+      action: null
+    };
+  }
+
   // =========================================================================
   // STAGE 2: CLINIC PLATFORM NAVIGATION DIRECTIVES
   // =========================================================================

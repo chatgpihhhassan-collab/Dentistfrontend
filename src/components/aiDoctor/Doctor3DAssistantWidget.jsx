@@ -101,6 +101,9 @@ export default function Doctor3DAssistantWidget() {
     return () => unsubscribe();
   }, []);
 
+  const accumulatedTranscriptRef = useRef('');
+  const speechTimeoutRef = useRef(null);
+
   // Web Speech Recognition
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -108,8 +111,8 @@ export default function Doctor3DAssistantWidget() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
+      recognition.continuous = true;
+      recognition.interimResults = true;
       recognition.lang = 'en-US';
 
       recognition.onstart = () => {
@@ -122,19 +125,56 @@ export default function Doctor3DAssistantWidget() {
           console.log('[Doctor3DAssistant] Suppressed mic input while AI is speaking');
           return;
         }
-        const transcript = event.results[0][0].transcript;
-        if (transcript) {
-          handleDoctorSpokenCommand(transcript);
+
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const res = event.results[i];
+          if (res.isFinal) {
+            accumulatedTranscriptRef.current += (accumulatedTranscriptRef.current ? ' ' : '') + res[0].transcript.trim();
+          } else {
+            interim += (interim ? ' ' : '') + res[0].transcript.trim();
+          }
         }
+
+        const liveCombined = (accumulatedTranscriptRef.current + (interim ? ' ' + interim : '')).trim();
+        if (liveCombined) {
+          setInputText(liveCombined);
+        }
+
+        // Debounce sentence completion: wait for 900ms natural speech pause before executing
+        if (speechTimeoutRef.current) {
+          clearTimeout(speechTimeoutRef.current);
+        }
+        speechTimeoutRef.current = setTimeout(() => {
+          const fullSpoken = (accumulatedTranscriptRef.current + (interim ? ' ' + interim : '')).trim();
+          if (fullSpoken) {
+            accumulatedTranscriptRef.current = '';
+            setInputText('');
+            stopListening();
+            handleDoctorSpokenCommand(fullSpoken);
+          }
+        }, 900);
       };
 
       recognition.onerror = (err) => {
         console.warn('[Doctor3DAssistant] Speech Recognition Error:', err);
-        setIsListening(false);
+        if (err.error !== 'no-speech') {
+          setIsListening(false);
+        }
       };
 
       recognition.onend = () => {
         setIsListening(false);
+        if (speechTimeoutRef.current) {
+          clearTimeout(speechTimeoutRef.current);
+          speechTimeoutRef.current = null;
+        }
+        const pending = (accumulatedTranscriptRef.current || '').trim();
+        accumulatedTranscriptRef.current = '';
+        if (pending) {
+          setInputText('');
+          handleDoctorSpokenCommand(pending);
+        }
       };
 
       recognitionRef.current = recognition;
@@ -145,6 +185,9 @@ export default function Doctor3DAssistantWidget() {
         try {
           recognitionRef.current.abort();
         } catch {}
+      }
+      if (speechTimeoutRef.current) {
+        clearTimeout(speechTimeoutRef.current);
       }
     };
   }, []);
@@ -159,6 +202,12 @@ export default function Doctor3DAssistantWidget() {
       stopListening();
     } else {
       try {
+        accumulatedTranscriptRef.current = '';
+        if (speechTimeoutRef.current) {
+          clearTimeout(speechTimeoutRef.current);
+          speechTimeoutRef.current = null;
+        }
+        setInputText('');
         recognitionRef.current.start();
       } catch (e) {
         console.warn('[Doctor3DAssistant] Recognition start error:', e);
@@ -167,6 +216,16 @@ export default function Doctor3DAssistantWidget() {
   };
 
   const stopListening = () => {
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+      speechTimeoutRef.current = null;
+    }
+    const pending = (accumulatedTranscriptRef.current || '').trim();
+    accumulatedTranscriptRef.current = '';
+    if (pending) {
+      setInputText('');
+      handleDoctorSpokenCommand(pending);
+    }
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
