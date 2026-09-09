@@ -352,6 +352,25 @@ export const DENTAL_KNOWLEDGE_BASE = [
 // 4. INTELLIGENT INTENT RESOLVER & ASSISTANT ENGINE
 // =========================================================================
 
+// Master Clinic Patient Index for Instant Chart Navigation
+export const CLINIC_PATIENTS_INDEX = {
+  tayyab: { id: 28, name: 'Tayyab Saleem', dentition: 'Mixed (11 Yrs)', arch: 'Pediatric/Mixed Arch' },
+  samra: { id: 29, name: 'Samra Asad', dentition: 'Adult (31 Yrs)', arch: 'Adult Permanent Arch (1-32)' },
+  samara: { id: 29, name: 'Samra Asad', dentition: 'Adult (31 Yrs)', arch: 'Adult Permanent Arch (1-32)' },
+  miraal: { id: 30, name: 'Miraal Yousaf', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
+  saad: { id: 27, name: 'Saad Malik', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
+  ehtsham: { id: 26, name: 'Ehtsham Ali', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
+  hassan: { id: 25, name: 'Hassan Sohail', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
+  abrish: { id: 24, name: 'Abrish Fatima', dentition: 'Pediatric', arch: 'Pediatric Arch (A-T)' },
+  shafiq: { id: 23, name: 'Shafiq Ahmed', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
+  tabish: { id: 22, name: 'Tabish Ejaz', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
+  sahil: { id: 21, name: 'Sahil Raja', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
+  amina: { id: 16, name: 'Amina Khan', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
+  hamza: { id: 15, name: 'Hamza Khan', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
+  tariq: { id: 2, name: 'Tariq Mehmood', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
+  haider: { id: 1, name: 'Haider Ali', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' }
+};
+
 /**
  * Resolve spoken or typed doctor command into clinical answer and UI actions
  * @param {string} transcript - Input speech or query text
@@ -370,7 +389,41 @@ export function resolveDoctorInstruction(transcript, context = {}) {
 
   const clean = transcript.toLowerCase().trim();
 
-  // 1. Direct Knowledge Base Matching
+  // 1. Natural Language Patient Chart Lookup
+  // Handles: "chart of tayyab", "open tayyab", "open chat of tayyab", "show tayyab", "open chart of tayyab", "tayyab chart"
+  const chartPatterns = [
+    /(?:chart|chat|records|teeth)\s+(?:of|for)\s+([a-zA-Z]+)/i,
+    /(?:open|show|view|find|go\s+to)\s+(?:chart|chat|records\s+of)?\s*([a-zA-Z]+)(?:\s+(?:chart|records|profile|teeth|chat))?/i,
+    /([a-zA-Z]+)\s+(?:chart|records|teeth)/i
+  ];
+
+  for (const pattern of chartPatterns) {
+    const match = clean.match(pattern);
+    if (match && match[1]) {
+      const candidate = match[1].toLowerCase().trim();
+      // Exclude common stop words
+      if (!['appointments', 'appointment', 'dashboard', 'directory', 'patient', 'patients', 'treatments', 'treatment', 'the', 'a', 'an', 'notes', 'help'].includes(candidate)) {
+        if (CLINIC_PATIENTS_INDEX[candidate]) {
+          const p = CLINIC_PATIENTS_INDEX[candidate];
+          return {
+            title: `Patient Dental Chart: ${p.name}`,
+            category: 'Patient Navigation',
+            text: `Opening dental chart for ${p.name} (Patient ID #${p.id}, ${p.dentition}), Doctor. Synchronizing 3D jaws and tooth condition history.`,
+            action: { type: 'NAVIGATE', path: `/chart/${p.id}` }
+          };
+        }
+        // Unknown patient name -> dynamic patient lookup action
+        return {
+          title: `Locating Patient: ${candidate}`,
+          category: 'Patient Lookup',
+          text: `Searching dental registry for patient "${candidate}", Doctor. Opening patient chart...`,
+          action: { type: 'PATIENT_LOOKUP', patientName: candidate }
+        };
+      }
+    }
+  }
+
+  // 2. Direct Knowledge Base Matching
   for (const item of DENTAL_KNOWLEDGE_BASE) {
     const isMatch = item.keywords.some(kw => clean.includes(kw));
     if (isMatch) {

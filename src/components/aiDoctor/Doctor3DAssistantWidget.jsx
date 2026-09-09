@@ -170,7 +170,7 @@ export default function Doctor3DAssistantWidget() {
     setIsListening(false);
   };
 
-  const handleDoctorSpokenCommand = (transcript) => {
+  const handleDoctorSpokenCommand = async (transcript) => {
     if (!transcript.trim()) return;
     setHasStartedChat(true);
 
@@ -200,10 +200,62 @@ export default function Doctor3DAssistantWidget() {
     };
     setChatLog(prev => [...prev, aiMsg]);
 
+    // Handle instant known patient or route navigation
     if (resolution.action && resolution.action.type === 'NAVIGATE') {
+      if (!isAudioMuted) {
+        aiVoice.speak(resolution.text, { rate: 1.0, pitch: 1.05 });
+      }
       setTimeout(() => {
         navigate(resolution.action.path);
-      }, 900);
+      }, 700);
+      return;
+    }
+
+    // Handle Dynamic Patient Database Search
+    if (resolution.action && resolution.action.type === 'PATIENT_LOOKUP') {
+      const pName = resolution.action.patientName;
+      try {
+        const res = await fetch(`https://dentist-api-dev.vitonta.com/api/Patients/search?name=${encodeURIComponent(pName)}`);
+        if (res.ok) {
+          const p = await res.json();
+          if (p && p.patientID) {
+            const foundMsg = {
+              sender: 'ai',
+              category: 'Patient Navigation',
+              title: `Patient Dental Chart: ${p.firstName} ${p.lastName}`,
+              text: `Opening dental chart for ${p.firstName} ${p.lastName} (Patient ID #${p.patientID}, ${p.dentitionType || 'Adult'} Arch), Doctor. Synchronizing 3D jaws.`,
+              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            };
+            setChatLog(prev => [...prev.slice(0, -1), foundMsg]);
+            if (!isAudioMuted) {
+              aiVoice.speak(foundMsg.text, { rate: 1.0, pitch: 1.05 });
+            }
+            setTimeout(() => {
+              navigate(`/chart/${p.patientID}`);
+            }, 700);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Patient API lookup error:', err);
+      }
+
+      // If not found in database, open directory search
+      const notFoundMsg = {
+        sender: 'ai',
+        category: 'Patient Directory',
+        title: `Search: ${pName}`,
+        text: `Doctor, I could not find an exact patient record for "${pName}". Opening patient directory to search all records.`,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setChatLog(prev => [...prev.slice(0, -1), notFoundMsg]);
+      if (!isAudioMuted) {
+        aiVoice.speak(notFoundMsg.text, { rate: 1.0, pitch: 1.05 });
+      }
+      setTimeout(() => {
+        navigate(`/directory?search=${encodeURIComponent(pName)}`);
+      }, 800);
+      return;
     }
 
     if (!isAudioMuted) {
