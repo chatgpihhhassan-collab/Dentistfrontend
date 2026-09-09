@@ -484,15 +484,26 @@ export function resolveDoctorInstruction(transcript, context = {}) {
     };
   }
 
+  // 1.7 False Word / Gibberish Speech Detection
+  const hasGibberish = clean.split(' ').some(w => w.length > 3 && !/[aeiouy]/.test(w));
+  if (hasGibberish) {
+    return {
+      title: 'Unrecognized Audio',
+      category: 'Assistant',
+      text: `Doctor, I could not understand "${transcript}". Could you please rephrase? You can ask me to navigate (e.g. "open patient directory", "show appointments"), open a patient chart (e.g. "chart of Tayyab"), or ask about dental pathology and CDT codes.`,
+      action: null
+    };
+  }
+
   // =========================================================================
-  // STAGE 2: CLINIC PLATFORM NAVIGATION DIRECTIVES
+  // STAGE 2: CLINIC PLATFORM NAVIGATION DIRECTIVES (With Phonetic Resilience)
   // =========================================================================
 
-  // 2.1 Patient Master Directory ("Please open the patient directory", "open directory", "patient list")
+  // 2.1 Patient Master Directory ("Please open the patient directory", "open directory", "patient list", "directry")
   if (
-    /(?:patient\s+directory|open\s+(?:the\s+)?(?:patient\s+)?directory|go\s+to\s+(?:the\s+)?(?:patient\s+)?directory|show\s+(?:the\s+)?(?:patient\s+)?directory|patient\s+list|patients\s+list|patient\s+records|all\s+patients|show\s+patients|view\s+patients|^directory$)/i.test(clean) ||
-    (/(?:open|show|view|find|go\s+to)\b/i.test(clean) && clean.includes('directory')) ||
-    (clean.includes('directory') && !clean.includes('chart'))
+    /(?:patient\s+directory|open\s+(?:the\s+)?(?:patient\s+)?directory|go\s+to\s+(?:the\s+)?(?:patient\s+)?directory|show\s+(?:the\s+)?(?:patient\s+)?directory|patient\s+list|patients\s+list|patient\s+records|all\s+patients|show\s+patients|view\s+patients|^directory$|directry|drectory)/i.test(clean) ||
+    (/(?:open|show|view|find|go\s+to)\b/i.test(clean) && (clean.includes('directory') || clean.includes('directry'))) ||
+    ((clean.includes('directory') || clean.includes('directry')) && !clean.includes('chart'))
   ) {
     return {
       title: 'Patient Master Directory',
@@ -502,9 +513,9 @@ export function resolveDoctorInstruction(transcript, context = {}) {
     };
   }
 
-  // 2.2 Appointments Schedule ("Open appointments", "Show schedule", "Upcoming visits")
+  // 2.2 Appointments Schedule ("Open appointments", "Show schedule", "Upcoming visits", "apointment")
   if (
-    /(?:appointments|appointment\s+list|operatory\s+schedule|view\s+appointments|show\s+appointments|open\s+appointments|go\s+to\s+appointments|timetable|calendar|^schedule$)/i.test(clean) &&
+    /(?:appointments|appointment|apointment|operatory\s+schedule|view\s+appointments|show\s+appointments|open\s+appointments|go\s+to\s+appointments|timetable|calendar|^schedule$)/i.test(clean) &&
     !clean.includes('book') && !clean.includes('new appointment')
   ) {
     return {
