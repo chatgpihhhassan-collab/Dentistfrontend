@@ -14,7 +14,10 @@ import {
   Check, 
   X,
   Stethoscope,
-  ChevronDown
+  ChevronDown,
+  ChevronRight,
+  Calendar,
+  ExternalLink
 } from 'lucide-react';
 import ThreeDoctorHead from './ThreeDoctorHead';
 import { resolveDoctorInstruction } from './clinicalDentalBrain';
@@ -103,6 +106,8 @@ export default function Doctor3DAssistantWidget() {
 
   const accumulatedTranscriptRef = useRef('');
   const speechTimeoutRef = useRef(null);
+  const shouldKeepListeningRef = useRef(false);
+  const SILENCE_TIMEOUT_MS = 5000; // 5 seconds silence debounce before auto-forwarding speech to copilot
 
   // Web Speech Recognition
   useEffect(() => {
@@ -141,7 +146,7 @@ export default function Doctor3DAssistantWidget() {
           setInputText(liveCombined);
         }
 
-        // Debounce sentence completion: wait for 900ms natural speech pause before executing
+        // Debounce sentence completion: wait for 5000ms (5s) natural speech pause before forwarding
         if (speechTimeoutRef.current) {
           clearTimeout(speechTimeoutRef.current);
         }
@@ -150,10 +155,11 @@ export default function Doctor3DAssistantWidget() {
           if (fullSpoken) {
             accumulatedTranscriptRef.current = '';
             setInputText('');
+            shouldKeepListeningRef.current = false;
             stopListening();
             handleDoctorSpokenCommand(fullSpoken);
           }
-        }, 900);
+        }, SILENCE_TIMEOUT_MS);
       };
 
       recognition.onerror = (err) => {
@@ -164,6 +170,14 @@ export default function Doctor3DAssistantWidget() {
       };
 
       recognition.onend = () => {
+        // If the browser ended audio but we are still waiting for speech within silence window, restart recognition
+        if (shouldKeepListeningRef.current) {
+          try {
+            recognition.start();
+            return;
+          } catch {}
+        }
+
         setIsListening(false);
         if (speechTimeoutRef.current) {
           clearTimeout(speechTimeoutRef.current);
@@ -181,6 +195,7 @@ export default function Doctor3DAssistantWidget() {
     }
 
     return () => {
+      shouldKeepListeningRef.current = false;
       if (recognitionRef.current) {
         try {
           recognitionRef.current.abort();
@@ -199,6 +214,7 @@ export default function Doctor3DAssistantWidget() {
     }
 
     if (isListening) {
+      shouldKeepListeningRef.current = false;
       stopListening();
     } else {
       try {
@@ -207,6 +223,7 @@ export default function Doctor3DAssistantWidget() {
           clearTimeout(speechTimeoutRef.current);
           speechTimeoutRef.current = null;
         }
+        shouldKeepListeningRef.current = true;
         setInputText('');
         recognitionRef.current.start();
       } catch (e) {
@@ -216,6 +233,7 @@ export default function Doctor3DAssistantWidget() {
   };
 
   const stopListening = () => {
+    shouldKeepListeningRef.current = false;
     if (speechTimeoutRef.current) {
       clearTimeout(speechTimeoutRef.current);
       speechTimeoutRef.current = null;
@@ -283,6 +301,8 @@ export default function Doctor3DAssistantWidget() {
       category: resolution.category,
       title: resolution.title,
       text: resolution.text,
+      patientsList: resolution.patientsList || null,
+      pagesList: resolution.pagesList || null,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
     setChatLog(prev => [...prev, aiMsg]);
@@ -302,11 +322,11 @@ export default function Doctor3DAssistantWidget() {
       }
       setTimeout(() => {
         navigate(resolution.action.path);
-      }, 700);
+      }, 1200);
       return;
     }
 
-    // Handle Dynamic Patient Database Search
+    // Handle Dynamic Patient Database Search (fallback when not in clinical index)
     if (resolution.action && resolution.action.type === 'PATIENT_LOOKUP') {
       const pName = resolution.action.patientName;
       try {
@@ -319,6 +339,12 @@ export default function Doctor3DAssistantWidget() {
               category: 'Patient Navigation',
               title: `Patient Dental Chart: ${p.firstName} ${p.lastName}`,
               text: `Opening dental chart for ${p.firstName} ${p.lastName} (Patient ID #${p.patientID}, ${p.dentitionType || 'Adult'} Arch), Doctor. Synchronizing 3D jaws.`,
+              patientsList: [{
+                id: p.patientID,
+                firstName: p.firstName,
+                lastName: p.lastName,
+                dentition: p.dentitionType || 'Adult'
+              }],
               time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             };
             setChatLog(prev => [...prev.slice(0, -1), foundMsg]);
@@ -327,7 +353,7 @@ export default function Doctor3DAssistantWidget() {
             }
             setTimeout(() => {
               navigate(`/chart/${p.patientID}`);
-            }, 700);
+            }, 1200);
             return;
           }
         }
@@ -335,21 +361,22 @@ export default function Doctor3DAssistantWidget() {
         console.warn('Patient API lookup error:', err);
       }
 
-      // If not found in database, open directory search
+      // If not found in database, present directory and option cards
       const notFoundMsg = {
         sender: 'ai',
         category: 'Patient Directory',
         title: `Search: ${pName}`,
-        text: `Doctor, I could not find an exact patient record for "${pName}". Opening patient directory to search all records.`,
+        text: `Doctor, I could not find an exact patient record for "${pName}". You can open the directory or select from our clinic registry:`,
+        patientsList: resolution.patientsList || null,
+        pagesList: [
+          { id: 'directory', title: 'Open Patient Directory', path: `/directory?search=${encodeURIComponent(pName)}`, subtitle: `Search for "${pName}" in directory`, badge: 'Directory' }
+        ],
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setChatLog(prev => [...prev.slice(0, -1), notFoundMsg]);
       if (!isAudioMuted) {
         aiVoice.speak(notFoundMsg.text, { rate: 1.0, pitch: 1.05 });
       }
-      setTimeout(() => {
-        navigate(`/directory?search=${encodeURIComponent(pName)}`);
-      }, 800);
       return;
     }
 
@@ -359,7 +386,10 @@ export default function Doctor3DAssistantWidget() {
   };
 
   const handleTextSubmit = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
+    if (isListening) {
+      stopListening();
+    }
     if (inputText.trim()) {
       handleDoctorSpokenCommand(inputText);
       setInputText('');
@@ -454,7 +484,7 @@ export default function Doctor3DAssistantWidget() {
       <div className="flex items-center justify-between px-4 pt-3 pb-1">
         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-white/80 border border-teal-100 text-teal-700 shadow-xs">
           <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
-          {isListening ? 'Listening live...' : isSpeaking ? 'Speaking...' : 'Online & Ready'}
+          {isListening ? 'Listening... (5s pause sends)' : isSpeaking ? 'Speaking...' : 'Online & Ready'}
         </span>
 
         <div className="flex items-center gap-1 text-slate-400">
@@ -506,13 +536,13 @@ export default function Doctor3DAssistantWidget() {
 
       {/* Chat Conversation Area (Shows when user starts speaking or asks a question) */}
       {hasStartedChat && (
-        <div className="mx-4 mb-3 max-h-[140px] overflow-y-auto px-3 py-2 space-y-2 bg-white/90 rounded-2xl border border-slate-200/70 shadow-xs [scrollbar-width:thin] [scrollbar-color:rgba(0,0,0,0.15)_transparent] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
+        <div className="mx-4 mb-3 max-h-[220px] overflow-y-auto px-3 py-2 space-y-2 bg-white/90 rounded-2xl border border-slate-200/70 shadow-xs [scrollbar-width:thin] [scrollbar-color:rgba(0,0,0,0.15)_transparent] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
           {chatLog.map((msg, index) => (
             <div 
               key={index}
               className={`flex flex-col ${msg.sender === 'doctor' ? 'items-end' : 'items-start'}`}
             >
-              <div className={`max-w-[90%] rounded-2xl px-3 py-2 text-xs leading-relaxed relative group ${
+              <div className={`max-w-[92%] rounded-2xl px-3 py-2 text-xs leading-relaxed relative group ${
                 msg.sender === 'doctor'
                   ? 'bg-[#00a896] text-white rounded-br-none shadow-xs'
                   : 'bg-slate-50 text-slate-800 border border-slate-200/80 rounded-bl-none shadow-xs'
@@ -521,6 +551,77 @@ export default function Doctor3DAssistantWidget() {
                   <p className="text-[10px] font-bold text-teal-700 mb-0.5">{msg.title}</p>
                 )}
                 <p>{msg.text}</p>
+
+                {/* Interactive Patient Selection Cards */}
+                {msg.patientsList && msg.patientsList.length > 0 && (
+                  <div className="mt-2.5 space-y-1.5 w-full">
+                    {msg.patientsList.map((p) => (
+                      <div 
+                        key={p.id}
+                        className="flex items-center justify-between p-2 rounded-xl bg-white border border-teal-100 hover:border-[#00a896] hover:shadow-xs transition"
+                      >
+                        <div className="flex items-center gap-2 min-w-0 pr-2">
+                          <div className="w-7 h-7 rounded-full bg-teal-50 border border-teal-200 text-[#00a896] font-bold text-[10px] flex items-center justify-center shrink-0">
+                            {p.firstName ? p.firstName[0].toUpperCase() : 'P'}{p.lastName ? p.lastName[0].toUpperCase() : ''}
+                          </div>
+                          <div className="min-w-0 text-left">
+                            <p className="text-[11px] font-semibold text-slate-800 truncate leading-tight">
+                              {p.firstName} {p.lastName} <span className="text-[9px] font-normal text-slate-400">#{p.id}</span>
+                            </p>
+                            <p className="text-[9px] text-teal-600 font-medium truncate leading-tight">
+                              {p.dentition || 'Adult Arch'}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigate(`/chart/${p.id}`);
+                            if (!isAudioMuted) {
+                              aiVoice.speak(`Opening dental chart for ${p.firstName} ${p.lastName}, Doctor.`);
+                            }
+                          }}
+                          className="shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-[#00a896] text-teal-700 hover:text-white border border-teal-200 hover:border-[#00a896] transition cursor-pointer flex items-center gap-0.5 shadow-2xs"
+                        >
+                          Chart
+                          <ChevronRight className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Interactive Pages List Chips */}
+                {msg.pagesList && msg.pagesList.length > 0 && (
+                  <div className="mt-2.5 grid grid-cols-1 gap-1.5 w-full">
+                    {msg.pagesList.map((pg) => (
+                      <button
+                        key={pg.id}
+                        type="button"
+                        onClick={() => {
+                          navigate(pg.path);
+                          if (!isAudioMuted) {
+                            aiVoice.speak(`Opening ${pg.title}, Doctor.`);
+                          }
+                        }}
+                        className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200 hover:border-[#00a896] hover:bg-teal-50/40 hover:shadow-2xs text-left transition cursor-pointer group/pg w-full"
+                      >
+                        <div className="min-w-0 pr-1.5">
+                          <p className="text-[11px] font-semibold text-slate-800 group-hover/pg:text-[#00a896] transition leading-tight">
+                            {pg.title}
+                          </p>
+                          <p className="text-[9px] text-slate-400 truncate leading-tight">
+                            {pg.subtitle}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded bg-slate-100 group-hover/pg:bg-teal-100 group-hover/pg:text-teal-700 text-slate-600 transition">
+                          {pg.badge}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 {msg.sender === 'ai' && (
                   <button
                     onClick={() => copyToClipboard(msg.text, index)}
@@ -588,7 +689,7 @@ export default function Doctor3DAssistantWidget() {
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder={isListening ? "Listening to your voice..." : "Message AI Assistant"}
+            placeholder={isListening ? "Listening... (speak naturally, 5s pause sends)..." : "Ask anything, search patient, or say 'open'..."}
             className="flex-1 text-xs text-slate-800 placeholder-slate-400 bg-transparent focus:outline-none"
           />
 

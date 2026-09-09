@@ -352,36 +352,153 @@ export const DENTAL_KNOWLEDGE_BASE = [
 // 4. INTELLIGENT INTENT RESOLVER & ASSISTANT ENGINE
 // =========================================================================
 
-// Master Clinic Patient Index for Instant Chart Navigation
-export const CLINIC_PATIENTS_INDEX = {
-  tayyab: { id: 28, name: 'Tayyab Saleem', dentition: 'Mixed (11 Yrs)', arch: 'Pediatric/Mixed Arch' },
-  samra: { id: 29, name: 'Samra Asad', dentition: 'Adult (31 Yrs)', arch: 'Adult Permanent Arch (1-32)' },
-  samara: { id: 29, name: 'Samra Asad', dentition: 'Adult (31 Yrs)', arch: 'Adult Permanent Arch (1-32)' },
-  miraal: { id: 30, name: 'Miraal Yousaf', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
-  saad: { id: 27, name: 'Saad Malik', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
-  ehtsham: { id: 26, name: 'Ehtsham Ali', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
-  hassan: { id: 25, name: 'Hassan Sohail', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
-  abrish: { id: 24, name: 'Abrish Fatima', dentition: 'Pediatric', arch: 'Pediatric Arch (A-T)' },
-  shafiq: { id: 23, name: 'Shafiq Ahmed', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
-  tabish: { id: 22, name: 'Tabish Ejaz', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
-  sahil: { id: 21, name: 'Sahil Raja', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
-  amina: { id: 16, name: 'Amina Khan', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
-  hamza: { id: 15, name: 'Hamza Khan', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
-  tariq: { id: 2, name: 'Tariq Mehmood', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' },
-  haider: { id: 1, name: 'Haider Ali', dentition: 'Adult', arch: 'Adult Permanent Arch (1-32)' }
-};
+// Master Clinic Patients Directory with First Name, Last Name, and Phonetic Aliases
+export const CLINIC_PATIENTS = [
+  { id: 30, firstName: 'Miraal', lastName: 'Yousaf', dentition: 'Pediatric (4 Yrs)', arch: 'Pediatric Arch (A-T)', aliases: ['miraal', 'miral', 'yousaf', 'yusuf', 'yusaf', 'yousuf', 'mirage', 'miraal yousaf', 'miral yusuf', 'miral yousaf'] },
+  { id: 29, firstName: 'Samra', lastName: 'Asad', dentition: 'Adult (31 Yrs)', arch: 'Adult Permanent Arch (1-32)', aliases: ['samra', 'samara', 'asad', 'samra asad', 'samara asad'] },
+  { id: 28, firstName: 'Tayyab', lastName: 'Saleem', dentition: 'Mixed (11 Yrs)', arch: 'Pediatric/Mixed Arch', aliases: ['tayyab', 'tayab', 'saleem', 'salim', 'tayyab saleem', 'tayab saleem'] },
+  { id: 27, firstName: 'Saad', lastName: 'Malik', dentition: 'Pediatric', arch: 'Pediatric Arch (A-T)', aliases: ['saad', 'malik', 'saad malik'] },
+  { id: 26, firstName: 'Ehtsham', lastName: 'Ali', dentition: 'Permanent', arch: 'Adult Permanent Arch (1-32)', aliases: ['ehtsham', 'ihtisham', 'ehtisham', 'ehtsham ali'] },
+  { id: 25, firstName: 'Hassan', lastName: 'Sohail', dentition: 'Permanent', arch: 'Adult Permanent Arch (1-32)', aliases: ['hassan sohail', 'sohail'] },
+  { id: 24, firstName: 'Abrish', lastName: 'Fatima', dentition: 'Mixed', arch: 'Mixed Arch', aliases: ['abrish', 'fatima', 'abrish fatima'] },
+  { id: 23, firstName: 'Shafiq', lastName: 'Ahmed', dentition: 'Permanent', arch: 'Adult Permanent Arch (1-32)', aliases: ['shafiq', 'shafique', 'shafiq ahmed'] },
+  { id: 22, firstName: 'Tabish', lastName: 'Ejaz', dentition: 'Permanent', arch: 'Adult Permanent Arch (1-32)', aliases: ['tabish', 'ejaz', 'tabish ejaz'] },
+  { id: 21, firstName: 'Sahil', lastName: 'Raja', dentition: 'Permanent', arch: 'Adult Permanent Arch (1-32)', aliases: ['sahil', 'raja', 'sahil raja'] },
+  { id: 20, firstName: 'Salman', lastName: 'Ali', dentition: 'Pediatric', arch: 'Pediatric Arch (A-T)', aliases: ['salman', 'salman ali'] },
+  { id: 19, firstName: 'Ansa', lastName: 'Jamel', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['ansa', 'jamel', 'ansa jamel'] },
+  { id: 18, firstName: 'Jamal', lastName: 'Ahmed', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['jamal', 'jamal ahmed'] },
+  { id: 17, firstName: 'Arslan', lastName: 'Khan', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['arslan', 'khan', 'arslan khan'] },
+  { id: 14, firstName: 'Sarah', lastName: 'Connor', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['sarah connor', 'connor'] },
+  { id: 13, firstName: 'Tariq', lastName: 'Mehmood', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['tariq', 'mehmood', 'tariq mehmood'] },
+  { id: 10, firstName: 'Naveed', lastName: 'Abbad', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['naveed', 'abbad', 'naveed abbad'] },
+  { id: 9, firstName: 'Ahmed', lastName: 'Aziz', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['ahmed aziz', 'aziz'] },
+  { id: 8, firstName: 'Jawad', lastName: 'Ali', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['jawad', 'jawad ali'] },
+  { id: 7, firstName: 'Sana', lastName: 'Mudassar', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['sana', 'mudassar', 'sana mudassar'] },
+  { id: 6, firstName: 'Hassan', lastName: 'Haider', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['hassan haider'] },
+  { id: 5, firstName: 'Saeed', lastName: 'Haider', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['saeed', 'saeed haider'] },
+  { id: 4, firstName: 'Mudassar', lastName: 'Ali', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['mudassar ali'] },
+  { id: 3, firstName: 'Ali', lastName: 'Haider', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['ali haider'] },
+  { id: 1, firstName: 'Haider', lastName: 'Ali', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['haider ali'] }
+];
+
+// Master Clinic Pages and Modules Directory
+export const CLINIC_PAGES = [
+  { id: 'directory', title: 'Patient Directory', path: '/directory', subtitle: 'Master patient records & chart files', badge: 'Records' },
+  { id: 'appointments', title: 'Appointments Schedule', path: '/appointments', subtitle: 'Operatory calendar & timetable', badge: 'Schedule' },
+  { id: 'book', title: 'Book Appointment', path: '/book', subtitle: 'Schedule new consultation slot', badge: 'Booking' },
+  { id: 'new-patient', title: 'New Patient Intake', path: '/new-patient', subtitle: 'Patient demographic & smart geocoding', badge: 'Intake' },
+  { id: 'dashboard', title: 'Clinical Dashboard', path: '/dashboard', subtitle: 'Practice analytics & emergency queue', badge: 'Overview' },
+  { id: 'ai-notes', title: 'AI Clinical Notes', path: '/ai-notes', subtitle: '8-section ambient SOAP scribes', badge: 'SOAP' },
+  { id: 'treatment', title: 'Treatments Catalog', path: '/treatment', subtitle: 'Procedures, fee schedule & CDT codes', badge: 'Procedures' }
+];
+
+// Re-export legacy map for backwards compatibility
+export const CLINIC_PATIENTS_INDEX = CLINIC_PATIENTS.reduce((acc, p) => {
+  acc[p.firstName.toLowerCase()] = { id: p.id, name: `${p.firstName} ${p.lastName}`, dentition: p.dentition, arch: p.arch };
+  return acc;
+}, {});
+
+/**
+ * Intelligent Multi-Field Patient Search (First Name, Last Name, Aliases, ID, Phonetics, Spelled Letters)
+ */
+export function searchClinicPatients(query) {
+  if (!query || typeof query !== 'string') return [];
+  const q = query.toLowerCase().replace(/[.,?!'":;]/g, ' ').trim();
+  if (!q) return [];
+
+  const stopWords = new Set([
+    'all', 'records', 'record', 'to', 'search', 'chart', 'page', 'open', 'show', 
+    'the', 'a', 'an', 'patient', 'patients', 'for', 'you', 'kindly', 'spell', 'is', 
+    'expatient', 'of', 'chat', 'teeth', 'profile', 'file', 'files', 'please', 'me', 
+    'in', 'on', 'at', 'go', 'view', 'find', 'open', 'navigate', 'directory'
+  ]);
+  const rawTokens = q.split(/\s+/).filter(Boolean);
+  const tokens = rawTokens.filter(w => w.length > 1 && !stopWords.has(w));
+
+  // If query contains letters separated by spaces (e.g. "y u s a f"), merge them into spelled words
+  let spelledWord = '';
+  for (let i = 0; i < rawTokens.length; i++) {
+    if (rawTokens[i].length === 1 && /[a-z]/.test(rawTokens[i])) {
+      spelledWord += rawTokens[i];
+    } else {
+      if (spelledWord.length >= 3 && !stopWords.has(spelledWord)) {
+        tokens.push(spelledWord);
+      }
+      spelledWord = '';
+    }
+  }
+  if (spelledWord.length >= 3 && !stopWords.has(spelledWord)) {
+    tokens.push(spelledWord);
+  }
+
+  if (tokens.length === 0) return [];
+
+  const results = [];
+
+  for (const p of CLINIC_PATIENTS) {
+    const fn = p.firstName.toLowerCase();
+    const ln = p.lastName.toLowerCase();
+    const full = `${fn} ${ln}`;
+    const idStr = String(p.id);
+    let score = 0;
+
+    // 1. Direct ID match
+    if (q.includes(`patient ${idStr}`) || q.includes(`chart ${idStr}`) || q.includes(`#${idStr}`) || rawTokens.includes(idStr)) {
+      score += 100;
+    }
+
+    // 2. Full exact name or full alias match
+    if (q.includes(full)) {
+      score += 80;
+    }
+    for (const al of p.aliases) {
+      if (q.includes(al)) {
+        score += Math.max(30, al.length * 5);
+      }
+    }
+
+    // 3. Token-based matching (exact word match for short tokens <=3, partial for longer)
+    for (const tok of tokens) {
+      if (fn === tok || ln === tok) {
+        score += 40;
+      } else if (tok.length > 3 && (fn.includes(tok) || ln.includes(tok))) {
+        score += 20;
+      }
+      for (const al of p.aliases) {
+        if (al === tok) {
+          score += 35;
+        } else if (tok.length > 3 && (al.includes(tok) || tok.includes(al))) {
+          score += 15;
+        }
+      }
+    }
+
+    if (score > 0) {
+      results.push({ patient: p, score });
+    }
+  }
+
+  // Sort descending by match score
+  results.sort((a, b) => b.score - a.score);
+
+  // Return unique patient objects
+  const seen = new Set();
+  const sortedPatients = [];
+  for (const item of results) {
+    if (!seen.has(item.patient.id)) {
+      seen.add(item.patient.id);
+      sortedPatients.push({ ...item.patient, score: item.score });
+    }
+  }
+
+  return sortedPatients;
+}
 
 /**
  * Resolve spoken or typed doctor command into clinical answer and UI actions
  * @param {string} transcript - Input speech or query text
- * @param {object} context - Active page route, patientId, and current clinical state
- * @returns {object} { text, title, category, action }
- */
-/**
- * Resolve spoken or typed doctor command into clinical answer and UI actions
- * @param {string} transcript - Input speech or query text
  * @param {object} context - Active page route, patientId, doctorName, and current clinical state
- * @returns {object} { text, title, category, action }
+ * @returns {object} { text, title, category, action, patientsList, pagesList }
  */
 export function resolveDoctorInstruction(transcript, context = {}) {
   if (!transcript || typeof transcript !== 'string') {
@@ -474,13 +591,33 @@ export function resolveDoctorInstruction(transcript, context = {}) {
     };
   }
 
-  // 1.6 Single Incomplete Command Guard (e.g. user only said "open" or "show" before completing sentence)
-  if (clean === 'open' || clean === 'open the' || clean === 'go' || clean === 'go to' || clean === 'show' || clean === 'show me' || clean === 'navigate' || clean === 'please open') {
+  // 1.6 Clinical Pages List & Module Navigation Options
+  if (
+    clean === 'open' || clean === 'open the' || clean === 'go' || clean === 'go to' || 
+    clean === 'show' || clean === 'show me' || clean === 'navigate' || clean === 'please open' ||
+    clean === 'pages' || clean === 'pages list' || clean === 'list pages' || clean === 'show pages' ||
+    clean === 'modules' || clean === 'menu' || clean === 'navigation options' || clean === 'where can i go' ||
+    /^(?:what|show|list)\s+(?:pages|modules|options|sections)/i.test(clean)
+  ) {
     return {
-      title: 'Command Incomplete',
-      category: 'Assistant',
-      text: `Doctor, what would you like me to open? You can say "patient directory", "appointments", "new patient", or a patient chart like "chart of Tayyab".`,
-      action: null
+      title: 'Platform Navigation Options',
+      category: 'Navigation Options',
+      text: `Doctor, here are all the available clinical pages and modules in Dentia. Click any option below to navigate directly:`,
+      action: null,
+      pagesList: CLINIC_PAGES
+    };
+  }
+
+  // 1.7 Patient Name List & Directory Quick Compare
+  if (
+    /(?:patient\s+name\s+list|patients\s+list|patient\s+list|list\s+of\s+patients|compare\s+patients|select\s+patient)/i.test(clean)
+  ) {
+    return {
+      title: 'Clinic Patients Directory',
+      category: 'Patient Selection',
+      text: `Doctor, here is the registry of active clinic patients. You can compare and select any patient to open their 3D odontogram and treatment records:`,
+      action: null,
+      patientsList: CLINIC_PATIENTS.slice(0, 10)
     };
   }
 
@@ -605,29 +742,44 @@ export function resolveDoctorInstruction(transcript, context = {}) {
   // 3.1 Patient by ID Number (e.g. "patient 30", "chart 29", "patient #28")
   const idMatch = clean.match(/(?:chart|patient|id)\s*(?:#|number)?\s*(\d+)/i);
   if (idMatch) {
-    const pId = idMatch[1];
+    const pId = parseInt(idMatch[1], 10);
+    const matchedP = CLINIC_PATIENTS.find(p => p.id === pId);
+    const pName = matchedP ? `${matchedP.firstName} ${matchedP.lastName}` : `Patient #${pId}`;
     return {
-      title: `Patient #${pId} Chart`,
+      title: `Patient #${pId} Chart: ${pName}`,
       category: 'Patient Navigation',
-      text: `Opening dental chart for Patient #${pId}, Doctor. Synchronizing 3D jaws.`,
-      action: { type: 'NAVIGATE', path: `/chart/${pId}` }
+      text: `Opening dental chart for ${pName}, Doctor. Synchronizing 3D jaws and tooth records.`,
+      action: { type: 'NAVIGATE', path: `/chart/${pId}` },
+      patientsList: matchedP ? [matchedP] : null
     };
   }
 
-  // 3.2 Known Patients Index Direct Match
-  // Handles: "chart of tayyab", "open tayyab", "open chat of tayyab", "show tayyab", "tayyab chart"
-  for (const [key, p] of Object.entries(CLINIC_PATIENTS_INDEX)) {
-    if (clean.includes(key)) {
+  // 3.2 Intelligent Multi-Field Patient Search (First Name, Last Name, Aliases, Spelled Names)
+  const patientMatches = searchClinicPatients(clean);
+  if (patientMatches.length > 0) {
+    // If exact or single top match (or top match has decisive score advantage >= 80)
+    if (patientMatches.length === 1 || patientMatches[0].score >= 80) {
+      const topP = patientMatches[0];
       return {
-        title: `Patient Dental Chart: ${p.name}`,
+        title: `Patient Dental Chart: ${topP.firstName} ${topP.lastName}`,
         category: 'Patient Navigation',
-        text: `Opening dental chart for ${p.name} (Patient ID #${p.id}, ${p.dentition}), Doctor. Synchronizing 3D jaws and tooth condition history.`,
-        action: { type: 'NAVIGATE', path: `/chart/${p.id}` }
+        text: `Opening dental chart for ${topP.firstName} ${topP.lastName} (Patient ID #${topP.id}, ${topP.dentition}), Doctor. Synchronizing 3D jaws and tooth condition history.`,
+        action: { type: 'NAVIGATE', path: `/chart/${topP.id}` },
+        patientsList: [topP]
       };
     }
+
+    // If multiple patients match (e.g. "Ali", "Haider", or comparing patients)
+    return {
+      title: `Patient Records Found (${patientMatches.length})`,
+      category: 'Patient Selection',
+      text: `Doctor, I found ${patientMatches.length} matching patient records for "${transcript}". Click any patient card below to open their chart:`,
+      action: null,
+      patientsList: patientMatches
+    };
   }
 
-  // 3.3 Generic Patient Lookup Pattern
+  // 3.3 Fallback Patient Lookup via Backend API
   const chartPatterns = [
     /(?:chart|chat|records|teeth)\s+(?:of|for)\s+([a-zA-Z]+)/i,
     /(?:open|show|view|find|go\s+to)\s+(?:chart|chat|records\s+of)?\s*([a-zA-Z]+)(?:\s+(?:chart|records|profile|teeth|chat))?/i,
@@ -644,20 +796,12 @@ export function resolveDoctorInstruction(transcript, context = {}) {
         'dentist', 'clinic', 'doctor', 'schedule', 'book', 'booking', 'list', 'records', 'chart'
       ];
       if (!stopWords.includes(candidate)) {
-        if (CLINIC_PATIENTS_INDEX[candidate]) {
-          const p = CLINIC_PATIENTS_INDEX[candidate];
-          return {
-            title: `Patient Dental Chart: ${p.name}`,
-            category: 'Patient Navigation',
-            text: `Opening dental chart for ${p.name} (Patient ID #${p.id}, ${p.dentition}), Doctor. Synchronizing 3D jaws and tooth condition history.`,
-            action: { type: 'NAVIGATE', path: `/chart/${p.id}` }
-          };
-        }
         return {
           title: `Locating Patient: ${candidate}`,
           category: 'Patient Lookup',
           text: `Searching dental registry for patient "${candidate}", Doctor. Opening patient chart...`,
-          action: { type: 'PATIENT_LOOKUP', patientName: candidate }
+          action: { type: 'PATIENT_LOOKUP', patientName: candidate },
+          patientsList: CLINIC_PATIENTS.slice(0, 4)
         };
       }
     }
