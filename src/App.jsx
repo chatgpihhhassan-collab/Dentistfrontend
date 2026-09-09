@@ -17,6 +17,7 @@ import AIDentalNotesPage from './modules/aiDentalNotes/pages/AIDentalNotesPage';
 import AIDentalNoteDetailPage from './modules/aiDentalNotes/pages/AIDentalNoteDetailPage';
 import ToothDetailPage from './pages/ToothDetailPage';
 import ErrorBoundary from './components/ErrorBoundary';
+import Doctor3DAssistantWidget from './components/aiDoctor/Doctor3DAssistantWidget';
 import { useLocation } from 'react-router-dom';
 
 const ProtectedRoute = ({ children }) => {
@@ -121,6 +122,7 @@ export default function App() {
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <Doctor3DAssistantWidget />
       </ErrorBoundary>
     </BrowserRouter>
   );
