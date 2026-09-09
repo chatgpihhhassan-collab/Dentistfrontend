@@ -750,6 +750,11 @@ export default function NewPatientPage() {
             if (res.ok) {
                 const created = await res.json();
 
+                // Notify live Copilot and patient directory listeners
+                if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('dentia_patient_created', { detail: created }));
+                }
+
                 // Save intake note to clinical logs if provided
                 if (combinedNotes && created.patientID) {
                     try {
