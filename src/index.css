@@ -290,3 +290,19 @@ html, body, #root {
   transition: transform 0.25s ease, filter 0.25s ease;
 }
 
+/* Sleek custom scrollbars for form panels & popovers */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(74, 124, 210, 0.6);
+}
+

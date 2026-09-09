@@ -105,11 +105,12 @@ export default function NewPatientPage() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Debounced Mapbox Geocoding Places Lookup
+    // Debounced Dual Geocoding Lookup (OpenStreetMap Nominatim + Mapbox)
     useEffect(() => {
         const query = (newPatient.address || '').trim();
         if (!query || query.length < 2) {
             setAddressSuggestions([]);
+            setShowAddressDropdown(false);
             return;
         }
         if (addressSelectedRef.current) {
@@ -121,19 +122,79 @@ export default function NewPatientPage() {
             try {
                 setLoadingAddressSuggestions(true);
                 const countryCode = newPatient.region === 'PK' ? 'pk' : 'nz';
-                const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || (typeof atob === 'function' ? atob('cGsuZXlKMUlqb2lhR0ZwWkdWeVlXeHBPRFVpTENKaElqb2lZMjF6ZDNwMU5IbHFNVzFvTURKM2NubDZOMlJ0Wm00MFlpSjkubWROOXJLWkUycWk2WEtCaDZ6amtnZw==') : '');
-                const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&country=${countryCode}&language=en&autocomplete=true&limit=6`;
-                const res = await fetch(url);
-                if (res.ok) {
-                    const data = await res.json();
-                    const feats = data.features || [];
-                    setAddressSuggestions(feats);
-                    if (feats.length > 0) {
-                        setShowAddressDropdown(true);
+                const results = [];
+                const seen = new Set();
+
+                // 1. OpenStreetMap Nominatim - High accuracy for Pakistani CDA sectors (F-6, F-7, G-9, etc.) & New Zealand suburbs
+                try {
+                    const osmUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=${countryCode}&format=json&addressdetails=1&accept-language=en&limit=5`;
+                    const osmRes = await fetch(osmUrl, { headers: { 'User-Agent': 'DentiaDentalWorkspace/1.0' } });
+                    if (osmRes.ok) {
+                        const osmData = await osmRes.json();
+                        for (const item of (osmData || [])) {
+                            const addr = item.address || {};
+                            const title = item.name || addr.suburb || addr.road || addr.city || item.display_name.split(',')[0];
+                            const city = addr.city || addr.town || addr.municipality || addr.state_district || (newPatient.region === 'PK' ? 'Islamabad' : 'Auckland');
+                            const postcode = addr.postcode || '';
+                            const key = `${title}|${city}`.toLowerCase();
+                            if (!seen.has(key)) {
+                                seen.add(key);
+                                results.push({
+                                    id: `osm-${item.place_id}`,
+                                    title: title.trim(),
+                                    subtitle: item.display_name,
+                                    address: title.trim(),
+                                    city: city.trim(),
+                                    postcode: postcode.trim(),
+                                    source: 'OpenStreetMap'
+                                });
+                            }
+                        }
                     }
+                } catch (e) {
+                    console.warn('OSM Geocode error:', e);
                 }
+
+                // 2. Mapbox Geocoding (with fallback token)
+                try {
+                    const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || (typeof atob === 'function' ? atob('cGsuZXlKMUlqb2lhR0ZwWkdWeVlXeHBPRFVpTENKaElqb2lZMjF6ZDNwMU5IbHFNVzFvTURKM2NubDZOMlJ0Wm00MFlpSjkubWROOXJLWkUycWk2WEtCaDZ6amtnZw==') : '');
+                    const mbUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&country=${countryCode}&language=en&autocomplete=true&limit=5`;
+                    const mbRes = await fetch(mbUrl);
+                    if (mbRes.ok) {
+                        const mbData = await mbRes.json();
+                        for (const feat of (mbData.features || [])) {
+                            const main = feat.text || (feat.place_name ? feat.place_name.split(',')[0] : '');
+                            let city = '';
+                            let postcode = '';
+                            if (feat.context) {
+                                for (const c of feat.context) {
+                                    if (c.id.startsWith('place') || c.id.startsWith('district') || c.id.startsWith('locality')) city = c.text;
+                                    if (c.id.startsWith('postcode')) postcode = c.text;
+                                }
+                            }
+                            const key = `${main}|${city}`.toLowerCase();
+                            if (!seen.has(key)) {
+                                seen.add(key);
+                                results.push({
+                                    id: `mb-${feat.id}`,
+                                    title: main.trim(),
+                                    subtitle: feat.place_name || '',
+                                    address: main.trim(),
+                                    city: city || (newPatient.region === 'PK' ? 'Islamabad' : 'Auckland'),
+                                    postcode: postcode || '',
+                                    source: 'Mapbox'
+                                });
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Mapbox Geocode error:', e);
+                }
+
+                setAddressSuggestions(results);
+                setShowAddressDropdown(results.length > 0);
             } catch (err) {
-                console.error("Mapbox address search error:", err);
+                console.error("Address search error:", err);
             } finally {
                 setLoadingAddressSuggestions(false);
             }
@@ -142,40 +203,24 @@ export default function NewPatientPage() {
         return () => clearTimeout(timer);
     }, [newPatient.address, newPatient.region]);
 
-    const handleSelectAddressSuggestion = (feature) => {
+    const handleSelectAddressSuggestion = (item) => {
         addressSelectedRef.current = true;
-        const fullAddress = feature.place_name || feature.text || '';
-        const context = feature.context || [];
-
-        let foundCity = '';
-        let foundPostcode = '';
-
-        for (const item of context) {
-            if (item.id.startsWith('place') || item.id.startsWith('locality') || item.id.startsWith('district')) {
-                if (!foundCity) foundCity = item.text;
-            } else if (item.id.startsWith('region') && !foundCity) {
-                foundCity = item.text;
-            } else if (item.id.startsWith('postcode')) {
-                foundPostcode = item.text;
-            }
-        }
-
-        if (!foundCity && feature.place_type && feature.place_type.includes('place')) {
-            foundCity = feature.text;
-        }
+        const selectedAddress = item.title || item.address || '';
+        const selectedCity = item.city || '';
+        const selectedPostcode = item.postcode || '';
 
         setNewPatient(prev => ({
             ...prev,
-            address: fullAddress,
-            city: foundCity || prev.city,
-            postcode: foundPostcode || prev.postcode
+            address: selectedAddress,
+            city: selectedCity || prev.city,
+            postcode: selectedPostcode || prev.postcode
         }));
 
         setRecentlySyncedField(prev => ({
             ...prev,
             address: true,
-            city: Boolean(foundCity),
-            postcode: Boolean(foundPostcode)
+            city: Boolean(selectedCity),
+            postcode: Boolean(selectedPostcode)
         }));
 
         setTimeout(() => {
@@ -188,6 +233,7 @@ export default function NewPatientPage() {
         }, 3000);
 
         setShowAddressDropdown(false);
+        setAddressSuggestions([]);
     };
 
     const validateField = (field, value) => {
@@ -841,105 +887,104 @@ export default function NewPatientPage() {
             </div>
 
             {/* Main Side-by-Side Dashboard Layout */}
-            <main className="max-w-[1750px] w-full mx-auto px-4 lg:px-6 pb-6 pt-1 flex flex-col lg:flex-row gap-4 lg:h-[calc(100vh-140px)] min-h-[580px] items-stretch">
+            <main className="max-w-[1750px] w-full mx-auto px-4 lg:px-6 pb-6 pt-1 flex flex-col lg:flex-row gap-4 lg:h-[calc(100vh-130px)] min-h-[620px] items-stretch">
                 
                 {/* ============================================================ */}
                 {/* LEFT PANEL (~58%): LIVE-SYNCING PATIENT PROFILE & FORM CARD */}
                 {/* ============================================================ */}
-                <div className="flex-1 lg:w-[58%] xl:w-[60%] bg-white rounded-[2rem] p-5 shadow-xl border border-light-teal/30 flex flex-col overflow-hidden min-h-0 justify-between">
+                <div className="flex-1 lg:w-[58%] xl:w-[60%] bg-white rounded-[2rem] p-5 shadow-xl border border-light-teal/30 flex flex-col min-h-0 justify-between overflow-hidden">
                     
-                    <div className="flex flex-col flex-1 overflow-hidden min-h-0 space-y-3">
-                        {/* Patient Header Summary Bar with Profile Image Upload */}
-                        <div className="bg-[#EAF0FC]/50 rounded-2xl p-3 border border-light-teal/45 flex items-center justify-between gap-3 shadow-2xs flex-shrink-0">
-                            <div className="flex items-center gap-3">
-                                {/* Interactive Profile Photo Upload Circle */}
-                                <div className="relative group flex-shrink-0">
-                                    <div className="w-11 h-11 rounded-2xl overflow-hidden border-2 border-white shadow-md bg-white flex items-center justify-center">
-                                        <img 
-                                            src={newPatient.profileImageDataUrl || getPatientAvatarUrl(newPatient)} 
-                                            alt="Patient Profile" 
-                                            className="w-full h-full object-cover" 
-                                        />
-                                    </div>
-                                    
-                                    {/* Upload Camera Overlay Button */}
+                    {/* Patient Header Summary Bar with Profile Image Upload */}
+                    <div className="bg-[#EAF0FC]/50 rounded-2xl p-3 border border-light-teal/45 flex items-center justify-between gap-3 shadow-2xs flex-shrink-0 mb-2.5">
+                        <div className="flex items-center gap-3">
+                            {/* Interactive Profile Photo Upload Circle */}
+                            <div className="relative group flex-shrink-0">
+                                <div className="w-11 h-11 rounded-2xl overflow-hidden border-2 border-white shadow-md bg-white flex items-center justify-center">
+                                    <img 
+                                        src={newPatient.profileImageDataUrl || getPatientAvatarUrl(newPatient)} 
+                                        alt="Patient Profile" 
+                                        className="w-full h-full object-cover" 
+                                    />
+                                </div>
+                                
+                                {/* Upload Camera Overlay Button */}
+                                <button 
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    title="Upload Patient Photo (Max 5MB - Optional)"
+                                    className="absolute -bottom-1 -right-1 bg-[#4A7CD2] hover:bg-[#3665B7] text-white p-1 rounded-full shadow-md transition-transform transform hover:scale-110 cursor-pointer border border-white"
+                                >
+                                    <Camera className="w-2.5 h-2.5" />
+                                </button>
+
+                                {/* Remove Custom Photo Button if Attached */}
+                                {newPatient.profileImageDataUrl && (
+                                    <button 
+                                        type="button"
+                                        onClick={handleRemoveImage}
+                                        title="Remove Custom Photo (Reset to Default Avatar)"
+                                        className="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white p-0.5 rounded-full shadow-md transition-transform transform hover:scale-110 cursor-pointer border border-white"
+                                    >
+                                        <Trash2 className="w-2 h-2" />
+                                    </button>
+                                )}
+                            </div>
+
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h3 className="text-sm font-sans font-black text-[#10244B] capitalize leading-tight">
+                                        {newPatient.firstName ? `${newPatient.firstName} ${newPatient.lastName}` : 'New Patient Profile'}
+                                    </h3>
                                     <button 
                                         type="button"
                                         onClick={() => fileInputRef.current?.click()}
-                                        title="Upload Patient Photo (Max 5MB - Optional)"
-                                        className="absolute -bottom-1 -right-1 bg-[#4A7CD2] hover:bg-[#3665B7] text-white p-1 rounded-full shadow-md transition-transform transform hover:scale-110 cursor-pointer border border-white"
+                                        className="text-[9.5px] font-extrabold text-[#4A7CD2] bg-white/80 hover:bg-white px-2 py-0.5 rounded-md border border-[#4A7CD2]/30 transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
                                     >
-                                        <Camera className="w-2.5 h-2.5" />
+                                        <UploadCloud className="w-2.5 h-2.5" />
+                                        {newPatient.profileImageDataUrl ? 'Change Photo' : 'Upload Photo'}
                                     </button>
-
-                                    {/* Remove Custom Photo Button if Attached */}
-                                    {newPatient.profileImageDataUrl && (
-                                        <button 
-                                            type="button"
-                                            onClick={handleRemoveImage}
-                                            title="Remove Custom Photo (Reset to Default Avatar)"
-                                            className="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white p-0.5 rounded-full shadow-md transition-transform transform hover:scale-110 cursor-pointer border border-white"
-                                        >
-                                            <Trash2 className="w-2 h-2" />
-                                        </button>
-                                    )}
                                 </div>
-
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <h3 className="text-sm font-sans font-black text-[#10244B] capitalize leading-tight">
-                                            {newPatient.firstName ? `${newPatient.firstName} ${newPatient.lastName}` : 'New Patient Profile'}
-                                        </h3>
-                                        <button 
-                                            type="button"
-                                            onClick={() => fileInputRef.current?.click()}
-                                            className="text-[9.5px] font-extrabold text-[#4A7CD2] bg-white/80 hover:bg-white px-2 py-0.5 rounded-md border border-[#4A7CD2]/30 transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
-                                        >
-                                            <UploadCloud className="w-2.5 h-2.5" />
-                                            {newPatient.profileImageDataUrl ? 'Change Photo' : 'Upload Photo'}
-                                        </button>
-                                    </div>
-                                    <p className="text-[9px] text-muted-text font-black uppercase tracking-wider mt-0.5">
-                                        {newPatient.dob ? `DOB: ${newPatient.dob}` : 'Awaiting DOB'} • {newPatient.gender ? `${newPatient.gender} Avatar` : 'Auto Gender Avatar'} • <span className="text-slate-400 font-bold">Max 5MB</span>
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Progress Status */}
-                            <div className="text-right">
-                                <div className="text-[9px] font-black text-[#4A7CD2] uppercase tracking-wider mb-0.5">
-                                    {progressPct}% Completed
-                                </div>
-                                <div className="w-20 bg-white h-1.5 rounded-full border border-light-teal/40 overflow-hidden">
-                                    <div className="bg-[#4A7CD2] h-full rounded-full transition-all duration-500" style={{ width: `${progressPct}%` }}></div>
-                                </div>
+                                <p className="text-[9px] text-muted-text font-black uppercase tracking-wider mt-0.5">
+                                    {newPatient.dob ? `DOB: ${newPatient.dob}` : 'Awaiting DOB'} • {newPatient.gender ? `${newPatient.gender} Avatar` : 'Auto Gender Avatar'} • <span className="text-slate-400 font-bold">Max 5MB</span>
+                                </p>
                             </div>
                         </div>
 
-                        {/* Live AI Spoken Alert Banner */}
-                        {voiceStatus.speaking && voiceStatus.currentText && (
-                            <div className="p-2.5 bg-blue-50/95 border-2 border-blue-300 rounded-xl flex items-center justify-between gap-2 shadow-sm animate-fade-in flex-shrink-0">
-                                <div className="flex items-center gap-2 overflow-hidden">
-                                    <div className="w-6 h-6 rounded-lg bg-[#2563EB] text-white flex items-center justify-center flex-shrink-0 shadow-2xs">
-                                        <Volume2 className="w-3.5 h-3.5 animate-bounce" />
-                                    </div>
-                                    <p className="text-xs font-bold text-blue-950 truncate">
-                                        <span className="font-black text-[#2563EB] uppercase text-[10px] mr-1">AI Voice:</span>
-                                        {voiceStatus.currentText}
-                                    </p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => aiVoice.stop()}
-                                    className="text-[10px] font-black text-blue-600 hover:text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-200 cursor-pointer flex-shrink-0"
-                                >
-                                    Dismiss
-                                </button>
+                        {/* Progress Status */}
+                        <div className="text-right">
+                            <div className="text-[9px] font-black text-[#4A7CD2] uppercase tracking-wider mb-0.5">
+                                {progressPct}% Completed
                             </div>
-                        )}
+                            <div className="w-20 bg-white h-1.5 rounded-full border border-light-teal/40 overflow-hidden">
+                                <div className="bg-[#4A7CD2] h-full rounded-full transition-all duration-500" style={{ width: `${progressPct}%` }}></div>
+                            </div>
+                        </div>
+                    </div>
 
-                        {/* Zero-Scroll Optimized Form Grid */}
-                        <form onSubmit={handleCreatePatient} className="flex-1 flex flex-col justify-between space-y-2 min-h-0 overflow-hidden">
+                    {/* Live AI Spoken Alert Banner */}
+                    {voiceStatus.speaking && voiceStatus.currentText && (
+                        <div className="p-2.5 bg-blue-50/95 border-2 border-blue-300 rounded-xl flex items-center justify-between gap-2 shadow-sm animate-fade-in flex-shrink-0 mb-2">
+                            <div className="flex items-center gap-2 overflow-hidden">
+                                <div className="w-6 h-6 rounded-lg bg-[#2563EB] text-white flex items-center justify-center flex-shrink-0 shadow-2xs">
+                                    <Volume2 className="w-3.5 h-3.5 animate-bounce" />
+                                </div>
+                                <p className="text-xs font-bold text-blue-950 truncate">
+                                    <span className="font-black text-[#2563EB] uppercase text-[10px] mr-1">AI Voice:</span>
+                                    {voiceStatus.currentText}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => aiVoice.stop()}
+                                className="text-[10px] font-black text-blue-600 hover:text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-200 cursor-pointer flex-shrink-0"
+                            >
+                                Dismiss
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Form Body: Scrollable with custom-scrollbar */}
+                    <form onSubmit={handleCreatePatient} className="flex-1 overflow-y-auto pr-1.5 space-y-3.5 min-h-0 custom-scrollbar">
                             
                             {/* Row 1: First & Last Name */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1249,8 +1294,9 @@ export default function NewPatientPage() {
                                 <div className="flex justify-between items-center mb-0.5 ml-1">
                                     <div className="flex items-center gap-1.5">
                                         <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">Street Address</label>
-                                        <span className="text-[9px] font-bold text-[#4A7CD2] bg-blue-50 px-1.5 py-0.2 rounded border border-blue-100">
-                                            Mapbox Search
+                                        <span className="text-[8.5px] font-extrabold text-[#4A7CD2] bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 flex items-center gap-1">
+                                            <Globe className="w-2.5 h-2.5" />
+                                            <span>Live Address Lookup</span>
                                         </span>
                                     </div>
                                     {recentlySyncedField.address && (
@@ -1264,7 +1310,7 @@ export default function NewPatientPage() {
                                     <input
                                         type="text"
                                         name="address"
-                                        placeholder={newPatient.region === 'PK' ? "Search street/area (e.g. F-7 Islamabad, Gulberg Lahore) or type address..." : "Search street, suburb, Auckland or type address..."}
+                                        placeholder={newPatient.region === 'PK' ? "Search street, sector (e.g. F-7, Gulberg) or type custom address..." : "Search street, suburb, Auckland or type custom address..."}
                                         value={newPatient.address}
                                         onFocus={() => {
                                             if (addressSuggestions.length > 0) setShowAddressDropdown(true);
@@ -1278,11 +1324,14 @@ export default function NewPatientPage() {
                                                 setShowAddressDropdown(false);
                                             }
                                         }}
-                                        className="w-full pl-9 pr-14 py-2.5 bg-[#F8FAFC] border border-light-teal/50 focus:border-[#4A7CD2] rounded-xl text-xs font-bold text-dark-slate focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/20 transition-all placeholder:font-normal placeholder:text-slate-400"
+                                        className="w-full pl-9 pr-16 py-2.5 bg-[#F8FAFC] border border-light-teal/50 focus:border-[#4A7CD2] rounded-xl text-xs font-bold text-dark-slate focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/20 transition-all placeholder:font-normal placeholder:text-slate-400"
                                     />
-                                    <div className="absolute right-2.5 flex items-center gap-1">
+                                    <div className="absolute right-2.5 flex items-center gap-1.5">
                                         {loadingAddressSuggestions ? (
-                                            <Loader2 className="w-3.5 h-3.5 text-[#4A7CD2] animate-spin" />
+                                            <div className="flex items-center gap-1 text-[10px] text-[#4A7CD2] font-bold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                                <span className="hidden sm:inline">Searching...</span>
+                                            </div>
                                         ) : newPatient.address ? (
                                             <button
                                                 type="button"
@@ -1302,44 +1351,53 @@ export default function NewPatientPage() {
                                     </div>
                                 </div>
 
-                                {/* Autocomplete Dropdown Popover */}
+                                {/* Inline Expandable Verified Suggestions (Never clips or covers inputs!) */}
                                 {showAddressDropdown && addressSuggestions.length > 0 && (
-                                    <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 max-h-60 overflow-y-auto divide-y divide-slate-100 animate-scale-up">
-                                        <div className="p-2 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between sticky top-0 z-10 border-b border-slate-100">
-                                            <span className="flex items-center gap-1">
-                                                <Globe className="w-3 h-3 text-[#4A7CD2]" />
-                                                <span>Mapbox Location Matches ({addressSuggestions.length})</span>
+                                    <div className="mt-2 bg-white border border-blue-200 rounded-2xl shadow-sm p-2.5 space-y-1.5 animate-scale-up">
+                                        <div className="flex items-center justify-between pb-1 px-1 border-b border-slate-100 text-[10px] font-bold text-slate-500">
+                                            <span className="flex items-center gap-1 text-[#4A7CD2]">
+                                                <MapPin className="w-3 h-3" />
+                                                <span>Verified Location Matches ({addressSuggestions.length})</span>
                                             </span>
-                                            <button 
+                                            <button
                                                 type="button"
                                                 onClick={() => setShowAddressDropdown(false)}
-                                                className="text-slate-400 hover:text-slate-600 font-bold p-0.5 cursor-pointer"
+                                                className="text-slate-400 hover:text-slate-700 px-1.5 py-0.5 rounded hover:bg-slate-100 text-[10px] cursor-pointer"
                                             >
-                                                ✕
+                                                ✕ Close
                                             </button>
                                         </div>
-                                        {addressSuggestions.map(feat => {
-                                            const mainName = feat.text || (feat.place_name ? feat.place_name.split(',')[0] : '');
-                                            const subContext = feat.place_name ? feat.place_name.replace(mainName, '').replace(/^,\s*/, '') : '';
-                                            return (
+                                        <div className="max-h-44 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                                            {addressSuggestions.map(item => (
                                                 <div
-                                                    key={feat.id}
-                                                    onClick={() => handleSelectAddressSuggestion(feat)}
-                                                    className="p-3 hover:bg-blue-50/70 transition cursor-pointer flex items-start gap-2.5"
+                                                    key={item.id}
+                                                    onClick={() => handleSelectAddressSuggestion(item)}
+                                                    className="p-2 bg-slate-50/70 hover:bg-blue-50/80 border border-slate-100 hover:border-blue-200 rounded-xl transition cursor-pointer flex items-center justify-between gap-2 group"
                                                 >
-                                                    <MapPin className="w-4 h-4 text-[#4A7CD2] shrink-0 mt-0.5" />
-                                                    <div className="flex-1 min-w-0">
-                                                        <span className="font-bold text-xs text-slate-900 block truncate">{mainName}</span>
-                                                        {subContext && (
-                                                            <span className="text-[10.5px] text-slate-500 block truncate">{subContext}</span>
-                                                        )}
+                                                    <div className="flex items-start gap-2 min-w-0">
+                                                        <MapPin className="w-3.5 h-3.5 text-[#4A7CD2] shrink-0 mt-0.5" />
+                                                        <div className="min-w-0">
+                                                            <div className="text-xs font-black text-slate-900 truncate group-hover:text-[#4A7CD2]">
+                                                                {item.title}
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-500 truncate">
+                                                                {item.subtitle}
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <span className="text-[9.5px] font-bold text-[#4A7CD2] bg-white px-2 py-0.5 rounded-md border border-blue-100 shrink-0 shadow-2xs">
-                                                        Select
-                                                    </span>
+                                                    <div className="flex items-center gap-1.5 shrink-0">
+                                                        {item.city && (
+                                                            <span className="text-[9.5px] font-bold bg-white text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">
+                                                                {item.city}
+                                                            </span>
+                                                        )}
+                                                        <span className="text-[9.5px] font-black text-white bg-[#4A7CD2] px-2 py-0.5 rounded-lg group-hover:bg-[#3665B7] shadow-2xs">
+                                                            Select & Fill
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                            );
-                                        })}
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
 
@@ -1490,10 +1548,9 @@ export default function NewPatientPage() {
                             </div>
 
                         </form>
-                    </div>
 
-                    {/* Bottom Action Row (Fixed at bottom of Left Card) */}
-                    <div className="pt-2.5 border-t border-light-teal/20 flex flex-wrap justify-between items-center gap-3 flex-shrink-0">
+                    {/* Bottom Action Row (Docked at bottom of Left Card) */}
+                    <div className="pt-3 border-t border-light-teal/20 flex flex-wrap justify-between items-center gap-3 flex-shrink-0 mt-2 bg-white">
                         <div className="flex items-center gap-2 text-xs font-bold text-muted-text">
                             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
                             <span className="text-[11px]">HIPAA & GDPR Encrypted Registry</span>
@@ -1502,7 +1559,7 @@ export default function NewPatientPage() {
                         <button 
                             type="button" 
                             onClick={handleCreatePatient}
-                            className="px-5 py-2 bg-[#4A7CD2] hover:bg-[#3665B7] text-white font-black rounded-xl shadow-md hover:shadow-lg transition-all text-xs cursor-pointer flex items-center gap-1.5 transform hover:scale-[1.02] active:scale-[0.98]"
+                            className="px-5 py-2.5 bg-[#4A7CD2] hover:bg-[#3665B7] text-white font-black rounded-xl shadow-md hover:shadow-lg transition-all text-xs cursor-pointer flex items-center gap-1.5 transform hover:scale-[1.02] active:scale-[0.98]"
                         >
                             <UserPlus className="w-3.5 h-3.5" />
                             <span>Create Patient Profile</span>
