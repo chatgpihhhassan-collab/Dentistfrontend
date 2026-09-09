@@ -2,14 +2,13 @@ import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
 /**
- * ThreeDoctorHead: Ultra-Premium Futuristic Medical AI Copilot Hologram
- * Replaces primitive shapes with a sleek, high-tech cyber-clinical medical specialist ("Dr. Sarah").
- * Features:
- * - Ceramic matte medical shell with soft subsurface lighting
- * - Curved tinted glass visor with animated audio-reactive LED waveforms
- * - Orbiting holographic diagnostic gyroscope rings and particle field
- * - Chrome stethoscope and glowing medical cross beacon
- * - Smooth hover-float breathing idle animation and voice reactivity
+ * ThreeDoctorHead: Ultra-Friendly Cute Healthcare AI Robot
+ * Faithfully matches the user's reference sample:
+ * - Rounded mint/porcelain friendly medical robot
+ * - Curved dark visor with expressive glowing cyan LED eyes & smile
+ * - Medical cross on chest
+ * - Floating 3D speech bubbles (Left: Heartbeat pulse, Right: Chat bubble with 3 dots)
+ * - Gentle floating hover animation, head tracking, and real-time voice reactivity
  */
 export default function ThreeDoctorHead({
   isSpeaking = false,
@@ -25,227 +24,242 @@ export default function ThreeDoctorHead({
     const container = mountRef.current;
     if (!container) return;
 
-    const width = container.clientWidth || 380;
-    const height = container.clientHeight || 200;
+    const width = container.clientWidth || 360;
+    const height = container.clientHeight || 230;
 
     // 1. Scene & Camera
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100);
-    camera.position.set(0, 0.15, 3.4);
+    const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
+    camera.position.set(0, 0.05, 3.8);
 
     // 2. Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 1.15;
     container.appendChild(renderer.domElement);
 
-    // 3. Studio & Holographic Lighting
-    const ambientLight = new THREE.AmbientLight(0x0f172a, 1.8);
+    // 3. Soft Studio & Pastel Healthcare Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 2.0);
     scene.add(ambientLight);
 
-    const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
-    keyLight.position.set(2.5, 3.5, 3.0);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.8);
+    keyLight.position.set(2.5, 4.0, 3.5);
     scene.add(keyLight);
 
-    const cyanRimLight = new THREE.DirectionalLight(0x14b8a6, 2.5); // Clinical teal rim
-    cyanRimLight.position.set(-3.0, 2.0, -2.0);
-    scene.add(cyanRimLight);
+    const softTealLight = new THREE.DirectionalLight(0x99f6e4, 1.6);
+    softTealLight.position.set(-3.0, 2.0, 1.5);
+    scene.add(softTealLight);
 
-    const blueFillLight = new THREE.DirectionalLight(0x38bdf8, 1.4); // High-tech blue fill
-    blueFillLight.position.set(2.0, -2.0, 2.0);
-    scene.add(blueFillLight);
+    const bottomFillLight = new THREE.DirectionalLight(0xccfbf1, 0.8);
+    bottomFillLight.position.set(0, -2.5, 2.0);
+    scene.add(bottomFillLight);
 
-    // Hologram Core Group
-    const rootGroup = new THREE.Group();
-    scene.add(rootGroup);
+    // Robot Root Group
+    const robotRoot = new THREE.Group();
+    scene.add(robotRoot);
 
-    // 4. Materials (High-Tech Porcelain, Brushed Titanium & Emissive Glass)
-    const ceramicShellMat = new THREE.MeshStandardMaterial({
-      color: 0xf8fafc,
-      roughness: 0.25,
+    // 4. Materials (Porcelain Mint, Clean White, Emerald & Glowing Cyan)
+    const mintBodyMat = new THREE.MeshStandardMaterial({
+      color: 0xa7f3d0, // Soft pastel mint
+      roughness: 0.28,
+      metalness: 0.05
+    });
+
+    const whiteShellMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.2,
+      metalness: 0.02
+    });
+
+    const deepTealMat = new THREE.MeshStandardMaterial({
+      color: 0x0d9488, // Clinic teal
+      roughness: 0.3,
       metalness: 0.1
     });
 
-    const medicalTealMat = new THREE.MeshStandardMaterial({
-      color: 0x0f766e, // Deep clinic teal
-      roughness: 0.35,
-      metalness: 0.2
-    });
-
-    const titaniumMat = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      roughness: 0.15,
-      metalness: 0.9
-    });
-
-    const visorGlassMat = new THREE.MeshStandardMaterial({
-      color: 0x020617,
-      roughness: 0.05,
+    const darkVisorMat = new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      roughness: 0.1,
       metalness: 0.8
     });
 
-    const glowCyanMat = new THREE.MeshStandardMaterial({
+    const cyanGlowMat = new THREE.MeshStandardMaterial({
       color: 0x2dd4bf,
       emissive: 0x2dd4bf,
-      emissiveIntensity: 1.2,
-      roughness: 0.2
-    });
-
-    const glowRedMat = new THREE.MeshStandardMaterial({
-      color: 0xef4444,
-      emissive: 0xef4444,
       emissiveIntensity: 1.4,
       roughness: 0.2
     });
 
-    // 5. Build Futuristic Android Doctor Head & Bust
-    const bustGroup = new THREE.Group();
-    rootGroup.add(bustGroup);
+    const redGlowMat = new THREE.MeshStandardMaterial({
+      color: 0xf43f5e,
+      emissive: 0xf43f5e,
+      emissiveIntensity: 1.4,
+      roughness: 0.2
+    });
 
-    // Torso / Medical Scrubs Shoulders
-    const torsoGeo = new THREE.CylinderGeometry(0.55, 0.92, 1.1, 32);
-    torsoGeo.scale(1.1, 1.0, 0.7);
-    const torsoMesh = new THREE.Mesh(torsoGeo, medicalTealMat);
-    torsoMesh.position.set(0, -1.0, 0);
-    bustGroup.add(torsoMesh);
+    // 5. Build Cute Healthcare Robot Body
+    const bodyGroup = new THREE.Group();
+    robotRoot.add(bodyGroup);
 
-    // Lab Coat Lapels (Porcelain white side panels)
-    const lapelGeo = new THREE.BoxGeometry(0.28, 0.8, 0.08);
-    const leftLapel = new THREE.Mesh(lapelGeo, ceramicShellMat);
-    leftLapel.position.set(-0.42, -0.9, 0.32);
-    leftLapel.rotation.y = 0.25;
-    bustGroup.add(leftLapel);
+    // Torso (Egg-shaped soft mint body)
+    const torsoGeo = new THREE.SphereGeometry(0.55, 36, 36);
+    torsoGeo.scale(1.0, 1.15, 0.85);
+    const torsoMesh = new THREE.Mesh(torsoGeo, mintBodyMat);
+    torsoMesh.position.set(0, -0.75, 0);
+    bodyGroup.add(torsoMesh);
 
-    const rightLapel = new THREE.Mesh(lapelGeo, ceramicShellMat);
-    rightLapel.position.set(0.42, -0.9, 0.32);
-    rightLapel.rotation.y = -0.25;
-    bustGroup.add(rightLapel);
+    // White belly shield plate
+    const bellyGeo = new THREE.SphereGeometry(0.44, 32, 32);
+    bellyGeo.scale(0.9, 0.95, 0.5);
+    const bellyMesh = new THREE.Mesh(bellyGeo, whiteShellMat);
+    bellyMesh.position.set(0, -0.72, 0.28);
+    bodyGroup.add(bellyMesh);
 
-    // Titanium Stethoscope around neck
-    const stethTorusGeo = new THREE.TorusGeometry(0.54, 0.035, 16, 48, Math.PI * 1.15);
-    const stethTorus = new THREE.Mesh(stethTorusGeo, titaniumMat);
-    stethTorus.rotation.x = 1.35;
-    stethTorus.rotation.z = -0.25;
-    stethTorus.position.set(0, -0.58, 0.18);
-    bustGroup.add(stethTorus);
+    // Deep Teal Medical Cross on Belly
+    const crossGroup = new THREE.Group();
+    crossGroup.position.set(0, -0.72, 0.52);
+    bodyGroup.add(crossGroup);
 
-    const stethChestBellGeo = new THREE.CylinderGeometry(0.09, 0.11, 0.04, 24);
-    const stethBell = new THREE.Mesh(stethChestBellGeo, titaniumMat);
-    stethBell.rotation.x = Math.PI / 2;
-    stethBell.position.set(0.18, -0.95, 0.42);
-    bustGroup.add(stethBell);
+    const crossHGeo = new THREE.BoxGeometry(0.2, 0.07, 0.02);
+    const crossVGeo = new THREE.BoxGeometry(0.07, 0.2, 0.02);
+    const crossH = new THREE.Mesh(crossHGeo, deepTealMat);
+    const crossV = new THREE.Mesh(crossVGeo, deepTealMat);
+    crossGroup.add(crossH);
+    crossGroup.add(crossV);
 
-    const stethDiaphragmGeo = new THREE.CircleGeometry(0.08, 24);
-    const stethDiaphragm = new THREE.Mesh(stethDiaphragmGeo, glowCyanMat);
-    stethDiaphragm.position.set(0.18, -0.95, 0.445);
-    bustGroup.add(stethDiaphragm);
+    // Arms
+    // Left Arm (Friendly, relaxed)
+    const leftArmGeo = new THREE.CylinderGeometry(0.07, 0.09, 0.45, 20);
+    const leftArm = new THREE.Mesh(leftArmGeo, mintBodyMat);
+    leftArm.position.set(-0.62, -0.7, 0.05);
+    leftArm.rotation.z = 0.55;
+    bodyGroup.add(leftArm);
+
+    const leftHandGeo = new THREE.SphereGeometry(0.1, 20, 20);
+    const leftHand = new THREE.Mesh(leftHandGeo, mintBodyMat);
+    leftHand.position.set(-0.76, -0.92, 0.08);
+    bodyGroup.add(leftHand);
+
+    // Right Arm (Gesturing up towards chat bubble as in sample image!)
+    const rightArmGeo = new THREE.CylinderGeometry(0.07, 0.09, 0.45, 20);
+    const rightArm = new THREE.Mesh(rightArmGeo, mintBodyMat);
+    rightArm.position.set(0.62, -0.58, 0.05);
+    rightArm.rotation.z = -1.15;
+    bodyGroup.add(rightArm);
+
+    const rightHandGeo = new THREE.SphereGeometry(0.1, 20, 20);
+    const rightHand = new THREE.Mesh(rightHandGeo, mintBodyMat);
+    rightHand.position.set(0.85, -0.42, 0.08);
+    bodyGroup.add(rightHand);
 
     // Head Pivot Group
     const headGroup = new THREE.Group();
-    headGroup.position.set(0, 0.12, 0);
-    bustGroup.add(headGroup);
+    headGroup.position.set(0, 0.22, 0);
+    bodyGroup.add(headGroup);
 
-    // Sleek Neck Pillar
-    const neckGeo = new THREE.CylinderGeometry(0.22, 0.28, 0.4, 32);
-    const neckMesh = new THREE.Mesh(neckGeo, titaniumMat);
-    neckMesh.position.set(0, -0.3, 0);
+    // Neck ring
+    const neckGeo = new THREE.CylinderGeometry(0.22, 0.25, 0.18, 24);
+    const neckMesh = new THREE.Mesh(neckGeo, deepTealMat);
+    neckMesh.position.set(0, -0.22, 0);
     headGroup.add(neckMesh);
 
-    // Sleek White Ceramic Helmet / Skull
-    const skullGeo = new THREE.SphereGeometry(0.62, 36, 36);
-    skullGeo.scale(1.0, 1.14, 1.06);
-    const skullMesh = new THREE.Mesh(skullGeo, ceramicShellMat);
+    // Cute Rounded Robot Head
+    const skullGeo = new THREE.SphereGeometry(0.64, 40, 40);
+    skullGeo.scale(1.22, 0.95, 0.9);
+    const skullMesh = new THREE.Mesh(skullGeo, mintBodyMat);
     headGroup.add(skullMesh);
 
-    // Medical Cap Upper Dome (Teal Accent Band)
-    const capBandGeo = new THREE.TorusGeometry(0.63, 0.04, 16, 48);
-    const capBand = new THREE.Mesh(capBandGeo, medicalTealMat);
-    capBand.rotation.x = Math.PI / 2;
-    capBand.position.set(0, 0.28, 0.02);
-    headGroup.add(capBand);
+    // Ears / Side Knobs
+    const earGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.12, 24);
+    const leftEar = new THREE.Mesh(earGeo, deepTealMat);
+    leftEar.rotation.z = Math.PI / 2;
+    leftEar.position.set(-0.8, 0.02, 0);
+    headGroup.add(leftEar);
 
-    // Glowing Medical Cross Beacon
-    const crossBaseGeo = new THREE.CylinderGeometry(0.11, 0.11, 0.04, 24);
-    const crossBase = new THREE.Mesh(crossBaseGeo, titaniumMat);
-    crossBase.rotation.x = Math.PI / 2;
-    crossBase.position.set(0, 0.52, 0.61);
-    headGroup.add(crossBase);
+    const rightEar = leftEar.clone();
+    rightEar.position.set(0.8, 0.02, 0);
+    headGroup.add(rightEar);
 
-    const crossHGeo = new THREE.PlaneGeometry(0.13, 0.04);
-    const crossVGeo = new THREE.PlaneGeometry(0.04, 0.13);
-    const crossH = new THREE.Mesh(crossHGeo, glowRedMat);
-    crossH.position.set(0, 0.52, 0.635);
-    headGroup.add(crossH);
+    // Top Cute Antenna
+    const antennaStemGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.2, 16);
+    const antennaStem = new THREE.Mesh(antennaStemGeo, deepTealMat);
+    antennaStem.position.set(0, 0.62, 0);
+    headGroup.add(antennaStem);
 
-    const crossV = new THREE.Mesh(crossVGeo, glowRedMat);
-    crossV.position.set(0, 0.52, 0.635);
-    headGroup.add(crossV);
+    const antennaTipGeo = new THREE.SphereGeometry(0.07, 20, 20);
+    const antennaTip = new THREE.Mesh(antennaTipGeo, cyanGlowMat);
+    antennaTip.position.set(0, 0.74, 0);
+    headGroup.add(antennaTip);
 
-    // Curved High-Tech Tinted Visor
+    // Curved Dark Visor Screen
     const visorGeo = new THREE.SphereGeometry(0.58, 32, 24, 0, Math.PI, 0, Math.PI * 0.45);
-    visorGeo.scale(1.02, 0.65, 0.95);
-    const visor = new THREE.Mesh(visorGeo, visorGlassMat);
-    visor.rotation.x = 1.35;
-    visor.position.set(0, 0.06, 0.18);
-    headGroup.add(visor);
+    visorGeo.scale(1.08, 0.65, 0.75);
+    const visorMesh = new THREE.Mesh(visorGeo, darkVisorMat);
+    visorMesh.rotation.x = 1.38;
+    visorMesh.position.set(0, 0.02, 0.28);
+    headGroup.add(visorMesh);
 
-    // LED HUD Waveform inside Visor (Simulates Eye Display & Voice Cadence)
-    const hudGroup = new THREE.Group();
-    hudGroup.position.set(0, 0.08, 0.66);
-    headGroup.add(hudGroup);
+    // Visor Expressive Glowing LED Eyes (Cute oval capsules)
+    const eyeGeo = new THREE.CapsuleGeometry(0.08, 0.09, 16, 16);
+    const leftEye = new THREE.Mesh(eyeGeo, cyanGlowMat);
+    leftEye.position.set(-0.25, 0.05, 0.65);
+    leftEye.scale.set(1.1, 0.9, 0.3);
+    headGroup.add(leftEye);
 
-    // 5 Horizontal Waveform Bars for Audio Reactivity
-    const waveBars = [];
-    const barMat = glowCyanMat.clone();
-    for (let i = -2; i <= 2; i++) {
-      const barGeo = new THREE.BoxGeometry(0.045, 0.08, 0.02);
-      const bar = new THREE.Mesh(barGeo, barMat);
-      bar.position.set(i * 0.075, 0, 0);
-      hudGroup.add(bar);
-      waveBars.push(bar);
+    const rightEye = leftEye.clone();
+    rightEye.position.set(0.25, 0.05, 0.65);
+    headGroup.add(rightEye);
+
+    // Cute LED Smile / Mouth Wave inside Visor
+    const mouthGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.16, 16);
+    const mouthMesh = new THREE.Mesh(mouthGeo, cyanGlowMat);
+    mouthMesh.rotation.z = Math.PI / 2;
+    mouthMesh.position.set(0, -0.14, 0.66);
+    headGroup.add(mouthMesh);
+
+    // 6. Floating 3D Speech Bubbles (Exact Match to Sample Image!)
+    // Left Bubble: White thought bubble with Heartbeat
+    const leftBubbleGroup = new THREE.Group();
+    leftBubbleGroup.position.set(-1.15, 0.38, 0.2);
+    robotRoot.add(leftBubbleGroup);
+
+    const bubbleBodyGeo = new THREE.SphereGeometry(0.35, 24, 24);
+    bubbleBodyGeo.scale(1.15, 0.95, 0.6);
+    const leftBubbleMesh = new THREE.Mesh(bubbleBodyGeo, whiteShellMat);
+    leftBubbleGroup.add(leftBubbleMesh);
+
+    // Green Heart inside left bubble
+    const heartShape = new THREE.Shape();
+    heartShape.moveTo(0, 0);
+    heartShape.bezierCurveTo(0, 0.08, -0.1, 0.12, -0.1, 0.04);
+    heartShape.bezierCurveTo(-0.1, -0.04, 0, -0.1, 0, -0.14);
+    heartShape.bezierCurveTo(0, -0.1, 0.1, -0.04, 0.1, 0.04);
+    heartShape.bezierCurveTo(0.1, 0.12, 0, 0.08, 0, 0);
+    const heartGeo = new THREE.ShapeGeometry(heartShape);
+    const heartMesh = new THREE.Mesh(heartGeo, deepTealMat);
+    heartMesh.scale.set(1.4, 1.4, 1.4);
+    heartMesh.position.set(0, 0.06, 0.22);
+    leftBubbleGroup.add(heartMesh);
+
+    // Right Bubble: Teal thought bubble with 3 white chat dots
+    const rightBubbleGroup = new THREE.Group();
+    rightBubbleGroup.position.set(1.12, 0.85, 0.2);
+    robotRoot.add(rightBubbleGroup);
+
+    const rightBubbleMesh = new THREE.Mesh(bubbleBodyGeo, deepTealMat);
+    rightBubbleGroup.add(rightBubbleMesh);
+
+    // 3 White Chat Dots
+    const dotGeo = new THREE.SphereGeometry(0.04, 16, 16);
+    for (let i = -1; i <= 1; i++) {
+      const dot = new THREE.Mesh(dotGeo, whiteShellMat);
+      dot.position.set(i * 0.11, 0, 0.22);
+      rightBubbleGroup.add(dot);
     }
 
-    // Surgical Loupes / Forehead Sensor Node
-    const sensorGeo = new THREE.CylinderGeometry(0.06, 0.07, 0.08, 24);
-    const sensor = new THREE.Mesh(sensorGeo, titaniumMat);
-    sensor.rotation.x = Math.PI / 2;
-    sensor.position.set(0, 0.35, 0.65);
-    headGroup.add(sensor);
-
-    const sensorLensGeo = new THREE.CircleGeometry(0.05, 24);
-    const sensorLens = new THREE.Mesh(sensorLensGeo, glowCyanMat);
-    sensorLens.position.set(0, 0.35, 0.695);
-    headGroup.add(sensorLens);
-
-    // 6. Holographic Orbiting Gyroscope Diagnostic Rings
-    const ring1Geo = new THREE.TorusGeometry(1.15, 0.012, 16, 64);
-    const ring1Mat = new THREE.MeshBasicMaterial({ color: 0x2dd4bf, transparent: true, opacity: 0.45 });
-    const ring1 = new THREE.Mesh(ring1Geo, ring1Mat);
-    ring1.rotation.x = 1.2;
-    rootGroup.add(ring1);
-
-    const ring2Geo = new THREE.TorusGeometry(1.25, 0.009, 16, 64);
-    const ring2Mat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.35 });
-    const ring2 = new THREE.Mesh(ring2Geo, ring2Mat);
-    ring2.rotation.y = 1.1;
-    rootGroup.add(ring2);
-
-    // Glowing Holographic Floor Disc
-    const floorDiscGeo = new THREE.RingGeometry(0.6, 1.1, 48);
-    const floorDiscMat = new THREE.MeshBasicMaterial({
-      color: 0x0f766e,
-      transparent: true,
-      opacity: 0.25,
-      side: THREE.DoubleSide
-    });
-    const floorDisc = new THREE.Mesh(floorDiscGeo, floorDiscMat);
-    floorDisc.rotation.x = Math.PI / 2;
-    floorDisc.position.set(0, -1.5, 0);
-    rootGroup.add(floorDisc);
-
-    // 7. Mouse Tracking
+    // 7. Mouse Tracking Setup
     const mouse = { x: 0, y: 0, targetX: 0, targetY: 0 };
     const handleMouseMove = (e) => {
       const rect = container.getBoundingClientRect();
@@ -256,71 +270,75 @@ export default function ThreeDoctorHead({
     };
     window.addEventListener('mousemove', handleMouseMove);
 
-    // 8. Animation Loop
+    // 8. Smooth Animation Loop
     let animationFrameId;
     const startTime = performance.now();
+    let nextBlinkTime = 2.5;
+    let isBlinking = false;
+    let blinkProgress = 0;
 
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
       const elapsedTime = (performance.now() - startTime) * 0.001;
       const { isSpeaking, isListening } = propsRef.current;
 
-      // Mouse tracking interpolation
+      // Mouse tracking
       mouse.x += (mouse.targetX - mouse.x) * 0.08;
       mouse.y += (mouse.targetY - mouse.y) * 0.08;
 
-      // Floating hover-breathing effect
-      const hoverFloat = Math.sin(elapsedTime * 2.0) * 0.035;
-      bustGroup.position.y = hoverFloat;
+      // Gentle floating hover animation (matching sample illustration)
+      const hoverFloat = Math.sin(elapsedTime * 2.2) * 0.04;
+      bodyGroup.position.y = hoverFloat;
 
-      // Head tracking
+      // Floating Bubbles gentle independent oscillation
+      leftBubbleGroup.position.y = 0.38 + Math.sin(elapsedTime * 2.5 + 1.0) * 0.05;
+      rightBubbleGroup.position.y = 0.85 + Math.sin(elapsedTime * 2.0 + 2.0) * 0.05;
+
+      // Head & Eye Tracking
       headGroup.rotation.y = mouse.x + Math.sin(elapsedTime * 0.9) * 0.03;
-      headGroup.rotation.x = -mouse.y + Math.cos(elapsedTime * 1.2) * 0.02;
+      headGroup.rotation.x = -mouse.y + Math.cos(elapsedTime * 1.1) * 0.02;
       headGroup.rotation.z = -mouse.x * 0.15;
 
-      // Holographic Gyroscope Rotation
-      ring1.rotation.z += isListening ? 0.04 : 0.012;
-      ring2.rotation.x += isListening ? 0.035 : 0.009;
-      floorDisc.rotation.z += 0.008;
+      // Antenna Tip Glow Pulse
+      antennaTip.material.emissiveIntensity = 1.2 + Math.sin(elapsedTime * 4.0) * 0.6;
 
-      // Audio-Reactive LED Waveform Bars inside Visor
-      waveBars.forEach((bar, idx) => {
-        if (isSpeaking) {
-          // Dynamic sound wave articulation
-          const waveHeight = Math.abs(Math.sin(elapsedTime * 16 + idx * 1.2)) * 2.4 + 0.5;
-          bar.scale.y = waveHeight;
-          bar.material.color.setHex(0x2dd4bf);
-          bar.material.emissive.setHex(0x2dd4bf);
-          bar.material.emissiveIntensity = 2.0;
-        } else if (isListening) {
-          // Attentive listening pulse (Ruby/Cyan alert)
-          const listenPulse = Math.sin(elapsedTime * 8 + idx * 0.8) * 1.5 + 1.2;
-          bar.scale.y = listenPulse;
-          bar.material.color.setHex(0xef4444);
-          bar.material.emissive.setHex(0xef4444);
-          bar.material.emissiveIntensity = 2.2;
-        } else {
-          // Idle calm status
-          bar.scale.y = 0.8 + Math.sin(elapsedTime * 2.5 + idx) * 0.3;
-          bar.material.color.setHex(0x0d9488);
-          bar.material.emissive.setHex(0x0d9488);
-          bar.material.emissiveIntensity = 0.9;
+      // Natural Eye Blinking Logic
+      if (elapsedTime > nextBlinkTime) {
+        isBlinking = true;
+        blinkProgress = 0;
+        nextBlinkTime = elapsedTime + 3.0 + Math.random() * 3.0;
+      }
+
+      if (isBlinking) {
+        blinkProgress += 0.18;
+        const blinkScaleY = Math.max(0.08, 1.0 - Math.sin(blinkProgress * Math.PI));
+        leftEye.scale.y = blinkScaleY * 0.9;
+        rightEye.scale.y = blinkScaleY * 0.9;
+        if (blinkProgress >= 1.0) {
+          isBlinking = false;
+          leftEye.scale.y = 0.9;
+          rightEye.scale.y = 0.9;
         }
-      });
+      }
 
-      // Lighting reactivity
-      if (isListening) {
-        sensorLens.material.emissiveIntensity = 2.2 + Math.sin(elapsedTime * 10) * 0.8;
-        ring1Mat.color.setHex(0xef4444);
-        ring1Mat.opacity = 0.8;
-      } else if (isSpeaking) {
-        sensorLens.material.emissiveIntensity = 1.8 + Math.sin(elapsedTime * 8) * 0.5;
-        ring1Mat.color.setHex(0x2dd4bf);
-        ring1Mat.opacity = 0.7;
+      // Voice Activity Reactivity (Talking & Listening)
+      if (isSpeaking) {
+        // Mouth opens and smiles with voice wave
+        const mouthWave = Math.abs(Math.sin(elapsedTime * 14)) * 0.12 + 0.04;
+        mouthMesh.scale.x = 1.0 + mouthWave * 2.0;
+        mouthMesh.scale.y = 1.0 + mouthWave * 4.0;
+        cyanGlowMat.emissiveIntensity = 2.0;
+      } else if (isListening) {
+        // Attentive wide eyes & red/rose alert pulse
+        leftEye.scale.y = 1.2;
+        rightEye.scale.y = 1.2;
+        antennaTip.material = redGlowMat;
+        mouthMesh.scale.set(1.0, 1.0, 1.0);
       } else {
-        sensorLens.material.emissiveIntensity = 1.0;
-        ring1Mat.color.setHex(0x2dd4bf);
-        ring1Mat.opacity = 0.4;
+        // Normal state
+        antennaTip.material = cyanGlowMat;
+        mouthMesh.scale.set(1.0, 1.0, 1.0);
+        cyanGlowMat.emissiveIntensity = 1.4;
       }
 
       renderer.render(scene, camera);
@@ -328,7 +346,6 @@ export default function ThreeDoctorHead({
 
     animate();
 
-    // Resize Handler
     const handleResize = () => {
       if (!container) return;
       const newWidth = container.clientWidth;
@@ -339,7 +356,6 @@ export default function ThreeDoctorHead({
     };
     window.addEventListener('resize', handleResize);
 
-    // Cleanup
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('resize', handleResize);
