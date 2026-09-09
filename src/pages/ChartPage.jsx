@@ -927,7 +927,7 @@ export default function ChartPage() {
 
   const PEDIATRIC_KEYS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
 
-  const applyTeethChartData = (data, activeMode = dentitionMode) => {
+  const applyTeethChartData = (data, activeMode = dentitionMode, preloadedAssessment = null) => {
           const pediatricMap = {};
           const adultMap = {};
 
@@ -949,47 +949,180 @@ export default function ChartPage() {
 
           const dbTeethMap = activeMode === 'pediatric' ? pediatricMap : adultMap;
 
-          // Restore TMJ / Ortho assessment if saved on patient teeth in DB
+          // Restore Diagnostic Suite (Ortho Malocclusions, Impactions, TMJ) from DB table or Teeth Chart
           try {
-            const tmjRecord = rawList.find(t => {
-              const comm = (t.comments || t.Comments || t.comment || t.Comment || '');
-              const stat = (t.conditionStatus || t.ConditionStatus || t.status || t.Status || '');
-              return /TMJ Articulation|TMJ Closed Lock|TMJ Disc Reduction|Trismus/i.test(comm) || /TMJ/i.test(stat);
-            });
-
-            if (tmjRecord) {
-              const comm = (tmjRecord.comments || tmjRecord.Comments || tmjRecord.comment || tmjRecord.Comment || '');
-              const stat = (tmjRecord.conditionStatus || tmjRecord.ConditionStatus || tmjRecord.status || tmjRecord.Status || '');
-              let detectedState = 'normal';
-              if (/closed.?lock|trismus/i.test(stat) || /closed.?lock|trismus/i.test(comm)) {
-                detectedState = 'closed_lock';
-              } else if (/click|reduction/i.test(stat) || /click|reduction/i.test(comm)) {
-                detectedState = 'clicking';
-              }
-
-              let detectedOpening = 42.0;
-              const openMatch = comm.match(/Opening:\s*([\d\.]+)mm/i);
-              if (openMatch) {
-                detectedOpening = parseFloat(openMatch[1]);
-              } else if (detectedState === 'closed_lock') {
-                detectedOpening = 24.0;
-              } else if (detectedState === 'clicking') {
-                detectedOpening = 35.0;
-              }
-
-              const restoredTmj = {
-                suite_category: 'tmj',
-                tmj_state: detectedState,
-                mouth_opening_mm: detectedOpening,
-                cdt_code: detectedState === 'normal' ? 'D0140' : 'D7880'
-              };
-              setLiveOrthoAssessment(restoredTmj);
+            if (preloadedAssessment && preloadedAssessment.suite_category) {
+              console.log(`📋 [Diagnostic Suite Restored from DB Table for Patient #${patientId}]:`, preloadedAssessment);
+              setLiveOrthoAssessment(preloadedAssessment);
               try {
-                localStorage.setItem(`dentist_ortho_tmj_${patientId}`, JSON.stringify(restoredTmj));
+                localStorage.setItem(`dentia_diagnostic_assessment_${patientId}`, JSON.stringify(preloadedAssessment));
               } catch (e) {}
+            } else {
+              let detectedAssessment = null;
+
+              // 1. Check for Occlusion / Deep Overbite
+              const overbiteRecord = rawList.find(t => {
+                const stat = (t.conditionStatus || t.ConditionStatus || t.status || t.Status || '');
+                const comm = (t.comments || t.Comments || t.comment || t.Comment || '');
+                return /DEEP OVERBITE/i.test(stat) || (/overbite/i.test(stat) && /overlap/i.test(comm));
+              });
+              if (overbiteRecord) {
+                const comm = (overbiteRecord.comments || overbiteRecord.Comments || overbiteRecord.comment || overbiteRecord.Comment || '');
+                const match = comm.match(/(\d{1,3})%\s*overlap/i);
+                const pct = match ? parseInt(match[1], 10) : 70;
+                detectedAssessment = {
+                  suite_category: 'occlusion',
+                  bite_type: 'overbite',
+                  overbite_percent: pct,
+                  cdt_code: 'D8080',
+                  clinical_indication: `Deep overbite: ${pct}% overlap. Orthodontic leveling indicated.`
+                };
+              }
+
+              // 2. Check for Class III Underbite
+              if (!detectedAssessment) {
+                const underbiteRecord = rawList.find(t => /CLASS III|UNDERBITE/i.test(t.conditionStatus || t.ConditionStatus || t.status || t.Status || ''));
+                if (underbiteRecord) {
+                  const comm = (underbiteRecord.comments || underbiteRecord.Comments || underbiteRecord.comment || underbiteRecord.Comment || '');
+                  const match = comm.match(/([-\d\.]+)\s*mm/i);
+                  const mm = match ? parseFloat(match[1]) : -3.5;
+                  detectedAssessment = {
+                    suite_category: 'occlusion',
+                    bite_type: 'underbite',
+                    overjet_mm: mm,
+                    cdt_code: 'D8080',
+                    clinical_indication: `Class III underbite: ${mm}mm negative overjet.`
+                  };
+                }
+              }
+
+              // 3. Check for Crossbite
+              if (!detectedAssessment) {
+                const crossbiteRecord = rawList.find(t => /CROSSBITE/i.test(t.conditionStatus || t.ConditionStatus || t.status || t.Status || ''));
+                if (crossbiteRecord) {
+                  const comm = (crossbiteRecord.comments || crossbiteRecord.Comments || crossbiteRecord.comment || crossbiteRecord.Comment || '');
+                  const side = /left/i.test(comm) ? 'left' : /bilateral/i.test(comm) ? 'bilateral' : 'right';
+                  detectedAssessment = {
+                    suite_category: 'occlusion',
+                    bite_type: 'crossbite',
+                    crossbite_side: side,
+                    cdt_code: 'D8080',
+                    clinical_indication: `Posterior crossbite (${side}).`
+                  };
+                }
+              }
+
+              // 4. Check for Anterior Open Bite
+              if (!detectedAssessment) {
+                const openbiteRecord = rawList.find(t => /OPEN BITE/i.test(t.conditionStatus || t.ConditionStatus || t.status || t.Status || ''));
+                if (openbiteRecord) {
+                  const comm = (openbiteRecord.comments || openbiteRecord.Comments || openbiteRecord.comment || openbiteRecord.Comment || '');
+                  const match = comm.match(/([\d\.]+)\s*mm/i);
+                  const gap = match ? parseFloat(match[1]) : 4.0;
+                  detectedAssessment = {
+                    suite_category: 'occlusion',
+                    bite_type: 'openbite',
+                    open_bite_gap_mm: gap,
+                    cdt_code: 'D8080',
+                    clinical_indication: `Anterior open bite: ${gap}mm vertical gap.`
+                  };
+                }
+              }
+
+              // 5. Check for Bruxism / Molar Wear
+              if (!detectedAssessment) {
+                const wearRecord = rawList.find(t => /OCCLUSAL ATTRITION|BRUXISM/i.test(t.conditionStatus || t.ConditionStatus || t.status || t.Status || ''));
+                if (wearRecord) {
+                  const comm = (wearRecord.comments || wearRecord.Comments || wearRecord.comment || wearRecord.Comment || '');
+                  const sev = /severe/i.test(comm) ? 'severe' : /mild/i.test(comm) ? 'mild' : 'moderate';
+                  detectedAssessment = {
+                    suite_category: 'occlusion',
+                    bite_type: 'molarwear',
+                    wear_severity: sev,
+                    cdt_code: 'D9944',
+                    clinical_indication: `Bruxism wear facets (${sev}).`
+                  };
+                }
+              }
+
+              // 6. Check for Impactions
+              if (!detectedAssessment) {
+                const impactionRecord = rawList.find(t => /Impacted|Trapped Canine|Erupted Premolar/i.test(t.conditionStatus || t.ConditionStatus || t.status || t.Status || ''));
+                if (impactionRecord) {
+                  const stat = (impactionRecord.conditionStatus || impactionRecord.ConditionStatus || impactionRecord.status || impactionRecord.Status || '');
+                  const comm = (impactionRecord.comments || impactionRecord.Comments || impactionRecord.comment || impactionRecord.Comment || '');
+                  const isHorizontal = /Horizontal/i.test(stat);
+                  const isCanine = /Canine/i.test(stat);
+                  const isPremolar = /Premolar/i.test(stat);
+                  const impType = isHorizontal ? 'horizontal' : isCanine ? 'canine' : isPremolar ? 'premolar' : 'mesioangular';
+                  const degMatch = comm.match(/(\d{1,3})°/);
+                  const angDeg = degMatch ? parseInt(degMatch[1], 10) : (isHorizontal ? 90 : isCanine ? 35 : 45);
+                  detectedAssessment = {
+                    suite_category: 'impactions',
+                    impaction_type: impType,
+                    angulation_degrees: angDeg,
+                    cdt_code: isHorizontal ? 'D7240' : isCanine ? 'D7280' : isPremolar ? 'D7220' : 'D7230'
+                  };
+                }
+              }
+
+              // 7. Check for TMJ
+              if (!detectedAssessment) {
+                const tmjRecord = rawList.find(t => {
+                  const comm = (t.comments || t.Comments || t.comment || t.Comment || '');
+                  const stat = (t.conditionStatus || t.ConditionStatus || t.status || t.Status || '');
+                  return /TMJ Articulation|TMJ Closed Lock|TMJ Disc Reduction|Trismus/i.test(comm) || /TMJ/i.test(stat);
+                });
+                if (tmjRecord) {
+                  const comm = (tmjRecord.comments || tmjRecord.Comments || tmjRecord.comment || tmjRecord.Comment || '');
+                  const stat = (tmjRecord.conditionStatus || tmjRecord.ConditionStatus || tmjRecord.status || tmjRecord.Status || '');
+                  let detectedState = 'normal';
+                  if (/closed.?lock|trismus/i.test(stat) || /closed.?lock|trismus/i.test(comm)) {
+                    detectedState = 'closed_lock';
+                  } else if (/click|reduction/i.test(stat) || /click|reduction/i.test(comm)) {
+                    detectedState = 'clicking';
+                  }
+
+                  let detectedOpening = 42.0;
+                  const openMatch = comm.match(/Opening:\s*([\d\.]+)mm/i);
+                  if (openMatch) {
+                    detectedOpening = parseFloat(openMatch[1]);
+                  } else if (detectedState === 'closed_lock') {
+                    detectedOpening = 24.0;
+                  } else if (detectedState === 'clicking') {
+                    detectedOpening = 35.0;
+                  }
+
+                  detectedAssessment = {
+                    suite_category: 'tmj',
+                    tmj_state: detectedState,
+                    mouth_opening_mm: detectedOpening,
+                    cdt_code: detectedState === 'normal' ? 'D0140' : 'D7880'
+                  };
+                }
+              }
+
+              // 8. LocalStorage Fallback
+              if (!detectedAssessment) {
+                try {
+                  const cached = localStorage.getItem(`dentia_diagnostic_assessment_${patientId}`);
+                  if (cached) {
+                    detectedAssessment = JSON.parse(cached);
+                    console.log(`💾 [Diagnostic Suite Restored from LocalStorage Cache for Patient #${patientId}]:`, detectedAssessment);
+                  }
+                } catch (e) {}
+              }
+
+              if (detectedAssessment) {
+                console.log(`📐 [Diagnostic Suite Restored from DB Teeth Chart for Patient #${patientId}]:`, detectedAssessment);
+                setLiveOrthoAssessment(detectedAssessment);
+                try {
+                  localStorage.setItem(`dentia_diagnostic_assessment_${patientId}`, JSON.stringify(detectedAssessment));
+                } catch (e) {}
+              }
             }
           } catch (restoreErr) {
-            console.warn('Could not auto-restore TMJ assessment:', restoreErr);
+            console.warn('Could not auto-restore diagnostic assessment:', restoreErr);
           }
 
           if (activeMode === 'pediatric') {
@@ -1090,7 +1223,7 @@ export default function ChartPage() {
     fetch(`/api/patients/${patientId}/chart`)
       .then(res => res.json())
       .then(data => {
-        applyTeethChartData(data, activeMode);
+        applyTeethChartData(data, activeMode, liveOrthoAssessment);
       })
       .catch(err => {
         console.error("Chart fetch error:", err);
@@ -1185,6 +1318,15 @@ export default function ChartPage() {
     if (!assessmentData) return;
     const { suite_category, bite_type, impaction_type, tmj_state, cdt_code, overbite_percent, overjet_mm, open_bite_gap_mm, crossbite_side, wear_severity, angulation_degrees, nerve_distance_mm, eruption_percent, mouth_opening_mm } = assessmentData;
 
+    const pid = parseInt(patientId) || (patient?.patientID ? parseInt(patient.patientID) : 5);
+
+    // Step 0: Immediately update React component state & local cache for instant UI synchronization
+    console.log(`💾 [Diagnostic Suite Saving Assessment for Patient #${pid}]:`, assessmentData);
+    setLiveOrthoAssessment(assessmentData);
+    try {
+      localStorage.setItem(`dentia_diagnostic_assessment_${pid}`, JSON.stringify(assessmentData));
+    } catch (e) {}
+
     const isPediatric = dentitionMode === 'pediatric' || dentitionMode === 'mixed';
     let targetTeeth = [];
     let statusLabel = 'Ortho Malocclusion';
@@ -1275,7 +1417,10 @@ export default function ChartPage() {
     }
 
     orthoSaveTimeoutRef.current = setTimeout(async () => {
-      const pid = parseInt(patientId) || (patient?.patientID ? parseInt(patient.patientID) : 5);
+      const storedDoc = localStorage.getItem('doctor');
+      const docObj = storedDoc ? JSON.parse(storedDoc) : null;
+      const docId = docObj?.doctorID || docObj?.DoctorID || 2;
+
       const dbUpdates = targetTeeth.map(tNum => ({
         toothNumber: tNum,
         conditionStatus: statusLabel,
@@ -1285,6 +1430,7 @@ export default function ChartPage() {
         comments: commentText
       }));
 
+      // 1. Bulk update Teeth in Database
       try {
         const res = await fetch('/api/patients/teeth/update-bulk', {
           method: 'POST',
@@ -1298,14 +1444,32 @@ export default function ChartPage() {
           console.log(`✅ [DB Bulk Saved Successfully]: ${statusLabel} for teeth:`, targetTeeth);
         }
       } catch (err) {
-        console.error("Error saving assessment to DB:", err);
+        console.error("Error saving assessment to DB teeth:", err);
       }
 
-      // Add Clinical Log entry
+      // 2. Persist to DiagnosticAssessments Table in Database
       try {
-        const storedDoc = localStorage.getItem('doctor');
-        const docObj = storedDoc ? JSON.parse(storedDoc) : null;
-        const docId = docObj?.doctorID || docObj?.DoctorID || 2;
+        const diagPayload = {
+          doctorId: docId,
+          suiteCategory: suite_category || (bite_type ? 'occlusion' : impaction_type ? 'impactions' : 'tmj'),
+          assessmentJson: JSON.stringify(assessmentData),
+          cdtCode: cdt_code || 'D8080',
+          diagnosisSummary: `${statusLabel}: ${commentText}`
+        };
+        const diagRes = await fetch(`/api/patients/${pid}/diagnostic-assessment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(diagPayload)
+        });
+        if (diagRes.ok) {
+          console.log(`✅ [DB Diagnostic Assessment Table Saved Successfully]:`, diagPayload);
+        }
+      } catch (diagErr) {
+        console.warn("Could not save to DiagnosticAssessments table:", diagErr);
+      }
+
+      // 3. Add Clinical Log entry
+      try {
         await fetch(`/api/patients/${pid}/clinical-logs`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1335,16 +1499,17 @@ export default function ChartPage() {
 
     let isCancelled = false;
 
-    // Parallel concurrent loading: Patient Profile, Teeth Chart, and Prescriptions
+    // Parallel concurrent loading: Patient Profile, Teeth Chart, Prescriptions, and Diagnostic Assessment
     Promise.all([
       fetch(`/api/patients/${patientId}`).then(res => {
         if (!res.ok) throw new Error("Patient not found");
         return res.json();
       }),
       fetch(`/api/patients/${patientId}/chart`).then(res => res.ok ? res.json() : []).catch(() => []),
-      fetch(`/api/patients/${patientId}/prescriptions`).then(res => res.ok ? res.json() : []).catch(() => [])
+      fetch(`/api/patients/${patientId}/prescriptions`).then(res => res.ok ? res.json() : []).catch(() => []),
+      fetch(`/api/patients/${patientId}/diagnostic-assessment`).then(res => res.ok && res.status !== 204 ? res.json() : null).catch(() => null)
     ])
-    .then(([patientData, chartData, presData]) => {
+    .then(([patientData, chartData, presData, diagAssessmentRecord]) => {
       if (isCancelled) return;
 
       const patientDocId = patientData.doctorID || patientData.DoctorID;
@@ -1356,6 +1521,18 @@ export default function ChartPage() {
 
       setPatient(patientData);
       setPrescriptions(presData || []);
+
+      let preloadedAssessment = null;
+      if (diagAssessmentRecord && diagAssessmentRecord.assessmentJson) {
+        try {
+          preloadedAssessment = typeof diagAssessmentRecord.assessmentJson === 'string'
+            ? JSON.parse(diagAssessmentRecord.assessmentJson)
+            : diagAssessmentRecord.assessmentJson;
+          console.log(`📋 [Diagnostic Suite Record Loaded from DB for Patient #${patientId}]:`, preloadedAssessment);
+        } catch (e) {
+          console.warn('Error parsing DB diagnostic assessment JSON:', e);
+        }
+      }
 
       // Auto-detect dentition mode directly from patient record & age
       let autoDentition = 'permanent';
@@ -1371,7 +1548,7 @@ export default function ChartPage() {
       setDentitionMode(autoDentition);
 
       // Populate chart data directly in memory (zero second network waterfall!)
-      applyTeethChartData(chartData, autoDentition);
+      applyTeethChartData(chartData, autoDentition, preloadedAssessment);
     })
     .catch(err => {
       if (isCancelled) return;

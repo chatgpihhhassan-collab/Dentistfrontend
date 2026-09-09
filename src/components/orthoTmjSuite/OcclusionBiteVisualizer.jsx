@@ -6,38 +6,63 @@ export default function OcclusionBiteVisualizer({
   liveOrthoAssessment = null,
   onSaveAssessment
 }) {
-  // Pure Dynamic States — Driven directly by Main Chat / Voice Assistant or Doctor manual adjustment
-  const [selectedBiteType, setSelectedBiteType] = useState('overbite');
-  const [overbitePercent, setOverbitePercent] = useState(50);
-  const [overjetMm, setOverjetMm] = useState(-3.5);
-  const [openBiteGapMm, setOpenBiteGapMm] = useState(4.0);
-  const [crossbiteSide, setCrossbiteSide] = useState('right');
-  const [wearSeverity, setWearSeverity] = useState('moderate');
-  const [palatalImpingement, setPalatalImpingement] = useState(false);
-  const [cdtCode, setCdtCode] = useState('D8080');
-  const [clinicalIndication, setClinicalIndication] = useState('Diagnostic evaluation active');
+  // Pure Dynamic States — Driven directly by DB, Main Chat / Voice Assistant or Doctor manual adjustment
+  const [selectedBiteType, setSelectedBiteType] = useState(() => liveOrthoAssessment?.bite_type || 'overbite');
+  const [overbitePercent, setOverbitePercent] = useState(() => {
+    if (liveOrthoAssessment?.overbite_percent !== undefined && liveOrthoAssessment?.overbite_percent !== null) {
+      const parsed = parseInt(liveOrthoAssessment.overbite_percent, 10);
+      return !isNaN(parsed) ? parsed : 50;
+    }
+    return 50;
+  });
+  const [overjetMm, setOverjetMm] = useState(() => {
+    if (liveOrthoAssessment?.overjet_mm !== undefined && liveOrthoAssessment?.overjet_mm !== null) {
+      const parsed = parseFloat(liveOrthoAssessment.overjet_mm);
+      return !isNaN(parsed) ? parsed : -3.5;
+    }
+    return -3.5;
+  });
+  const [openBiteGapMm, setOpenBiteGapMm] = useState(() => {
+    if (liveOrthoAssessment?.open_bite_gap_mm !== undefined && liveOrthoAssessment?.open_bite_gap_mm !== null) {
+      const parsed = parseFloat(liveOrthoAssessment.open_bite_gap_mm);
+      return !isNaN(parsed) ? parsed : 4.0;
+    }
+    return 4.0;
+  });
+  const [crossbiteSide, setCrossbiteSide] = useState(() => liveOrthoAssessment?.crossbite_side || 'right');
+  const [wearSeverity, setWearSeverity] = useState(() => liveOrthoAssessment?.wear_severity || 'moderate');
+  const [palatalImpingement, setPalatalImpingement] = useState(() => Boolean(liveOrthoAssessment?.palatal_impingement));
+  const [cdtCode, setCdtCode] = useState(() => liveOrthoAssessment?.cdt_code || 'D8080');
+  const [clinicalIndication, setClinicalIndication] = useState(() => liveOrthoAssessment?.clinical_indication || 'Diagnostic evaluation active');
   const [savedSuccess, setSavedSuccess] = useState(false);
 
-  // React to Gemini AI output from Main Chat / Voice Assistant
+  // React to DB loaded assessment or Gemini AI output from Main Chat / Voice Assistant
   useEffect(() => {
     if (!liveOrthoAssessment) return;
     
-    console.log('⚡ [OcclusionBiteVisualizer:GeminiLiveSync] Applying dynamic assessment from Chat/Voice:', liveOrthoAssessment);
+    console.log('⚡ [OcclusionBiteVisualizer:Sync] Applying dynamic assessment from DB/Voice:', liveOrthoAssessment);
 
     if (liveOrthoAssessment.bite_type) {
       setSelectedBiteType(liveOrthoAssessment.bite_type);
     }
     if (liveOrthoAssessment.overbite_percent !== undefined && liveOrthoAssessment.overbite_percent !== null) {
       const dynamicPct = parseInt(liveOrthoAssessment.overbite_percent, 10);
-      setOverbitePercent(dynamicPct);
+      if (!isNaN(dynamicPct)) {
+        setOverbitePercent(dynamicPct);
+        console.log(`📐 [OcclusionBiteVisualizer] Synchronized Overbite Percentage to ${dynamicPct}%`);
+      }
     }
     if (liveOrthoAssessment.overjet_mm !== undefined && liveOrthoAssessment.overjet_mm !== null) {
       const dynamicOverjet = parseFloat(liveOrthoAssessment.overjet_mm);
-      setOverjetMm(dynamicOverjet);
+      if (!isNaN(dynamicOverjet)) {
+        setOverjetMm(dynamicOverjet);
+      }
     }
     if (liveOrthoAssessment.open_bite_gap_mm !== undefined && liveOrthoAssessment.open_bite_gap_mm !== null) {
       const dynamicGap = parseFloat(liveOrthoAssessment.open_bite_gap_mm);
-      setOpenBiteGapMm(dynamicGap);
+      if (!isNaN(dynamicGap)) {
+        setOpenBiteGapMm(dynamicGap);
+      }
     }
     if (liveOrthoAssessment.crossbite_side) {
       setCrossbiteSide(liveOrthoAssessment.crossbite_side);
