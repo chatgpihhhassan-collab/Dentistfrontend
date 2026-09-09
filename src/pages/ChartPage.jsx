@@ -825,6 +825,9 @@ export default function ChartPage() {
   const [savingXrayTimeline, setSavingXrayTimeline] = useState(false);
   const [xrayDetailsExpanded, setXrayDetailsExpanded] = useState(false);
   const [isReanalyzingXray, setIsReanalyzingXray] = useState(false);
+  const [radiographBlobUrl, setRadiographBlobUrl] = useState('');
+  const [radiographImgLoading, setRadiographImgLoading] = useState(false);
+  const [radiographImgError, setRadiographImgError] = useState(false);
 
   // Manual Tooth Observation Editing & Directory States
   const [editingToothData, setEditingToothData] = useState(null);
@@ -1812,9 +1815,58 @@ export default function ChartPage() {
     if (selectedRadiograph) {
       setEditingXrayText(selectedRadiograph.analysisSummary || selectedRadiograph.AnalysisSummary || '');
       setIsEditingXrayAnalysis(false);
+
+      const radId = selectedRadiograph.radiographID || selectedRadiograph.RadiographID;
+      if (!radId) {
+        setRadiographBlobUrl('');
+        setRadiographImgLoading(false);
+        setRadiographImgError(false);
+        return;
+      }
+
+      let active = true;
+      setRadiographImgLoading(true);
+      setRadiographImgError(false);
+
+      // 1. If selectedRadiograph already contains base64 imageData
+      if (selectedRadiograph.imageData && selectedRadiograph.imageData.length > 50) {
+        const mime = selectedRadiograph.mimeType || 'image/jpeg';
+        const base64Data = selectedRadiograph.imageData.startsWith('data:') 
+          ? selectedRadiograph.imageData 
+          : `data:${mime};base64,${selectedRadiograph.imageData}`;
+        setRadiographBlobUrl(base64Data);
+        setRadiographImgLoading(false);
+        return;
+      }
+
+      // 2. Fetch using window.fetch (which automatically maps directly to https://dentist-api-dev.vitonta.com on Vercel)
+      fetch(`/api/radiographs/${radId}/image`)
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const blob = await res.blob();
+          if (active) {
+            const objectUrl = URL.createObjectURL(blob);
+            setRadiographBlobUrl(objectUrl);
+            setRadiographImgLoading(false);
+          }
+        })
+        .catch((err) => {
+          console.warn("Radiograph blob fetch failed, falling back to direct URL:", err);
+          if (active) {
+            setRadiographBlobUrl(`https://dentist-api-dev.vitonta.com/api/radiographs/${radId}/image`);
+            setRadiographImgLoading(false);
+          }
+        });
+
+      return () => {
+        active = false;
+      };
     } else {
       setEditingXrayText('');
       setIsEditingXrayAnalysis(false);
+      setRadiographBlobUrl('');
+      setRadiographImgLoading(false);
+      setRadiographImgError(false);
     }
   }, [selectedRadiograph]);
 
@@ -1920,7 +1972,7 @@ export default function ChartPage() {
   const handlePrintXray = async () => {
     if (!selectedRadiograph) return;
     const rId = selectedRadiograph.radiographID || selectedRadiograph.RadiographID;
-    const imgUrl = `/api/radiographs/${rId}/image`;
+    const imgUrl = radiographBlobUrl || `https://dentist-api-dev.vitonta.com/api/radiographs/${rId}/image`;
     const base64Img = await getBase64FromImageUrl(imgUrl);
     const pName = `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim() || 'Patient';
     const docName = `Dr. ${doctor?.firstName || doctor?.name || 'Ahmed'}`;
@@ -2041,7 +2093,7 @@ export default function ChartPage() {
   const handleDownloadXrayPDF = async () => {
     if (!selectedRadiograph) return;
     const rId = selectedRadiograph.radiographID || selectedRadiograph.RadiographID;
-    const imgUrl = `/api/radiographs/${rId}/image`;
+    const imgUrl = radiographBlobUrl || `https://dentist-api-dev.vitonta.com/api/radiographs/${rId}/image`;
     const base64Img = await getBase64FromImageUrl(imgUrl);
     const pName = `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim() || 'Patient';
     const docName = `Dr. ${doctor?.firstName || doctor?.name || 'Ahmed'}`;
@@ -6760,13 +6812,52 @@ export default function ChartPage() {
                         </div>
 
                         {/* Image viewer */}
-                        <div className="relative bg-[#0F172A] min-h-[260px] max-h-[360px] flex items-center justify-center border-b border-light-teal/20 overflow-hidden p-2">
-                          <img
-                            src={`/api/radiographs/${selectedRadiograph.radiographID || selectedRadiograph.RadiographID}/image`}
-                            alt={selectedRadiograph.imageName || selectedRadiograph.ImageName}
-                            className="max-h-[340px] max-w-full object-contain rounded-lg shadow-sm"
-                            crossOrigin="anonymous"
-                          />
+                        <div className="relative bg-[#0F172A] min-h-[260px] max-h-[380px] flex items-center justify-center border-b border-light-teal/20 overflow-hidden p-3 rounded-t-2xl">
+                          {radiographImgLoading && (
+                            <div className="flex flex-col items-center justify-center py-12 text-slate-300 gap-2">
+                              <Loader2 className="w-6 h-6 animate-spin text-teal-400" />
+                              <span className="text-xs font-semibold">Loading radiographic scan...</span>
+                            </div>
+                          )}
+
+                          {!radiographImgLoading && radiographImgError && (
+                            <div className="flex flex-col items-center justify-center py-10 text-slate-300 gap-3 text-center px-4">
+                              <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                                <Image className="w-6 h-6" />
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-white">Could not load radiograph preview</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">The scan file may be restricted or undergoing AI processing.</p>
+                              </div>
+                              <a
+                                href={`https://dentist-api-dev.vitonta.com/api/radiographs/${selectedRadiograph.radiographID || selectedRadiograph.RadiographID}/image`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[11px] px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                Open Raw Scan in New Tab
+                              </a>
+                            </div>
+                          )}
+
+                          {!radiographImgError && (
+                            <img
+                              src={radiographBlobUrl || `https://dentist-api-dev.vitonta.com/api/radiographs/${selectedRadiograph.radiographID || selectedRadiograph.RadiographID}/image`}
+                              alt={selectedRadiograph.imageName || selectedRadiograph.ImageName}
+                              className={`max-h-[360px] max-w-full object-contain rounded-lg shadow-sm transition-opacity duration-200 ${radiographImgLoading ? 'opacity-0' : 'opacity-100'}`}
+                              onError={() => {
+                                console.warn("Radiograph image failed to render, retrying direct backend URL...");
+                                const radId = selectedRadiograph.radiographID || selectedRadiograph.RadiographID;
+                                const directUrl = `https://dentist-api-dev.vitonta.com/api/radiographs/${radId}/image`;
+                                if (radiographBlobUrl !== directUrl) {
+                                  setRadiographBlobUrl(directUrl);
+                                } else {
+                                  setRadiographImgError(true);
+                                }
+                              }}
+                            />
+                          )}
                         </div>
 
                         {/* Collapsible AI Diagnosis Section (Minimized by default, slides open on click) */}
