@@ -11,11 +11,11 @@ export default function OrthoTmjDiagnosticSuite({
   liveOrthoAssessment = null,
   onSaveAssessment
 }) {
-  const [activeSuiteTab, setActiveSuiteTab] = useState('occlusion'); // 'occlusion', 'impactions', 'tmj'
+  const [activeSuiteTab, setActiveSuiteTab] = useState(() => liveOrthoAssessment?.suite_category || 'occlusion'); // 'occlusion', 'impactions', 'tmj'
 
   useEffect(() => {
     if (liveOrthoAssessment?.suite_category) {
-      console.log(`🧭 [OrthoTmjDiagnosticSuite] Switching tab to "${liveOrthoAssessment.suite_category}" from live Gemini assessment`);
+      console.log(`🧭 [OrthoTmjDiagnosticSuite] Switching tab to "${liveOrthoAssessment.suite_category}" from live assessment`);
       setActiveSuiteTab(liveOrthoAssessment.suite_category);
     }
   }, [liveOrthoAssessment]);
@@ -90,7 +90,7 @@ export default function OrthoTmjDiagnosticSuite({
       {activeSuiteTab === 'occlusion' && (
         <OcclusionBiteVisualizer
           patientId={patientId}
-          liveOrthoAssessment={liveOrthoAssessment}
+          liveOrthoAssessment={liveOrthoAssessment?.occlusion || liveOrthoAssessment}
           onSaveAssessment={onSaveAssessment}
         />
       )}
@@ -98,8 +98,12 @@ export default function OrthoTmjDiagnosticSuite({
       {activeSuiteTab === 'impactions' && (
         <ImpactedTeethXRayVisualizer
           patientId={patientId}
+          liveOrthoAssessment={liveOrthoAssessment?.impactions || liveOrthoAssessment}
           initialImpaction={liveOrthoAssessment?.impaction_type || 'mesioangular'}
           initialAngulation={liveOrthoAssessment?.angulation_degrees || 45}
+          initialCanineAngulation={liveOrthoAssessment?.canine_angulation || liveOrthoAssessment?.angulation_degrees || 35}
+          initialNerveDistance={liveOrthoAssessment?.nerve_distance_mm ?? 0.5}
+          initialEruptionPercent={liveOrthoAssessment?.eruption_percent ?? 35}
           onSaveAssessment={onSaveAssessment}
         />
       )}
@@ -107,6 +111,7 @@ export default function OrthoTmjDiagnosticSuite({
       {activeSuiteTab === 'tmj' && (
         <TMJJointArticulationViewer
           patientId={patientId}
+          liveOrthoAssessment={liveOrthoAssessment?.tmj || liveOrthoAssessment}
           initialJointState={liveOrthoAssessment?.tmj_state || 'clicking'}
           initialMouthOpening={liveOrthoAssessment?.mouth_opening_mm || 42.0}
           onSaveAssessment={onSaveAssessment}

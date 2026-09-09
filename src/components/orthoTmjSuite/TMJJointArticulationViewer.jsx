@@ -3,21 +3,37 @@ import { Activity, Volume2, ShieldCheck, Check, Sparkles, AlertCircle, RefreshCw
 
 export default function TMJJointArticulationViewer({
   patientId,
+  liveOrthoAssessment = null,
   initialJointState = 'clicking',
   initialMouthOpening = 42.0,
   onSaveAssessment
 }) {
-  const [selectedJointState, setSelectedJointState] = useState(initialJointState); // 'normal', 'clicking', 'closed_lock'
-  const [mouthOpeningMm, setMouthOpeningMm] = useState(initialMouthOpening || 42.0); // 18mm to 55mm
+  const [selectedJointState, setSelectedJointState] = useState(() => liveOrthoAssessment?.tmj_state || initialJointState || 'clicking');
+  const [mouthOpeningMm, setMouthOpeningMm] = useState(() => {
+    if (liveOrthoAssessment?.mouth_opening_mm !== undefined && liveOrthoAssessment?.mouth_opening_mm !== null) {
+      const parsed = parseFloat(liveOrthoAssessment.mouth_opening_mm);
+      return !isNaN(parsed) ? parsed : 42.0;
+    }
+    return initialMouthOpening || 42.0;
+  });
   const [showAcousticClick, setShowAcousticClick] = useState(true);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const debounceTimerRef = useRef(null);
 
-  // Sync with initial props if they update
+  // Sync with live assessment and initial props
   useEffect(() => {
-    if (initialJointState) setSelectedJointState(initialJointState);
-    if (initialMouthOpening) setMouthOpeningMm(initialMouthOpening);
-  }, [initialJointState, initialMouthOpening]);
+    if (liveOrthoAssessment) {
+      console.log('⚡ [TMJJointArticulationViewer:Sync] Received assessment:', liveOrthoAssessment);
+      if (liveOrthoAssessment.tmj_state) setSelectedJointState(liveOrthoAssessment.tmj_state);
+      if (liveOrthoAssessment.mouth_opening_mm !== undefined && liveOrthoAssessment.mouth_opening_mm !== null) {
+        const parsed = parseFloat(liveOrthoAssessment.mouth_opening_mm);
+        if (!isNaN(parsed)) setMouthOpeningMm(parsed);
+      }
+    } else {
+      if (initialJointState) setSelectedJointState(initialJointState);
+      if (initialMouthOpening) setMouthOpeningMm(initialMouthOpening);
+    }
+  }, [liveOrthoAssessment, initialJointState, initialMouthOpening]);
 
   // Clean up debounce timer on unmount
   useEffect(() => {
