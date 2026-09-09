@@ -587,32 +587,63 @@ export default function PatientDirectory() {
         return Math.abs(ageDate.getUTCFullYear() - 1970);
     };
 
-    const filteredPatients = patients.filter(p => {
-        const matchesQuery = !cleanSearch || (
-            (p.firstName && p.firstName.toLowerCase().includes(cleanSearch)) || 
-            (p.lastName && p.lastName.toLowerCase().includes(cleanSearch)) || 
-            (`${p.firstName} ${p.lastName}`.toLowerCase().includes(cleanSearch)) ||
-            (p.patientID && p.patientID.toString().includes(cleanSearch.replace('#', ''))) ||
-            (p.phone && p.phone.includes(cleanSearch)) ||
-            (p.nhiNumber && p.nhiNumber.toLowerCase().includes(cleanSearch)) ||
-            (p.currentTreatmentPlan && p.currentTreatmentPlan.toLowerCase().includes(cleanSearch)) ||
-            (p.city && p.city.toLowerCase().includes(cleanSearch))
-        );
-        if (!matchesQuery) return false;
+    const getFilteredPatientsByTab = (tabId, searchStr = '') => {
+        const cSearch = (searchStr || '').trim().toLowerCase();
+        return patients.filter(p => {
+            const matchesQuery = !cSearch || (
+                (p.firstName && p.firstName.toLowerCase().includes(cSearch)) || 
+                (p.lastName && p.lastName.toLowerCase().includes(cSearch)) || 
+                (`${p.firstName} ${p.lastName}`.toLowerCase().includes(cSearch)) ||
+                (p.patientID && p.patientID.toString().includes(cSearch.replace('#', ''))) ||
+                (p.phone && p.phone.includes(cSearch)) ||
+                (p.nhiNumber && p.nhiNumber.toLowerCase().includes(cSearch)) ||
+                (p.currentTreatmentPlan && p.currentTreatmentPlan.toLowerCase().includes(cSearch)) ||
+                (p.city && p.city.toLowerCase().includes(cSearch))
+            );
+            if (!matchesQuery) return false;
 
-        const age = getAge(p.dob);
-        const pType = (p.dentitionType || '').toLowerCase();
-        if (dentitionFilter === 'PEDIATRIC') {
-            return (age !== null && age < 6) || pType === 'pediatric';
+            const age = getAge(p.dob);
+            const pType = (p.dentitionType || '').toLowerCase();
+            if (tabId === 'PEDIATRIC') {
+                return (age !== null && age < 6) || pType === 'pediatric';
+            }
+            if (tabId === 'MIXED') {
+                return (age !== null && age >= 6 && age <= 12) || pType === 'mixed';
+            }
+            if (tabId === 'ADULT') {
+                return (age !== null && age > 12) || pType === 'permanent' || (!p.dob && !p.dentitionType);
+            }
+            return true;
+        });
+    };
+
+    const filteredPatients = getFilteredPatientsByTab(dentitionFilter, cleanSearch);
+
+    // Automatically select the top first patient whenever dentitionFilter tab changes
+    useEffect(() => {
+        if (!patients || patients.length === 0) return;
+        const topList = getFilteredPatientsByTab(dentitionFilter, cleanSearch);
+        if (topList.length > 0) {
+            setSelectedPatient(topList[0]);
+        } else {
+            setSelectedPatient(null);
         }
-        if (dentitionFilter === 'MIXED') {
-            return (age !== null && age >= 6 && age <= 12) || pType === 'mixed';
+    }, [dentitionFilter]);
+
+    // Automatically select the top matching patient when search term changes
+    useEffect(() => {
+        if (!patients || patients.length === 0) return;
+        if (!cleanSearch) return;
+        const topList = getFilteredPatientsByTab(dentitionFilter, cleanSearch);
+        if (topList.length > 0) {
+            const isCurrentInList = topList.some(p => p.patientID === selectedPatient?.patientID);
+            if (!isCurrentInList) {
+                setSelectedPatient(topList[0]);
+            }
+        } else {
+            setSelectedPatient(null);
         }
-        if (dentitionFilter === 'ADULT') {
-            return (age !== null && age > 12) || pType === 'permanent' || (!p.dob && !p.dentitionType);
-        }
-        return true;
-    });
+    }, [cleanSearch]);
 
     // Pagination Logic
     const indexOfLastPatient = currentPage * patientsPerPage;
@@ -861,6 +892,12 @@ export default function PatientDirectory() {
                                                 onClick={() => {
                                                     setDentitionFilter(tab.id);
                                                     setCurrentPage(1);
+                                                    const tabList = getFilteredPatientsByTab(tab.id, cleanSearch);
+                                                    if (tabList.length > 0) {
+                                                        setSelectedPatient(tabList[0]);
+                                                    } else {
+                                                        setSelectedPatient(null);
+                                                    }
                                                 }}
                                                 className={`flex-1 py-1 rounded-lg text-[9.5px] font-black transition-all cursor-pointer text-center ${
                                                     dentitionFilter === tab.id
