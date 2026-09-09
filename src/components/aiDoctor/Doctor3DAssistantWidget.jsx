@@ -117,6 +117,11 @@ export default function Doctor3DAssistantWidget() {
       };
 
       recognition.onresult = (event) => {
+        // Acoustic feedback suppression: Ignore audio if AI is speaking
+        if (aiVoice.speaking) {
+          console.log('[Doctor3DAssistant] Suppressed mic input while AI is speaking');
+          return;
+        }
         const transcript = event.results[0][0].transcript;
         if (transcript) {
           handleDoctorSpokenCommand(transcript);
@@ -170,8 +175,30 @@ export default function Doctor3DAssistantWidget() {
     setIsListening(false);
   };
 
+  const lastProcessedTranscriptRef = useRef({ text: '', timestamp: 0 });
+
   const handleDoctorSpokenCommand = async (transcript) => {
-    if (!transcript.trim()) return;
+    if (!transcript || !transcript.trim()) return;
+
+    const trimmed = transcript.trim();
+    const now = Date.now();
+
+    // Prevent acoustic feedback echo and duplicate rapid-fire utterances within 2000ms
+    if (
+      lastProcessedTranscriptRef.current.text.toLowerCase() === trimmed.toLowerCase() &&
+      now - lastProcessedTranscriptRef.current.timestamp < 2000
+    ) {
+      console.log('🔇 [Doctor3DAssistant] Suppressed duplicate speech echo:', trimmed);
+      return;
+    }
+    lastProcessedTranscriptRef.current = { text: trimmed, timestamp: now };
+
+    // Don't process input if AI is actively speaking
+    if (aiVoice.speaking) {
+      console.log('🔇 [Doctor3DAssistant] Skipped command while AI is speaking');
+      return;
+    }
+
     setHasStartedChat(true);
 
     const doctorMsg = {
@@ -188,7 +215,8 @@ export default function Doctor3DAssistantWidget() {
 
     const resolution = resolveDoctorInstruction(transcript, {
       pathname: location.pathname,
-      patientId: activePatientId
+      patientId: activePatientId,
+      doctorName: doctorName
     });
 
     const aiMsg = {
@@ -199,6 +227,14 @@ export default function Doctor3DAssistantWidget() {
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
     setChatLog(prev => [...prev, aiMsg]);
+
+    // Temporarily pause mic while speaking to eliminate acoustic feedback
+    if (recognitionRef.current && isListening) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+      setIsListening(false);
+    }
 
     // Handle instant known patient or route navigation
     if (resolution.action && resolution.action.type === 'NAVIGATE') {

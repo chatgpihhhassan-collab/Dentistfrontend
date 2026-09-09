@@ -377,6 +377,12 @@ export const CLINIC_PATIENTS_INDEX = {
  * @param {object} context - Active page route, patientId, and current clinical state
  * @returns {object} { text, title, category, action }
  */
+/**
+ * Resolve spoken or typed doctor command into clinical answer and UI actions
+ * @param {string} transcript - Input speech or query text
+ * @param {object} context - Active page route, patientId, doctorName, and current clinical state
+ * @returns {object} { text, title, category, action }
+ */
 export function resolveDoctorInstruction(transcript, context = {}) {
   if (!transcript || typeof transcript !== 'string') {
     return {
@@ -387,10 +393,220 @@ export function resolveDoctorInstruction(transcript, context = {}) {
     };
   }
 
-  const clean = transcript.toLowerCase().trim();
+  // 1. String Normalization & Courtesy Stripping
+  const clean = transcript
+    .toLowerCase()
+    .replace(/[.,?!'"]/g, '')
+    .trim();
 
-  // 1. Natural Language Patient Chart Lookup
-  // Handles: "chart of tayyab", "open tayyab", "open chat of tayyab", "show tayyab", "open chart of tayyab", "tayyab chart"
+  // Strip courtesy and conversational prefixes
+  const stripped = clean
+    .replace(/^(?:please|kindly|can\s+you|could\s+you|would\s+you|i\s+want\s+to|i\s+would\s+like\s+to|help\s+me\s+to|let's|lets|tell\s+me\s+about)\s+/i, '')
+    .trim();
+
+  const docName = context.doctorName || 'Doctor';
+
+  // =========================================================================
+  // STAGE 1: CONVERSATIONAL INTENTS (Greetings, Identity, Help, Gratitude)
+  // =========================================================================
+
+  // 1.1 Greetings ("Hello", "Hi", "Good morning", "Hey Doctor")
+  const isGreeting = 
+    /^(?:hello|hi|hey|good\s+morning|good\s+afternoon|good\s+evening|greetings|howdy)(?:\s+there|\s+doctor|\s+assistant|\s+copilot)?$/i.test(stripped) ||
+    (/^(?:hello|hi|hey)\b/i.test(stripped) && stripped.length < 25);
+
+  if (isGreeting) {
+    return {
+      title: 'Clinical Copilot Online',
+      category: 'Greeting',
+      text: `Hello ${docName}! I am your AI Clinical Copilot. All 17 dental database tables, 3D odontograms, and operatory workflows are synchronized. How can I assist you today? You can ask me to open patient charts, navigate to the directory or appointments, or ask about tooth pathology, CDT codes, and pharmacology.`,
+      action: null
+    };
+  }
+
+  // 1.2 Identity & Capabilities ("Who are you?", "What can you do?")
+  if (
+    /who\s+are\s+you/i.test(clean) ||
+    /what\s+can\s+you\s+do/i.test(clean) ||
+    /what\s+are\s+you/i.test(clean) ||
+    /your\s+(?:capabilities|features|functions)/i.test(clean) ||
+    /how\s+can\s+you\s+help/i.test(clean)
+  ) {
+    return {
+      title: 'AI Copilot Capabilities',
+      category: 'Assistant',
+      text: `Doctor, I am your intelligent operatory copilot. I can: 1) Instantly open any patient chart or clinic section by voice (e.g. "open patient directory" or "chart of Tayyab"); 2) Provide anatomical and clinical decision support for teeth 1 to 32 and primary teeth A to T; 3) Check contraindications, pharmacology, and ADA CDT billing codes; 4) Explain TMJ articulation, impactions, and orthodontic malocclusions. Just tell me what you need!`,
+      action: null
+    };
+  }
+
+  // 1.3 Help & Voice Commands ("Help", "What commands can I use?")
+  if (
+    clean === 'help' ||
+    clean === 'commands' ||
+    /^(?:help\s+me|show\s+help|what\s+commands|voice\s+commands|how\s+to\s+use)/i.test(stripped)
+  ) {
+    return {
+      title: 'Voice Commands & Help',
+      category: 'Help',
+      text: `Doctor, here are voice instructions you can try: "Open patient directory", "Show appointments", "Chart of Tayyab", "New patient", "Tell me about tooth 14", "What is the penicillin protocol?", or "TMJ clicking". Speak naturally at any time!`,
+      action: null
+    };
+  }
+
+  // 1.4 Gratitude & Acknowledgement ("Thank you", "Great job", "Perfect")
+  if (/^(?:thank\s+you|thanks|thank\s+you\s+so\s+much|great\s+job|awesome|perfect|good\s+job|well\s+done)/i.test(stripped)) {
+    return {
+      title: 'At Your Service',
+      category: 'Assistant',
+      text: `You are very welcome, Doctor! I am ready for your next operatory instruction. What shall we review?`,
+      action: null
+    };
+  }
+
+  // 1.5 System Status
+  if (/^(?:system\s+status|status|are\s+you\s+working|health\s+check)/i.test(clean)) {
+    return {
+      title: 'System Status',
+      category: 'System',
+      text: `All operatory systems operational, Doctor. Web Speech engine, 3D Canvas shaders, and all 17 clinical database tables are online and synchronized.`,
+      action: null
+    };
+  }
+
+  // =========================================================================
+  // STAGE 2: CLINIC PLATFORM NAVIGATION DIRECTIVES
+  // =========================================================================
+
+  // 2.1 Patient Master Directory ("Please open the patient directory", "open directory", "patient list")
+  if (
+    /(?:patient\s+directory|open\s+(?:the\s+)?(?:patient\s+)?directory|go\s+to\s+(?:the\s+)?(?:patient\s+)?directory|show\s+(?:the\s+)?(?:patient\s+)?directory|patient\s+list|patients\s+list|patient\s+records|all\s+patients|show\s+patients|view\s+patients|^directory$)/i.test(clean) ||
+    (/(?:open|show|view|find|go\s+to)\b/i.test(clean) && clean.includes('directory')) ||
+    (clean.includes('directory') && !clean.includes('chart'))
+  ) {
+    return {
+      title: 'Patient Master Directory',
+      category: 'Navigation',
+      text: 'Opening the Patient Master Directory, Doctor. Displaying all registered patient records and operatory files.',
+      action: { type: 'NAVIGATE', path: '/directory' }
+    };
+  }
+
+  // 2.2 Appointments Schedule ("Open appointments", "Show schedule", "Upcoming visits")
+  if (
+    /(?:appointments|appointment\s+list|operatory\s+schedule|view\s+appointments|show\s+appointments|open\s+appointments|go\s+to\s+appointments|timetable|calendar|^schedule$)/i.test(clean) &&
+    !clean.includes('book') && !clean.includes('new appointment')
+  ) {
+    return {
+      title: 'Appointments Schedule',
+      category: 'Navigation',
+      text: 'Opening your appointments schedule and operatory timetable, Doctor.',
+      action: { type: 'NAVIGATE', path: '/appointments' }
+    };
+  }
+
+  // 2.3 Book Appointment ("Book appointment", "Schedule visit")
+  if (
+    /(?:book\s+appointment|schedule\s+appointment|new\s+appointment|book\s+consultation|schedule\s+visit|book\s+slot)/i.test(clean)
+  ) {
+    return {
+      title: 'Book Appointment',
+      category: 'Navigation',
+      text: 'Opening appointment booking triage, Doctor. Ready to register the slot.',
+      action: { type: 'NAVIGATE', path: '/book' }
+    };
+  }
+
+  // 2.4 New Patient Registration ("New patient", "Register patient", "Add patient")
+  if (
+    /(?:new\s+patient|register\s+patient|add\s+(?:new\s+)?patient|patient\s+intake|create\s+patient|enroll\s+patient)/i.test(clean)
+  ) {
+    return {
+      title: 'New Patient Registration',
+      category: 'Navigation',
+      text: 'Opening new patient intake and registration with automated dentition arch detection and geocoding, Doctor.',
+      action: { type: 'NAVIGATE', path: '/new-patient' }
+    };
+  }
+
+  // 2.5 Clinical Dashboard ("Dashboard", "Go home", "Main page")
+  if (
+    /(?:dashboard|go\s+home|open\s+dashboard|practice\s+analytics|clinic\s+overview|^home$|^overview$)/i.test(clean)
+  ) {
+    return {
+      title: 'Clinical Dashboard',
+      category: 'Navigation',
+      text: 'Returning to the main clinical dashboard and practice analytics, Doctor.',
+      action: { type: 'NAVIGATE', path: '/dashboard' }
+    };
+  }
+
+  // 2.6 AI Clinical Notes Archive ("AI notes", "SOAP notes", "Scribe")
+  if (
+    /(?:ai\s+notes|soap\s+notes|clinical\s+notes|scribe\s+archive|consultation\s+notes)/i.test(clean)
+  ) {
+    return {
+      title: 'AI Clinical Notes',
+      category: 'Navigation',
+      text: 'Opening the AI Clinical Notes archive and ambient SOAP scribes, Doctor.',
+      action: { type: 'NAVIGATE', path: '/ai-notes' }
+    };
+  }
+
+  // 2.7 Clinical Treatments Catalog ("Treatments", "Pricing", "Procedure catalog")
+  if (
+    /(?:treatment\s+catalog|treatments|clinical\s+services|procedure\s+catalog|pricing|fee\s+schedule)/i.test(clean)
+  ) {
+    return {
+      title: 'Treatments Catalog',
+      category: 'Navigation',
+      text: 'Opening the clinical treatments catalog and procedure fee schedule, Doctor.',
+      action: { type: 'NAVIGATE', path: '/treatment' }
+    };
+  }
+
+  // 2.8 Clinician Administration ("Manage doctors", "Staff credentials")
+  if (
+    /(?:manage\s+doctors|doctor\s+admin|staff\s+credentials|clinic\s+dentists|admin\s+doctors)/i.test(clean)
+  ) {
+    return {
+      title: 'Clinician Administration',
+      category: 'Navigation',
+      text: 'Opening clinician and staff administration, Doctor.',
+      action: { type: 'NAVIGATE', path: '/admin/doctors' }
+    };
+  }
+
+  // =========================================================================
+  // STAGE 3: NATURAL LANGUAGE PATIENT CHART LOOKUP
+  // =========================================================================
+
+  // 3.1 Patient by ID Number (e.g. "patient 30", "chart 29", "patient #28")
+  const idMatch = clean.match(/(?:chart|patient|id)\s*(?:#|number)?\s*(\d+)/i);
+  if (idMatch) {
+    const pId = idMatch[1];
+    return {
+      title: `Patient #${pId} Chart`,
+      category: 'Patient Navigation',
+      text: `Opening dental chart for Patient #${pId}, Doctor. Synchronizing 3D jaws.`,
+      action: { type: 'NAVIGATE', path: `/chart/${pId}` }
+    };
+  }
+
+  // 3.2 Known Patients Index Direct Match
+  // Handles: "chart of tayyab", "open tayyab", "open chat of tayyab", "show tayyab", "tayyab chart"
+  for (const [key, p] of Object.entries(CLINIC_PATIENTS_INDEX)) {
+    if (clean.includes(key)) {
+      return {
+        title: `Patient Dental Chart: ${p.name}`,
+        category: 'Patient Navigation',
+        text: `Opening dental chart for ${p.name} (Patient ID #${p.id}, ${p.dentition}), Doctor. Synchronizing 3D jaws and tooth condition history.`,
+        action: { type: 'NAVIGATE', path: `/chart/${p.id}` }
+      };
+    }
+  }
+
+  // 3.3 Generic Patient Lookup Pattern
   const chartPatterns = [
     /(?:chart|chat|records|teeth)\s+(?:of|for)\s+([a-zA-Z]+)/i,
     /(?:open|show|view|find|go\s+to)\s+(?:chart|chat|records\s+of)?\s*([a-zA-Z]+)(?:\s+(?:chart|records|profile|teeth|chat))?/i,
@@ -398,11 +614,15 @@ export function resolveDoctorInstruction(transcript, context = {}) {
   ];
 
   for (const pattern of chartPatterns) {
-    const match = clean.match(pattern);
+    const match = stripped.match(pattern);
     if (match && match[1]) {
       const candidate = match[1].toLowerCase().trim();
-      // Exclude common stop words
-      if (!['appointments', 'appointment', 'dashboard', 'directory', 'patient', 'patients', 'treatments', 'treatment', 'the', 'a', 'an', 'notes', 'help'].includes(candidate)) {
+      const stopWords = [
+        'appointments', 'appointment', 'dashboard', 'directory', 'patient', 'patients', 
+        'treatments', 'treatment', 'the', 'a', 'an', 'notes', 'help', 'tooth', 'teeth', 
+        'dentist', 'clinic', 'doctor', 'schedule', 'book', 'booking', 'list', 'records', 'chart'
+      ];
+      if (!stopWords.includes(candidate)) {
         if (CLINIC_PATIENTS_INDEX[candidate]) {
           const p = CLINIC_PATIENTS_INDEX[candidate];
           return {
@@ -412,7 +632,6 @@ export function resolveDoctorInstruction(transcript, context = {}) {
             action: { type: 'NAVIGATE', path: `/chart/${p.id}` }
           };
         }
-        // Unknown patient name -> dynamic patient lookup action
         return {
           title: `Locating Patient: ${candidate}`,
           category: 'Patient Lookup',
@@ -423,20 +642,23 @@ export function resolveDoctorInstruction(transcript, context = {}) {
     }
   }
 
-  // 2. Direct Knowledge Base Matching
-  for (const item of DENTAL_KNOWLEDGE_BASE) {
-    const isMatch = item.keywords.some(kw => clean.includes(kw));
-    if (isMatch) {
+  // =========================================================================
+  // STAGE 4: CONTEXTUAL QUERIES ON ACTIVE PATIENT (when on /chart/:id)
+  // =========================================================================
+  if (context.patientId) {
+    if (clean.includes('back to chart') || clean.includes('main chart') || clean.includes('overview chart')) {
       return {
-        title: item.title,
-        category: item.category,
-        text: item.answer,
-        action: item.action
+        title: `Patient #${context.patientId} Chart`,
+        category: 'Navigation',
+        text: `Returning to Patient #${context.patientId} dual-jaw chart view, Doctor.`,
+        action: { type: 'NAVIGATE', path: `/chart/${context.patientId}` }
       };
     }
   }
 
-  // 2. Dynamic Tooth Number Anatomy Query (e.g. "Tell me about tooth 14" or "tooth 8")
+  // =========================================================================
+  // STAGE 5: DYNAMIC TOOTH NUMBER & ANATOMY QUERY
+  // =========================================================================
   const toothMatch = clean.match(/tooth\s+(\d+|[a-t])/i) || clean.match(/#(\d+|[a-t])/i);
   if (toothMatch) {
     const tIdent = toothMatch[1].toUpperCase();
@@ -461,7 +683,24 @@ export function resolveDoctorInstruction(transcript, context = {}) {
     }
   }
 
-  // 3. Tooth Action Guidance (e.g. "can I do an extraction on a tooth with acute abscess?")
+  // =========================================================================
+  // STAGE 6: ENCYCLOPEDIC KNOWLEDGE BASE MATCHING
+  // =========================================================================
+  for (const item of DENTAL_KNOWLEDGE_BASE) {
+    const isMatch = item.keywords.some(kw => clean.includes(kw));
+    if (isMatch) {
+      return {
+        title: item.title,
+        category: item.category,
+        text: item.answer,
+        action: item.action
+      };
+    }
+  }
+
+  // =========================================================================
+  // STAGE 7: CLINICAL DECISION SUPPORT & TOOTH ACTIONS
+  // =========================================================================
   if (clean.includes('can i') || clean.includes('should i') || clean.includes('action applied') || clean.includes('indication')) {
     if (clean.includes('extract') || clean.includes('pull')) {
       return {
@@ -479,13 +718,60 @@ export function resolveDoctorInstruction(transcript, context = {}) {
         action: null
       };
     }
+    if (clean.includes('root canal') || clean.includes('rct') || clean.includes('endo')) {
+      return {
+        title: 'Endodontic Indication Rules',
+        category: 'Clinical Decision',
+        text: 'Doctor, root canal therapy is indicated for irreversible pulpitis, pulpal necrosis, or symptomatic apical periodontitis. Complete instrumentation with 2.5% NaOCl irrigation and obturation with gutta-percha and bioceramic sealer.',
+        action: null
+      };
+    }
   }
 
-  // 4. Fallback intelligent response
+  // =========================================================================
+  // STAGE 8: INTELLIGENT CLINICAL TOPIC ADAPTATION (Fallback)
+  // =========================================================================
+  if (clean.includes('pain') || clean.includes('hurt') || clean.includes('ache') || clean.includes('sore')) {
+    return {
+      title: 'Acute Pain Differential',
+      category: 'Clinical Decision',
+      text: `Doctor, for acute odontogenic pain, perform cold vitality and percussion testing to distinguish reversible pulpitis from irreversible necrosis. Recommend Ibuprofen 600mg paired with Acetaminophen 500mg for analgesia.`,
+      action: null
+    };
+  }
+
+  if (clean.includes('swelling') || clean.includes('abscess') || clean.includes('infection') || clean.includes('pus')) {
+    return {
+      title: 'Abscess & Infection Protocol',
+      category: 'Clinical Protocol',
+      text: `Doctor, for acute fluctuant abscess, establish drainage through the tooth or incision and drainage. Prescribe Amoxicillin 500mg TID for 5-7 days, or Clindamycin 300mg QID for penicillin-allergic patients.`,
+      action: null
+    };
+  }
+
+  if (clean.includes('bleeding') || clean.includes('blood') || clean.includes('hemorrhage')) {
+    return {
+      title: 'Hemostasis Management',
+      category: 'Clinical Protocol',
+      text: `Doctor, for intraoral bleeding, apply firm pressure with moist gauze for 30 minutes. If post-extraction bleeding persists, place a gelatin sponge with figure-eight suture and apply tranexamic acid gauze.`,
+      action: null
+    };
+  }
+
+  if (clean.includes('tmj') || clean.includes('jaw') || clean.includes('clicking') || clean.includes('trismus')) {
+    return {
+      title: 'TMJ Diagnostic Protocol',
+      category: 'Orthodontics & TMJ',
+      text: `Doctor, TMJ disc reduction with clicking (CDT D7880) requires bilateral centric stop evaluation. For acute closed lock or trismus (opening under 30mm), recommend soft diet, moist heat, NSAIDs, and an occlusal stabilization splint.`,
+      action: null
+    };
+  }
+
+  // General helpful conversational response
   return {
-    title: 'Clinical Copilot Registered',
+    title: 'Clinical Copilot Active',
     category: 'Assistant',
-    text: `Doctor, I noted your clinical instruction: "${transcript}". All 17 database tables, tooth condition palettes, and operatory workflows are synchronized. What procedure or chart action shall we review next?`,
+    text: `Doctor, I received: "${transcript}". I can navigate to any section (e.g. "open patient directory", "show appointments"), pull up patient charts (e.g. "chart of Tayyab"), or answer clinical dental questions. How would you like to proceed?`,
     action: null
   };
 }
