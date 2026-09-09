@@ -352,34 +352,111 @@ export const DENTAL_KNOWLEDGE_BASE = [
 // 4. INTELLIGENT INTENT RESOLVER & ASSISTANT ENGINE
 // =========================================================================
 
-// Master Clinic Patients Directory with First Name, Last Name, and Phonetic Aliases
-export const CLINIC_PATIENTS = [
-  { id: 30, firstName: 'Miraal', lastName: 'Yousaf', dentition: 'Pediatric (4 Yrs)', arch: 'Pediatric Arch (A-T)', aliases: ['miraal', 'miral', 'yousaf', 'yusuf', 'yusaf', 'yousuf', 'mirage', 'miraal yousaf', 'miral yusuf', 'miral yousaf'] },
-  { id: 29, firstName: 'Samra', lastName: 'Asad', dentition: 'Adult (31 Yrs)', arch: 'Adult Permanent Arch (1-32)', aliases: ['samra', 'samara', 'asad', 'samra asad', 'samara asad'] },
-  { id: 28, firstName: 'Tayyab', lastName: 'Saleem', dentition: 'Mixed (11 Yrs)', arch: 'Pediatric/Mixed Arch', aliases: ['tayyab', 'tayab', 'saleem', 'salim', 'tayyab saleem', 'tayab saleem'] },
-  { id: 27, firstName: 'Saad', lastName: 'Malik', dentition: 'Pediatric', arch: 'Pediatric Arch (A-T)', aliases: ['saad', 'malik', 'saad malik'] },
-  { id: 26, firstName: 'Ehtsham', lastName: 'Ali', dentition: 'Permanent', arch: 'Adult Permanent Arch (1-32)', aliases: ['ehtsham', 'ihtisham', 'ehtisham', 'ehtsham ali'] },
-  { id: 25, firstName: 'Hassan', lastName: 'Sohail', dentition: 'Permanent', arch: 'Adult Permanent Arch (1-32)', aliases: ['hassan sohail', 'sohail'] },
-  { id: 24, firstName: 'Abrish', lastName: 'Fatima', dentition: 'Mixed', arch: 'Mixed Arch', aliases: ['abrish', 'fatima', 'abrish fatima'] },
-  { id: 23, firstName: 'Shafiq', lastName: 'Ahmed', dentition: 'Permanent', arch: 'Adult Permanent Arch (1-32)', aliases: ['shafiq', 'shafique', 'shafiq ahmed'] },
-  { id: 22, firstName: 'Tabish', lastName: 'Ejaz', dentition: 'Permanent', arch: 'Adult Permanent Arch (1-32)', aliases: ['tabish', 'ejaz', 'tabish ejaz'] },
-  { id: 21, firstName: 'Sahil', lastName: 'Raja', dentition: 'Permanent', arch: 'Adult Permanent Arch (1-32)', aliases: ['sahil', 'raja', 'sahil raja'] },
-  { id: 20, firstName: 'Salman', lastName: 'Ali', dentition: 'Pediatric', arch: 'Pediatric Arch (A-T)', aliases: ['salman', 'salman ali'] },
-  { id: 19, firstName: 'Ansa', lastName: 'Jamel', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['ansa', 'jamel', 'ansa jamel'] },
-  { id: 18, firstName: 'Jamal', lastName: 'Ahmed', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['jamal', 'jamal ahmed'] },
-  { id: 17, firstName: 'Arslan', lastName: 'Khan', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['arslan', 'khan', 'arslan khan'] },
-  { id: 14, firstName: 'Sarah', lastName: 'Connor', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['sarah connor', 'connor'] },
-  { id: 13, firstName: 'Tariq', lastName: 'Mehmood', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['tariq', 'mehmood', 'tariq mehmood'] },
-  { id: 10, firstName: 'Naveed', lastName: 'Abbad', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['naveed', 'abbad', 'naveed abbad'] },
-  { id: 9, firstName: 'Ahmed', lastName: 'Aziz', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['ahmed aziz', 'aziz'] },
-  { id: 8, firstName: 'Jawad', lastName: 'Ali', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['jawad', 'jawad ali'] },
-  { id: 7, firstName: 'Sana', lastName: 'Mudassar', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['sana', 'mudassar', 'sana mudassar'] },
-  { id: 6, firstName: 'Hassan', lastName: 'Haider', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['hassan haider'] },
-  { id: 5, firstName: 'Saeed', lastName: 'Haider', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['saeed', 'saeed haider'] },
-  { id: 4, firstName: 'Mudassar', lastName: 'Ali', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['mudassar ali'] },
-  { id: 3, firstName: 'Ali', lastName: 'Haider', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['ali haider'] },
-  { id: 1, firstName: 'Haider', lastName: 'Ali', dentition: 'Adult', arch: 'Adult Permanent Arch', aliases: ['haider ali'] }
-];
+// =========================================================================
+// 4. DYNAMIC DATABASE-DRIVEN PATIENT REGISTRY & UNIVERSAL PHONETICS
+// =========================================================================
+
+// In-Memory & LocalStorage Cached Patient Registry populated dynamically from DB
+let _liveClinicPatients = [];
+
+/**
+ * Universal Phonetic Normalizer for Speech Recognition & Dental EHR matching
+ * Dynamically collapses phonetic ambiguities (vowels, double letters, ph/f, q/k, etc.)
+ * WITHOUT needing any hardcoded names! Works for ANY name in any language.
+ */
+export function normalizePhonetic(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str.toLowerCase().trim()
+    .replace(/[^a-z0-9]/g, '')
+    .replace(/ph/g, 'f')
+    .replace(/que$/g, 'k')
+    .replace(/que/g, 'k')
+    .replace(/q/g, 'k')
+    .replace(/c(?=[eiy])/g, 's')
+    .replace(/c/g, 'k')
+    .replace(/oo|ou|u+/g, 'u')
+    .replace(/ee|ea|ei|i+/g, 'i')
+    .replace(/aa|a+/g, 'a')
+    .replace(/(.)\1+/g, '$1'); // collapse double consonants: ss->s, yy->y, tt->t, mm->m, ll->l
+}
+
+export function levenshteinDistance(a, b) {
+  if (!a || !b) return (a || b || '').length;
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+/**
+ * Synchronize live patients list fetched directly from SQL Server Database
+ */
+export function syncDynamicPatients(patientsList) {
+  if (Array.isArray(patientsList) && patientsList.length > 0) {
+    _liveClinicPatients = patientsList.map(p => {
+      const pid = p.patientID || p.id;
+      const fn = (p.firstName || '').trim();
+      const ln = (p.lastName || '').trim();
+      const dent = p.dentitionType || p.dentition || 'Adult';
+      const isPed = dent.toLowerCase().includes('pediatric');
+      return {
+        id: pid,
+        patientID: pid,
+        firstName: fn,
+        lastName: ln,
+        name: `${fn} ${ln}`.trim(),
+        dentition: dent,
+        arch: isPed ? 'Pediatric Arch (A-T)' : 'Adult Permanent Arch (1-32)',
+        phone: p.phone || '',
+        email: p.email || '',
+        currentTreatmentPlan: p.currentTreatmentPlan || 'General Consultation'
+      };
+    });
+    try {
+      localStorage.setItem('dentia_synced_patients', JSON.stringify(_liveClinicPatients));
+    } catch (e) {}
+  }
+}
+
+/**
+ * Get current cached patients from memory or LocalStorage (synced from DB)
+ */
+export function getDynamicPatients() {
+  if (_liveClinicPatients.length > 0) return _liveClinicPatients;
+  try {
+    const cached = localStorage.getItem('dentia_synced_patients');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        _liveClinicPatients = parsed;
+        return _liveClinicPatients;
+      }
+    }
+  } catch (e) {}
+  return [];
+}
+
+// Re-export dynamic proxy for backwards compatibility with any component importing CLINIC_PATIENTS
+export const CLINIC_PATIENTS = new Proxy([], {
+  get(target, prop) {
+    const live = getDynamicPatients();
+    if (prop === 'length') return live.length;
+    if (prop in Array.prototype) {
+      const val = live[prop];
+      return typeof val === 'function' ? val.bind(live) : val;
+    }
+    return live[prop];
+  }
+});
 
 // Master Clinic Pages and Modules Directory
 export const CLINIC_PAGES = [
@@ -392,16 +469,27 @@ export const CLINIC_PAGES = [
   { id: 'treatment', title: 'Treatments Catalog', path: '/treatment', subtitle: 'Procedures, fee schedule & CDT codes', badge: 'Procedures' }
 ];
 
-// Re-export legacy map for backwards compatibility
-export const CLINIC_PATIENTS_INDEX = CLINIC_PATIENTS.reduce((acc, p) => {
-  acc[p.firstName.toLowerCase()] = { id: p.id, name: `${p.firstName} ${p.lastName}`, dentition: p.dentition, arch: p.arch };
-  return acc;
-}, {});
+export function matchTokenScore(token, target) {
+  if (!token || !target) return 0;
+  const tNorm = normalizePhonetic(token);
+  const tgtNorm = normalizePhonetic(target);
+  if (!tNorm || !tgtNorm) return 0;
+  if (tNorm === tgtNorm) return 100;
+  if (tgtNorm.startsWith(tNorm) || tNorm.startsWith(tgtNorm)) {
+    return Math.min(tNorm.length, tgtNorm.length) >= 4 ? 85 : 0;
+  }
+  if (tNorm.length <= 3 || tgtNorm.length <= 3) return 0;
+  const dist = levenshteinDistance(tNorm, tgtNorm);
+  if (dist === 1) return 80;
+  if (dist === 2 && Math.min(tNorm.length, tgtNorm.length) >= 5) return 60;
+  return 0;
+}
 
 /**
- * Intelligent Multi-Field Patient Search (First Name, Last Name, Aliases, ID, Phonetics, Spelled Letters)
+ * Intelligent Dynamic Patient Search over live DB patients
+ * Handles ID numbers, First/Last names, Spelled Letters, and Speech Recognition variations dynamically
  */
-export function searchClinicPatients(query) {
+export function searchClinicPatients(query, customPatientsList = null) {
   if (!query || typeof query !== 'string') return [];
   const q = query.toLowerCase().replace(/[.,?!'":;]/g, ' ').trim();
   if (!q) return [];
@@ -410,7 +498,8 @@ export function searchClinicPatients(query) {
     'all', 'records', 'record', 'to', 'search', 'chart', 'page', 'open', 'show', 
     'the', 'a', 'an', 'patient', 'patients', 'for', 'you', 'kindly', 'spell', 'is', 
     'expatient', 'of', 'chat', 'teeth', 'profile', 'file', 'files', 'please', 'me', 
-    'in', 'on', 'at', 'go', 'view', 'find', 'open', 'navigate', 'directory'
+    'in', 'on', 'at', 'go', 'view', 'find', 'open', 'navigate', 'directory',
+    'ka', 'ki', 'ke', 'ko', 'karo', 'khol', 'kholo', 'kholna', 'dikhao', 'dekho', 'kijiye'
   ]);
   const rawTokens = q.split(/\s+/).filter(Boolean);
   const tokens = rawTokens.filter(w => w.length > 1 && !stopWords.has(w));
@@ -431,63 +520,74 @@ export function searchClinicPatients(query) {
     tokens.push(spelledWord);
   }
 
-  if (tokens.length === 0) return [];
+  if (tokens.length === 0 && !/\d+/.test(q)) return [];
 
-  const results = [];
+  const candidatePool = Array.isArray(customPatientsList) && customPatientsList.length > 0 
+    ? customPatientsList 
+    : getDynamicPatients();
 
-  for (const p of CLINIC_PATIENTS) {
-    const fn = p.firstName.toLowerCase();
-    const ln = p.lastName.toLowerCase();
-    const full = `${fn} ${ln}`;
-    const idStr = String(p.id);
-    let score = 0;
+  if (candidatePool.length === 0) return [];
+
+  const cleanQuery = tokens.join(' ');
+  const scored = [];
+
+  for (const p of candidatePool) {
+    const fn = (p.firstName || '').trim();
+    const ln = (p.lastName || '').trim();
+    const full = `${fn} ${ln}`.trim();
+    const pid = p.id || p.patientID;
+    const idStr = String(pid);
+
+    let totalScore = 0;
 
     // 1. Direct ID match
-    if (q.includes(`patient ${idStr}`) || q.includes(`chart ${idStr}`) || q.includes(`#${idStr}`) || rawTokens.includes(idStr)) {
-      score += 100;
+    if (rawTokens.includes(idStr) || q.includes(`patient ${idStr}`) || q.includes(`chart ${idStr}`) || q.includes(`#${idStr}`)) {
+      totalScore += 200;
     }
 
-    // 2. Full exact name or full alias match
-    if (q.includes(full)) {
-      score += 80;
-    }
-    for (const al of p.aliases) {
-      if (q.includes(al)) {
-        score += Math.max(30, al.length * 5);
-      }
-    }
+    // 2. Full Name match
+    const fullScore = matchTokenScore(cleanQuery, full);
+    if (fullScore > 0) totalScore += fullScore * 2;
 
-    // 3. Token-based matching (exact word match for short tokens <=3, partial for longer)
+    // 3. Token-by-token matching against First and Last Name
+    let matchedTokensCount = 0;
     for (const tok of tokens) {
-      if (fn === tok || ln === tok) {
-        score += 40;
-      } else if (tok.length > 3 && (fn.includes(tok) || ln.includes(tok))) {
-        score += 20;
-      }
-      for (const al of p.aliases) {
-        if (al === tok) {
-          score += 35;
-        } else if (tok.length > 3 && (al.includes(tok) || tok.includes(al))) {
-          score += 15;
-        }
+      const fnScore = matchTokenScore(tok, fn);
+      const lnScore = matchTokenScore(tok, ln);
+      const best = Math.max(fnScore, lnScore);
+      if (best > 0) {
+        totalScore += best;
+        matchedTokensCount++;
       }
     }
 
-    if (score > 0) {
-      results.push({ patient: p, score });
+    // Bonus for matching both first and last names
+    if (matchedTokensCount >= 2) {
+      totalScore += 100;
+    }
+
+    if (totalScore >= 70) {
+      scored.push({
+        ...p,
+        id: pid,
+        patientID: pid,
+        firstName: fn,
+        lastName: ln,
+        dentition: p.dentitionType || p.dentition || 'Adult',
+        score: totalScore
+      });
     }
   }
 
-  // Sort descending by match score
-  results.sort((a, b) => b.score - a.score);
+  scored.sort((a, b) => b.score - a.score);
 
   // Return unique patient objects
   const seen = new Set();
   const sortedPatients = [];
-  for (const item of results) {
-    if (!seen.has(item.patient.id)) {
-      seen.add(item.patient.id);
-      sortedPatients.push({ ...item.patient, score: item.score });
+  for (const item of scored) {
+    if (!seen.has(item.id)) {
+      seen.add(item.id);
+      sortedPatients.push(item);
     }
   }
 
@@ -743,7 +843,8 @@ export function resolveDoctorInstruction(transcript, context = {}) {
   const idMatch = clean.match(/(?:chart|patient|id)\s*(?:#|number)?\s*(\d+)/i);
   if (idMatch) {
     const pId = parseInt(idMatch[1], 10);
-    const matchedP = CLINIC_PATIENTS.find(p => p.id === pId);
+    const pool = (Array.isArray(context.patients) && context.patients.length > 0) ? context.patients : getDynamicPatients();
+    const matchedP = pool.find(p => (p.id === pId || p.patientID === pId));
     const pName = matchedP ? `${matchedP.firstName} ${matchedP.lastName}` : `Patient #${pId}`;
     return {
       title: `Patient #${pId} Chart: ${pName}`,
@@ -754,17 +855,18 @@ export function resolveDoctorInstruction(transcript, context = {}) {
     };
   }
 
-  // 3.2 Intelligent Multi-Field Patient Search (First Name, Last Name, Aliases, Spelled Names)
-  const patientMatches = searchClinicPatients(clean);
+  // 3.2 Intelligent Multi-Field Patient Search (First Name, Last Name, Spelled Names, Phonetics)
+  const patientMatches = searchClinicPatients(clean, context.patients || null);
   if (patientMatches.length > 0) {
     // If exact or single top match (or top match has decisive score advantage >= 80)
     if (patientMatches.length === 1 || patientMatches[0].score >= 80) {
       const topP = patientMatches[0];
+      const pid = topP.id || topP.patientID;
       return {
         title: `Patient Dental Chart: ${topP.firstName} ${topP.lastName}`,
         category: 'Patient Navigation',
-        text: `Opening dental chart for ${topP.firstName} ${topP.lastName} (Patient ID #${topP.id}, ${topP.dentition}), Doctor. Synchronizing 3D jaws and tooth condition history.`,
-        action: { type: 'NAVIGATE', path: `/chart/${topP.id}` },
+        text: `Opening dental chart for ${topP.firstName} ${topP.lastName} (Patient ID #${pid}, ${topP.dentition}), Doctor. Synchronizing 3D jaws and tooth condition history.`,
+        action: { type: 'NAVIGATE', path: `/chart/${pid}` },
         patientsList: [topP]
       };
     }
@@ -781,27 +883,27 @@ export function resolveDoctorInstruction(transcript, context = {}) {
 
   // 3.3 Fallback Patient Lookup via Backend API
   const chartPatterns = [
-    /(?:chart|chat|records|teeth)\s+(?:of|for)\s+([a-zA-Z]+)/i,
-    /(?:open|show|view|find|go\s+to)\s+(?:chart|chat|records\s+of)?\s*([a-zA-Z]+)(?:\s+(?:chart|records|profile|teeth|chat))?/i,
-    /([a-zA-Z]+)\s+(?:chart|records|teeth)/i
+    /(?:chart|chat|records|teeth|file|profile)\s+(?:of|for)\s+([a-zA-Z\s]+)/i,
+    /(?:open|show|view|find|go\s+to)\s+(?:chart|chat|records\s+of)?\s*([a-zA-Z\s]+)(?:\s+(?:chart|records|profile|teeth|chat|ka\s+chart|ki\s+profile))?/i,
+    /([a-zA-Z\s]+)\s+(?:chart|records|teeth|ka\s+chart)/i
   ];
 
   for (const pattern of chartPatterns) {
     const match = stripped.match(pattern);
     if (match && match[1]) {
-      const candidate = match[1].toLowerCase().trim();
+      const candidate = match[1].toLowerCase().replace(/\b(?:ka|ki|ke|ko|chart|profile|file|records)\b/g, '').trim();
       const stopWords = [
         'appointments', 'appointment', 'dashboard', 'directory', 'patient', 'patients', 
         'treatments', 'treatment', 'the', 'a', 'an', 'notes', 'help', 'tooth', 'teeth', 
-        'dentist', 'clinic', 'doctor', 'schedule', 'book', 'booking', 'list', 'records', 'chart'
+        'dentist', 'clinic', 'doctor', 'schedule', 'book', 'booking', 'list', 'records', 'chart', ''
       ];
       if (!stopWords.includes(candidate)) {
         return {
           title: `Locating Patient: ${candidate}`,
           category: 'Patient Lookup',
-          text: `Searching dental registry for patient "${candidate}", Doctor. Opening patient chart...`,
+          text: `Searching dental database for patient "${candidate}", Doctor. Opening patient chart...`,
           action: { type: 'PATIENT_LOOKUP', patientName: candidate },
-          patientsList: CLINIC_PATIENTS.slice(0, 4)
+          patientsList: null
         };
       }
     }

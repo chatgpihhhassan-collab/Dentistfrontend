@@ -20,7 +20,12 @@ import {
   ExternalLink
 } from 'lucide-react';
 import ThreeDoctorHead from './ThreeDoctorHead';
-import { resolveDoctorInstruction } from './clinicalDentalBrain';
+import { 
+  resolveDoctorInstruction, 
+  syncDynamicPatients, 
+  getDynamicPatients, 
+  searchClinicPatients 
+} from './clinicalDentalBrain';
 import aiVoice from '../../utils/aiVoiceAssistant';
 
 export default function Doctor3DAssistantWidget() {
@@ -47,17 +52,40 @@ export default function Doctor3DAssistantWidget() {
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [hasStartedChat, setHasStartedChat] = useState(false);
 
-  // Active Doctor name detection
+  // Active Doctor & Dynamic Patient Database Registry
   const [doctorName, setDoctorName] = useState('Doctor');
+  const [doctorId, setDoctorId] = useState(2);
+  const [livePatients, setLivePatients] = useState(() => getDynamicPatients());
+
   useEffect(() => {
+    let docId = 2;
     try {
       const stored = localStorage.getItem('doctor');
       if (stored) {
         const d = JSON.parse(stored);
         if (d?.firstName) setDoctorName(d.firstName);
         else if (d?.username) setDoctorName(d.username);
+        if (d?.doctorID) docId = d.doctorID;
       }
     } catch {}
+    setDoctorId(docId);
+
+    // Synchronize live patient records directly from Database
+    const fetchLivePatients = async () => {
+      try {
+        const res = await fetch(`/api/patients/doctor/${docId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            syncDynamicPatients(data);
+            setLivePatients(data);
+          }
+        }
+      } catch (err) {
+        console.warn('[Doctor3DAssistant] Live patient DB sync notice:', err);
+      }
+    };
+    fetchLivePatients();
   }, []);
 
   // Conversation history
@@ -290,10 +318,13 @@ export default function Doctor3DAssistantWidget() {
       activePatientId = location.pathname.split('/')[2];
     }
 
+    const pool = (livePatients && livePatients.length > 0) ? livePatients : getDynamicPatients();
+
     const resolution = resolveDoctorInstruction(transcript, {
       pathname: location.pathname,
       patientId: activePatientId,
-      doctorName: doctorName
+      doctorName: doctorName,
+      patients: pool
     });
 
     const aiMsg = {
@@ -326,39 +357,70 @@ export default function Doctor3DAssistantWidget() {
       return;
     }
 
-    // Handle Dynamic Patient Database Search (fallback when not in clinical index)
+    // Handle Dynamic Patient Database Search (fallback when not immediately resolved)
     if (resolution.action && resolution.action.type === 'PATIENT_LOOKUP') {
       const pName = resolution.action.patientName;
       try {
-        const res = await fetch(`https://dentist-api-dev.vitonta.com/api/Patients/search?name=${encodeURIComponent(pName)}`);
-        if (res.ok) {
-          const p = await res.json();
-          if (p && p.patientID) {
-            const foundMsg = {
-              sender: 'ai',
-              category: 'Patient Navigation',
-              title: `Patient Dental Chart: ${p.firstName} ${p.lastName}`,
-              text: `Opening dental chart for ${p.firstName} ${p.lastName} (Patient ID #${p.patientID}, ${p.dentitionType || 'Adult'} Arch), Doctor. Synchronizing 3D jaws.`,
-              patientsList: [{
-                id: p.patientID,
-                firstName: p.firstName,
-                lastName: p.lastName,
-                dentition: p.dentitionType || 'Adult'
-              }],
-              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            };
-            setChatLog(prev => [...prev.slice(0, -1), foundMsg]);
-            if (!isAudioMuted) {
-              aiVoice.speak(foundMsg.text, { rate: 1.0, pitch: 1.05 });
+        // Query both live search endpoint and doctor's patient list in parallel
+        const [searchRes, docListRes] = await Promise.allSettled([
+          fetch(`/api/patients/search?name=${encodeURIComponent(pName)}`),
+          fetch(`/api/patients/doctor/${doctorId}`)
+        ]);
+
+        let foundPatient = null;
+        if (docListRes.status === 'fulfilled' && docListRes.value.ok) {
+          const freshList = await docListRes.value.json();
+          if (Array.isArray(freshList) && freshList.length > 0) {
+            syncDynamicPatients(freshList);
+            setLivePatients(freshList);
+            const matches = searchClinicPatients(transcript, freshList);
+            if (matches.length > 0) {
+              foundPatient = matches[0];
             }
-            setTimeout(() => {
-              navigate(`/chart/${p.patientID}`);
-            }, 1200);
-            return;
           }
         }
+
+        if (!foundPatient && searchRes.status === 'fulfilled' && searchRes.value.ok) {
+          const p = await searchRes.value.json();
+          if (p && (p.patientID || p.id)) {
+            const pid = p.patientID || p.id;
+            foundPatient = {
+              id: pid,
+              patientID: pid,
+              firstName: p.firstName,
+              lastName: p.lastName,
+              dentition: p.dentitionType || 'Adult'
+            };
+          }
+        }
+
+        if (foundPatient) {
+          const pid = foundPatient.patientID || foundPatient.id;
+          const foundMsg = {
+            sender: 'ai',
+            category: 'Patient Navigation',
+            title: `Patient Dental Chart: ${foundPatient.firstName} ${foundPatient.lastName}`,
+            text: `Opening dental chart for ${foundPatient.firstName} ${foundPatient.lastName} (Patient ID #${pid}, ${foundPatient.dentition || 'Adult'} Arch), Doctor. Synchronizing 3D jaws.`,
+            patientsList: [{
+              id: pid,
+              patientID: pid,
+              firstName: foundPatient.firstName,
+              lastName: foundPatient.lastName,
+              dentition: foundPatient.dentition || 'Adult'
+            }],
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          };
+          setChatLog(prev => [...prev.slice(0, -1), foundMsg]);
+          if (!isAudioMuted) {
+            aiVoice.speak(foundMsg.text, { rate: 1.0, pitch: 1.05 });
+          }
+          setTimeout(() => {
+            navigate(`/chart/${pid}`);
+          }, 1200);
+          return;
+        }
       } catch (err) {
-        console.warn('Patient API lookup error:', err);
+        console.warn('[Doctor3DAssistant] Dynamic Patient search error:', err);
       }
 
       // If not found in database, present directory and option cards
@@ -367,7 +429,7 @@ export default function Doctor3DAssistantWidget() {
         category: 'Patient Directory',
         title: `Search: ${pName}`,
         text: `Doctor, I could not find an exact patient record for "${pName}". You can open the directory or select from our clinic registry:`,
-        patientsList: resolution.patientsList || null,
+        patientsList: resolution.patientsList || (livePatients && livePatients.slice(0, 4)) || null,
         pagesList: [
           { id: 'directory', title: 'Open Patient Directory', path: `/directory?search=${encodeURIComponent(pName)}`, subtitle: `Search for "${pName}" in directory`, badge: 'Directory' }
         ],
@@ -555,39 +617,42 @@ export default function Doctor3DAssistantWidget() {
                 {/* Interactive Patient Selection Cards */}
                 {msg.patientsList && msg.patientsList.length > 0 && (
                   <div className="mt-2.5 space-y-1.5 w-full">
-                    {msg.patientsList.map((p) => (
-                      <div 
-                        key={p.id}
-                        className="flex items-center justify-between p-2 rounded-xl bg-white border border-teal-100 hover:border-[#00a896] hover:shadow-xs transition"
-                      >
-                        <div className="flex items-center gap-2 min-w-0 pr-2">
-                          <div className="w-7 h-7 rounded-full bg-teal-50 border border-teal-200 text-[#00a896] font-bold text-[10px] flex items-center justify-center shrink-0">
-                            {p.firstName ? p.firstName[0].toUpperCase() : 'P'}{p.lastName ? p.lastName[0].toUpperCase() : ''}
-                          </div>
-                          <div className="min-w-0 text-left">
-                            <p className="text-[11px] font-semibold text-slate-800 truncate leading-tight">
-                              {p.firstName} {p.lastName} <span className="text-[9px] font-normal text-slate-400">#{p.id}</span>
-                            </p>
-                            <p className="text-[9px] text-teal-600 font-medium truncate leading-tight">
-                              {p.dentition || 'Adult Arch'}
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigate(`/chart/${p.id}`);
-                            if (!isAudioMuted) {
-                              aiVoice.speak(`Opening dental chart for ${p.firstName} ${p.lastName}, Doctor.`);
-                            }
-                          }}
-                          className="shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-[#00a896] text-teal-700 hover:text-white border border-teal-200 hover:border-[#00a896] transition cursor-pointer flex items-center gap-0.5 shadow-2xs"
+                    {msg.patientsList.map((p) => {
+                      const pid = p.patientID || p.id;
+                      return (
+                        <div 
+                          key={pid}
+                          className="flex items-center justify-between p-2 rounded-xl bg-white border border-teal-100 hover:border-[#00a896] hover:shadow-xs transition"
                         >
-                          Chart
-                          <ChevronRight className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
+                          <div className="flex items-center gap-2 min-w-0 pr-2">
+                            <div className="w-7 h-7 rounded-full bg-teal-50 border border-teal-200 text-[#00a896] font-bold text-[10px] flex items-center justify-center shrink-0">
+                              {p.firstName ? p.firstName[0].toUpperCase() : 'P'}{p.lastName ? p.lastName[0].toUpperCase() : ''}
+                            </div>
+                            <div className="min-w-0 text-left">
+                              <p className="text-[11px] font-semibold text-slate-800 truncate leading-tight">
+                                {p.firstName} {p.lastName} <span className="text-[9px] font-normal text-slate-400">#{pid}</span>
+                              </p>
+                              <p className="text-[9px] text-teal-600 font-medium truncate leading-tight">
+                                {p.dentition || 'Adult Arch'}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigate(`/chart/${pid}`);
+                              if (!isAudioMuted) {
+                                aiVoice.speak(`Opening dental chart for ${p.firstName} ${p.lastName}, Doctor.`);
+                              }
+                            }}
+                            className="shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-[#00a896] text-teal-700 hover:text-white border border-teal-200 hover:border-[#00a896] transition cursor-pointer flex items-center gap-0.5 shadow-2xs"
+                          >
+                            Chart
+                            <ChevronRight className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
