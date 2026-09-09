@@ -1800,15 +1800,78 @@ export default function ChartPage() {
     }
   };
 
+  // Client-side image compression to ensure high performance, prevent upload timeouts and CORS net::ERR_FAILED
+  const compressImageForUpload = async (file) => {
+    // If not an image or very small (< 1MB), return original file
+    if (!file.type || !file.type.startsWith('image/') || file.size <= 1024 * 1024) {
+      return file;
+    }
+
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const MAX_DIMENSION = 2048; // Preserves ultra-high diagnostic resolution
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_DIMENSION) {
+              height = Math.round((height * MAX_DIMENSION) / width);
+              width = MAX_DIMENSION;
+            }
+          } else {
+            if (height > MAX_DIMENSION) {
+              width = Math.round((width * MAX_DIMENSION) / height);
+              height = MAX_DIMENSION;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              if (blob && blob.size < file.size) {
+                const newFilename = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+                const compressedFile = new File([blob], newFilename, {
+                  type: 'image/jpeg',
+                  lastModified: Date.now()
+                });
+                resolve(compressedFile);
+              } else {
+                resolve(file);
+              }
+            },
+            'image/jpeg',
+            0.88
+          );
+        };
+        img.onerror = () => resolve(file);
+        img.src = event.target.result;
+      };
+      reader.onerror = () => resolve(file);
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleUploadXray = async (e) => {
-    const file = e.target.files?.[0] || (e.dataTransfer?.files?.[0]);
-    if (!file) return;
+    const rawFile = e.target.files?.[0] || (e.dataTransfer?.files?.[0]);
+    if (!rawFile) return;
     setUploadingXray(true);
+    setToast({ visible: true, message: "Preparing & analyzing radiograph..." });
     const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
     const doctorId = doctorData.doctorID || doctorData.DoctorID || 1;
-    const formData = new FormData();
-    formData.append('file', file);
+
     try {
+      const file = await compressImageForUpload(rawFile);
+      const formData = new FormData();
+      formData.append('file', file);
+
       const res = await fetch(`/api/patients/${patientId}/radiographs?doctorId=${doctorId}`, {
         method: 'POST',
         body: formData
@@ -1822,11 +1885,13 @@ export default function ChartPage() {
       } else {
         const errText = await res.text();
         console.error('Upload error:', errText);
-        alert(`Upload failed: ${res.status}`);
+        setToast({ visible: true, message: `Upload failed: HTTP ${res.status}` });
+        setTimeout(() => setToast({ visible: false, message: "" }), 4000);
       }
     } catch (err) {
-      console.error(err);
-      alert("Error uploading X-ray.");
+      console.error('Error uploading X-ray:', err);
+      setToast({ visible: true, message: "Error uploading X-ray. Check network or file format." });
+      setTimeout(() => setToast({ visible: false, message: "" }), 4000);
     } finally {
       setUploadingXray(false);
     }
@@ -6868,10 +6933,9 @@ export default function ChartPage() {
                               alt={selectedRadiograph.imageName || selectedRadiograph.ImageName}
                               className={`max-h-[360px] max-w-full object-contain rounded-lg shadow-sm transition-opacity duration-200 ${radiographImgLoading ? 'opacity-0' : 'opacity-100'}`}
                               onError={() => {
-                                console.warn("Radiograph image failed to render, retrying direct backend URL...");
                                 const radId = selectedRadiograph.radiographID || selectedRadiograph.RadiographID;
                                 const directUrl = `https://dentist-api-dev.vitonta.com/api/radiographs/${radId}/image`;
-                                if (radiographBlobUrl !== directUrl) {
+                                if (radiographBlobUrl && radiographBlobUrl !== directUrl) {
                                   setRadiographBlobUrl(directUrl);
                                 } else {
                                   setRadiographImgError(true);
