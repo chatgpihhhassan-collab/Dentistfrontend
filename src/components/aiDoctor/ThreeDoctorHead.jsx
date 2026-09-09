@@ -12,6 +12,8 @@ export default function ThreeDoctorHead({
   className = 'w-full h-full'
 }) {
   const mountRef = useRef(null);
+  const propsRef = useRef({ isSpeaking, isListening, mood });
+  propsRef.current = { isSpeaking, isListening, mood };
 
   useEffect(() => {
     const container = mountRef.current;
@@ -316,14 +318,15 @@ export default function ThreeDoctorHead({
 
     // 6. Animation Loop
     let animationFrameId;
-    let clock = new THREE.Clock();
+    const startTime = performance.now();
     let nextBlinkTime = 2.0;
     let isBlinking = false;
     let blinkProgress = 0;
 
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
-      const elapsedTime = clock.getElapsedTime();
+      const elapsedTime = (performance.now() - startTime) * 0.001;
+      const { isSpeaking, isListening, mood } = propsRef.current;
 
       // Smooth mouse tracking
       mouse.x += (mouse.targetX - mouse.x) * 0.08;
@@ -423,12 +426,15 @@ export default function ThreeDoctorHead({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrameId);
-      if (container && renderer.domElement) {
+      if (container && renderer.domElement && container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
       }
+      try {
+        renderer.forceContextLoss();
+      } catch {}
       renderer.dispose();
     };
-  }, [isSpeaking, isListening, mood]);
+  }, []);
 
   return <div ref={mountRef} className={className} />;
 }
