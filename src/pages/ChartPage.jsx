@@ -1412,24 +1412,45 @@ export default function ChartPage() {
       commentText = `TMJ Articulation: ${statusLabel} (Opening: ${mouth_opening_mm ?? 42}mm) (CDT ${cdt_code || 'D7880'}).`;
     }
 
-    // Step A: Update local teethState in React INSTANTLY (handles both string pediatric letters A-T and numeric adult teeth 1-32)
+    // Step A: Update local teethState in React INSTANTLY with robust UPSERT
     setTeethState(prev => {
-      return prev.map(t => {
-        const tKey = String(t.toothNumber ?? t.ToothNumber ?? '').toUpperCase();
-        const match = targetTeeth.some(x => String(x).toUpperCase() === tKey);
-        if (!match) return t;
-        return {
-          ...t,
+      const nextList = Array.isArray(prev) ? [...prev] : [];
+      targetTeeth.forEach(toothItem => {
+        const itemStr = String(toothItem).trim().toUpperCase();
+        const itemNum = parseInt(toothItem, 10);
+        const idx = nextList.findIndex(t => {
+          const tk = String(t.toothKey || t.ToothKey || '').trim().toUpperCase();
+          const tn = String(t.toothNumber ?? t.ToothNumber ?? '').trim().toUpperCase();
+          if (isPediatric) {
+            return tk === itemStr;
+          } else {
+            return tk === itemStr || (!isNaN(itemNum) && parseInt(tn, 10) === itemNum);
+          }
+        });
+
+        const toothRecord = {
+          patientId: pid,
+          toothNumber: !isNaN(itemNum) ? itemNum : toothItem,
+          toothKey: String(toothItem),
+          dentitionCategory: isPediatric ? 'Pediatric' : 'Adult',
           status: statusLabel,
           conditionStatus: statusLabel,
           condition: statusLabel,
           cdtCode: cdt_code || 'D8080',
           color: conditionColor,
+          conditionColor: conditionColor,
           comment: commentText,
           comments: commentText,
           updatedAt: new Date().toISOString()
         };
+
+        if (idx >= 0) {
+          nextList[idx] = { ...nextList[idx], ...toothRecord };
+        } else {
+          nextList.push(toothRecord);
+        }
       });
+      return nextList;
     });
 
     // Step B & C: Debounce backend DB writes to avoid spamming network while dragging

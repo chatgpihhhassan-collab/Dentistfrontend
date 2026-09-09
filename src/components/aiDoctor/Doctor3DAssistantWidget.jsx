@@ -20,7 +20,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import ThreeDoctorHead from './ThreeDoctorHead';
-import { resolveDoctorInstruction, syncLiveClinicPatients, addLivePatient } from './clinicalDentalBrain';
+import { resolveDoctorInstruction } from './clinicalDentalBrain';
 import aiVoice from '../../utils/aiVoiceAssistant';
 
 export default function Doctor3DAssistantWidget() {
@@ -58,58 +58,6 @@ export default function Doctor3DAssistantWidget() {
         else if (d?.username) setDoctorName(d.username);
       }
     } catch {}
-  }, []);
-
-  // Live Patient Roster Synchronization from Database API
-  useEffect(() => {
-    const fetchLivePatients = async () => {
-      try {
-        let docId = 2;
-        try {
-          const stored = localStorage.getItem('doctor');
-          if (stored) {
-            const d = JSON.parse(stored);
-            if (d?.doctorID) docId = d.doctorID;
-          }
-        } catch {}
-
-        const endpoints = [
-          `/api/patients/doctor/${docId}`,
-          `https://dentist-api-dev.vitonta.com/api/patients/doctor/${docId}`,
-          `/api/patients`,
-          `https://dentist-api-dev.vitonta.com/api/patients`
-        ];
-
-        for (const url of endpoints) {
-          try {
-            const res = await fetch(url);
-            if (res.ok) {
-              const data = await res.json();
-              if (Array.isArray(data) && data.length > 0) {
-                syncLiveClinicPatients(data);
-                break;
-              }
-            }
-          } catch {}
-        }
-      } catch (err) {
-        console.warn('[Doctor3DAssistant] Live patients sync notice:', err);
-      }
-    };
-
-    fetchLivePatients();
-
-    const handlePatientCreated = (e) => {
-      if (e.detail) {
-        addLivePatient(e.detail);
-      }
-      fetchLivePatients();
-    };
-
-    window.addEventListener('dentia_patient_created', handlePatientCreated);
-    return () => {
-      window.removeEventListener('dentia_patient_created', handlePatientCreated);
-    };
   }, []);
 
   // Conversation history

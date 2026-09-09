@@ -50,6 +50,27 @@ export default function ImpactedTeethXRayVisualizer({
     { id: 'premolar', label: 'Partially Erupted Premolar', icon: '🔴', cdt: 'D7220', badge: 'Pericoronal Flap', defaultTeeth: [4, 5, 12, 13, 20, 21, 28, 29] }
   ];
 
+  const notifyAssessmentChange = (overrides = {}) => {
+    if (!onSaveAssessment) return;
+    const type = overrides.impaction_type || selectedImpaction;
+    const ang = overrides.angulation_degrees !== undefined ? overrides.angulation_degrees : (type === 'horizontal' ? 90 : (type === 'canine' ? canineAngulation : angulationDegrees));
+    const canAng = overrides.canine_angulation !== undefined ? overrides.canine_angulation : canineAngulation;
+    const nDist = overrides.nerve_distance_mm !== undefined ? overrides.nerve_distance_mm : nerveDistanceMm;
+    const erupt = overrides.eruption_percent !== undefined ? overrides.eruption_percent : eruptionCoveragePct;
+    const cdt = type === 'horizontal' ? 'D7240' : type === 'canine' ? 'D7280' : type === 'premolar' ? 'D7220' : 'D7230';
+
+    onSaveAssessment({
+      suite_category: 'impactions',
+      impaction_type: type,
+      angulation_degrees: ang,
+      canine_angulation: canAng,
+      nerve_distance_mm: nDist,
+      eruption_percent: erupt,
+      cdt_code: cdt,
+      ...overrides
+    });
+  };
+
   const handleSelectType = (typeId) => {
     setSelectedImpaction(typeId);
     let targetAngulation = angulationDegrees;
@@ -58,17 +79,34 @@ export default function ImpactedTeethXRayVisualizer({
     else if (typeId === 'canine') targetAngulation = canineAngulation;
     setAngulationDegrees(targetAngulation);
 
-    if (onSaveAssessment) {
-      onSaveAssessment({
-        suite_category: 'impactions',
-        impaction_type: typeId,
-        angulation_degrees: targetAngulation,
-        canine_angulation: canineAngulation,
-        nerve_distance_mm: nerveDistanceMm,
-        eruption_percent: eruptionCoveragePct,
-        cdt_code: typeId === 'horizontal' ? 'D7240' : typeId === 'canine' ? 'D7280' : typeId === 'premolar' ? 'D7220' : 'D7230'
-      });
-    }
+    notifyAssessmentChange({
+      impaction_type: typeId,
+      angulation_degrees: targetAngulation
+    });
+  };
+
+  const handleAngulationChange = (val) => {
+    const num = parseInt(val, 10);
+    setAngulationDegrees(num);
+    notifyAssessmentChange({ angulation_degrees: num });
+  };
+
+  const handleNerveDistanceChange = (val) => {
+    const num = parseFloat(val);
+    setNerveDistanceMm(num);
+    notifyAssessmentChange({ nerve_distance_mm: num });
+  };
+
+  const handleCanineAngulationChange = (val) => {
+    const num = parseInt(val, 10);
+    setCanineAngulation(num);
+    notifyAssessmentChange({ canine_angulation: num });
+  };
+
+  const handleEruptionPercentChange = (val) => {
+    const num = parseInt(val, 10);
+    setEruptionCoveragePct(num);
+    notifyAssessmentChange({ eruption_percent: num });
   };
 
   const handleSaveToPatientRecord = () => {
@@ -76,18 +114,9 @@ export default function ImpactedTeethXRayVisualizer({
     const cdt = currentObj?.cdt || 'D7230';
     const title = currentObj?.label || 'Impacted Tooth';
 
-    if (onSaveAssessment) {
-      onSaveAssessment({
-        suite_category: 'impactions',
-        impaction_type: selectedImpaction,
-        angulation_degrees: selectedImpaction === 'horizontal' ? 90 : (selectedImpaction === 'canine' ? canineAngulation : angulationDegrees),
-        canine_angulation: canineAngulation,
-        nerve_distance_mm: nerveDistanceMm,
-        eruption_percent: eruptionCoveragePct,
-        cdt_code: cdt,
-        isManualSave: true
-      });
-    }
+    notifyAssessmentChange({
+      isManualSave: true
+    });
 
     // Audible confirmation
     try {
@@ -350,7 +379,7 @@ export default function ImpactedTeethXRayVisualizer({
                   min="20"
                   max="75"
                   value={angulationDegrees}
-                  onChange={(e) => setAngulationDegrees(parseInt(e.target.value))}
+                  onChange={(e) => handleAngulationChange(e.target.value)}
                   className="w-full accent-purple-700 cursor-pointer"
                 />
                 <div className="flex justify-between text-[9px] font-bold text-slate-500">
@@ -379,7 +408,7 @@ export default function ImpactedTeethXRayVisualizer({
                   max="5.0"
                   step="0.1"
                   value={nerveDistanceMm}
-                  onChange={(e) => setNerveDistanceMm(parseFloat(e.target.value))}
+                  onChange={(e) => handleNerveDistanceChange(e.target.value)}
                   className="w-full accent-purple-700 cursor-pointer"
                 />
                 <div className="flex justify-between text-[9px] font-bold text-slate-500">
@@ -405,7 +434,7 @@ export default function ImpactedTeethXRayVisualizer({
                   min="15"
                   max="65"
                   value={canineAngulation}
-                  onChange={(e) => setCanineAngulation(parseInt(e.target.value))}
+                  onChange={(e) => handleCanineAngulationChange(e.target.value)}
                   className="w-full accent-purple-700 cursor-pointer"
                 />
                 <div className="flex justify-between text-[9px] font-bold text-slate-500">
@@ -431,7 +460,7 @@ export default function ImpactedTeethXRayVisualizer({
                   min="10"
                   max="80"
                   value={eruptionCoveragePct}
-                  onChange={(e) => setEruptionCoveragePct(parseInt(e.target.value))}
+                  onChange={(e) => handleEruptionPercentChange(e.target.value)}
                   className="w-full accent-purple-700 cursor-pointer"
                 />
                 <div className="flex justify-between text-[9px] font-bold text-slate-500">

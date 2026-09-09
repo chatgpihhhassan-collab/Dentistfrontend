@@ -497,6 +497,36 @@ export default function ToothDetailPage() {
     };
   }, [patientId, toothNumber]);
 
+  const orthoSaveTimeoutRef = React.useRef(null);
+  const pendingOrthoSaveRef = React.useRef(null);
+
+  // Flush pending debounced saves immediately when switching teeth
+  useEffect(() => {
+    if (pendingOrthoSaveRef.current) {
+      const doSave = pendingOrthoSaveRef.current;
+      pendingOrthoSaveRef.current = null;
+      if (orthoSaveTimeoutRef.current) {
+        clearTimeout(orthoSaveTimeoutRef.current);
+        orthoSaveTimeoutRef.current = null;
+      }
+      doSave();
+    }
+  }, [tKey, toothNumber]);
+
+  // Clean up timers on unmount
+  useEffect(() => {
+    return () => {
+      if (pendingOrthoSaveRef.current) {
+        pendingOrthoSaveRef.current();
+        pendingOrthoSaveRef.current = null;
+      }
+      if (orthoSaveTimeoutRef.current) {
+        clearTimeout(orthoSaveTimeoutRef.current);
+        orthoSaveTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   // Handle Save / Update Observation
   const handleSaveObservation = async (newStatus, newComment, newColor, customSurfaces = null) => {
     try {
@@ -557,28 +587,40 @@ export default function ToothDetailPage() {
           color: colorToSave
         }));
 
-        // Update allTeeth in memory so odontogram arch navigator syncs immediately
+        // Update allTeeth in memory with robust UPSERT so odontogram arch navigator syncs immediately
         setAllTeeth(prevTeeth => {
-          return (prevTeeth || []).map(t => {
+          const nextList = Array.isArray(prevTeeth) ? [...prevTeeth] : [];
+          const itemStr = String(tKey).trim().toUpperCase();
+          const itemNum = parseInt(tKey, 10) || tNum;
+          const idx = nextList.findIndex(t => {
             const tk = String(t.toothKey || t.ToothKey || '').trim().toUpperCase();
             const tn = String(t.toothNumber ?? t.ToothNumber ?? '').trim().toUpperCase();
-            const isMatch = isPediatric 
-              ? (tk === String(tKey).toUpperCase())
-              : (tk === String(tKey).toUpperCase() || parseInt(tn, 10) === tNum);
-            
-            if (isMatch) {
-              return {
-                ...t,
-                status: statusToSave,
-                conditionStatus: statusToSave,
-                color: colorToSave,
-                conditionColor: colorToSave,
-                comment: commentToSave,
-                comments: commentToSave
-              };
-            }
-            return t;
+            return isPediatric
+              ? tk === itemStr
+              : (tk === itemStr || (!isNaN(itemNum) && parseInt(tn, 10) === itemNum));
           });
+
+          const toothRecord = {
+            patientId: pid,
+            toothNumber: isPediatric ? itemStr : itemNum,
+            toothKey: String(tKey),
+            dentitionCategory: isPediatric ? 'Pediatric' : 'Adult',
+            status: statusToSave,
+            conditionStatus: statusToSave,
+            condition: statusToSave,
+            color: colorToSave,
+            conditionColor: colorToSave,
+            comment: commentToSave,
+            comments: commentToSave,
+            updatedAt: new Date().toISOString()
+          };
+
+          if (idx >= 0) {
+            nextList[idx] = { ...nextList[idx], ...toothRecord };
+          } else {
+            nextList.push(toothRecord);
+          }
+          return nextList;
         });
 
         // Persist surface zones to localStorage
@@ -659,8 +701,6 @@ export default function ToothDetailPage() {
     handleSaveObservation('Healthy', isPediatric ? `Intact primary deciduous enamel on Tooth ${tKey}` : 'Intact anatomical enamel, sound baseline', '#10B981', updated);
   };
 
-  const orthoSaveTimeoutRef = React.useRef(null);
-
   // Ortho & TMJ Diagnostic Assessment Handler (Synchronized across all teeth and patient DB table)
   const handleSaveOrthoTmjAssessment = (assessmentData) => {
     if (!assessmentData) return;
@@ -732,9 +772,9 @@ export default function ToothDetailPage() {
       const impType = impaction_type || 'mesioangular';
       if (impType === 'mesioangular' || impType === 'horizontal') {
         targetTeeth = isPatientPediatric ? ['A', 'J', 'K', 'T'] : [17, 32];
-        statusLabel = impType === 'horizontal' ? 'Impacted 3rd Molar (Horizontal 90°)' : 'Impacted 3rd Molar (Mesioangular 45°)';
+        statusLabel = impType === 'horizontal' ? 'Impacted Tooth (Horizontal 90°)' : `Impacted Tooth (Mesioangular ${angulation_degrees ?? 45}°)`;
         conditionColor = '#7C3AED';
-        commentText = impType === 'horizontal' ? `Horizontally impacted 3rd molar (IAN distance: ${nerve_distance_mm ?? 0.5}mm) (CDT D7240).` : `Mesioangular ${angulation_degrees ?? 45}° impacted wisdom tooth (CDT D7230).`;
+        commentText = impType === 'horizontal' ? `Horizontally impacted tooth (IAN distance: ${nerve_distance_mm ?? 0.5}mm) (CDT D7240).` : `Mesioangular ${angulation_degrees ?? 45}° impacted tooth (CDT D7230).`;
       } else if (impType === 'canine') {
         targetTeeth = isPatientPediatric ? ['C', 'H'] : [6, 11];
         statusLabel = 'Palatally Impacted Canine';
@@ -755,54 +795,80 @@ export default function ToothDetailPage() {
       commentText = `TMJ Articulation: ${statusLabel} (Opening: ${mouth_opening_mm ?? 42}mm) (CDT ${cdt_code || 'D7880'}).`;
     }
 
-    // Step A: Update all teeth in local state immediately
+    // Crucial: ALWAYS include the current active tooth so the tooth currently open in the editor is immediately updated!
+    const activeCurrentTooth = isPatientPediatric ? String(tKey).toUpperCase() : (parseInt(tKey, 10) || tNum);
+    if (activeCurrentTooth && !targetTeeth.some(x => String(x).toUpperCase() === String(activeCurrentTooth).toUpperCase())) {
+      targetTeeth.unshift(activeCurrentTooth);
+    }
+
+    // Step A: Update all teeth in local state immediately (with robust UPSERT)
     setAllTeeth(prev => {
-      return prev.map(t => {
-        const key = String(t.toothNumber ?? t.ToothNumber ?? '').toUpperCase();
-        const match = targetTeeth.some(x => String(x).toUpperCase() === key);
-        if (!match) return t;
-        return {
-          ...t,
+      const nextList = Array.isArray(prev) ? [...prev] : [];
+      targetTeeth.forEach(toothItem => {
+        const itemStr = String(toothItem).trim().toUpperCase();
+        const itemNum = parseInt(toothItem, 10);
+        const idx = nextList.findIndex(t => {
+          const tk = String(t.toothKey || t.ToothKey || '').trim().toUpperCase();
+          const tn = String(t.toothNumber ?? t.ToothNumber ?? '').trim().toUpperCase();
+          if (isPatientPediatric) {
+            return tk === itemStr;
+          } else {
+            return tk === itemStr || (!isNaN(itemNum) && parseInt(tn, 10) === itemNum);
+          }
+        });
+
+        const toothRecord = {
+          patientId: pid,
+          toothNumber: !isNaN(itemNum) ? itemNum : toothItem,
+          toothKey: String(toothItem),
+          dentitionCategory: isPatientPediatric ? 'Pediatric' : 'Adult',
           status: statusLabel,
           conditionStatus: statusLabel,
           condition: statusLabel,
           cdtCode: cdt_code || (categoryKey === 'tmj' ? 'D7880' : 'D8080'),
           color: conditionColor,
+          conditionColor: conditionColor,
           comment: commentText,
           comments: commentText,
           updatedAt: new Date().toISOString()
         };
+
+        if (idx >= 0) {
+          nextList[idx] = { ...nextList[idx], ...toothRecord };
+        } else {
+          nextList.push(toothRecord);
+        }
       });
+      return nextList;
     });
 
-    // Step B: If current tooth is among target teeth, update toothData
-    const currentMatches = targetTeeth.some(x => String(x).toUpperCase() === String(tKey).toUpperCase());
-    if (currentMatches) {
-      setToothData(prev => ({
-        ...(prev || {}),
-        status: statusLabel,
-        conditionStatus: statusLabel,
-        condition: statusLabel,
-        cdtCode: cdt_code || (categoryKey === 'tmj' ? 'D7880' : 'D8080'),
-        color: conditionColor,
-        comment: commentText,
-        comments: commentText,
-        updatedAt: new Date().toISOString()
-      }));
-    }
+    // Step B: Update toothData immediately for the currently active tooth
+    setToothData(prev => ({
+      ...(prev || {}),
+      status: statusLabel,
+      conditionStatus: statusLabel,
+      condition: statusLabel,
+      cdtCode: cdt_code || (categoryKey === 'tmj' ? 'D7880' : 'D8080'),
+      color: conditionColor,
+      conditionColor: conditionColor,
+      comment: commentText,
+      comments: commentText,
+      updatedAt: new Date().toISOString()
+    }));
 
-    // Step C: Debounce backend DB writes to avoid spamming network
+    // Step C: Debounce backend DB writes to avoid spamming network while dragging sliders
     if (orthoSaveTimeoutRef.current) {
       clearTimeout(orthoSaveTimeoutRef.current);
     }
 
-    orthoSaveTimeoutRef.current = setTimeout(async () => {
+    const executeDbSave = async () => {
+      pendingOrthoSaveRef.current = null;
       const storedDoc = localStorage.getItem('doctor');
       const docObj = storedDoc ? JSON.parse(storedDoc) : null;
       const docId = docObj?.doctorID || docObj?.DoctorID || 2;
 
-      const dbUpdates = targetTeeth.map(tNum => ({
-        toothNumber: tNum,
+      const dbUpdates = targetTeeth.map(tN => ({
+        toothNumber: tN,
         conditionStatus: statusLabel,
         cdtCode: cdt_code || (categoryKey === 'tmj' ? 'D7880' : 'D8080'),
         color: conditionColor,
@@ -832,15 +898,7 @@ export default function ToothDetailPage() {
 
       // 2. Persist to DiagnosticAssessments Table in Database with merged JSON
       try {
-        let mergedJson = JSON.stringify(assessmentData);
-        try {
-          const cached = localStorage.getItem(`dentia_diagnostic_assessment_${pid}`);
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            mergedJson = JSON.stringify({ ...parsed, ...assessmentData, suite_category: categoryKey, [categoryKey]: assessmentData });
-          }
-        } catch (e) {}
-
+        let mergedJson = JSON.stringify(mergedAssessment);
         const diagPayload = {
           doctorId: docId,
           suiteCategory: categoryKey,
@@ -860,7 +918,7 @@ export default function ToothDetailPage() {
           console.warn(`⚠️ [ToothDetailPage:TMJ] Diagnostic assessment response status:`, diagRes.status);
         }
       } catch (diagErr) {
-        console.warn("[ToothDetailPage:TMJ] Could not save to DiagnosticAssessments table:", diagErr);
+        console.error("[ToothDetailPage:TMJ] Error saving assessment to DB table:", diagErr);
       }
 
       // 3. Add Clinical Log entry
@@ -878,7 +936,14 @@ export default function ToothDetailPage() {
 
       setToast({ visible: true, message: `Saved ${statusLabel} to Patient Record & Teeth [${targetTeeth.join(', ')}]` });
       setTimeout(() => setToast({ visible: false, message: '' }), 3000);
-    }, 350);
+    };
+
+    pendingOrthoSaveRef.current = executeDbSave;
+    if (assessmentData.isManualSave) {
+      executeDbSave();
+    } else {
+      orthoSaveTimeoutRef.current = setTimeout(executeDbSave, 300);
+    }
   };
 
   // Navigation handlers
