@@ -2111,11 +2111,35 @@ export default function PatientDirectory() {
                 </div>
             )}
 
-            {/* Floating Toast Notification */}
+            {/* Floating Toast Notification (Top Right Corner - UI/UX Optimized) */}
             {toast.visible && (
-                <div className="fixed bottom-6 right-6 z-50 animate-bounce-in flex items-center gap-2.5 bg-[#10244B] text-white px-4 py-3 rounded-2xl shadow-2xl border border-light-teal/30">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                    <span className="text-xs font-bold font-sans">{toast.message}</span>
+                <div 
+                    role="status"
+                    aria-live="polite"
+                    className={`fixed top-24 right-6 sm:right-8 z-[100] animate-bounce-in flex items-center gap-3 bg-[#10244B]/95 backdrop-blur-md text-white pl-4 pr-3 py-3 rounded-2xl shadow-[0_20px_50px_rgba(16,36,75,0.35)] border ${
+                        toast.type === 'error' 
+                            ? 'border-rose-500/50 text-rose-100 ring-1 ring-rose-500/30' 
+                            : toast.type === 'info'
+                            ? 'border-cyan-400/50 text-cyan-100 ring-1 ring-cyan-400/30'
+                            : 'border-emerald-500/50 text-emerald-50 ring-1 ring-emerald-500/30'
+                    }`}
+                >
+                    {toast.type === 'error' ? (
+                        <ShieldAlert className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                    ) : toast.type === 'info' ? (
+                        <Sparkles className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                    ) : (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                    )}
+                    <span className="text-xs font-bold font-sans tracking-wide">{toast.message}</span>
+                    <button 
+                        type="button"
+                        onClick={() => setToast({ visible: false, message: '', type: 'success' })}
+                        className="ml-1 text-white/50 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
+                        title="Dismiss notification"
+                    >
+                        <X className="w-3.5 h-3.5" />
+                    </button>
                 </div>
             )}
 

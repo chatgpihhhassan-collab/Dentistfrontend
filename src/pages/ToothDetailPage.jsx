@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  FileText, Activity, Layers, CheckCircle2, Stethoscope, RotateCcw, Sparkles
+  FileText, Activity, Layers, CheckCircle2, Stethoscope, RotateCcw, Sparkles, X
 } from 'lucide-react';
 import { handlePrintCompletePatientReport } from '../utils/printReportUtils';
 import { 
@@ -1190,11 +1190,19 @@ export default function ToothDetailPage() {
         isPediatric={isPediatric}
       />
 
-      {/* Floating Toast Notification */}
+      {/* Floating Toast Notification (Top Right Corner) */}
       {toast.visible && (
-        <div className="fixed bottom-6 right-6 bg-[#10244B] text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-bold animate-slide-up z-50 border border-cyan-400/40">
-          <CheckCircle2 className="w-4 h-4 text-cyan-400" />
+        <div className="fixed top-24 right-6 sm:right-8 bg-[#10244B]/95 backdrop-blur-md text-white pl-4 pr-3 py-3 rounded-2xl shadow-[0_20px_50px_rgba(16,36,75,0.35)] flex items-center gap-3 text-xs font-bold animate-slide-up z-[100] border border-cyan-400/40 ring-1 ring-cyan-400/30">
+          <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
           <span>{toast.message}</span>
+          <button 
+            type="button"
+            onClick={() => setToast({ visible: false, message: '' })}
+            className="ml-1 text-white/50 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
+            title="Dismiss notification"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
     </div>
