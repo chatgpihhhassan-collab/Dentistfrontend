@@ -119,13 +119,31 @@ function HeroSlider() {
 
             {/* Slide Content with staggered text animations */}
             <div className="absolute bottom-6 left-6 right-6 bg-white/95 backdrop-blur-md p-6 rounded-2xl shadow-lg border border-white/60 flex flex-col gap-2 z-20">
-              <span
-                className={`text-xs font-bold text-primary-teal uppercase tracking-widest transition-all duration-700 delay-100 ${
-                  isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-                }`}
-              >
-                {slide.badge}
-              </span>
+              <div className="flex items-center justify-between">
+                <span
+                  className={`text-xs font-bold text-primary-teal uppercase tracking-widest transition-all duration-700 delay-100 ${
+                    isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+                  }`}
+                >
+                  {slide.badge}
+                </span>
+
+                {/* Slider progress indicators integrated neatly in the header */}
+                <div className="flex items-center gap-1.5">
+                  {SLIDES.map((_, dotIdx) => (
+                    <button
+                      key={dotIdx}
+                      type="button"
+                      onClick={() => setCurrent(dotIdx)}
+                      aria-label={`Slide ${dotIdx + 1}`}
+                      className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                        dotIdx === current ? 'w-6 bg-primary-teal' : 'w-2 bg-slate-200 hover:bg-slate-300'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+
               <p
                 className={`text-lg font-serif font-bold text-dark-slate transition-all duration-700 delay-300 ${
                   isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
@@ -148,35 +166,19 @@ function HeroSlider() {
 
       {/* Navigation Arrows */}
       <button
+        type="button"
         onClick={handlePrev}
-        className="absolute left-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full bg-white/90 hover:bg-white flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:scale-105"
+        className="absolute left-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full bg-white/90 hover:bg-white flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:scale-105 cursor-pointer"
       >
         <ChevronLeft className="w-5 h-5 text-dark-slate" />
       </button>
       <button
+        type="button"
         onClick={handleNext}
-        className="absolute right-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full bg-white/90 hover:bg-white flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:scale-105"
+        className="absolute right-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full bg-white/90 hover:bg-white flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:scale-105 cursor-pointer"
       >
         <ChevronRight className="w-5 h-5 text-dark-slate" />
       </button>
-
-      {/* Progress/Dot indicators */}
-      <div className="absolute bottom-[110px] left-6 z-30 flex gap-2">
-        {SLIDES.map((_, idx) => (
-          <button
-            key={idx}
-            onClick={() => {
-              if (isTransitioning) return;
-              setIsTransitioning(true);
-              setCurrent(idx);
-              setTimeout(() => setIsTransitioning(false), 800);
-            }}
-            className={`h-1.5 rounded-full transition-all duration-300 ${
-              idx === current ? 'w-8 bg-primary-teal' : 'w-2 bg-white/60'
-            }`}
-          />
-        ))}
-      </div>
     </div>
   );
 }
