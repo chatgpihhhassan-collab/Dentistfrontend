@@ -10,9 +10,12 @@ export const CLINICAL_PRESET_CATEGORIES = [
     icon: '🔴',
     presets: [
       { id: 'Healthy', label: 'Healthy Enamel', color: '#10B981', cdt: 'D0120', icon: '🟢' },
-      { id: 'Caries — O', label: 'Caries (Occlusal)', color: '#EF4444', cdt: 'D2140', icon: '🔴' },
+      { id: 'Caries — O', label: 'Caries (Occlusal Fissure)', color: '#EF4444', cdt: 'D2140', icon: '🔴' },
+      { id: 'Caries — MO', label: 'Caries (Mesio-Occlusal)', color: '#EF4444', cdt: 'D2150', icon: '🔴' },
       { id: 'Caries — DO', label: 'Caries (Disto-Occlusal)', color: '#EF4444', cdt: 'D2150', icon: '🔴' },
-      { id: 'Caries — MOD', label: 'Caries (MOD)', color: '#EF4444', cdt: 'D2160', icon: '🔴' },
+      { id: 'Caries — MOD', label: 'Caries (MOD Cavitation)', color: '#EF4444', cdt: 'D2160', icon: '🔴' },
+      { id: 'Caries — Class V', label: 'Caries (Cervical / Class V)', color: '#EF4444', cdt: 'D2140', icon: '🔴' },
+      { id: 'Caries — Lingual Pit (L)', label: 'Caries (Lingual Pit)', color: '#EF4444', cdt: 'D2140', icon: '🔴' },
       { id: 'Dentin Hypersensitivity', label: 'Sensitivity (No Cavity)', color: '#06B6D4', cdt: 'D9910', icon: '❄️' }
     ]
   },
@@ -178,6 +181,11 @@ export const PRESET_CLINICAL_DESCRIPTIONS = {
     meaning: 'Active demineralization restricted to the occlusal groove system without proximal involvement.',
     clinicalTip: 'Recommended: conservative resin restoration or pit and fissure sealing.'
   },
+  'Caries — MO': {
+    title: 'Mesio-Occlusal Caries (Class II)',
+    meaning: 'Interproximal caries lesion involving the mesial contact surface and occlusal marginal ridge.',
+    clinicalTip: 'Requires sectional matrix band composite (CDT D2392) or amalgam restoration.'
+  },
   'Caries — DO': {
     title: 'Disto-Occlusal Caries (Class II)',
     meaning: 'Interproximal caries lesion involving the distal contact surface and occlusal marginal ridge.',
@@ -187,6 +195,16 @@ export const PRESET_CLINICAL_DESCRIPTIONS = {
     title: 'Mesio-Occlusal-Distal Multi-Surface Caries (Class II)',
     meaning: 'Extensive proximal caries involvement across both mesial and distal contact zones.',
     clinicalTip: 'Evaluate remaining cuspal thickness for full-coverage crown protection.'
+  },
+  'Caries — Class V': {
+    title: 'Cervical / Class V Carious Demineralization',
+    meaning: 'Carious or demineralized lesion along the gingival third margin of the buccal/facial cervical enamel.',
+    clinicalTip: 'Gingival retraction cord and subgingival composite or Glass Ionomer (GIC) recommended.'
+  },
+  'Caries — Lingual Pit (L)': {
+    title: 'Lingual Pit / Cingulum Developmental Caries (Class I)',
+    meaning: 'Focal carious lesion in the lingual/palatal developmental pit of anterior teeth or molars.',
+    clinicalTip: 'Conservative Class I composite restoration preserving sound facial enamel.'
   },
   'Dentin Hypersensitivity': {
     title: 'Dentin Hypersensitivity (Non-Carious)',
@@ -555,7 +573,10 @@ export default function ToothQuickPresetSelector({
     if (cid.includes('Caries')) {
       if (cid.includes('MOD')) return /\bmod\b|mesio-occlusal-distal/i.test(fullText);
       if (cid.includes('DO')) return (/\bdo\b(?!ctor)/i.test(fullText) && !/\bdoctor\b|\bdob\b/i.test(fullText.replace(/\bdo\b/gi, ''))) || fullText.includes('disto-occlusal');
-      if (cid.includes('O')) return (/\b(o)\b|— o\b|occlusal/i.test(fullText) && !/\bmod\b|\bdo\b|\bmo\b/i.test(fullText));
+      if (cid.includes('MO')) return (/\bmo\b/i.test(fullText) && !/\bmolar\b|\bmobility\b/i.test(fullText.replace(/\bmo\b/gi, '')) && !/\bmod\b/i.test(fullText)) || fullText.includes('mesio-occlusal');
+      if (cid.includes('Class V')) return fullText.includes('class v') || fullText.includes('cervical');
+      if (cid.includes('Lingual Pit')) return fullText.includes('lingual pit') || fullText.includes('palatal pit');
+      if (cid.includes('O')) return (/\b(o)\b|— o\b|occlusal/i.test(fullText) && !/\bmod\b|\bdo\b|\bmo\b/i.test(fullText) && !fullText.includes('class v') && !fullText.includes('lingual pit'));
       return fullText.includes('caries') || fullText.includes('decay') || fullText.includes('cavity');
     }
 

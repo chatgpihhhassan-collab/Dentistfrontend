@@ -279,6 +279,18 @@ export const parseSurfacesFromRecord = (statusStr, commentsStr, customSurfaces =
     return result;
   }
 
+  // 2b. Lingual / Palatal Pit Caries -> Lingual only (Class I cingulum/lingual pit)
+  if (/lingual\s*pit|palatal\s*pit/i.test(s) || /lingual\s*pit|palatal\s*pit/i.test(c)) {
+    result.L = conditionLabel;
+    return result;
+  }
+
+  // 2c. Buccal Pit Caries -> Buccal only
+  if (/buccal\s*pit/i.test(s) || /buccal\s*pit/i.test(c)) {
+    result.B = conditionLabel;
+    return result;
+  }
+
   // 3. Multi-Surface Specific Combinations (Checking Status and Clean Diagnosis first)
   // Check MOD: Mesial, Occlusal, Distal
   if (/\bmod\b|mesio-occlusal-distal/i.test(s) || /\bmod\b|mesio-occlusal-distal/i.test(c)) {

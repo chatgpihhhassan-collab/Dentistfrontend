@@ -196,10 +196,16 @@ export default function ToothDetailPage() {
       setActivePaletteItem('GIC');
     } else if (full.includes('composite') || full.includes('resin') || full.includes('broken')) {
       setActivePaletteItem('Composite');
-    } else if (full.includes('caries (mod)') || full.includes('mod')) {
+    } else if (full.includes('caries (mod)') || full.includes('— mod') || (full.includes('mod') && (full.includes('caries') || full.includes('decay') || full.includes('cavitation')))) {
       setActivePaletteItem('Caries (MOD)');
-    } else if (full.includes('caries (do)') || full.includes('do')) {
+    } else if (full.includes('caries (mo)') || full.includes('— mo') || full.includes('mesio-occlusal')) {
+      setActivePaletteItem('Caries (MO)');
+    } else if (full.includes('caries (do)') || full.includes('— do') || full.includes('disto-occlusal')) {
       setActivePaletteItem('Caries (DO)');
+    } else if (full.includes('class v') || full.includes('cervical')) {
+      setActivePaletteItem('Caries (Class V)');
+    } else if (full.includes('lingual pit') || full.includes('palatal pit')) {
+      setActivePaletteItem('Caries (Lingual Pit)');
     } else if (full.includes('caries (o)') || full.includes('caries') || full.includes('decay') || full.includes('cavity') || full.includes('ecc') || full.includes('damaged')) {
       setActivePaletteItem('Caries (O)');
     } else if (s === 'healthy' || s === 'sound' || (!toothData.status && !toothData.comments)) {
@@ -704,6 +710,11 @@ export default function ToothDetailPage() {
   // Ortho & TMJ Diagnostic Assessment Handler (Synchronized across all teeth and patient DB table)
   const handleSaveOrthoTmjAssessment = (assessmentData) => {
     if (!assessmentData) return;
+    // Auto-save disabled for Ortho & TMJ Diagnostic Suite: only commit to chart and DB on explicit manual save
+    if (!assessmentData.isManualSave) {
+      console.log('ℹ️ [ToothDetailPage:OrthoTMJ] Auto-save disabled for Ortho & TMJ Diagnostic Suite. Manual save required.');
+      return;
+    }
     const { 
       suite_category, bite_type, impaction_type, tmj_state, cdt_code, 
       overbite_percent, overjet_mm, open_bite_gap_mm, crossbite_side, wear_severity, 
@@ -939,11 +950,7 @@ export default function ToothDetailPage() {
     };
 
     pendingOrthoSaveRef.current = executeDbSave;
-    if (assessmentData.isManualSave) {
-      executeDbSave();
-    } else {
-      orthoSaveTimeoutRef.current = setTimeout(executeDbSave, 300);
-    }
+    executeDbSave();
   };
 
   // Navigation handlers

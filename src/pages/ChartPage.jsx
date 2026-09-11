@@ -1326,6 +1326,11 @@ export default function ChartPage() {
 
   const handleSaveOrthoTmjAssessment = (assessmentData) => {
     if (!assessmentData) return;
+    // Auto-save disabled for Ortho & TMJ Diagnostic Suite: only commit to chart and DB on explicit manual save
+    if (!assessmentData.isManualSave) {
+      console.log('ℹ️ [ChartPage:OrthoTMJ] Auto-save disabled for Ortho & TMJ Diagnostic Suite. Manual save required.');
+      return;
+    }
     const { suite_category, bite_type, impaction_type, tmj_state, cdt_code, overbite_percent, overjet_mm, open_bite_gap_mm, crossbite_side, wear_severity, angulation_degrees, canine_angulation, nerve_distance_mm, eruption_percent, mouth_opening_mm } = assessmentData;
 
     const pid = parseInt(patientId) || (patient?.patientID ? parseInt(patient.patientID) : 5);
@@ -3431,7 +3436,7 @@ export default function ChartPage() {
         .replace(/\bamalg[au]m\b/g, 'amalgam')
         .replace(/\bcompos[iy]te?\b/g, 'composite')
         .replace(/\bca[rv]it[iy]e?s?\b/g, 'cavity')
-        .replace(/\bca[ry]i+es?\b/g, 'caries')
+        .replace(/\bca[ry]i+(?:es?|ous)\b/g, 'caries')
         .replace(/\bkeeda\b/g, 'keera')
         .replace(/\bscale?ing\b/g, 'scaling')
         .replace(/\bcle+ning\b/g, 'cleaning')
@@ -3590,10 +3595,10 @@ export default function ChartPage() {
         finalColor = '#06B6D4'; cdtCode = 'D1206'; title = 'Fluoride Varnish Application';
       }
       // 6. Restorations & Fillings
-      else if (segNorm.includes('fill') || segNorm.includes('composite') || segNorm.includes('amalgam') || segNorm.includes('gic') || segNorm.includes('resin')) {
+      else if (segNorm.includes('fill') || segNorm.includes('composite') || segNorm.includes('amalgam') || /\bgic\b/i.test(segNorm) || segNorm.includes('glass ionomer') || segNorm.includes('resin')) {
         let mat = 'Composite';
         if (segNorm.includes('amalgam') || segNorm.includes('silver')) mat = 'Amalgam';
-        else if (segNorm.includes('gic') || segNorm.includes('glass ionomer')) mat = 'GIC';
+        else if (/\bgic\b/i.test(segNorm) || segNorm.includes('glass ionomer')) mat = 'GIC';
         
         finalStatus = `Filling — ${mat}${surfaceCode ? ` (${surfaceCode})` : ''}`;
         statusComment = `Restorative: ${surfaceCode ? `${surfaceCode} ` : ''}${mat} restoration placed on Tooth #${toothNum}`;
@@ -3682,7 +3687,7 @@ export default function ChartPage() {
         }
       }
       // 10. Attrition / Bruxism / Erosion / Cracks
-      else if (segNorm.includes('crack') || segNorm.includes('chipped') || segNorm.includes('fractur')) {
+      else if ((segNorm.includes('crack') || segNorm.includes('chipped') || segNorm.includes('fractur')) && !segNorm.includes('extract')) {
         finalStatus = segNorm.includes('chipped') || segNorm.includes('fractur') ? 'Chipped / Fractured Enamel' : 'Cracked Enamel';
         statusComment = `Trauma: Enamel fracture on Tooth #${toothNum}`;
         finalColor = '#F59E0B'; cdtCode = 'D2740'; title = 'Traumatic Fracture';
@@ -3691,11 +3696,18 @@ export default function ChartPage() {
         statusComment = `Pathology: Mechanical wear of enamel cusp tips and exposed dentin on Tooth #${toothNum}`;
         finalColor = '#F59E0B'; cdtCode = 'D9944'; title = 'Bruxism Occlusal Attrition';
       }
-      // 11. Missing / Extracted
+      // 11. Missing / Extracted / Extraction Indicated
       else if (segNorm.includes('miss') || segNorm.includes('extract') || segNorm.includes('exfoliat') || segNorm.includes('absent')) {
-        finalStatus = mode === 'pediatric' ? 'Missing / Exfoliated' : 'Missing / Extracted';
-        statusComment = `Surgical: Clinically absent / extracted tooth socket at Tooth #${toothNum}`;
-        finalColor = '#DC2626'; cdtCode = 'D7140'; title = 'Extracted / Missing Tooth';
+        const isIndicated = segNorm.includes('indicated') || segNorm.includes('planned');
+        if (isIndicated) {
+          finalStatus = 'Extraction Indicated';
+          statusComment = `Oral Surgery: Severely compromised root/crown structure, surgical extraction indicated on Tooth #${toothNum}`;
+          finalColor = '#DC2626'; cdtCode = 'D7210'; title = 'Surgical Extraction Indicated';
+        } else {
+          finalStatus = mode === 'pediatric' ? 'Missing / Exfoliated' : 'Missing / Extracted';
+          statusComment = `Surgical: Clinically absent / extracted tooth socket at Tooth #${toothNum}`;
+          finalColor = '#DC2626'; cdtCode = 'D7140'; title = 'Extracted / Missing Tooth';
+        }
       }
       // 12. Healthy / Sound
       else if (segNorm.includes('health') || segNorm.includes('sound') || segNorm.includes('intact')) {
@@ -4184,7 +4196,7 @@ export default function ChartPage() {
           color = '#64748B';
           cdt = 'D2140';
           actionDesc = 'Restorative: Amalgam restoration placed';
-        } else if (cLower.includes('gic') || cLower.includes('glass ionomer')) {
+        } else if (/\bgic\b/i.test(cLower) || cLower.includes('glass ionomer')) {
           status = 'Filling — GIC';
           color = '#0284C7';
           cdt = 'D2391';
@@ -4466,7 +4478,20 @@ export default function ChartPage() {
       txtLower.includes('cracked enamel') ||
       txtLower.includes('cracked tooth') ||
       txtLower.includes('cyst') ||
-      txtLower.includes('root resorption')
+      txtLower.includes('root resorption') ||
+      txtLower.includes('edge to edge') ||
+      txtLower.includes('edge-to-edge') ||
+      txtLower.includes('myofascial') ||
+      txtLower.includes('masseter') ||
+      txtLower.includes('mandibular deviation') ||
+      txtLower.includes('jaw deviation') ||
+      txtLower.includes('abfraction') ||
+      txtLower.includes('nightguard') ||
+      txtLower.includes('splint') ||
+      txtLower.includes('gluma') ||
+      txtLower.includes('desensitiz') ||
+      txtLower.includes('hypersensitivity') ||
+      txtLower.includes('condensing osteitis')
     );
 
     if (isOrthoTmjQuery) {
@@ -4525,6 +4550,13 @@ export default function ChartPage() {
         code = "CDT D8080";
         teethToHighlight = explicitTeethMatches.length > 0 ? explicitTeethMatches : [7, 8, 9, 10, 23, 24, 25, 26];
       }
+      else if (txtLower.includes('edge to edge') || txtLower.includes('edge-to-edge')) {
+        suite_category = 'occlusion';
+        bite_type = 'crossbite';
+        title = "Edge-to-Edge Anterior Incisal Relationship (Class III Tendency)";
+        code = "CDT D8080";
+        teethToHighlight = explicitTeethMatches.length > 0 ? explicitTeethMatches : [7, 8, 9, 10, 23, 24, 25, 26];
+      }
       // 4. Posterior / Anterior Crossbite (5 templates)
       else if (txtLower.includes('crossbite') || txtLower.includes('palatal expansion') || txtLower.includes('rpe')) {
         suite_category = 'occlusion';
@@ -4547,21 +4579,33 @@ export default function ChartPage() {
         teethToHighlight = explicitTeethMatches.length > 0 ? explicitTeethMatches : [7, 8, 9, 10, 23, 24, 25, 26];
       }
       // 6. Bruxism / Occlusal Wear / Attrition (5 templates)
-      else if (txtLower.includes('bruxism') || txtLower.includes('wear facet') || txtLower.includes('occlusal flattening') || txtLower.includes('clenching') || txtLower.includes('attrition') || txtLower.includes('occlusal splint') || txtLower.includes('d9944') || txtLower.includes('loss of vertical dimension') || txtLower.includes('bite wear') || txtLower.includes('wear pattern') || txtLower.includes('molar wear')) {
+      else if (txtLower.includes('abfraction')) {
         suite_category = 'occlusion';
         bite_type = 'molarwear';
+        title = "Cervical Abfraction Non-Carious Wedge-Shaped Lesion";
+        code = "CDT D9944 / D2335";
+        teethToHighlight = explicitTeethMatches.length > 0 ? explicitTeethMatches : [4, 5, 12, 13, 20, 21, 28, 29];
+      }
+      else if (txtLower.includes('bruxism') || txtLower.includes('nightguard') || txtLower.includes('splint') || txtLower.includes('wear facet') || txtLower.includes('occlusal flattening') || txtLower.includes('clenching') || txtLower.includes('attrition') || txtLower.includes('occlusal splint') || txtLower.includes('d9944') || txtLower.includes('loss of vertical dimension') || txtLower.includes('bite wear') || txtLower.includes('wear pattern') || txtLower.includes('molar wear')) {
+        suite_category = 'occlusion';
+        bite_type = 'molarwear';
+        const isNightguard = txtLower.includes('nightguard') || txtLower.includes('splint');
         const isPed = dentitionMode === 'pediatric' || txtLower.includes('primary');
-        title = isPed
-          ? "Pediatric Bruxism: Primary Molar Occlusal Wear & Attrition Facets"
-          : "Severe Occlusal Attrition & Enamel Loss (Bruxism Clenching)";
+        title = isNightguard
+          ? "Hard Acrylic Occlusal Nightguard Splint Prescribed"
+          : (isPed
+            ? "Pediatric Bruxism: Primary Molar Occlusal Wear & Attrition Facets"
+            : "Severe Occlusal Attrition & Enamel Loss (Bruxism Clenching)");
         code = "CDT D9944";
         teethToHighlight = explicitTeethMatches.length > 0 ? explicitTeethMatches : [3, 14, 19, 30];
       }
       // 7. Non-Carious Adult Pathologies
-      else if (txtLower.includes('sensitivity') || txtLower.includes('exposed root')) {
+      else if (txtLower.includes('sensitivity') || txtLower.includes('hypersensitivity') || txtLower.includes('exposed root') || txtLower.includes('gluma') || txtLower.includes('desensitiz')) {
         suite_category = 'occlusion';
         bite_type = 'molarwear';
-        title = "Cervical Dentin Hypersensitivity & Root Exposure";
+        title = (txtLower.includes('gluma') || txtLower.includes('desensitiz'))
+          ? "Cervical Dentin Desensitization (GLUMA / Fluoride Varnish Application)"
+          : "Cervical Dentin Hypersensitivity & Root Exposure";
         code = "CDT D9910";
         teethToHighlight = explicitTeethMatches.length > 0 ? explicitTeethMatches : [4, 5, 12, 13, 20, 21, 28, 29];
       } else if (txtLower.includes('gum recession') || txtLower.includes('recession')) {
@@ -4584,7 +4628,13 @@ export default function ChartPage() {
         teethToHighlight = explicitTeethMatches.length > 0 ? explicitTeethMatches : [3, 14, 19, 30];
       }
       // 8. Radiographic Pathologies
-      else if (txtLower.includes('bone loss') || txtLower.includes('furcation')) {
+      else if (txtLower.includes('condensing osteitis')) {
+        suite_category = 'radiographic';
+        impaction_type = 'horizontal';
+        title = "Radiographic Condensing Osteitis / Sclerotic Bone at Apex";
+        code = "CDT D0367 / D0220";
+        teethToHighlight = explicitTeethMatches.length > 0 ? explicitTeethMatches : [19, 30];
+      } else if (txtLower.includes('bone loss') || txtLower.includes('furcation')) {
         suite_category = 'radiographic';
         impaction_type = 'horizontal';
         title = "Radiographic Periodontal Bone Loss & Furcation Defect";
@@ -4653,6 +4703,14 @@ export default function ChartPage() {
         } else if (txtLower.includes('crepitus') || txtLower.includes('degenerative')) {
           tmj_state = 'clicking';
           title = "TMJ Crepitus & Degenerative Condylar Head Remodeling";
+          code = "CDT D7880";
+        } else if (txtLower.includes('deviation') || txtLower.includes('mandibular deviation')) {
+          tmj_state = 'clicking';
+          title = "TMJ Disc Derangement with Mandibular Deviation on Opening";
+          code = "CDT D7880";
+        } else if (txtLower.includes('myofascial') || (txtLower.includes('masseter') && !txtLower.includes('hypertrophy'))) {
+          tmj_state = 'clicking';
+          title = "Myofascial Pain Dysfunction (MPD) & Masseter Muscle Tenderness";
           code = "CDT D7880";
         } else if (txtLower.includes('arthralgia') || txtLower.includes('hypertonicity') || txtLower.includes('tenderness')) {
           tmj_state = 'clicking';
@@ -4987,7 +5045,7 @@ export default function ChartPage() {
       .replace(/\bamalg[au]m\b/g, 'amalgam')
       .replace(/\bcompos[iy]te?\b/g, 'composite')
       .replace(/\bca[rv]it[iy]e?s?\b/g, 'cavity')
-      .replace(/\bca[ry]i+es?\b/g, 'caries')
+      .replace(/\bca[ry]i+(?:es?|ous)\b/g, 'caries')
       .replace(/\bkeeda\b/g, 'keera')
       .replace(/\bscale?ing\b/g, 'scaling')
       .replace(/\bcle+ning\b/g, 'cleaning')
@@ -5070,7 +5128,8 @@ export default function ChartPage() {
       normalizedText.includes('fiil') || 
       normalizedText.includes('composite') || 
       normalizedText.includes('amalgam') || 
-      normalizedText.includes('gic') ||
+      /\bgic\b/i.test(normalizedText) ||
+      normalizedText.includes('glass ionomer') ||
       normalizedText.includes('damag') || 
       normalizedText.includes('decay') || 
       normalizedText.includes('caries') || 
@@ -5199,10 +5258,10 @@ export default function ChartPage() {
       } else if (normalizedText.includes('inlay')) {
         finalStatus = `Filling — Composite Inlay${surfaceCode ? ` (${surfaceCode})` : ''}`;
         statusComment = `Restorative: Precision composite inlay across ${surfaceCode || 'MOD'} on Tooth #${toothNum}`;
-      } else if (normalizedText.includes('fill') || normalizedText.includes('composite') || normalizedText.includes('amalgam') || normalizedText.includes('gic') || normalizedText.includes('resin') || normalizedText.includes('food impaction') || normalizedText.includes('food trapping') || normalizedText.includes('open contact') || normalizedText.includes('food lodgement')) {
+      } else if (normalizedText.includes('fill') || normalizedText.includes('composite') || normalizedText.includes('amalgam') || /\bgic\b/i.test(normalizedText) || normalizedText.includes('glass ionomer') || normalizedText.includes('resin') || normalizedText.includes('food impaction') || normalizedText.includes('food trapping') || normalizedText.includes('open contact') || normalizedText.includes('food lodgement')) {
         let mat = 'Composite';
         if (normalizedText.includes('amalgam') || normalizedText.includes('silver')) mat = 'Amalgam';
-        else if (normalizedText.includes('gic') || normalizedText.includes('glass ionomer')) mat = 'GIC';
+        else if (/\bgic\b/i.test(normalizedText) || normalizedText.includes('glass ionomer')) mat = 'GIC';
         else if (normalizedText.includes('gold')) mat = 'Gold Inlay';
         
         const isFoodImpaction = normalizedText.includes('food impaction') || normalizedText.includes('food trapping') || normalizedText.includes('open contact') || normalizedText.includes('food lodgement') || normalizedText.includes('interproximal gap');
@@ -5289,7 +5348,7 @@ export default function ChartPage() {
         let impDir = normalizedText.includes('horizontal') ? 'Horizontal' : normalizedText.includes('mesioangular') ? 'Mesioangular' : normalizedText.includes('distoangular') ? 'Distoangular' : 'Vertical';
         finalStatus = `Impacted Tooth (${impDir})`;
         statusComment = `Oral Surgery: ${impDir} bony impaction trajectory diagnosed on Tooth #${toothNum}`;
-      } else if (normalizedText.includes('extraction indicated') || normalizedText.includes('planned for surgical extraction')) {
+      } else if ((normalizedText.includes('extract') || normalizedText.includes('extraction')) && (normalizedText.includes('indicated') || normalizedText.includes('planned') || normalizedText.includes('surgical extraction'))) {
         finalStatus = 'Extraction Indicated';
         statusComment = `Oral Surgery: Severely compromised root/crown structure, surgical extraction indicated on Tooth #${toothNum}`;
       } else if (normalizedText.includes('miss') || normalizedText.includes('extract') || normalizedText.includes('exfoliat')) {
@@ -5306,19 +5365,21 @@ export default function ChartPage() {
         statusComment = `Prosthodontic: Full coverage ${crownType} crown restored on Tooth #${toothNum}`;
       } 
       // 9. Pathology / Caries
-      else if (normalizedText.includes('damag') || normalizedText.includes('decay') || normalizedText.includes('caries') || normalizedText.includes('cavity') || normalizedText.includes('cavitation') || normalizedText.includes('keera') || normalizedText.includes('icdas')) {
+      else if (normalizedText.includes('damag') || normalizedText.includes('decay') || normalizedText.includes('caries') || normalizedText.includes('cavity') || normalizedText.includes('cavitation') || normalizedText.includes('keera') || normalizedText.includes('icdas') || normalizedText.includes('recurrent') || normalizedText.includes('breakdown')) {
         let cariesLoc = surfaceCode ? `${surfaceCode}` : 'O';
         if (normalizedText.includes('lingual pit') || normalizedText.includes('palatal pit')) cariesLoc = 'Lingual Pit (L)';
         else if (normalizedText.includes('buccal pit')) cariesLoc = 'Buccal Pit (B)';
         else if (normalizedText.includes('cervical') || normalizedText.includes('class v')) cariesLoc = 'Class V';
         else if (surfaceCode === 'DO' || normalizedText.includes('disto-occlusal')) cariesLoc = 'DO';
-        else if (surfaceCode === 'MO' || normalizedText.includes('mesio-occlusal')) cariesLoc = 'MO';
+        else if (surfaceCode === 'MO' || normalizedText.includes('mesio-occlusal') || normalizedText.includes('mesial')) cariesLoc = 'MO';
         else if (surfaceCode === 'MOD' || normalizedText.includes('mesio-occlusal-distal')) cariesLoc = 'MOD';
         else if (surfaceCode === 'O' || normalizedText.includes('occlusal') || normalizedText.includes('fissure')) cariesLoc = 'O';
 
         finalStatus = `Caries — ${cariesLoc}`;
         
-        if (normalizedText.includes('fissure') || cariesLoc === 'O') {
+        if (normalizedText.includes('recurrent') || normalizedText.includes('breakdown')) {
+          statusComment = `Pathology: Recurrent marginal caries breakdown under existing restoration on Tooth #${toothNum}`;
+        } else if (normalizedText.includes('fissure') || cariesLoc === 'O') {
           statusComment = `Pathology: Active occlusal fissure caries with deep enamel & dentin demineralization on Tooth #${toothNum}`;
         } else if (normalizedText.includes('interproximal') || cariesLoc === 'DO' || cariesLoc === 'MO' || cariesLoc === 'MOD') {
           statusComment = `Pathology: ${cariesLoc} interproximal caries cavitation with marginal ridge demineralization on Tooth #${toothNum}`;
@@ -7154,6 +7215,18 @@ export default function ChartPage() {
                         <ToothDetailAllIcon className="w-4.5 h-4.5 text-cyan-200 group-hover:scale-110 transition-transform" />
                       </button>
 
+                      {/* Clinical Voice & Charting Guidelines Manual Button (Opens in New Tab) */}
+                      <button
+                        type="button"
+                        onClick={() => window.open('/clinical-guide', '_blank')}
+                        className="text-[10.5px] font-black bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-xl border border-indigo-200 flex items-center gap-1.5 transition-all cursor-pointer shadow-xs group shrink-0"
+                        title="Open Clinical Voice & Charting Guidelines in a new tab"
+                      >
+                        <span className="text-sm">📖</span>
+                        <span>Clinical Guide</span>
+                        <span className="text-[10px] text-indigo-400 group-hover:text-indigo-600 font-bold">↗</span>
+                      </button>
+
                       {/* Unique Quick Launcher: Ortho, Occlusion, Wisdom Impaction & TMJ Diagnostic Suite */}
                       <button
                         type="button"
@@ -7949,7 +8022,7 @@ export default function ChartPage() {
                         return full.includes('decay') || full.includes('caries') || full.includes('cavity') || full.includes('keera') || full.includes('carious') || full.includes('ecc');
                       }
                       if (toothFilterCategory === 'restorative') {
-                        return full.includes('fill') || full.includes('composite') || full.includes('amalgam') || full.includes('gic') || full.includes('sealant') || full.includes('inlay') || full.includes('onlay') || full.includes('restoration');
+                        return full.includes('fill') || full.includes('composite') || full.includes('amalgam') || /\bgic\b/i.test(full) || full.includes('glass ionomer') || full.includes('sealant') || full.includes('inlay') || full.includes('onlay') || full.includes('restoration');
                       }
                       if (toothFilterCategory === 'rct') {
                         return full.includes('canal') || full.includes('rct') || full.includes('pulpitis') || full.includes('apical') || full.includes('abscess') || full.includes('endo') || full.includes('pulpotomy') || full.includes('mta');
@@ -8111,7 +8184,7 @@ export default function ChartPage() {
                                   badgeBg = 'bg-indigo-50 text-indigo-700 border-indigo-200';
                                   accentBorder = 'border-l-indigo-500';
                                   statusDot = 'bg-indigo-500';
-                                } else if (sLow.includes('fill') || sLow.includes('composite') || sLow.includes('amalgam') || sLow.includes('gic')) {
+                                } else if (sLow.includes('fill') || sLow.includes('composite') || sLow.includes('amalgam') || /\bgic\b/i.test(sLow) || sLow.includes('glass ionomer')) {
                                   badgeBg = 'bg-cyan-50 text-cyan-800 border-cyan-200';
                                   accentBorder = 'border-l-cyan-500';
                                   statusDot = 'bg-cyan-500';
@@ -8320,7 +8393,7 @@ export default function ChartPage() {
                                     <span>Specialty: {(() => {
                                       const s = (editingToothData.status || '').toLowerCase();
                                       if (s.includes('caries') || s.includes('decay') || s.includes('cavity') || s.includes('fractur')) return 'Pathology';
-                                      if (s.includes('fill') || s.includes('composite') || s.includes('amalgam') || s.includes('gic')) return 'Restorative';
+                                      if (s.includes('fill') || s.includes('composite') || s.includes('amalgam') || /\bgic\b/i.test(s) || s.includes('glass ionomer')) return 'Restorative';
                                       if (s.includes('rct') || s.includes('canal') || s.includes('pulpitis')) return 'Endodontics';
                                       if (s.includes('implant')) return 'Implantology';
                                       if (s.includes('bracket') || s.includes('orthodontic') || s.includes('rotat')) return 'Orthodontics';
@@ -8781,6 +8854,16 @@ export default function ChartPage() {
                         AI Notes
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => window.open('/clinical-guide', '_blank')}
+                      className="text-[9.5px] bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-2 py-1 rounded-xl font-black border border-indigo-200/80 transition-colors shadow-2xs cursor-pointer flex items-center gap-1 group shrink-0"
+                      title="Open Voice & Manual Charting Guide in a new tab"
+                    >
+                      <span>📖</span>
+                      <span>Guide</span>
+                      <span className="text-[8px] opacity-70 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform">↗</span>
+                    </button>
                     <button 
                       type="button"
                       onClick={() => setIsMicActive(!isMicActive)}

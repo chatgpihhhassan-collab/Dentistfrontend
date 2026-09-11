@@ -78,35 +78,27 @@ export default function ImpactedTeethXRayVisualizer({
     else if (typeId === 'mesioangular') targetAngulation = 45;
     else if (typeId === 'canine') targetAngulation = canineAngulation;
     setAngulationDegrees(targetAngulation);
-
-    notifyAssessmentChange({
-      impaction_type: typeId,
-      angulation_degrees: targetAngulation
-    });
+    // Auto-save disabled; manual save button required to persist to patient record
   };
 
   const handleAngulationChange = (val) => {
     const num = parseInt(val, 10);
     setAngulationDegrees(num);
-    notifyAssessmentChange({ angulation_degrees: num });
   };
 
   const handleNerveDistanceChange = (val) => {
     const num = parseFloat(val);
     setNerveDistanceMm(num);
-    notifyAssessmentChange({ nerve_distance_mm: num });
   };
 
   const handleCanineAngulationChange = (val) => {
     const num = parseInt(val, 10);
     setCanineAngulation(num);
-    notifyAssessmentChange({ canine_angulation: num });
   };
 
   const handleEruptionPercentChange = (val) => {
     const num = parseInt(val, 10);
     setEruptionCoveragePct(num);
-    notifyAssessmentChange({ eruption_percent: num });
   };
 
   const handleSaveToPatientRecord = () => {

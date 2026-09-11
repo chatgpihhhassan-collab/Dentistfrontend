@@ -55,6 +55,16 @@ export default function ToothDetailHeader({
           </div>
 
           <button
+            onClick={() => window.open('/clinical-guide', '_blank')}
+            title="Open Clinical Voice & Charting Guidelines in a new tab"
+            className="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-black transition-all cursor-pointer shadow-2xs flex items-center gap-1.5 group"
+          >
+            <span>📖</span>
+            <span className="hidden md:inline">Guidelines</span>
+            <ExternalLink className="w-3 h-3 text-indigo-400 group-hover:text-indigo-600 transition-colors" />
+          </button>
+
+          <button
             onClick={handleOpenAllTeeth}
             title="Open Tooth All Pages"
             className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-white border border-light-teal/40 hover:bg-[#EFF6FF] text-[#10244B] transition-all cursor-pointer shadow-2xs flex items-center gap-1.5 group"

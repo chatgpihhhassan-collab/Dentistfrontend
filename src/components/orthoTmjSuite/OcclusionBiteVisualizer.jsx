@@ -93,19 +93,7 @@ export default function OcclusionBiteVisualizer({
     setSelectedBiteType(biteId);
     const newCdt = biteId === 'molarwear' ? 'D9944' : 'D8080';
     setCdtCode(newCdt);
-
-    if (onSaveAssessment) {
-      onSaveAssessment({
-        suite_category: 'occlusion',
-        bite_type: biteId,
-        overbite_percent: overbitePercent,
-        overjet_mm: overjetMm,
-        open_bite_gap_mm: openBiteGapMm,
-        crossbite_side: crossbiteSide,
-        wear_severity: wearSeverity,
-        cdt_code: newCdt
-      });
-    }
+    // Auto-save disabled on selection; manual save button required to persist to patient record
   };
 
   const handleSaveToPatientRecord = () => {

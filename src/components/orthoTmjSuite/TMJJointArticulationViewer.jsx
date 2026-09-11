@@ -59,7 +59,7 @@ export default function TMJJointArticulationViewer({
     }
   };
 
-  // Handle Tab Change with Intelligent Physiological Snap
+  // Handle Tab Change with Intelligent Physiological Snap (UI simulation only, auto-save disabled)
   const handleSelectJointState = (stateId) => {
     setSelectedJointState(stateId);
     let targetOpening = mouthOpeningMm;
@@ -71,23 +71,15 @@ export default function TMJJointArticulationViewer({
       targetOpening = 24.0;
     }
     setMouthOpeningMm(targetOpening);
-    commitAssessment(stateId, targetOpening);
   };
 
-  // Ultra-Smooth 60fps Slider Dragging (No Main Thread Lockup)
+  // Ultra-Smooth 60fps Slider Dragging (Simulation only, auto-save disabled)
   const handleOpeningChange = (val) => {
     setMouthOpeningMm(val);
-
-    // Debounced background auto-save after user stops sliding for 400ms
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    debounceTimerRef.current = setTimeout(() => {
-      commitAssessment(selectedJointState, val);
-    }, 400);
   };
 
   const handleSliderRelease = () => {
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    commitAssessment(selectedJointState, mouthOpeningMm);
+    // Slider released: keeps dynamic position, auto-save disabled
   };
 
   const jointStates = [
