@@ -6215,8 +6215,8 @@ export default function ChartPage() {
                   {/* Active AI Model Status Pill */}
                   <div 
                     onClick={() => setIsEngineModalOpen(true)}
-                    className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10.5px] font-black px-3 py-1.5 rounded-xl shadow-2xs border border-emerald-300 hover:border-emerald-400 cursor-pointer transition-all duration-200 group"
-                    title="Click to view Active AI Model & Engine Transparency Diagnostics"
+                    className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black px-2.5 py-1.5 rounded-xl shadow-2xs border border-emerald-300 hover:border-emerald-400 cursor-pointer transition-all duration-200 group shrink-0"
+                    title="Active AI Model: Groq Turbo (~0.5s Latency) • Click for Model Transparency & Diagnostics"
                   >
                     <span className="relative flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -6224,7 +6224,7 @@ export default function ChartPage() {
                     </span>
                     <span className="font-extrabold flex items-center gap-1">
                       <span>⚡</span>
-                      <span>Active AI: {engineDiagnostics?.activeEngine?.provider === 'Groq Cloud' ? 'Groq Turbo (0.5s)' : (engineDiagnostics?.activeEngine?.badge || 'Groq Turbo')}</span>
+                      <span>Groq Turbo</span>
                     </span>
                     <ChevronDown className="w-3 h-3 text-emerald-600 group-hover:translate-y-0.5 transition-transform" />
                   </div>
@@ -8823,22 +8823,21 @@ export default function ChartPage() {
                           {isMicActive ? 'Voice Dictation' : 'Clinical AI Copilot'}
                         </h3>
                       </div>
-                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <div className="flex items-center gap-1.5 mt-0.5">
                         <button
                           type="button"
                           onClick={() => setIsEngineModalOpen(true)}
-                          className="inline-flex items-center gap-1 text-[9px] font-black text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300 transition-colors shadow-2xs cursor-pointer group"
-                          title="Click to view Active AI Model & Diagnostics"
+                          className="inline-flex items-center gap-1 text-[9.5px] font-black text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300 transition-colors shadow-2xs cursor-pointer group shrink-0"
+                          title="Active AI Model: Groq Turbo (qwen/qwen3.8-27b • 0.5s) • Click for Diagnostics"
                         >
                           <span className="relative flex h-1.5 w-1.5">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
                           </span>
-                          <span>⚡ Active: {engineDiagnostics?.activeEngine?.provider === 'Groq Cloud' ? 'Groq Turbo (qwen/qwen3.8-27b)' : (engineDiagnostics?.activeEngine?.badge || 'Groq Turbo')}</span>
+                          <span>⚡ Groq Turbo</span>
                         </button>
-                        <span className="text-[8.5px] text-slate-500 font-semibold flex items-center gap-1">
-                          <span>• Gemini: <strong className="text-slate-600">Standby</strong></span>
-                          <span>• Local: <strong className="text-purple-700">💤 Asleep (0MB)</strong></span>
+                        <span className="text-[8.5px] text-slate-400 font-semibold truncate" title="Gemini 2.5 Flash on automatic failover standby">
+                          • Gemini Standby
                         </span>
                       </div>
                     </div>
@@ -9113,14 +9112,15 @@ export default function ChartPage() {
                             <button
                               type="button"
                               onClick={() => setIsEngineModalOpen(true)}
-                              className="text-[9px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all"
-                              title="Click to inspect active model & failover telemetry"
+                              className="text-[9.5px] font-black px-2.5 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shadow-2xs cursor-pointer transition-all shrink-0"
+                              title="Active: Groq Turbo (0.5s Latency • 0 MB Server Load) • Click to inspect model telemetry"
                             >
                               <span className="relative flex h-1.5 w-1.5">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
                               </span>
-                              <span>⚡ Active: <strong>Groq Turbo</strong> (0.5s Latency • 0 MB Server Load)</span>
+                              <span>⚡ Groq Turbo</span>
+                              <span className="text-[8.5px] font-bold text-emerald-600/80 bg-emerald-100/70 px-1 rounded">0.5s</span>
                             </button>
                           </div>
 
