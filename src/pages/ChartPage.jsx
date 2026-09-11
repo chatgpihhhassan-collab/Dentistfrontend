@@ -8944,7 +8944,7 @@ export default function ChartPage() {
 
             {/* Dynamic UI Switching based on Mic / Voice Assistant activation */}
             {isMicActive ? (
-              <div className="flex-1 flex flex-col justify-between space-y-4 overflow-y-auto min-h-0 pr-1 max-h-[calc(100vh-270px)]">
+              <div className="flex-1 flex flex-col justify-between space-y-4 overflow-y-auto overflow-x-hidden modern-scrollbar min-h-0 pr-1 max-h-[calc(100vh-270px)]">
                 
                 {/* 1. Live Recording State & Dynamic Equalizer Waveform & Live Text Stream */}
                 <div className="bg-[#F8FAFC] border border-light-teal/50 p-5 rounded-3xl flex flex-col items-center justify-center text-center space-y-4 shadow-sm">
@@ -9047,7 +9047,7 @@ export default function ChartPage() {
                 )}
 
                 {/* 4. Clinician Missing Points Display (7-Point Checklist) */}
-                <div className="bg-white border border-[#EAF0FC] p-4 rounded-3xl space-y-2.5 flex-grow overflow-y-auto max-h-[250px] no-scrollbar shadow-xs">
+                <div className="bg-white border border-[#EAF0FC] p-4 rounded-3xl space-y-2.5 flex-grow overflow-y-auto overflow-x-hidden max-h-[250px] modern-scrollbar shadow-xs">
                   <div className="flex items-center justify-between border-b border-light-teal/20 pb-2">
                     <span className="text-[9.5px] font-black text-dark-slate uppercase tracking-wider">Omission Compliance Checklist</span>
                     <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full transition-all duration-300 ${
@@ -9088,23 +9088,23 @@ export default function ChartPage() {
             ) : (
               // DEFAULT CHAT LEDGER MODE
               <div className="flex-1 flex flex-col justify-between overflow-hidden min-h-0">
-                <div ref={chatScrollContainerRef} className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0 max-h-[calc(100vh-270px)]">
+                <div ref={chatScrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden modern-scrollbar p-3 space-y-3 min-h-0 max-h-[calc(100vh-270px)]">
                   {messages.map((m) => {
                     if (m.type === 'welcome_card') {
                       const age = calculatePatientAge(patient?.dob);
                       return (
-                        <div key={m.id} className="bg-gradient-to-br from-blue-50/70 via-white to-indigo-50/50 border border-blue-200/70 rounded-2xl p-3.5 shadow-2xs space-y-2.5 animate-fade-in text-slate-800">
+                        <div key={m.id} className="bg-gradient-to-br from-blue-50/70 via-white to-indigo-50/50 border border-blue-200/70 rounded-2xl p-3.5 shadow-2xs space-y-2.5 animate-fade-in text-slate-800 min-w-0 max-w-full">
                           {/* Patient Header */}
-                          <div className="flex items-center justify-between border-b border-blue-100 pb-2">
-                            <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-xs flex items-center justify-center shadow-xs">
+                          <div className="flex items-center justify-between border-b border-blue-100 pb-2 gap-2 min-w-0">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-xs flex items-center justify-center shadow-xs shrink-0">
                                 {patient?.firstName ? patient.firstName.charAt(0).toUpperCase() : 'P'}
                               </div>
-                              <div>
-                                <h4 className="font-black text-xs text-[#10244B] leading-tight">
+                              <div className="min-w-0 flex-1">
+                                <h4 className="font-black text-xs text-[#10244B] leading-tight truncate">
                                   {patient?.firstName ? `${patient.firstName} ${patient.lastName || ''}` : 'Patient Chart'}
                                 </h4>
-                                <p className="text-[10px] font-bold text-slate-500">
+                                <p className="text-[10px] font-bold text-slate-500 truncate">
                                   {age !== null ? `${age} Yrs` : 'Pediatric'} • {patient?.gender || 'Patient'} • ID #{patient?.patientID || patientId}
                                 </p>
                               </div>
@@ -9112,7 +9112,7 @@ export default function ChartPage() {
                             <button
                               type="button"
                               onClick={() => setIsEngineModalOpen(true)}
-                              className="text-[9.5px] font-black px-2.5 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shadow-2xs cursor-pointer transition-all shrink-0"
+                              className="text-[9.5px] font-black px-2.5 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shadow-2xs cursor-pointer transition-all shrink-0 whitespace-nowrap"
                               title="Active: Groq Turbo (0.5s Latency • 0 MB Server Load) • Click to inspect model telemetry"
                             >
                               <span className="relative flex h-1.5 w-1.5">
@@ -9126,23 +9126,23 @@ export default function ChartPage() {
 
                           {/* Clinical Quick Guidance */}
                           <div className="space-y-1.5 text-[10.5px] text-slate-700">
-                            <div className="flex items-start gap-2 p-2 rounded-xl bg-white/90 border border-blue-100/80 shadow-2xs">
-                              <span className="text-base leading-none mt-0.5">🎙️</span>
-                              <div>
+                            <div className="flex items-start gap-2 p-2 rounded-xl bg-white/90 border border-blue-100/80 shadow-2xs min-w-0">
+                              <span className="text-base leading-none mt-0.5 shrink-0">🎙️</span>
+                              <div className="min-w-0 flex-1">
                                 <strong className="text-slate-900 font-bold block text-[10.5px]">Voice Dictation & Auto-Charting:</strong>
                                 <span className="text-slate-600 text-[10px] leading-tight">Speak findings (e.g. <em>"Class II decay on 14, deep overbite 60%"</em>) to auto-update chart.</span>
                               </div>
                             </div>
-                            <div className="flex items-start gap-2 p-2 rounded-xl bg-white/90 border border-blue-100/80 shadow-2xs">
-                              <span className="text-base leading-none mt-0.5">💊</span>
-                              <div>
+                            <div className="flex items-start gap-2 p-2 rounded-xl bg-white/90 border border-blue-100/80 shadow-2xs min-w-0">
+                              <span className="text-base leading-none mt-0.5 shrink-0">💊</span>
+                              <div className="min-w-0 flex-1">
                                 <strong className="text-slate-900 font-bold block text-[10.5px]">Smart Prescriptions:</strong>
                                 <span className="text-slate-600 text-[10px] leading-tight">Say <em>"Augmentin 625mg TDS 5 days"</em> for automated formulary dosage.</span>
                               </div>
                             </div>
-                            <div className="flex items-start gap-2 p-2 rounded-xl bg-white/90 border border-blue-100/80 shadow-2xs">
-                              <span className="text-base leading-none mt-0.5">📋</span>
-                              <div>
+                            <div className="flex items-start gap-2 p-2 rounded-xl bg-white/90 border border-blue-100/80 shadow-2xs min-w-0">
+                              <span className="text-base leading-none mt-0.5 shrink-0">📋</span>
+                              <div className="min-w-0 flex-1">
                                 <strong className="text-slate-900 font-bold block text-[10.5px]">CDT Codes & SOAP Notes:</strong>
                                 <span className="text-slate-600 text-[10px] leading-tight">Generates complete dental SOAP notes and CDT codes automatically.</span>
                               </div>
@@ -9159,36 +9159,39 @@ export default function ChartPage() {
                     }
 
                     const isDoc = m.sender === 'doctor';
+                    const hasRichCard = Boolean(m.type && m.type !== 'text');
                     return (
-                      <div key={m.id} className={`flex items-start gap-2.5 ${isDoc ? 'justify-end' : ''}`}>
+                      <div key={m.id} className={`flex items-start gap-2.5 ${isDoc ? 'justify-end' : ''} min-w-0 max-w-full`}>
                         {!isDoc && (
-                          <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0 shadow-2xs">
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0 shadow-2xs mt-0.5">
                             AI
                           </div>
                         )}
-                        <div className={`p-3 rounded-2xl text-xs max-w-[88%] leading-relaxed ${
+                        <div className={`p-3 rounded-2xl text-xs ${
+                          hasRichCard ? 'w-full max-w-full' : isDoc ? 'max-w-[85%]' : 'max-w-[92%]'
+                        } min-w-0 leading-relaxed ${
                           isDoc 
                             ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-tr-xs font-medium shadow-xs' 
                             : 'bg-white border border-slate-200/90 text-slate-800 rounded-tl-xs font-medium shadow-2xs'
                         }`}>
-                          <p className="font-medium whitespace-pre-wrap">{m.text}</p>
+                          <p className="font-medium whitespace-pre-wrap break-words">{m.text}</p>
                           
                           {/* Rich UI Card: Patient Dossier */}
                           {m.type === 'patient_dossier' && m.cardData?.patient_dossier && (() => {
                             const d = m.cardData.patient_dossier;
                             return (
-                              <div className="mt-2.5 bg-white p-3 rounded-2xl border border-light-teal/50 shadow-sm space-y-2.5 text-dark-slate">
-                                <div className="flex items-center justify-between border-b border-light-teal/30 pb-2">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-7 h-7 rounded-xl bg-[#EAF0FC] text-[#4A7CD2] flex items-center justify-center font-black text-xs">
+                              <div className="mt-2.5 bg-white p-3 rounded-2xl border border-light-teal/50 shadow-sm space-y-2.5 text-dark-slate min-w-0 max-w-full">
+                                <div className="flex items-center justify-between gap-2 border-b border-light-teal/30 pb-2 min-w-0">
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <div className="w-7 h-7 rounded-xl bg-[#EAF0FC] text-[#4A7CD2] flex items-center justify-center font-black text-xs shrink-0">
                                       👤
                                     </div>
-                                    <div>
-                                      <h4 className="font-extrabold text-xs text-[#10244B]">{d.fullName}</h4>
-                                      <p className="text-[10px] text-muted-text">{d.age} Yrs | {d.gender} | ID #{d.patientId}</p>
+                                    <div className="min-w-0 flex-1">
+                                      <h4 className="font-extrabold text-xs text-[#10244B] truncate">{d.fullName}</h4>
+                                      <p className="text-[10px] text-muted-text truncate">{d.age} Yrs | {d.gender} | ID #{d.patientId}</p>
                                     </div>
                                   </div>
-                                  <span className="text-[9px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-300">
+                                  <span className="text-[9px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-300 shrink-0 whitespace-nowrap">
                                     Active Record
                                   </span>
                                 </div>
@@ -9296,21 +9299,21 @@ export default function ChartPage() {
                           {m.type === 'patient_list' && m.cardData?.patients && (() => {
                             const pts = m.cardData.patients;
                             return (
-                              <div className="mt-2.5 bg-white p-3 rounded-2xl border border-light-teal/50 shadow-sm space-y-2 text-dark-slate">
+                              <div className="mt-2.5 bg-white p-3 rounded-2xl border border-light-teal/50 shadow-sm space-y-2 text-dark-slate min-w-0 max-w-full">
                                 <span className="text-[10px] font-black text-[#4A7CD2] uppercase tracking-wider block border-b border-light-teal/30 pb-1">
                                   👥 Patient Directory ({pts.length})
                                 </span>
-                                <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
+                                <div className="space-y-1.5 max-h-[180px] overflow-y-auto modern-scrollbar pr-1">
                                   {pts.map((p, idx) => (
-                                    <div key={idx} className="p-2 bg-[#F8FAFC] border border-light-teal/30 rounded-xl flex items-center justify-between text-[10px]">
-                                      <div>
-                                        <p className="font-extrabold text-[#10244B] text-xs">{p.firstName || p.FirstName} {p.lastName || p.LastName}</p>
-                                        <p className="text-[9px] text-muted-text">{p.gender || p.Gender || 'N/A'} • ID #{p.patientID || p.PatientID}</p>
+                                    <div key={idx} className="p-2 bg-[#F8FAFC] border border-light-teal/30 rounded-xl flex items-center justify-between gap-2 text-[10px] min-w-0">
+                                      <div className="min-w-0 flex-1">
+                                        <p className="font-extrabold text-[#10244B] text-xs truncate">{p.firstName || p.FirstName} {p.lastName || p.LastName}</p>
+                                        <p className="text-[9px] text-muted-text truncate">{p.gender || p.Gender || 'N/A'} • ID #{p.patientID || p.PatientID}</p>
                                       </div>
                                       <button 
                                         type="button" 
                                         onClick={() => navigate(`/chart/${p.patientID || p.PatientID}`)}
-                                        className="bg-[#EAF0FC] hover:bg-[#D5E1F7] text-[#4A7CD2] px-2.5 py-1 rounded-lg font-bold text-[9.5px] transition-colors"
+                                        className="bg-[#EAF0FC] hover:bg-[#D5E1F7] text-[#4A7CD2] px-2.5 py-1 rounded-lg font-bold text-[9.5px] transition-colors shrink-0 whitespace-nowrap"
                                       >
                                         View Chart
                                       </button>
@@ -9325,25 +9328,27 @@ export default function ChartPage() {
                           {m.type === 'multi_tooth_card' && m.cardData && (() => {
                             const data = m.cardData;
                             return (
-                              <div className="mt-3 bg-gradient-to-br from-slate-50 via-blue-50/40 to-indigo-50/60 p-4 rounded-3xl border-2 border-blue-200 shadow-md space-y-3 text-dark-slate animate-zoom-in">
-                                <div className="flex items-center justify-between border-b border-blue-200/80 pb-2.5">
-                                  <div className="flex items-center gap-2.5">
-                                    <div className="w-8 h-8 rounded-xl bg-[#2563EB] text-white flex items-center justify-center font-black text-sm shadow-xs flex-shrink-0">
+                              <div className="mt-3 bg-gradient-to-br from-slate-50 via-blue-50/40 to-indigo-50/60 p-3.5 rounded-3xl border border-blue-200 shadow-sm space-y-3 text-dark-slate animate-zoom-in min-w-0 max-w-full">
+                                <div className="flex items-center justify-between gap-2 border-b border-blue-200/80 pb-2.5 min-w-0">
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black text-sm shadow-xs shrink-0">
                                       📋
                                     </div>
-                                    <div>
-                                      <h4 className="font-black text-xs text-[#10244B]">{data.title}</h4>
-                                      <p className="text-[10.5px] text-[#2563EB] font-bold">
-                                        {data.teethCount} Teeth Successfully Charted & Synchronized
+                                    <div className="min-w-0 flex-1">
+                                      <h4 className="font-black text-xs text-[#10244B] leading-tight truncate" title={data.title}>
+                                        {data.title}
+                                      </h4>
+                                      <p className="text-[10.5px] text-blue-600 font-bold truncate">
+                                        {data.teethCount} {data.teethCount === 1 ? 'Tooth' : 'Teeth'} Charted & Synchronized
                                       </p>
                                     </div>
                                   </div>
-                                  <span className="text-[9.5px] font-black bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full border border-emerald-300 shadow-2xs flex items-center gap-1">
-                                    ✓ SQL Server Synced
+                                  <span className="text-[9.5px] font-black bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-full border border-emerald-300 shadow-2xs flex items-center gap-1 shrink-0 whitespace-nowrap">
+                                    ✓ SQL Synced
                                   </span>
                                 </div>
 
-                                <div className="grid grid-cols-1 gap-2">
+                                <div className="space-y-2 min-w-0">
                                   {data.items.map((item, idx) => (
                                     <div
                                       key={idx}
@@ -9353,40 +9358,57 @@ export default function ChartPage() {
                                           setSelectedJawView(item.toothNum <= 16 ? 'maxilla' : 'mandible');
                                         }
                                       }}
-                                      className="p-2.5 rounded-2xl bg-white border border-slate-200 hover:border-blue-400 hover:shadow-xs transition-all cursor-pointer flex items-center justify-between gap-2"
+                                      className="p-3 rounded-2xl bg-white/95 hover:bg-white border border-slate-200/90 hover:border-blue-400 hover:shadow-xs transition-all cursor-pointer space-y-2 min-w-0 group/tcard"
                                     >
-                                      <div className="flex items-center gap-2.5">
-                                        <div
-                                          className="w-7 h-7 rounded-xl text-white flex items-center justify-center font-black text-xs shadow-2xs flex-shrink-0"
-                                          style={{ backgroundColor: item.finalColor || '#EF4444' }}
-                                        >
-                                          #{item.toothNum}
+                                      {/* Header: Tooth Badge + Title + CDT Code */}
+                                      <div className="flex items-center justify-between gap-2 min-w-0">
+                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                          <div
+                                            className="w-7 h-7 rounded-xl text-white flex items-center justify-center font-black text-xs shadow-2xs shrink-0 group-hover/tcard:scale-105 transition-transform"
+                                            style={{ backgroundColor: item.finalColor || '#EF4444' }}
+                                          >
+                                            #{item.toothNum}
+                                          </div>
+                                          <div className="min-w-0 flex-1">
+                                            <p className="text-xs font-black text-[#10244B] leading-tight truncate" title={item.title}>
+                                              {item.title}
+                                            </p>
+                                          </div>
                                         </div>
-                                        <div>
-                                          <p className="text-xs font-black text-[#10244B] leading-tight">
-                                            {item.title}
-                                          </p>
-                                          <p className="text-[10px] text-slate-500 font-bold">
-                                            {item.statusComment}
-                                          </p>
-                                        </div>
+
+                                        {item.cdtCode && (
+                                          <span className="text-[9px] font-extrabold text-slate-600 bg-slate-100/90 border border-slate-200/80 px-2 py-0.5 rounded-md shrink-0 whitespace-nowrap shadow-2xs">
+                                            CDT: {item.cdtCode}
+                                          </span>
+                                        )}
                                       </div>
 
-                                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                                        <span
-                                          className="text-[9px] font-black px-2 py-0.5 rounded-full border shadow-2xs"
-                                          style={{
-                                            backgroundColor: `${item.finalColor}15`,
-                                            color: item.finalColor,
-                                            borderColor: `${item.finalColor}40`
-                                          }}
-                                        >
-                                          {item.surfaceCode ? `${item.surfaceCode} ` : ''}{item.finalStatus}
-                                        </span>
-                                        <span className="text-[9px] font-bold text-slate-500">
-                                          CDT: {item.cdtCode}
-                                        </span>
-                                      </div>
+                                      {/* Row 2: Condition / Status Badge */}
+                                      {item.finalStatus && (
+                                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                                          <span
+                                            className="inline-flex items-center gap-1.5 text-[9.5px] font-black px-2.5 py-1 rounded-xl border shadow-2xs leading-snug break-words max-w-full"
+                                            style={{
+                                              backgroundColor: `${item.finalColor}15`,
+                                              color: item.finalColor,
+                                              borderColor: `${item.finalColor}45`
+                                            }}
+                                          >
+                                            <span
+                                              className="w-1.5 h-1.5 rounded-full shrink-0"
+                                              style={{ backgroundColor: item.finalColor || '#EF4444' }}
+                                            />
+                                            <span className="break-words">{item.surfaceCode ? `${item.surfaceCode} • ` : ''}{item.finalStatus}</span>
+                                          </span>
+                                        </div>
+                                      )}
+
+                                      {/* Row 3: Status Observation Comment */}
+                                      {item.statusComment && (
+                                        <p className="text-[10px] text-slate-600 font-medium leading-relaxed bg-slate-50/70 p-2 rounded-xl border border-slate-100/80 break-words">
+                                          {item.statusComment}
+                                        </p>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
@@ -9402,21 +9424,21 @@ export default function ChartPage() {
                           {m.type === 'ortho_card' && m.cardData && (() => {
                             const o = m.cardData;
                             return (
-                              <div className="mt-3 bg-gradient-to-br from-blue-50/90 via-indigo-50/60 to-purple-50/80 p-3.5 rounded-2xl border-2 border-blue-300 shadow-md space-y-3 text-dark-slate animate-zoom-in">
-                                <div className="flex items-center justify-between border-b border-blue-200/80 pb-2">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xl">📐</span>
-                                    <div>
-                                      <h4 className="font-black text-xs text-[#10244B]">{o.title}</h4>
-                                      <p className="text-[10px] text-[#2563EB] font-bold">CDT Code: {o.code}</p>
+                              <div className="mt-3 bg-gradient-to-br from-blue-50/90 via-indigo-50/60 to-purple-50/80 p-3.5 rounded-2xl border border-blue-300 shadow-md space-y-3 text-dark-slate animate-zoom-in min-w-0 max-w-full">
+                                <div className="flex items-center justify-between gap-2 border-b border-blue-200/80 pb-2 min-w-0">
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <span className="text-xl shrink-0">📐</span>
+                                    <div className="min-w-0 flex-1">
+                                      <h4 className="font-black text-xs text-[#10244B] truncate">{o.title}</h4>
+                                      <p className="text-[10px] text-[#2563EB] font-bold truncate">CDT Code: {o.code}</p>
                                     </div>
                                   </div>
-                                  <span className="text-[9px] font-black bg-blue-100 text-[#1E40AF] px-2.5 py-0.5 rounded-full border border-blue-200 shadow-2xs">
+                                  <span className="text-[9px] font-black bg-blue-100 text-[#1E40AF] px-2.5 py-0.5 rounded-full border border-blue-200 shadow-2xs shrink-0 whitespace-nowrap">
                                     AI Live Mapped
                                   </span>
                                 </div>
 
-                                <div className="bg-white/90 p-2.5 rounded-xl border border-blue-200 text-xs space-y-1 text-slate-800 shadow-2xs">
+                                <div className="bg-white/90 p-2.5 rounded-xl border border-blue-200 text-xs space-y-1 text-slate-800 shadow-2xs break-words">
                                   <p><strong>Clinical Finding:</strong> {o.query}</p>
                                   {o.overlapPct && <p><strong>Incisal Overlap:</strong> <span className="text-[#2563EB] font-black">{o.overlapPct}% (Deep Bite)</span></p>}
                                   <p><strong>Treatment Indication:</strong> Orthodontic leveling of curve of Spee & arch expansion.</p>
@@ -9443,20 +9465,20 @@ export default function ChartPage() {
                             const shape = DENTAL_COORDS[num]?.shape || 'molar';
 
                             return (
-                              <div className="mt-3 bg-white p-3.5 rounded-2xl border-2 border-blue-200/80 shadow-md space-y-3 text-dark-slate animate-zoom-in">
-                                <div className="flex items-center justify-between border-b border-light-teal/40 pb-2.5">
-                                  <div className="flex items-center gap-2.5">
-                                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-500 text-white flex items-center justify-center font-black text-sm shadow-sm flex-shrink-0">
+                              <div className="mt-3 bg-white p-3.5 rounded-2xl border border-blue-200/80 shadow-md space-y-3 text-dark-slate animate-zoom-in min-w-0 max-w-full">
+                                <div className="flex items-center justify-between gap-2 border-b border-light-teal/40 pb-2.5 min-w-0">
+                                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-500 text-white flex items-center justify-center font-black text-sm shadow-sm shrink-0">
                                       #{num}
                                     </div>
-                                    <div>
-                                      <h4 className="font-extrabold text-xs text-[#10244B] leading-tight">{info.name}</h4>
-                                      <p className="text-[10px] text-muted-text font-bold mt-0.5">
+                                    <div className="min-w-0 flex-1">
+                                      <h4 className="font-extrabold text-xs text-[#10244B] leading-tight truncate">{info.name}</h4>
+                                      <p className="text-[10px] text-muted-text font-bold mt-0.5 truncate">
                                         {info.quad} • FDI #{info.fdi || num}
                                       </p>
                                     </div>
                                   </div>
-                                  <span className={`text-[9px] font-black px-2.5 py-1 rounded-full border shadow-2xs ${
+                                  <span className={`text-[9px] font-black px-2.5 py-1 rounded-full border shadow-2xs shrink-0 whitespace-nowrap ${
                                     status.toLowerCase().includes('decay') || status.toLowerCase().includes('damag')
                                       ? 'bg-rose-50 text-rose-700 border-rose-200'
                                       : status.toLowerCase().includes('canal')
@@ -9560,15 +9582,15 @@ export default function ChartPage() {
                             const numbers = g.teethNumbers || [];
 
                             return (
-                              <div className="mt-3 bg-white p-3.5 rounded-2xl border-2 border-indigo-200/80 shadow-md space-y-3 text-dark-slate animate-zoom-in">
-                                <div className="flex items-center justify-between border-b border-light-teal/40 pb-2">
-                                  <div>
-                                    <h4 className="font-extrabold text-xs text-[#10244B] flex items-center gap-1.5">
-                                      <Sparkles className="w-3.5 h-3.5 text-indigo-600" /> {g.title}
+                              <div className="mt-3 bg-white p-3.5 rounded-2xl border border-indigo-200/80 shadow-md space-y-3 text-dark-slate animate-zoom-in min-w-0 max-w-full">
+                                <div className="flex items-center justify-between gap-2 border-b border-light-teal/40 pb-2 min-w-0">
+                                  <div className="min-w-0 flex-1">
+                                    <h4 className="font-extrabold text-xs text-[#10244B] flex items-center gap-1.5 truncate">
+                                      <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" /> <span className="truncate">{g.title}</span>
                                     </h4>
-                                    <p className="text-[10px] text-muted-text font-bold mt-0.5">{g.subtitle}</p>
+                                    <p className="text-[10px] text-muted-text font-bold mt-0.5 truncate">{g.subtitle}</p>
                                   </div>
-                                  <span className="text-[9.5px] font-black bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full border border-indigo-200 shadow-2xs">
+                                  <span className="text-[9.5px] font-black bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full border border-indigo-200 shadow-2xs shrink-0 whitespace-nowrap">
                                     {numbers.length} Teeth
                                   </span>
                                 </div>
@@ -9613,7 +9635,7 @@ export default function ChartPage() {
                                   </div>
                                 ) : null}
 
-                                <p className="text-[10.5px] text-slate-600 leading-relaxed font-medium bg-[#F8FAFC] p-2.5 rounded-xl border border-light-teal/30 whitespace-pre-line">
+                                <p className="text-[10.5px] text-slate-600 leading-relaxed font-medium bg-[#F8FAFC] p-2.5 rounded-xl border border-light-teal/30 whitespace-pre-line break-words">
                                   {g.explanation}
                                 </p>
 
@@ -9666,13 +9688,13 @@ export default function ChartPage() {
                             const matches = p.matchingTeeth || [];
 
                             return (
-                              <div className="mt-3 bg-white p-3.5 rounded-2xl border-2 border-teal-200/80 shadow-md space-y-3 text-dark-slate animate-zoom-in">
-                                <div className="flex items-center justify-between border-b border-light-teal/40 pb-2">
-                                  <h4 className="font-extrabold text-xs text-[#10244B] flex items-center gap-1.5">
-                                    <Stethoscope className="w-3.5 h-3.5 text-[#4A7CD2]" /> {p.title}
+                              <div className="mt-3 bg-white p-3.5 rounded-2xl border border-teal-200/80 shadow-md space-y-3 text-dark-slate animate-zoom-in min-w-0 max-w-full">
+                                <div className="flex items-center justify-between gap-2 border-b border-light-teal/40 pb-2 min-w-0">
+                                  <h4 className="font-extrabold text-xs text-[#10244B] flex items-center gap-1.5 min-w-0 flex-1 truncate">
+                                    <Stethoscope className="w-3.5 h-3.5 text-[#4A7CD2] shrink-0" /> <span className="truncate">{p.title}</span>
                                   </h4>
                                   {matches.length > 0 && (
-                                    <span className="text-[9px] font-black bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full border border-rose-200">
+                                    <span className="text-[9px] font-black bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full border border-rose-200 shrink-0 whitespace-nowrap">
                                       {matches.length} in Chart
                                     </span>
                                   )}

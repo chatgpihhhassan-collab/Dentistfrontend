@@ -202,6 +202,29 @@ html, body, #root {
     scrollbar-width: none;
 }
 
+/* Sleek Modern UI Scrollbar */
+.modern-scrollbar {
+  overflow-y: auto;
+  overflow-x: hidden !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+}
+.modern-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 0px;
+}
+.modern-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.modern-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+.modern-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.65);
+}
+
 @media (max-width: 1024px) {
     .dental-chart-responsive-wrap {
         width: 100%;
