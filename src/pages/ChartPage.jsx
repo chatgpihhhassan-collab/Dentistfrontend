@@ -17,6 +17,7 @@ import { ToothDetailAllIcon, OdontogramPrintIcon } from '../components/DentalRep
 import OrthoTmjDiagnosticSuite from '../components/orthoTmjSuite/OrthoTmjDiagnosticSuite';
 import ClinicalActionChips from '../components/chat/ClinicalActionChips';
 import { parseDoctorConversationalIntent, normalizeClinicalSpeech, DENTAL_VOCABULARY } from '../utils/dentalNlpEngine';
+import { preloadJawImages, preloadPatientJawTemplates } from '../utils/jawImagePreloader';
 
 // Real Anatomical Maxilla (Upper Jaw) Coordinate & Rotation Mapping for Empty Jaw Template (Exact 16 Sockets)
 export const MAXILLA_COORDS = {
@@ -1547,6 +1548,9 @@ export default function ChartPage() {
     }
     const docObj = JSON.parse(storedDoc);
     const loggedInDocId = docObj.doctorID || docObj.DoctorID;
+
+    // Speculatively warm/decode jaw arch templates immediately in background
+    preloadJawImages({ immediate: true });
 
     // Run engine diagnostics deferred and non-blocking in the background
     const diagTimer = setTimeout(() => {

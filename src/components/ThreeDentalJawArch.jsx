@@ -109,6 +109,9 @@ export default function ThreeDentalJawArch({
     ? (isMaxilla ? THREE_PRIMARY_MAXILLA_SOCKETS : THREE_PRIMARY_MANDIBLE_SOCKETS)
     : (isMaxilla ? THREE_MAXILLA_SOCKETS : THREE_MANDIBLE_SOCKETS);
   const bgImage = isPediatric
+    ? (isMaxilla ? '/empty_pediatric_maxilla_jaw.webp' : '/empty_pediatric_mandible_jaw.webp')
+    : (isMaxilla ? '/empty_maxilla_jaw.webp' : '/empty_mandible_jaw.webp');
+  const fallbackBgImage = isPediatric
     ? (isMaxilla ? '/empty_pediatric_maxilla_jaw.jpg' : '/empty_pediatric_mandible_jaw.jpg')
     : (isMaxilla ? '/empty_maxilla_jaw.jpg' : '/empty_mandible_jaw.jpg');
   const jawTitle = isPediatric
@@ -1040,14 +1043,25 @@ function createClinicalOverlayCanvas(status, comments, toothNum, isMaxilla) {
   return (
     <div className={`relative w-full aspect-square select-none flex items-center justify-center ${className}`}>
       {/* 1. Empty Jaw Clinical Background Template (Equalized & Calibrated Proportions) */}
-      <img
-        src={bgImage}
-        alt={jawTitle}
-        className={`w-full h-full object-contain filter contrast-105 pointer-events-none absolute inset-0 transition-transform ${
-          isMaxilla ? 'scale-[1.12] -translate-y-1' : 'scale-[1.06] translate-y-0.5'
-        }`}
-        onError={(e) => { e.target.style.display = 'none'; }}
-      />
+      <picture className="contents">
+        <source srcSet={bgImage} type="image/webp" />
+        <img
+          src={fallbackBgImage}
+          alt={jawTitle}
+          loading="eager"
+          decoding="async"
+          className={`w-full h-full object-contain filter contrast-105 pointer-events-none absolute inset-0 transition-transform ${
+            isMaxilla ? 'scale-[1.12] -translate-y-1' : 'scale-[1.06] translate-y-0.5'
+          }`}
+          onError={(e) => {
+            if (e.target.src && !e.target.src.endsWith('.jpg')) {
+              e.target.src = fallbackBgImage;
+            } else {
+              e.target.style.display = 'none';
+            }
+          }}
+        />
+      </picture>
 
       {/* 2. Three.js Canvas Layer (Synchronized 1:1 with Arch Scale) */}
       <div 

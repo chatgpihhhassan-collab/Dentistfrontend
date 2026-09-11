@@ -59,18 +59,30 @@ export default function InteractiveJawArch({
 }) {
   const isMaxilla = jawType === 'maxilla';
   const coordsMap = isMaxilla ? MAXILLA_COORDINATES : MANDIBLE_COORDINATES;
-  const bgImage = customImage || (isMaxilla ? '/empty_maxilla_jaw.jpg' : '/empty_mandible_jaw.jpg');
+  const webpImage = customImage || (isMaxilla ? '/empty_maxilla_jaw.webp' : '/empty_mandible_jaw.webp');
+  const fallbackBgImage = customImage || (isMaxilla ? '/empty_maxilla_jaw.jpg' : '/empty_mandible_jaw.jpg');
   const jawTitle = isMaxilla ? 'MAXILLA (UPPER JAW - 16 TEETH)' : 'MANDIBLE (LOWER JAW - 16 TEETH)';
 
   return (
     <div className={`relative w-full aspect-square max-w-[440px] mx-auto rounded-3xl overflow-hidden border border-slate-200/70 bg-white shadow-xs select-none p-2 ${className}`}>
       {/* 1. Background Empty Jaw Template */}
-      <img
-        src={bgImage}
-        alt={jawTitle}
-        className="w-full h-full object-contain filter contrast-105 pointer-events-none"
-        onError={(e) => { e.target.style.display = 'none'; }}
-      />
+      <picture className="contents">
+        {!customImage && <source srcSet={webpImage} type="image/webp" />}
+        <img
+          src={fallbackBgImage}
+          alt={jawTitle}
+          loading="eager"
+          decoding="async"
+          className="w-full h-full object-contain filter contrast-105 pointer-events-none"
+          onError={(e) => {
+            if (e.target.src && !e.target.src.endsWith('.jpg')) {
+              e.target.src = fallbackBgImage;
+            } else {
+              e.target.style.display = 'none';
+            }
+          }}
+        />
+      </picture>
 
       {/* 2. Badge Indicator */}
       <div className="absolute top-2.5 left-3.5 z-20 bg-white/90 backdrop-blur-xs px-2.5 py-0.5 rounded-lg border border-slate-200 shadow-2xs pointer-events-none">

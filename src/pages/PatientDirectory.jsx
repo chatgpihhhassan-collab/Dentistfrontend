@@ -10,6 +10,7 @@ import {
 import { jsPDF } from 'jspdf';
 import '../index.css';
 import { getPatientAvatarUrl, validateImageFile, fileToDataUrl } from '../utils/avatarUtils';
+import { preloadJawImages, preloadPatientJawTemplates } from '../utils/jawImagePreloader';
 
 export default function PatientDirectory() {
     const [patients, setPatients] = useState([]);
@@ -287,7 +288,13 @@ export default function PatientDirectory() {
     };
 
     useEffect(() => {
+        // Speculatively preload jaw arch templates in background during idle moments
+        const preloadTimer = setTimeout(() => {
+            preloadJawImages();
+        }, 1200);
+
         return () => {
+            clearTimeout(preloadTimer);
             if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
         };
     }, []);
@@ -494,6 +501,12 @@ export default function PatientDirectory() {
             setIsTreatmentDrawerOpen(false);
             return;
         }
+
+        // Speculatively preload jaw templates for patient's dentition type (adult vs pediatric)
+        const pAge = selectedPatient.dob ? (new Date().getFullYear() - new Date(selectedPatient.dob).getFullYear()) : null;
+        const isPed = (pAge !== null && pAge < 6) || (selectedPatient.dentitionType || '').toLowerCase() === 'pediatric';
+        preloadPatientJawTemplates(isPed ? 'pediatric' : 'adult');
+
         fetchPatientChart(selectedPatient.patientID);
         setIsTreatmentDrawerOpen(false);
         
@@ -930,6 +943,7 @@ export default function PatientDirectory() {
                                                     <div 
                                                         key={p.patientID}
                                                         onClick={() => setSelectedPatient(p)}
+                                                        onPointerEnter={() => preloadPatientJawTemplates(isPed ? 'pediatric' : 'adult')}
                                                         className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex justify-between items-center ${isSelected ? 'bg-[#EAF0FC] border-[#4A7CD2] shadow-sm scale-[1.01]' : 'bg-white border-[#EAF0FC] hover:bg-light-teal/10'}`}
                                                     >
                                                         <div className="flex items-center gap-3">
@@ -1606,6 +1620,7 @@ export default function PatientDirectory() {
 
                                              <button 
                                                  onClick={() => navigate(`/chart/${selectedPatient.patientID}${activeTreatmentTag ? `?treatment=${activeTreatmentTag}` : ''}`)}
+                                                 onPointerEnter={() => preloadJawImages({ immediate: true })}
                                                  className="w-full bg-[#4A7CD2] hover:bg-[#3665B7] text-white py-2.5 rounded-xl text-xs font-bold shadow-md transition-all mt-4 cursor-pointer flex items-center justify-center gap-1.5"
                                              >
                                                  View Odontogram Chart
