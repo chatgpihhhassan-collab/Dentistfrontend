@@ -1098,7 +1098,7 @@ export default function ToothDetailPage() {
                 { id: 'overview', label: 'Overview & Notes', icon: FileText },
                 { id: 'periodontal', label: 'Periodontal Matrix', icon: Activity },
                 { id: 'surfaces', label: 'Multi-Surface Zones', icon: Layers },
-                { id: 'orthotmj', label: 'Ortho & TMJ Suite', icon: Sparkles }
+                { id: 'orthotmj', label: isPediatric ? 'Ortho & Habits' : 'Ortho & TMJ Suite', icon: Sparkles }
               ].map(tab => {
                 const Icon = tab.icon;
                 const isSel = activeTab === tab.id;
