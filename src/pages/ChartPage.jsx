@@ -18,6 +18,7 @@ import OrthoTmjDiagnosticSuite from '../components/orthoTmjSuite/OrthoTmjDiagnos
 import ClinicalActionChips from '../components/chat/ClinicalActionChips';
 import { parseDoctorConversationalIntent, normalizeClinicalSpeech, DENTAL_VOCABULARY } from '../utils/dentalNlpEngine';
 import { preloadJawImages, preloadPatientJawTemplates } from '../utils/jawImagePreloader';
+import { fetchWithCache, invalidateCache, setCachedData } from '../utils/apiCache';
 
 // Real Anatomical Maxilla (Upper Jaw) Coordinate & Rotation Mapping for Empty Jaw Template (Exact 16 Sockets)
 export const MAXILLA_COORDS = {
@@ -1573,27 +1574,27 @@ export default function ChartPage() {
       fetchEngineDiagnostics();
     }, 200);
 
-    // Parallel concurrent loading: Patient Profile, Teeth Chart, Prescriptions, and Diagnostic Assessment
+    // Parallel concurrent loading: Patient Profile, Teeth Chart, Prescriptions, and Diagnostic Assessment with SWR Instant Cache
     Promise.all([
-      fetch(`/api/patients/${patientId}`).then(res => {
+      fetchWithCache(`patient_${patientId}`, () => fetch(`/api/patients/${patientId}`).then(res => {
         if (!res.ok) throw new Error("Patient not found");
         return res.json();
-      }).then(data => {
+      })).then(({ data, fromCache }) => {
         if (!isCancelled) {
-          setChartLoadProgress(prev => Math.max(prev, 50));
+          setChartLoadProgress(prev => Math.max(prev, fromCache ? 80 : 50));
           setChartLoadStatus(`Patient ${data.firstName || ''} ${data.lastName || ''} retrieved. Calibrating odontogram...`);
         }
         return data;
       }),
-      fetch(`/api/patients/${patientId}/chart`).then(res => res.ok ? res.json() : []).then(data => {
+      fetchWithCache(`patient_${patientId}_chart`, () => fetch(`/api/patients/${patientId}/chart`).then(res => res.ok ? res.json() : [])).then(({ data, fromCache }) => {
         if (!isCancelled) {
-          setChartLoadProgress(prev => Math.max(prev, 75));
+          setChartLoadProgress(prev => Math.max(prev, fromCache ? 95 : 75));
           setChartLoadStatus("Tooth surfaces & clinical conditions synchronized. Loading assessment...");
         }
         return data;
       }).catch(() => []),
-      fetch(`/api/patients/${patientId}/prescriptions`).then(res => res.ok ? res.json() : []).catch(() => []),
-      fetch(`/api/patients/${patientId}/diagnostic-assessment`).then(res => res.ok && res.status !== 204 ? res.json() : null).catch(() => null)
+      fetchWithCache(`patient_${patientId}_prescriptions`, () => fetch(`/api/patients/${patientId}/prescriptions`).then(res => res.ok ? res.json() : []).catch(() => [])).then(({ data }) => data || []).catch(() => []),
+      fetchWithCache(`patient_${patientId}_diagnostic`, () => fetch(`/api/patients/${patientId}/diagnostic-assessment`).then(res => res.ok && res.status !== 204 ? res.json() : null).catch(() => null)).then(({ data }) => data).catch(() => null)
     ])
     .then(([patientData, chartData, presData, diagAssessmentRecord]) => {
       if (isCancelled) return;
@@ -1640,6 +1641,7 @@ export default function ChartPage() {
       setChartLoadProgress(100);
       setChartLoadStatus("✓ Odontogram & Clinical Records 100% Loaded — Ready!");
 
+      const isInstant = Boolean(patientData && chartData);
       setTimeout(() => {
         if (isCancelled) return;
         setIsChartLoading(false);
@@ -1647,7 +1649,7 @@ export default function ChartPage() {
         setTimeout(() => {
           if (!isCancelled) setIsChartReadyBadge(false);
         }, 2800);
-      }, 350);
+      }, isInstant ? 120 : 350);
     })
     .catch(err => {
       if (isCancelled) return;
@@ -3255,6 +3257,7 @@ export default function ChartPage() {
       });
 
       if (res.ok) {
+        invalidateCache(`patient_${pid}_chart`);
         // Post save log
         const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
         const docId = doctorData.doctorID || doctorData.DoctorID || 2;

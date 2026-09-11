@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
@@ -11,6 +11,7 @@ import { jsPDF } from 'jspdf';
 import '../index.css';
 import { getPatientAvatarUrl, validateImageFile, fileToDataUrl } from '../utils/avatarUtils';
 import { preloadJawImages, preloadPatientJawTemplates } from '../utils/jawImagePreloader';
+import { fetchWithCache, prefetchApi, invalidateCache, setCachedData } from '../utils/apiCache';
 
 export default function PatientDirectory() {
     const [patients, setPatients] = useState([]);
@@ -154,6 +155,9 @@ export default function PatientDirectory() {
                 if (selectedPatient && selectedPatient.patientID === updated.patientID) {
                     setSelectedPatient(prev => ({ ...prev, ...updated }));
                 }
+                invalidateCache('doctor_' + (doctor?.doctorID || '') + '_patients');
+                invalidateCache(`patient_${updated.patientID}`);
+                setCachedData(`patient_${updated.patientID}`, updated);
                 setEditPatientModal({ visible: false, patient: null });
                 showToast('Patient information updated successfully!');
             } else {
@@ -241,6 +245,9 @@ export default function PatientDirectory() {
                 treatmentStage: null,
                 targetShade: null
             } : p));
+
+            invalidateCache('doctor_' + (doctor?.doctorID || '') + '_patients');
+            invalidateCache(`patient_${selectedPatient.patientID}`);
 
             setActiveTreatmentTag(null);
             setIsTreatmentDrawerOpen(false);
@@ -568,41 +575,57 @@ export default function PatientDirectory() {
             if (!isCancelled) setIsSlowConnection(true);
         }, 7000);
 
-        const fetchPatients = fetch(`/api/patients/doctor/${docInfo.doctorID}`)
-            .then(res => res.ok ? res.json() : [])
-            .then(data => {
-                if (isCancelled) return [];
-                setPatients(data);
-                if (data.length > 0) setSelectedPatient(data[0]);
+        const fetchPatients = fetchWithCache(
+            `doctor_${docInfo.doctorID}_patients`,
+            () => fetch(`/api/patients/doctor/${docInfo.doctorID}`).then(res => res.ok ? res.json() : [])
+        ).then(({ data, fromCache }) => {
+            if (isCancelled) return [];
+            setPatients(data || []);
+            if (data && data.length > 0) {
+                setSelectedPatient(prev => prev || data[0]);
+                // Speculatively prefetch top patient chart & prescriptions for instant click-through
+                const topP = data[0];
+                prefetchApi(`patient_${topP.patientID}`, () => fetch(`/api/patients/${topP.patientID}`).then(r => r.json()));
+                prefetchApi(`patient_${topP.patientID}_chart`, () => fetch(`/api/patients/${topP.patientID}/chart`).then(r => r.json()));
+                prefetchApi(`patient_${topP.patientID}_prescriptions`, () => fetch(`/api/patients/${topP.patientID}/prescriptions`).then(r => r.json()));
+            }
+            if (fromCache) {
+                setLoadProgress(prev => Math.max(prev, 85));
+            } else {
                 setLoadProgress(prev => Math.max(prev, 55));
-                setLoadStatusMessage('Patient profiles loaded. Retrieving clinic schedule...');
-                return data;
-            })
-            .catch(err => {
-                console.error("Patients load error:", err);
-                return [];
-            });
+            }
+            setLoadStatusMessage('Patient profiles loaded. Retrieving clinic schedule...');
+            return data;
+        }).catch(err => {
+            console.error("Patients load error:", err);
+            return [];
+        });
 
-        const fetchAppts = fetch(`/api/appointments?doctorId=${docInfo.doctorID}`)
-            .then(res => res.ok ? res.json() : [])
-            .then(data => {
-                if (isCancelled) return [];
-                setAppointments(data);
+        const fetchAppts = fetchWithCache(
+            `doctor_${docInfo.doctorID}_appointments`,
+            () => fetch(`/api/appointments?doctorId=${docInfo.doctorID}`).then(res => res.ok ? res.json() : [])
+        ).then(({ data, fromCache }) => {
+            if (isCancelled) return [];
+            setAppointments(data || []);
+            if (fromCache) {
+                setLoadProgress(prev => Math.max(prev, 100));
+            } else {
                 setLoadProgress(prev => Math.max(prev, 80));
-                setLoadStatusMessage('Appointments synchronized. Finalizing clinic database...');
-                return data;
-            })
-            .catch(err => {
-                console.error("Appointments load error:", err);
-                return [];
-            });
+            }
+            setLoadStatusMessage('Appointments synchronized. Finalizing clinic database...');
+            return data;
+        }).catch(err => {
+            console.error("Appointments load error:", err);
+            return [];
+        });
 
-        Promise.allSettled([fetchPatients, fetchAppts]).then(() => {
+        Promise.allSettled([fetchPatients, fetchAppts]).then(([pRes, aRes]) => {
             if (isCancelled) return;
             clearTimeout(slowTimer);
             setLoadProgress(100);
             setLoadStatusMessage('✓ Clinic Records 100% Ready — All Systems Synchronized');
             
+            const isInstant = pRes?.status === 'fulfilled' && aRes?.status === 'fulfilled';
             setTimeout(() => {
                 if (isCancelled) return;
                 setIsPageLoading(false);
@@ -610,7 +633,7 @@ export default function PatientDirectory() {
                 setTimeout(() => {
                     if (!isCancelled) setIsReadyBadgeVisible(false);
                 }, 2800);
-            }, 350);
+            }, isInstant ? 150 : 350);
         });
 
         return () => {
@@ -640,7 +663,7 @@ export default function PatientDirectory() {
             });
     }, [selectedPatient, isLogsDrawerOpen]);
 
-    const cleanSearch = searchTerm.trim().toLowerCase();
+    const cleanSearch = useMemo(() => searchTerm.trim().toLowerCase(), [searchTerm]);
 
     // Calculate age from date of birth
     const getAge = (dobString) => {
@@ -652,7 +675,7 @@ export default function PatientDirectory() {
         return Math.abs(ageDate.getUTCFullYear() - 1970);
     };
 
-    const getFilteredPatientsByTab = (tabId, searchStr = '') => {
+    const getFilteredPatientsByTab = useCallback((tabId, searchStr = '') => {
         const cSearch = (searchStr || '').trim().toLowerCase();
         return patients.filter(p => {
             const matchesQuery = !cSearch || (
@@ -680,9 +703,11 @@ export default function PatientDirectory() {
             }
             return true;
         });
-    };
+    }, [patients]);
 
-    const filteredPatients = getFilteredPatientsByTab(dentitionFilter, cleanSearch);
+    const filteredPatients = useMemo(() => {
+        return getFilteredPatientsByTab(dentitionFilter, cleanSearch);
+    }, [getFilteredPatientsByTab, dentitionFilter, cleanSearch]);
 
     // Automatically select the top first patient whenever dentitionFilter tab changes
     useEffect(() => {
@@ -713,11 +738,13 @@ export default function PatientDirectory() {
     // Pagination Logic
     const indexOfLastPatient = currentPage * patientsPerPage;
     const indexOfFirstPatient = indexOfLastPatient - patientsPerPage;
-    const currentPatients = filteredPatients.slice(indexOfFirstPatient, indexOfLastPatient);
+    const currentPatients = useMemo(() => {
+        return filteredPatients.slice(indexOfFirstPatient, indexOfLastPatient);
+    }, [filteredPatients, indexOfFirstPatient, indexOfLastPatient]);
     const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
 
     // Helper: Search match across appointment properties
-    const matchesSearchAppt = (app) => {
+    const matchesSearchAppt = useCallback((app) => {
         if (!cleanSearch) return true;
         return (
             (app.fullName && app.fullName.toLowerCase().includes(cleanSearch)) ||
@@ -727,30 +754,39 @@ export default function PatientDirectory() {
             (app.appointmentID && app.appointmentID.toString().includes(cleanSearch.replace('#', ''))) ||
             (app.notes && app.notes.toLowerCase().includes(cleanSearch))
         );
-    };
+    }, [cleanSearch]);
 
-    // Filter appointments into old (completed/past) and new (upcoming: Pending & Confirmed only) - with live search
-    const now = new Date();
-    const newAppointments = appointments
-        .filter(app => new Date(app.preferredDate) >= now && (app.status === 'Pending' || app.status === 'Confirmed'))
-        .filter(matchesSearchAppt)
-        .sort((a, b) => new Date(b.preferredDate) - new Date(a.preferredDate) || b.appointmentID - a.appointmentID);
+    // Filter appointments into old (completed/past) and new (upcoming: Pending & Confirmed only) - with live search memoized
+    const newAppointments = useMemo(() => {
+        const now = new Date();
+        return appointments
+            .filter(app => new Date(app.preferredDate) >= now && (app.status === 'Pending' || app.status === 'Confirmed'))
+            .filter(matchesSearchAppt)
+            .sort((a, b) => new Date(b.preferredDate) - new Date(a.preferredDate) || b.appointmentID - a.appointmentID);
+    }, [appointments, matchesSearchAppt]);
 
-    const oldAppointments = appointments
-        .filter(app => new Date(app.preferredDate) < now && app.status !== 'Rejected' && app.status !== 'Cancelled')
-        .filter(matchesSearchAppt)
-        .sort((a, b) => new Date(b.preferredDate) - new Date(a.preferredDate) || b.appointmentID - a.appointmentID);
+    const oldAppointments = useMemo(() => {
+        const now = new Date();
+        return appointments
+            .filter(app => new Date(app.preferredDate) < now && app.status !== 'Rejected' && app.status !== 'Cancelled')
+            .filter(matchesSearchAppt)
+            .sort((a, b) => new Date(b.preferredDate) - new Date(a.preferredDate) || b.appointmentID - a.appointmentID);
+    }, [appointments, matchesSearchAppt]);
 
     // Paginate upcoming appointments (5 per page)
     const indexOfLastUpcoming = upcomingPage * upcomingPerPage;
     const indexOfFirstUpcoming = indexOfLastUpcoming - upcomingPerPage;
-    const currentUpcoming = newAppointments.slice(indexOfFirstUpcoming, indexOfLastUpcoming);
+    const currentUpcoming = useMemo(() => {
+        return newAppointments.slice(indexOfFirstUpcoming, indexOfLastUpcoming);
+    }, [newAppointments, indexOfFirstUpcoming, indexOfLastUpcoming]);
     const totalUpcomingPages = Math.ceil(newAppointments.length / upcomingPerPage);
 
     // Paginate past sessions (5 per page)
     const indexOfLastPast = pastPage * pastPerPage;
     const indexOfFirstPast = indexOfLastPast - pastPerPage;
-    const currentPast = oldAppointments.slice(indexOfFirstPast, indexOfLastPast);
+    const currentPast = useMemo(() => {
+        return oldAppointments.slice(indexOfFirstPast, indexOfLastPast);
+    }, [oldAppointments, indexOfFirstPast, indexOfLastPast]);
     const totalPastPages = Math.ceil(oldAppointments.length / pastPerPage);
 
     return (
@@ -1065,7 +1101,12 @@ export default function PatientDirectory() {
                                                     <div 
                                                         key={p.patientID}
                                                         onClick={() => setSelectedPatient(p)}
-                                                        onPointerEnter={() => preloadPatientJawTemplates(isPed ? 'pediatric' : 'adult')}
+                                                        onPointerEnter={() => {
+                                                            preloadPatientJawTemplates(isPed ? 'pediatric' : 'adult');
+                                                            prefetchApi(`patient_${p.patientID}`, () => fetch(`/api/patients/${p.patientID}`).then(r => r.json()));
+                                                            prefetchApi(`patient_${p.patientID}_chart`, () => fetch(`/api/patients/${p.patientID}/chart`).then(r => r.json()));
+                                                            prefetchApi(`patient_${p.patientID}_prescriptions`, () => fetch(`/api/patients/${p.patientID}/prescriptions`).then(r => r.json()));
+                                                        }}
                                                         className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex justify-between items-center ${isSelected ? 'bg-[#EAF0FC] border-[#4A7CD2] shadow-sm scale-[1.01]' : 'bg-white border-[#EAF0FC] hover:bg-light-teal/10'}`}
                                                     >
                                                         <div className="flex items-center gap-3">
@@ -1742,7 +1783,15 @@ export default function PatientDirectory() {
 
                                              <button 
                                                  onClick={() => navigate(`/chart/${selectedPatient.patientID}${activeTreatmentTag ? `?treatment=${activeTreatmentTag}` : ''}`)}
-                                                 onPointerEnter={() => preloadJawImages({ immediate: true })}
+                                                 onPointerEnter={() => {
+                                                     preloadJawImages({ immediate: true });
+                                                     if (selectedPatient?.patientID) {
+                                                         prefetchApi(`patient_${selectedPatient.patientID}`, () => fetch(`/api/patients/${selectedPatient.patientID}`).then(r => r.json()));
+                                                         prefetchApi(`patient_${selectedPatient.patientID}_chart`, () => fetch(`/api/patients/${selectedPatient.patientID}/chart`).then(r => r.json()));
+                                                         prefetchApi(`patient_${selectedPatient.patientID}_prescriptions`, () => fetch(`/api/patients/${selectedPatient.patientID}/prescriptions`).then(r => r.json()));
+                                                         prefetchApi(`patient_${selectedPatient.patientID}_diagnostic`, () => fetch(`/api/patients/${selectedPatient.patientID}/diagnostic-assessment`).then(r => r.ok && r.status !== 204 ? r.json() : null));
+                                                     }
+                                                 }}
                                                  className="w-full bg-[#4A7CD2] hover:bg-[#3665B7] text-white py-2.5 rounded-xl text-xs font-bold shadow-md transition-all mt-4 cursor-pointer flex items-center justify-center gap-1.5"
                                              >
                                                  View Odontogram Chart
