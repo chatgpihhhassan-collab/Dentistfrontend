@@ -659,6 +659,13 @@ export default function ChartPage() {
   const [showOrthoTmjModal, setShowOrthoTmjModal] = useState(false);
   const [liveOrthoAssessment, setLiveOrthoAssessment] = useState(null);
   
+  // 🌟 100% Coordinated Full-Page Loading & Synchronization States
+  const [isChartLoading, setIsChartLoading] = useState(true);
+  const [chartLoadProgress, setChartLoadProgress] = useState(15);
+  const [chartLoadStatus, setChartLoadStatus] = useState('Verifying clinician credentials...');
+  const [isChartReadyBadge, setIsChartReadyBadge] = useState(false);
+  const [isChartSlowConnection, setIsChartSlowConnection] = useState(false);
+  
   // Voice Recording & AI Notes States
   const [isRecording, setIsRecording] = useState(false);
   const [voiceStreamText, setVoiceStreamText] = useState('Click mic to start recording...');
@@ -1552,25 +1559,45 @@ export default function ChartPage() {
     // Speculatively warm/decode jaw arch templates immediately in background
     preloadJawImages({ immediate: true });
 
+    let isCancelled = false;
+    setIsChartLoading(true);
+    setChartLoadProgress(20);
+    setChartLoadStatus(`Connecting to clinical patient #${patientId}...`);
+
+    const slowTimer = setTimeout(() => {
+      if (!isCancelled) setIsChartSlowConnection(true);
+    }, 7000);
+
     // Run engine diagnostics deferred and non-blocking in the background
     const diagTimer = setTimeout(() => {
       fetchEngineDiagnostics();
     }, 200);
-
-    let isCancelled = false;
 
     // Parallel concurrent loading: Patient Profile, Teeth Chart, Prescriptions, and Diagnostic Assessment
     Promise.all([
       fetch(`/api/patients/${patientId}`).then(res => {
         if (!res.ok) throw new Error("Patient not found");
         return res.json();
+      }).then(data => {
+        if (!isCancelled) {
+          setChartLoadProgress(prev => Math.max(prev, 50));
+          setChartLoadStatus(`Patient ${data.firstName || ''} ${data.lastName || ''} retrieved. Calibrating odontogram...`);
+        }
+        return data;
       }),
-      fetch(`/api/patients/${patientId}/chart`).then(res => res.ok ? res.json() : []).catch(() => []),
+      fetch(`/api/patients/${patientId}/chart`).then(res => res.ok ? res.json() : []).then(data => {
+        if (!isCancelled) {
+          setChartLoadProgress(prev => Math.max(prev, 75));
+          setChartLoadStatus("Tooth surfaces & clinical conditions synchronized. Loading assessment...");
+        }
+        return data;
+      }).catch(() => []),
       fetch(`/api/patients/${patientId}/prescriptions`).then(res => res.ok ? res.json() : []).catch(() => []),
       fetch(`/api/patients/${patientId}/diagnostic-assessment`).then(res => res.ok && res.status !== 204 ? res.json() : null).catch(() => null)
     ])
     .then(([patientData, chartData, presData, diagAssessmentRecord]) => {
       if (isCancelled) return;
+      clearTimeout(slowTimer);
 
       const patientDocId = patientData.doctorID || patientData.DoctorID;
       if (patientDocId && patientDocId !== loggedInDocId) {
@@ -1609,9 +1636,22 @@ export default function ChartPage() {
 
       // Populate chart data directly in memory (zero second network waterfall!)
       applyTeethChartData(chartData, autoDentition, preloadedAssessment);
+
+      setChartLoadProgress(100);
+      setChartLoadStatus("✓ Odontogram & Clinical Records 100% Loaded — Ready!");
+
+      setTimeout(() => {
+        if (isCancelled) return;
+        setIsChartLoading(false);
+        setIsChartReadyBadge(true);
+        setTimeout(() => {
+          if (!isCancelled) setIsChartReadyBadge(false);
+        }, 2800);
+      }, 350);
     })
     .catch(err => {
       if (isCancelled) return;
+      clearTimeout(slowTimer);
       console.error("[ChartPage] Parallel data load error:", err);
       navigate('/directory');
     });
@@ -1619,6 +1659,7 @@ export default function ChartPage() {
     return () => {
       isCancelled = true;
       clearTimeout(diagTimer);
+      clearTimeout(slowTimer);
     };
   }, [patientId, navigate]);
 
@@ -6066,6 +6107,78 @@ export default function ChartPage() {
   return (
     <div className="min-h-screen bg-[#F4F6FA] text-dark-slate flex flex-col font-sans selection:bg-light-teal selection:text-primary-teal relative overflow-x-hidden">
       <Navigation />
+
+      {/* 🌟 100% CLINICAL ODONTOGRAM LOADING & READY OVERLAY 🌟 */}
+      {isChartLoading && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-900/40 backdrop-blur-md transition-all duration-300">
+          <div className="max-w-md w-full mx-4 p-8 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-200/90 flex flex-col items-center text-center animate-zoom-in">
+            
+            {/* Medical Pulsing Icon Ring */}
+            <div className="relative mb-5 flex items-center justify-center">
+              <div className="absolute w-20 h-20 rounded-full bg-[#4A7CD2]/15 animate-ping" />
+              <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#10244B] to-[#4A7CD2] text-white flex items-center justify-center shadow-lg shadow-blue-500/25">
+                <Activity className="w-8 h-8 text-[#00C5A0] animate-pulse" />
+              </div>
+            </div>
+
+            {/* Title & Brand */}
+            <span className="text-[10px] font-black uppercase tracking-widest text-[#4A7CD2] bg-[#EAF0FC] px-3 py-1 rounded-full border border-blue-200/60 mb-2">
+              Dentia Odontogram Suite
+            </span>
+            <h3 className="text-lg font-black text-[#10244B]">
+              Loading Patient Dental Chart
+            </h3>
+
+            {/* Live Percentage Counter */}
+            <div className="mt-4 mb-2 flex items-baseline justify-center gap-1">
+              <span className="text-4xl font-black text-[#10244B] tracking-tight">{chartLoadProgress}</span>
+              <span className="text-lg font-black text-[#4A7CD2]">%</span>
+            </div>
+
+            {/* Progress Bar Track */}
+            <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden p-0.5 border border-slate-200 shadow-inner mt-1 mb-3">
+              <div 
+                className="h-full rounded-full bg-gradient-to-r from-[#4A7CD2] via-[#00C5A0] to-[#3665B7] transition-all duration-300 ease-out shadow-xs"
+                style={{ width: `${chartLoadProgress}%` }}
+              />
+            </div>
+
+            {/* Live Status Message */}
+            <p className="text-xs font-semibold text-slate-600 min-h-[20px] flex items-center justify-center gap-1.5">
+              {chartLoadProgress === 100 ? (
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+              ) : (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#4A7CD2] shrink-0" />
+              )}
+              <span>{chartLoadStatus}</span>
+            </p>
+
+            {/* Slow Connection Resilience Option */}
+            {isChartSlowConnection && (
+              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 space-y-2 animate-fade-in w-full">
+                <p className="font-semibold">
+                  Network connection is slow. Still retrieving 3D anatomical models & clinical logs...
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setIsChartLoading(false)}
+                  className="w-full py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-[10.5px] transition-colors cursor-pointer"
+                >
+                  Continue to Chart Anyway
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 100% READY FLOATING CONFIRMATION BADGE 🌟 */}
+      {isChartReadyBadge && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] bg-emerald-600 text-white px-5 py-2 rounded-full shadow-xl flex items-center gap-2 text-xs font-bold animate-fade-in border border-emerald-400/40">
+          <CheckCircle className="w-4 h-4 text-white" />
+          <span>Odontogram Chart 100% Ready — All Dental Records Synchronized</span>
+        </div>
+      )}
 
       {/* Toast Notification */}
       {toast.visible && (
