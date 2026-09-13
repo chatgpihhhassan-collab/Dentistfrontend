@@ -98,45 +98,47 @@ export default function FullPageSkeletonLoader({
         </div>
       </div>
 
-      {/* 🌟 Center Floating Card (Exact Match to Reference Sample Image) 🌟 */}
-      <div className="relative z-10 bg-white rounded-3xl px-7 py-6 shadow-[0_16px_50px_rgba(0,0,0,0.08)] border border-slate-100 max-w-[480px] w-full mx-4 animate-scale-up">
+      {/* 🌟 Center Floating Card (Exact 1:1 Match to Reference Sample Image) 🌟 */}
+      <div className="relative z-10 bg-white rounded-3xl px-8 py-6 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.08)] border border-slate-100 max-w-[490px] w-full mx-4 animate-scale-up">
         <div className="flex items-center gap-5">
           
-          {/* 3x3 Dot Matrix (From Reference Sample Image) */}
-          <div className="grid grid-cols-3 gap-1.5 p-1 shrink-0">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#0F172A] animate-pulse" style={{ animationDelay: '0ms' }} />
-            <span className="w-2.5 h-2.5 rounded-full bg-[#64748B] animate-pulse" style={{ animationDelay: '150ms' }} />
-            <span className="w-2.5 h-2.5 rounded-full bg-[#CBD5E1] animate-pulse" style={{ animationDelay: '300ms' }} />
-            <span className="w-2.5 h-2.5 rounded-full bg-[#0F172A] animate-pulse" style={{ animationDelay: '150ms' }} />
-            <span className="w-2.5 h-2.5 rounded-full bg-[#CBD5E1] animate-pulse" style={{ animationDelay: '300ms' }} />
+          {/* 3x3 Dot Matrix (Exact Match to Reference Sample Image) */}
+          <div className="grid grid-cols-3 gap-1.5 p-1 shrink-0" aria-label="Loading indicator">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#111827] animate-pulse" style={{ animationDelay: '0ms' }} />
+            <span className="w-2.5 h-2.5 rounded-full bg-[#94A3B8] animate-pulse" style={{ animationDelay: '150ms' }} />
+            <span className="w-2.5 h-2.5 rounded-full bg-[#E2E8F0] animate-pulse" style={{ animationDelay: '300ms' }} />
+            
+            <span className="w-2.5 h-2.5 rounded-full bg-[#CBD5E1] animate-pulse" style={{ animationDelay: '150ms' }} />
+            <span className="w-2.5 h-2.5 rounded-full bg-[#111827] animate-pulse" style={{ animationDelay: '300ms' }} />
             <span className="w-2.5 h-2.5 rounded-full bg-[#94A3B8] animate-pulse" style={{ animationDelay: '450ms' }} />
-            <span className="w-2.5 h-2.5 rounded-full bg-[#0F172A] animate-pulse" style={{ animationDelay: '300ms' }} />
+            
+            <span className="w-2.5 h-2.5 rounded-full bg-[#111827] animate-pulse" style={{ animationDelay: '300ms' }} />
             <span className="w-2.5 h-2.5 rounded-full bg-[#CBD5E1] animate-pulse" style={{ animationDelay: '450ms' }} />
-            <span className="w-2.5 h-2.5 rounded-full bg-[#E2E8F0] animate-pulse" style={{ animationDelay: '600ms' }} />
+            <span className="w-2.5 h-2.5 rounded-full bg-[#F1F5F9] animate-pulse" style={{ animationDelay: '600ms' }} />
           </div>
 
           {/* Text Content */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-[15px] sm:text-[16px] font-bold text-[#0F172A] tracking-tight leading-snug">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-[16px] sm:text-[17px] font-bold text-[#111827] tracking-tight leading-snug">
                 {title}
               </h3>
-              {progress !== undefined && progress !== null && (
-                <span className="text-[12px] font-extrabold text-[#4A7CD2] bg-[#EAF0FC] px-2 py-0.5 rounded-md font-mono shrink-0">
+              {progress !== undefined && progress !== null && progress < 100 && (
+                <span className="text-[12px] font-semibold text-slate-400 font-mono shrink-0">
                   {progress}%
                 </span>
               )}
             </div>
             
-            <p className="text-[12px] sm:text-[13px] text-[#64748B] font-normal leading-normal mt-0.5">
+            <p className="text-[13px] text-[#64748B] font-normal leading-normal mt-0.5">
               {subtitle}
             </p>
 
-            {/* Slim Progress Bar */}
-            {progress !== undefined && progress !== null && (
-              <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-3 shadow-inner">
+            {/* Subtle Hairline Progress Bar */}
+            {progress !== undefined && progress !== null && progress < 100 && (
+              <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden mt-2.5 shadow-inner">
                 <div 
-                  className="h-full rounded-full bg-gradient-to-r from-[#4A7CD2] to-[#00C5A0] transition-all duration-300 ease-out"
+                  className="h-full rounded-full bg-gradient-to-r from-[#111827] via-[#4A7CD2] to-[#00C5A0] transition-all duration-300 ease-out"
                   style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
                 />
               </div>
