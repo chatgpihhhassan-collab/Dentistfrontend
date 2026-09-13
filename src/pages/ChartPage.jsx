@@ -6112,8 +6112,9 @@ export default function ChartPage() {
   if (isChartLoading) {
     return (
       <FullPageSkeletonLoader 
-        title="Getting your dashboard ready."
-        subtitle="Syncing accounts, pulling insights, warming things up."
+        variant="chart"
+        title="Getting your dental chart ready."
+        subtitle="Syncing odontogram records, 3D anatomical models, and patient chart."
         progress={chartLoadProgress}
         status={chartLoadStatus}
         slowConnection={isChartSlowConnection}

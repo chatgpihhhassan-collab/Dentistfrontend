@@ -794,8 +794,9 @@ export default function PatientDirectory() {
     if (isPageLoading) {
         return (
             <FullPageSkeletonLoader 
-                title="Getting your dashboard ready."
-                subtitle="Syncing accounts, pulling insights, warming things up."
+                variant="directory"
+                title="Getting your patient directory ready."
+                subtitle="Syncing patient records, medical history, and clinical appointments."
                 progress={loadProgress}
                 status={loadStatusMessage}
                 slowConnection={isSlowConnection}

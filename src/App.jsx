@@ -22,13 +22,10 @@ const AIDentalNotesPage = lazy(() => import('./modules/aiDentalNotes/pages/AIDen
 const AIDentalNoteDetailPage = lazy(() => import('./modules/aiDentalNotes/pages/AIDentalNoteDetailPage'));
 const ClinicalGuidePage = lazy(() => import('./pages/ClinicalGuidePage'));
 
+import FullPageSkeletonLoader from './components/FullPageSkeletonLoader';
+
 const PageFallback = () => (
-  <div className="min-h-screen bg-[#F4F6FA] flex items-center justify-center select-none">
-    <div className="flex flex-col items-center gap-3">
-      <div className="w-10 h-10 border-3 border-[#4A7CD2]/25 border-t-[#4A7CD2] rounded-full animate-spin" />
-      <span className="text-xs font-extrabold text-[#10244B] tracking-wide">Loading Dentia Workspace...</span>
-    </div>
-  </div>
+  <FullPageSkeletonLoader />
 );
 
 const ProtectedRoute = ({ children }) => {
