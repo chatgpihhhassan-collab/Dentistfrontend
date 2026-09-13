@@ -790,21 +790,23 @@ export default function PatientDirectory() {
     }, [oldAppointments, indexOfFirstPast, indexOfLastPast]);
     const totalPastPages = Math.ceil(oldAppointments.length / pastPerPage);
 
+    // 🌟 100% CLINICAL FULL-PAGE SKELETON LOADING (NO BACKEND BLUR - SKELETON COVERS ALL) 🌟
+    if (isPageLoading) {
+        return (
+            <FullPageSkeletonLoader 
+                title="Getting your dashboard ready."
+                subtitle="Syncing accounts, pulling insights, warming things up."
+                progress={loadProgress}
+                status={loadStatusMessage}
+                slowConnection={isSlowConnection}
+                onContinueAnyway={() => setIsPageLoading(false)}
+            />
+        );
+    }
+
     return (
         <div className="min-h-screen bg-[#F4F6FA] text-dark-slate flex flex-col font-sans selection:bg-light-teal selection:text-primary-teal relative overflow-x-hidden">
             <Navigation />
-
-            {/* 🌟 100% CLINICAL FULL-PAGE SKELETON LOADING (NO BACKEND BLUR) 🌟 */}
-            {isPageLoading && (
-                <FullPageSkeletonLoader 
-                    title="Getting your patient directory ready."
-                    subtitle="Syncing patient records, appointments, and diagnostic logs..."
-                    progress={loadProgress}
-                    status={loadStatusMessage}
-                    slowConnection={isSlowConnection}
-                    onContinueAnyway={() => setIsPageLoading(false)}
-                />
-            )}
 
             {/* 🌟 100% READY FLOATING CONFIRMATION BADGE 🌟 */}
             {isReadyBadgeVisible && (

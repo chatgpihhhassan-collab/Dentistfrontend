@@ -6108,21 +6108,23 @@ export default function ChartPage() {
   const missingPct = Math.round((missingCount / totalDentitionCount) * 100) || 0;
   const healthyPct = Math.round((healthyCount / totalDentitionCount) * 100) || 0;
 
+  // 🌟 100% CLINICAL FULL-PAGE SKELETON LOADING (NO BACKEND BLUR - SKELETON COVERS ALL) 🌟
+  if (isChartLoading) {
+    return (
+      <FullPageSkeletonLoader 
+        title="Getting your dashboard ready."
+        subtitle="Syncing accounts, pulling insights, warming things up."
+        progress={chartLoadProgress}
+        status={chartLoadStatus}
+        slowConnection={isChartSlowConnection}
+        onContinueAnyway={() => setIsChartLoading(false)}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F4F6FA] text-dark-slate flex flex-col font-sans selection:bg-light-teal selection:text-primary-teal relative overflow-x-hidden">
       <Navigation />
-
-      {/* 🌟 100% CLINICAL FULL-PAGE SKELETON LOADING (NO BACKEND BLUR) 🌟 */}
-      {isChartLoading && (
-        <FullPageSkeletonLoader 
-          title="Getting your dental chart ready."
-          subtitle="Syncing clinical records, pulling 3D models, warming things up."
-          progress={chartLoadProgress}
-          status={chartLoadStatus}
-          slowConnection={isChartSlowConnection}
-          onContinueAnyway={() => setIsChartLoading(false)}
-        />
-      )}
 
       {/* 🌟 100% READY FLOATING CONFIRMATION BADGE 🌟 */}
       {isChartReadyBadge && (
