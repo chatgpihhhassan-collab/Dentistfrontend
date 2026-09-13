@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Activity, ShieldCheck, Lock, Mail, User, AlertCircle, Sparkles } from 'lucide-react';
+import { Activity, ShieldCheck, Lock, Mail, User, AlertCircle, Sparkles, Clock } from 'lucide-react';
 export default function Auth() {
     const [isLogin, setIsLogin] = useState(true);
     const [formData, setFormData] = useState({ username: '', password: '', firstName: '', lastName: '', region: 'NZ' });
     const [error, setError] = useState('');
     const navigate = useNavigate();
     const location = useLocation();
+    const isSessionExpired = new URLSearchParams(location.search).get('expired') === 'true' || Boolean(location.state?.sessionExpired);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -94,6 +95,22 @@ export default function Auth() {
                         </h2>
                         <p className="text-muted-text font-medium">Secure workspace for diagnostics, 3D charting and prescriptions.</p>
                     </div>
+
+                    {isSessionExpired && (
+                        <div className="mb-6 p-4 bg-amber-50/95 border border-amber-300 rounded-2xl shadow-sm flex items-start gap-3 animate-fade-in text-amber-950">
+                            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <Clock className="w-4 h-4 text-amber-600" />
+                            </div>
+                            <div>
+                                <h4 className="text-xs font-black uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
+                                    <span>⏱️ Session Automatically Locked</span>
+                                </h4>
+                                <p className="text-xs text-amber-900/90 font-medium mt-1 leading-relaxed">
+                                    For patient health data privacy and HIPAA/GDPR clinical security, your session was locked after <strong>10 minutes of inactivity</strong>. Please sign in to resume charting.
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     <form onSubmit={handleSubmit} className="space-y-6">
                         {!isLogin && (

@@ -4,6 +4,7 @@ import Auth from './pages/Auth';
 import LandingDashboard from './pages/LandingDashboard';
 import PatientDirectory from './pages/PatientDirectory';
 import ErrorBoundary from './components/ErrorBoundary';
+import IdleSessionManager from './components/IdleSessionManager';
 
 // 🌟 Route-level Lazy Loading: Isolates heavy 3D, PDF, and clinical modules
 const ChartPage = lazy(() => import('./pages/ChartPage'));
@@ -64,6 +65,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <ErrorBoundary>
+        <IdleSessionManager />
         <Suspense fallback={<PageFallback />}>
           <Routes>
             <Route path="/" element={<BlockSuperAdmin><LandingDashboard /></BlockSuperAdmin>} />

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import axios from 'axios'
 import './index.css'
 import App from './App.jsx'
+import { recordDoctorActivity } from './components/IdleSessionManager'
 
 // Global API Configuration & Token Authorization Interceptors
 const API_HOST = 'https://dentist-api-dev.vitonta.com';
@@ -15,7 +16,7 @@ if (isRemoteHostNeeded) {
   axios.defaults.baseURL = API_HOST;
 }
 
-// Intercept Axios requests to attach Authorization header
+// Intercept Axios requests to attach Authorization header and record activity
 axios.interceptors.request.use((config) => {
   try {
     const stored = localStorage.getItem('doctor');
@@ -24,6 +25,7 @@ axios.interceptors.request.use((config) => {
       if (doctor && doctor.token) {
         config.headers = config.headers || {};
         config.headers.Authorization = `Bearer ${doctor.token}`;
+        recordDoctorActivity();
       }
     }
   } catch {}
@@ -36,8 +38,9 @@ axios.interceptors.response.use(
   (error) => {
     if (error.response && error.response.status === 401 && !error.config?.url?.includes('/api/auth/login')) {
       localStorage.removeItem('doctor');
+      localStorage.removeItem('dentia_last_active');
       if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+        window.location.href = '/login?expired=true';
       }
     }
     return Promise.reject(error);
@@ -76,13 +79,15 @@ if (typeof window !== 'undefined') {
       } else {
         init.headers['Authorization'] = init.headers['Authorization'] || `Bearer ${doctor.token}`;
       }
+      recordDoctorActivity();
     }
 
     return originalFetch.call(this, resource, init).then((response) => {
       if (response.status === 401 && typeof url === 'string' && url.includes('/api/') && !url.includes('/api/auth/login')) {
         localStorage.removeItem('doctor');
+        localStorage.removeItem('dentia_last_active');
         if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
+          window.location.href = '/login?expired=true';
         }
       }
       return response;
