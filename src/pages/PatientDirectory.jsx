@@ -12,6 +12,7 @@ import '../index.css';
 import { getPatientAvatarUrl, validateImageFile, fileToDataUrl } from '../utils/avatarUtils';
 import { preloadJawImages, preloadPatientJawTemplates } from '../utils/jawImagePreloader';
 import { fetchWithCache, prefetchApi, invalidateCache, setCachedData } from '../utils/apiCache';
+import FullPageSkeletonLoader from '../components/FullPageSkeletonLoader';
 
 export default function PatientDirectory() {
     const [patients, setPatients] = useState([]);
@@ -793,68 +794,16 @@ export default function PatientDirectory() {
         <div className="min-h-screen bg-[#F4F6FA] text-dark-slate flex flex-col font-sans selection:bg-light-teal selection:text-primary-teal relative overflow-x-hidden">
             <Navigation />
 
-            {/* 🌟 100% CLINICAL LOADING & READY STATE OVERLAY 🌟 */}
+            {/* 🌟 100% CLINICAL FULL-PAGE SKELETON LOADING (NO BACKEND BLUR) 🌟 */}
             {isPageLoading && (
-                <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-900/40 backdrop-blur-md transition-all duration-300">
-                    <div className="max-w-md w-full mx-4 p-8 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-200/90 flex flex-col items-center text-center animate-zoom-in">
-                        
-                        {/* Medical Pulsing Icon Ring */}
-                        <div className="relative mb-5 flex items-center justify-center">
-                            <div className="absolute w-20 h-20 rounded-full bg-[#4A7CD2]/15 animate-ping" />
-                            <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#10244B] to-[#4A7CD2] text-white flex items-center justify-center shadow-lg shadow-blue-500/25">
-                                <Activity className="w-8 h-8 text-[#00C5A0] animate-pulse" />
-                            </div>
-                        </div>
-
-                        {/* Title & Brand */}
-                        <span className="text-[10px] font-black uppercase tracking-widest text-[#4A7CD2] bg-[#EAF0FC] px-3 py-1 rounded-full border border-blue-200/60 mb-2">
-                            Dentia Clinical Intelligence
-                        </span>
-                        <h3 className="text-lg font-black text-[#10244B]">
-                            Synchronizing Patient Directory
-                        </h3>
-
-                        {/* Live Percentage Counter */}
-                        <div className="mt-4 mb-2 flex items-baseline justify-center gap-1">
-                            <span className="text-4xl font-black text-[#10244B] tracking-tight">{loadProgress}</span>
-                            <span className="text-lg font-black text-[#4A7CD2]">%</span>
-                        </div>
-
-                        {/* Progress Bar Track */}
-                        <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden p-0.5 border border-slate-200 shadow-inner mt-1 mb-3">
-                            <div 
-                                className="h-full rounded-full bg-gradient-to-r from-[#4A7CD2] via-[#00C5A0] to-[#3665B7] transition-all duration-300 ease-out shadow-xs"
-                                style={{ width: `${loadProgress}%` }}
-                            />
-                        </div>
-
-                        {/* Live Status Message */}
-                        <p className="text-xs font-semibold text-slate-600 min-h-[20px] flex items-center justify-center gap-1.5">
-                            {loadProgress === 100 ? (
-                                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                            ) : (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#4A7CD2] shrink-0" />
-                            )}
-                            <span>{loadStatusMessage}</span>
-                        </p>
-
-                        {/* Slow Connection Resilience Option */}
-                        {isSlowConnection && (
-                            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 space-y-2 animate-fade-in w-full">
-                                <p className="font-semibold">
-                                    Connection is slower than usual. Still retrieving database records in background...
-                                </p>
-                                <button
-                                    type="button"
-                                    onClick={() => setIsPageLoading(false)}
-                                    className="w-full py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-[10.5px] transition-colors cursor-pointer"
-                                >
-                                    Continue to Directory Anyway
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                </div>
+                <FullPageSkeletonLoader 
+                    title="Getting your patient directory ready."
+                    subtitle="Syncing patient records, appointments, and diagnostic logs..."
+                    progress={loadProgress}
+                    status={loadStatusMessage}
+                    slowConnection={isSlowConnection}
+                    onContinueAnyway={() => setIsPageLoading(false)}
+                />
             )}
 
             {/* 🌟 100% READY FLOATING CONFIRMATION BADGE 🌟 */}
