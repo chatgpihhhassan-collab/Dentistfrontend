@@ -32,10 +32,56 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
     setTimeout(() => setIsScanning(false), 600);
   };
 
+  const [testStream, setTestStream] = useState(null);
+  const [testError, setTestError] = useState(null);
+  const testVideoRef = useRef(null);
+
+  // Stop test stream when modal closes
+  useEffect(() => {
+    if (!showModal && testStream) {
+      testStream.getTracks().forEach((t) => t.stop());
+      setTestStream(null);
+      setTestError(null);
+    }
+  }, [showModal, testStream]);
+
+  const toggleTestStream = async () => {
+    if (testStream) {
+      testStream.getTracks().forEach((t) => t.stop());
+      setTestStream(null);
+      setTestError(null);
+      return;
+    }
+
+    try {
+      setTestError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      setTestStream(stream);
+      if (testVideoRef.current) {
+        testVideoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      setTestError('Camera access denied or device busy: ' + err.message);
+    }
+  };
+
+  useEffect(() => {
+    if (testStream && testVideoRef.current) {
+      testVideoRef.current.srcObject = testStream;
+    }
+  }, [testStream]);
+
   const modalContent = showModal && mounted ? (
     <div 
       className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
-      onClick={() => setShowModal(false)}
+      onClick={() => {
+        if (testStream) testStream.getTracks().forEach((t) => t.stop());
+        setTestStream(null);
+        setShowModal(false);
+      }}
     >
       <div 
         className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 relative animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
@@ -53,7 +99,11 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
             </div>
           </div>
           <button 
-            onClick={() => setShowModal(false)} 
+            onClick={() => {
+              if (testStream) testStream.getTracks().forEach((t) => t.stop());
+              setTestStream(null);
+              setShowModal(false);
+            }} 
             className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
             title="Close"
           >
@@ -94,6 +144,45 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
               {deviceName || 'No USB camera connected'}
             </span>
           </div>
+        </div>
+
+        {/* Live Built-in Webcam Self-Test Feed */}
+        <div className="mt-4 p-3 bg-slate-900 rounded-xl text-white">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${testStream ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></span>
+              <span className="text-xs font-bold">Webcam Hardware Test</span>
+            </div>
+            <button
+              onClick={toggleTestStream}
+              className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                testStream
+                  ? 'bg-rose-500/80 hover:bg-rose-600 text-white'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
+              }`}
+            >
+              <Video className="w-3.5 h-3.5" />
+              {testStream ? 'Stop Test' : 'Test Live Webcam'}
+            </button>
+          </div>
+
+          {testStream ? (
+            <div className="relative rounded-lg overflow-hidden aspect-video bg-black flex items-center justify-center border border-slate-800">
+              <video ref={testVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+              <div className="absolute bottom-2 left-2 bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-[10px] font-semibold px-2 py-0.5 rounded">
+                ● Live Feed: Operational & Ready
+              </div>
+            </div>
+          ) : testError ? (
+            <div className="p-3 bg-rose-950/50 border border-rose-800 rounded-lg text-rose-300 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+              <span>{testError}</span>
+            </div>
+          ) : (
+            <p className="text-[11px] text-slate-400">
+              Click &ldquo;Test Live Webcam&rdquo; above to verify your laptop camera stream directly from this window.
+            </p>
+          )}
         </div>
 
         {/* Detected Devices List */}
