@@ -18,28 +18,12 @@ import {
     Stethoscope, 
     Filter,
     Layers,
-    RotateCcw
+    RotateCcw,
+    Zap,
+    BookOpen
 } from 'lucide-react';
 import API_BASE_URL from '../config/apiConfig';
-
-// Standard 15 Clinical Dental Categories
-export const DENTAL_CATEGORIES = [
-    'Examination & Diagnosis',
-    'Preventive Dentistry',
-    'Fillings & Restorative Treatment',
-    'Crowns & Bridges',
-    'Root Canal Treatment',
-    'Extractions & Oral Surgery',
-    'Gum / Periodontal Treatment',
-    'Dentures',
-    'Dental Implants',
-    'Cosmetic Dentistry',
-    'Orthodontics',
-    'Pediatric Dentistry',
-    'Emergency Dental Treatment',
-    'Prosthetic / Laboratory Procedures',
-    'Other Dental Services'
-];
+import { STANDARD_DENTAL_PROCEDURES, DENTAL_CATEGORIES } from '../data/standardProcedures';
 
 const categoryBadgeColors = {
     'Examination & Diagnosis': 'bg-sky-50 text-sky-700 border-sky-200',
@@ -193,7 +177,7 @@ export default function DoctorTreatmentPricing() {
         }
     };
 
-    // Reset to full 15-category master procedure catalog
+    // Reset to full 15-category master procedure catalog from backend
     const handleResetToMaster = async () => {
         if (!window.confirm('Reload all 15 clinical categories (140+ standard procedures) from the Dentia master catalog? Custom edits will be synchronized.')) {
             return;
@@ -230,6 +214,74 @@ export default function DoctorTreatmentPricing() {
             setFeedback({ type: 'error', message: 'Network error resetting catalog.' });
         } finally {
             setResetting(false);
+        }
+    };
+
+    // Load All 141 Procedures locally into current state
+    const handleLoadAllStandardProcedures = () => {
+        const existingCodes = new Set(procedures.map(p => p.procedureCode));
+        const newItems = [];
+        
+        STANDARD_DENTAL_PROCEDURES.forEach(sp => {
+            if (!existingCodes.has(sp.code)) {
+                let fee = currency === 'PKR' ? sp.feePKR : sp.feeNZD;
+                if (currency === 'USD') fee = Math.round(sp.feeNZD * 0.62);
+                else if (currency === 'GBP') fee = Math.round(sp.feeNZD * 0.48);
+                else if (currency === 'EUR') fee = Math.round(sp.feeNZD * 0.56);
+                else if (currency === 'AUD') fee = Math.round(sp.feeNZD * 0.92);
+
+                newItems.push({
+                    feeScheduleID: 0,
+                    doctorID: doctorId,
+                    currency,
+                    procedureCode: sp.code,
+                    procedureName: sp.name,
+                    category: sp.category,
+                    estimatedDuration: sp.duration,
+                    standardFee: fee,
+                    description: sp.description,
+                    isActive: true
+                });
+            }
+        });
+
+        if (newItems.length === 0) {
+            setFeedback({ type: 'info', message: 'All 141 standard procedures are already loaded in your schedule!' });
+            return;
+        }
+
+        setProcedures(prev => [...prev, ...newItems]);
+        setShowAddModal(false);
+        setFeedback({
+            type: 'success',
+            message: `Loaded ${newItems.length} procedure names into your schedule! Click "Save Fee Schedule" to commit changes to database.`
+        });
+    };
+
+    // Select standard procedure in modal to auto-populate all fields
+    const handleSelectStandardProcedure = (procName) => {
+        if (!procName) return;
+        const match = STANDARD_DENTAL_PROCEDURES.find(
+            p => p.name.toLowerCase() === procName.trim().toLowerCase()
+        );
+
+        if (match) {
+            let fee = currency === 'PKR' ? match.feePKR : match.feeNZD;
+            if (currency === 'USD') fee = Math.round(match.feeNZD * 0.62);
+            else if (currency === 'GBP') fee = Math.round(match.feeNZD * 0.48);
+            else if (currency === 'EUR') fee = Math.round(match.feeNZD * 0.56);
+            else if (currency === 'AUD') fee = Math.round(match.feeNZD * 0.92);
+
+            setNewProc({
+                procedureCode: match.code,
+                procedureName: match.name,
+                category: match.category,
+                estimatedDuration: match.duration,
+                standardFee: fee.toFixed(2),
+                description: match.description
+            });
+        } else {
+            setNewProc(prev => ({ ...prev, procedureName: procName }));
         }
     };
 
@@ -329,8 +381,8 @@ export default function DoctorTreatmentPricing() {
                         </p>
                     </div>
 
-                    {/* Actions: Currency Selector, Master Reload & Save CTA */}
-                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                    {/* Actions: Currency Selector, Load All Procedures, Reload & Save CTA */}
+                    <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
                         {/* Currency Selector */}
                         <div className="flex items-center gap-2 bg-warm-cream px-3 py-2 rounded-2xl border border-light-teal">
                             <Globe className="w-4 h-4 text-primary-teal shrink-0" />
@@ -350,16 +402,27 @@ export default function DoctorTreatmentPricing() {
                             </div>
                         </div>
 
+                        {/* Load All 141 Procedures Button */}
+                        <button
+                            type="button"
+                            onClick={handleLoadAllStandardProcedures}
+                            className="px-3.5 py-2.5 bg-warm-cream hover:bg-light-teal text-primary-hover border border-light-teal rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                            title="Add all 141 standard procedures to your active schedule"
+                        >
+                            <Sparkles className="w-3.5 h-3.5 text-primary-teal" />
+                            <span>Load All 141 Procedures</span>
+                        </button>
+
                         {/* Reload Master Catalog Button */}
                         <button
                             type="button"
                             onClick={handleResetToMaster}
                             disabled={resetting || loading}
                             title="Reset all 15 categories to standard master catalog"
-                            className="px-4 py-2.5 bg-white hover:bg-light-teal text-dark-slate border border-light-teal rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                            className="px-3.5 py-2.5 bg-white hover:bg-light-teal text-dark-slate border border-light-teal rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
                         >
                             <RotateCcw className={`w-3.5 h-3.5 text-primary-teal ${resetting ? 'animate-spin' : ''}`} />
-                            <span>{resetting ? 'Loading...' : 'Reload Master Catalog'}</span>
+                            <span>{resetting ? 'Loading...' : 'Sync Master'}</span>
                         </button>
 
                         {/* Save Button */}
@@ -367,7 +430,7 @@ export default function DoctorTreatmentPricing() {
                             type="button"
                             onClick={handleSaveSchedule}
                             disabled={saving}
-                            className="px-5 py-3 bg-primary-teal hover:bg-primary-hover disabled:opacity-50 text-white text-xs font-bold rounded-2xl shadow-md shadow-primary-teal/25 transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
+                            className="px-5 py-2.5 bg-primary-teal hover:bg-primary-hover disabled:opacity-50 text-white text-xs font-bold rounded-2xl shadow-md shadow-primary-teal/25 transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
                         >
                             {saving ? (
                                 <RefreshCw className="w-4 h-4 animate-spin" />
@@ -463,19 +526,22 @@ export default function DoctorTreatmentPricing() {
                             <p className="text-xs text-muted-text font-bold">Loading clinic fee schedule...</p>
                         </div>
                     ) : filteredProcedures.length === 0 ? (
-                        <div className="p-16 text-center space-y-3">
+                        <div className="p-16 text-center space-y-4">
                             <Stethoscope className="w-10 h-10 text-muted-text/40 mx-auto" />
                             <h3 className="text-sm font-bold text-dark-slate">No procedures found</h3>
-                            <p className="text-xs text-muted-text">
-                                {procedures.length === 0 ? 'Your schedule is currently empty.' : 'Try adjusting your search query or category filter.'}
+                            <p className="text-xs text-muted-text max-w-sm mx-auto">
+                                {procedures.length === 0 
+                                    ? 'Your schedule is currently empty. Click below to load all 141 standard procedures.' 
+                                    : 'Try adjusting your search query or category filter.'}
                             </p>
                             {procedures.length === 0 && (
                                 <button
                                     type="button"
-                                    onClick={handleResetToMaster}
-                                    className="px-4 py-2 bg-primary-teal text-white rounded-xl text-xs font-bold hover:bg-primary-hover transition-all cursor-pointer shadow-xs"
+                                    onClick={handleLoadAllStandardProcedures}
+                                    className="px-5 py-2.5 bg-primary-teal text-white rounded-xl text-xs font-bold hover:bg-primary-hover transition-all cursor-pointer shadow-md shadow-primary-teal/20 flex items-center gap-2 mx-auto"
                                 >
-                                    Load All 15 Standard Categories (140+ Procedures)
+                                    <Sparkles className="w-4 h-4" />
+                                    <span>Load All 141 Standard Procedures</span>
                                 </button>
                             )}
                         </div>
@@ -565,13 +631,13 @@ export default function DoctorTreatmentPricing() {
 
             </main>
 
-            {/* Modal: Add Custom Procedure */}
+            {/* Modal: Add Clinic Procedure with Standard Procedure Library Dropdown & Autocomplete */}
             {showAddModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-slate/50 backdrop-blur-xs animate-in fade-in">
-                    <div className="bg-white rounded-3xl border border-light-teal shadow-2xl p-6 sm:p-8 max-w-md w-full space-y-5">
+                    <div className="bg-white rounded-3xl border border-light-teal shadow-2xl p-6 sm:p-8 max-w-lg w-full space-y-5">
                         <div className="flex items-center justify-between border-b border-light-teal pb-3">
                             <div className="flex items-center gap-2">
-                                <Plus className="w-4 h-4 text-primary-teal" />
+                                <Plus className="w-5 h-5 text-primary-teal" />
                                 <h3 className="text-base font-serif font-black text-dark-slate">Add Clinic Procedure</h3>
                             </div>
                             <button 
@@ -584,20 +650,66 @@ export default function DoctorTreatmentPricing() {
                         </div>
 
                         <form onSubmit={handleAddProcedure} className="space-y-4">
+                            
+                            {/* Procedure Name Field with Preloaded Standard Library */}
                             <div>
-                                <label className="block text-[11px] font-bold text-dark-slate uppercase mb-1">
-                                    Procedure Name *
-                                </label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={newProc.procedureName}
-                                    onChange={(e) => setNewProc({ ...newProc, procedureName: e.target.value })}
-                                    placeholder="e.g. Custom Night Guard / Splint"
-                                    className="w-full px-3 py-2 bg-warm-cream border border-light-teal rounded-xl text-xs font-bold text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40"
-                                />
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-[11px] font-bold text-dark-slate uppercase">
+                                        Procedure Name *
+                                    </label>
+                                    <span className="text-[10px] font-bold text-primary-teal">
+                                        141 Standard Procedures Preloaded
+                                    </span>
+                                </div>
+
+                                {/* Quick-Select Dropdown from Library */}
+                                <div className="mb-2">
+                                    <select
+                                        onChange={(e) => handleSelectStandardProcedure(e.target.value)}
+                                        className="w-full px-3 py-2 bg-light-teal/50 hover:bg-light-teal border border-primary-teal/40 rounded-xl text-xs font-bold text-primary-hover focus:outline-none focus:ring-2 focus:ring-primary-teal cursor-pointer"
+                                        defaultValue=""
+                                    >
+                                        <option value="" disabled>-- ⚡ Select from 141 Standard Procedures (Auto-Fills Details) --</option>
+                                        {DENTAL_CATEGORIES.map(cat => {
+                                            const procsInCat = STANDARD_DENTAL_PROCEDURES.filter(p => p.category === cat);
+                                            return (
+                                                <optgroup key={cat} label={`📂 ${cat} (${procsInCat.length})`}>
+                                                    {procsInCat.map(p => (
+                                                        <option key={p.code} value={p.name}>
+                                                            {p.name} — [{p.code}] ({p.duration})
+                                                        </option>
+                                                    ))}
+                                                </optgroup>
+                                            );
+                                        })}
+                                    </select>
+                                </div>
+
+                                {/* Custom Input with Datalist Autocomplete */}
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        required
+                                        list="standard-procedure-names-list"
+                                        value={newProc.procedureName}
+                                        onChange={(e) => handleSelectStandardProcedure(e.target.value)}
+                                        placeholder="Or type custom procedure name..."
+                                        className="w-full px-3 py-2.5 bg-warm-cream border border-light-teal rounded-xl text-xs font-bold text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40"
+                                    />
+                                    <datalist id="standard-procedure-names-list">
+                                        {STANDARD_DENTAL_PROCEDURES.map(p => (
+                                            <option key={p.code} value={p.name}>
+                                                {p.category} • {p.code}
+                                            </option>
+                                        ))}
+                                    </datalist>
+                                </div>
+                                <p className="text-[10px] text-muted-text mt-1">
+                                    Selecting any standard procedure automatically pre-fills the Code, Category, Duration, and Fee ({currentCurrencySymbol}).
+                                </p>
                             </div>
 
+                            {/* Procedure Code & Category */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-[11px] font-bold text-dark-slate uppercase mb-1">
@@ -607,7 +719,7 @@ export default function DoctorTreatmentPricing() {
                                         type="text"
                                         value={newProc.procedureCode}
                                         onChange={(e) => setNewProc({ ...newProc, procedureCode: e.target.value })}
-                                        placeholder="e.g. D9944"
+                                        placeholder="e.g. D0120"
                                         className="w-full px-3 py-2 bg-warm-cream border border-light-teal rounded-xl text-xs font-mono font-bold text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40"
                                     />
                                 </div>
@@ -629,6 +741,7 @@ export default function DoctorTreatmentPricing() {
                                 </div>
                             </div>
 
+                            {/* Standard Fee & Duration */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-[11px] font-bold text-dark-slate uppercase mb-1">
@@ -658,6 +771,7 @@ export default function DoctorTreatmentPricing() {
                                 </div>
                             </div>
 
+                            {/* Clinical Description */}
                             <div>
                                 <label className="block text-[11px] font-bold text-dark-slate uppercase mb-1">
                                     Clinical Description
@@ -671,20 +785,32 @@ export default function DoctorTreatmentPricing() {
                                 />
                             </div>
 
-                            <div className="flex items-center justify-end gap-2 pt-2">
+                            {/* Modal Bottom Actions */}
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
                                 <button
                                     type="button"
-                                    onClick={() => setShowAddModal(false)}
-                                    className="px-4 py-2 bg-warm-cream hover:bg-light-teal text-dark-slate text-xs font-bold rounded-xl border border-light-teal transition-all cursor-pointer"
+                                    onClick={handleLoadAllStandardProcedures}
+                                    className="text-xs text-primary-hover hover:underline font-bold flex items-center gap-1 cursor-pointer"
                                 >
-                                    Cancel
+                                    <Sparkles className="w-3.5 h-3.5 text-primary-teal" />
+                                    <span>Or Load All 141 Procedures at Once</span>
                                 </button>
-                                <button
-                                    type="submit"
-                                    className="px-5 py-2 bg-primary-teal hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-md shadow-primary-teal/20 transition-all cursor-pointer"
-                                >
-                                    Add to Schedule
-                                </button>
+
+                                <div className="flex items-center justify-end gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowAddModal(false)}
+                                        className="px-4 py-2 bg-warm-cream hover:bg-light-teal text-dark-slate text-xs font-bold rounded-xl border border-light-teal transition-all cursor-pointer"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="px-5 py-2 bg-primary-teal hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-md shadow-primary-teal/20 transition-all cursor-pointer"
+                                    >
+                                        Add to Schedule
+                                    </button>
+                                </div>
                             </div>
                         </form>
                     </div>
