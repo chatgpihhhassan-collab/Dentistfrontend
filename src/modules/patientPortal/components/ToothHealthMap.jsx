@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Info, CheckCircle2, AlertTriangle, Sparkles } from 'lucide-react';
 
-export default function ToothHealthMap({ teethState = [] }) {
+export default function ToothHealthMap({ teethState, teeth }) {
     const [selectedTooth, setSelectedTooth] = useState(null);
 
-    // Map by tooth number
+    // Map by tooth number (support both teethState and teeth props)
     const teethMap = {};
-    teethState.forEach(t => {
+    const rawTeeth = (teethState && Array.isArray(teethState) && teethState.length > 0) 
+        ? teethState 
+        : (Array.isArray(teeth) ? teeth : []);
+    rawTeeth.forEach(t => {
         teethMap[t.toothNumber] = t;
     });
 

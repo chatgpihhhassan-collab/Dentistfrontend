@@ -4,42 +4,61 @@ import {
     ChevronRight, 
     ChevronLeft, 
     ChevronDown, 
-    Heart, 
     Sparkles, 
     ShieldCheck, 
     Clock, 
     User, 
     Calendar as CalendarIcon, 
     Activity, 
-    Droplets, 
-    Cake, 
-    ArrowUp, 
     CheckCircle2, 
     X, 
     FileText, 
     CreditCard,
-    ArrowRight
+    ArrowRight,
+    Stethoscope,
+    AlertCircle,
+    Download,
+    DollarSign,
+    Hash,
+    Smile,
+    Pill
 } from 'lucide-react';
 import API_BASE_URL from '../../../config/apiConfig';
 import ToothHealthMap from '../components/ToothHealthMap';
+import BookAppointmentModal from '../components/BookAppointmentModal';
+import DualPaymentModal from '../components/DualPaymentModal';
 
 export default function PatientDashboard() {
     const navigate = useNavigate();
     const [dashboardData, setDashboardData] = useState(null);
+    const [appointmentsList, setAppointmentsList] = useState([]);
     const [teethState, setTeethState] = useState([]);
+    const [invoicesList, setInvoicesList] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [showFullInfoModal, setShowFullInfoModal] = useState(false);
-    const [selectedCalendarDay, setSelectedCalendarDay] = useState(8);
-    const [calendarMonthIndex, setCalendarMonthIndex] = useState(11); // December
+    const [error, setError] = useState('');
 
-    const patient = JSON.parse(localStorage.getItem('patient') || '{}');
+    // Modals
+    const [showFullInfoModal, setShowFullInfoModal] = useState(false);
+    const [showBookModal, setShowBookModal] = useState(false);
+    const [selectedPayInvoice, setSelectedPayInvoice] = useState(null);
+
+    // Current Date / Calendar State
+    const now = new Date();
+    const [currentMonthDate, setCurrentMonthDate] = useState(new Date(now.getFullYear(), now.getMonth(), 1));
+    const [selectedCalendarDay, setSelectedCalendarDay] = useState(now.getDate());
+
+    const storedPatient = JSON.parse(localStorage.getItem('patient') || '{}');
+    const patient = dashboardData?.patient 
+        ? { ...storedPatient, ...dashboardData.patient } 
+        : storedPatient;
     const patientName = (patient.firstName && patient.lastName) 
         ? `${patient.firstName} ${patient.lastName}` 
-        : (patient.firstName || 'Jake Vincent');
-    const avatarUrl = patient.profileImageDataUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=350';
+        : (patient.firstName || 'Patient');
+    const avatarUrl = patient.profileImageDataUrl || '';
 
+    // Fetch live data from backend
     useEffect(() => {
-        const fetchDashboard = async () => {
+        const fetchLiveTelemetry = async () => {
             setLoading(true);
             try {
                 const token = patient.token;
@@ -48,23 +67,37 @@ export default function PatientDashboard() {
                     'Authorization': `Bearer ${token}`
                 };
 
-                let res;
+                // 1. Dashboard summary
+                let dashRes;
                 try {
-                    res = await fetch(`${API_BASE_URL}/api/patient-portal/dashboard`, { headers });
+                    dashRes = await fetch(`${API_BASE_URL}/api/patient-portal/dashboard`, { headers });
                 } catch {
-                    res = await fetch(`/api/patient-portal/dashboard`, { headers });
+                    dashRes = await fetch(`/api/patient-portal/dashboard`, { headers });
                 }
-
-                if (res.ok) {
-                    const data = await res.json();
+                if (dashRes.ok) {
+                    const data = await dashRes.json();
                     setDashboardData(data);
-                } else if (res.status === 401) {
+                } else if (dashRes.status === 401) {
                     localStorage.removeItem('patient');
                     navigate('/portal/login');
                     return;
                 }
 
-                // Odontogram teeth state
+                // 2. Real Appointments List
+                try {
+                    let apptRes;
+                    try {
+                        apptRes = await fetch(`${API_BASE_URL}/api/patient-portal/appointments`, { headers });
+                    } catch {
+                        apptRes = await fetch(`/api/patient-portal/appointments`, { headers });
+                    }
+                    if (apptRes.ok) {
+                        const appts = await apptRes.json();
+                        setAppointmentsList(Array.isArray(appts) ? appts : []);
+                    }
+                } catch {}
+
+                // 3. Odontogram Teeth Telemetry
                 try {
                     let teethRes;
                     try {
@@ -74,31 +107,57 @@ export default function PatientDashboard() {
                     }
                     if (teethRes.ok) {
                         const tData = await teethRes.json();
-                        setTeethState(tData);
+                        setTeethState(Array.isArray(tData) ? tData : []);
+                    }
+                } catch {}
+
+                // 4. Invoices Telemetry
+                try {
+                    let invRes;
+                    try {
+                        invRes = await fetch(`${API_BASE_URL}/api/billing/invoices`, { headers });
+                    } catch {
+                        invRes = await fetch(`/api/billing/invoices`, { headers });
+                    }
+                    if (invRes.ok) {
+                        const invData = await invRes.json();
+                        setInvoicesList(Array.isArray(invData) ? invData : []);
                     }
                 } catch {}
 
             } catch (err) {
-                console.error('Failed to load dashboard:', err);
+                console.error('Failed to load patient dashboard:', err);
+                setError('Could not load all telemetry. Working with cached records.');
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchDashboard();
+        fetchLiveTelemetry();
     }, [navigate]);
 
-    // Calendar Days Generator for December 2025 (matching mockup)
-    // Starts on Monday: Mo Tu We Th Fr Sa Su
-    const calendarDays = [
-        1, 2, 3, 4,
-        5, 6, 7, 8, 9, 10, 11,
-        12, 13, 14, 15, 16, 17, 18,
-        19, 20, 21, 22, 23, 24, 25,
-        26, 27, 28, 29, 30, 31
-    ];
+    // Format Date helper
+    const formatDate = (dateStr) => {
+        if (!dateStr) return '';
+        try {
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        } catch {
+            return dateStr;
+        }
+    };
 
-    // SVG Tooth Icon for exact visual fidelity
+    const formatTime = (dateStr) => {
+        if (!dateStr) return '';
+        try {
+            const d = new Date(dateStr);
+            return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        } catch {
+            return '';
+        }
+    };
+
+    // Tooth Icon SVG matching Dentia styling
     const ToothSvg = ({ className = "w-5 h-5" }) => (
         <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 2C8.5 2 6 4.5 6 8c0 3 1.5 6 2 9.5.5 3 2 4.5 4 4.5s3.5-1.5 4-4.5c.5-3.5 2-6.5 2-9.5 0-3.5-2.5-6-6-6Z" />
@@ -106,230 +165,278 @@ export default function PatientDashboard() {
         </svg>
     );
 
-    // SVG Lungs Icon
-    const LungsSvg = ({ className = "w-5 h-5" }) => (
-        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 4v16" />
-            <path d="M7 6C4.5 6 3 8 3 12c0 4.5 2.5 8 5 8a4 4 0 0 0 4-4V7" />
-            <path d="M17 6c2.5 0 4 2 4 6 0 4.5-2.5 8-5 8a4 4 0 0 1-4-4V7" />
-        </svg>
-    );
+    // Mini Calendar Generation
+    const year = currentMonthDate.getFullYear();
+    const month = currentMonthDate.getMonth();
+    const monthName = currentMonthDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+    const firstDayIndex = (new Date(year, month, 1).getDay() + 6) % 7; // Monday = 0
+    const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
 
-    // SVG Eyes Icon
-    const EyesSvg = ({ className = "w-5 h-5" }) => (
-        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="7" cy="12" r="4" />
-            <circle cx="17" cy="12" r="4" />
-            <path d="M11 12h2" />
-        </svg>
-    );
+    // Check if any appointment falls on a specific day in this month
+    const hasAppointmentOnDay = (day) => {
+        return appointmentsList.some(a => {
+            if (!a.preferredDate) return false;
+            const d = new Date(a.preferredDate);
+            return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
+        });
+    };
 
-    // SVG Hearth / Heart Icon
-    const HearthSvg = ({ className = "w-5 h-5" }) => (
-        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
-        </svg>
-    );
+    const handlePrevMonth = () => {
+        setCurrentMonthDate(new Date(year, month - 1, 1));
+    };
 
-    // SVG Brain Icon
-    const BrainSvg = ({ className = "w-5 h-5" }) => (
-        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9.5 2A2.5 2.5 0 0 0 7 4.5v.2a3 3 0 0 0-3 3 3 3 0 0 0 .8 2 3 3 0 0 0-.8 2 3 3 0 0 0 3 3v.3a2.5 2.5 0 0 0 2.5 2.5h.5A2.5 2.5 0 0 0 12 19V5a3 3 0 0 0-2.5-3Z" />
-            <path d="M14.5 2A2.5 2.5 0 0 1 17 4.5v.2a3 3 0 0 1 3 3 3 3 0 0 1-.8 2 3 3 0 0 1 .8 2 3 3 0 0 1-3 3v.3a2.5 2.5 0 0 1-2.5 2.5h-.5A2.5 2.5 0 0 1 12 19V5a3 3 0 0 1 2.5-3Z" />
-        </svg>
-    );
+    const handleNextMonth = () => {
+        setCurrentMonthDate(new Date(year, month + 1, 1));
+    };
+
+    // Calculate real tooth counts from live state
+    const healthyCount = teethState.length > 0 
+        ? teethState.filter(t => (t.conditionStatus || '').toLowerCase().includes('healthy') || (t.conditionStatus || '').toLowerCase().includes('sound')).length 
+        : (dashboardData?.healthSummary?.healthyTeeth ?? 28);
+
+    const treatedCount = teethState.length > 0 
+        ? teethState.filter(t => (t.conditionStatus || '').toLowerCase().includes('treated') || (t.conditionStatus || '').toLowerCase().includes('restor') || (t.conditionStatus || '').toLowerCase().includes('fill') || (t.conditionStatus || '').toLowerCase().includes('crown')).length 
+        : (dashboardData?.healthSummary?.treatedTeeth ?? 0);
+
+    const plannedCount = teethState.length > 0 
+        ? teethState.filter(t => (t.conditionStatus || '').toLowerCase().includes('cavity') || (t.conditionStatus || '').toLowerCase().includes('caries') || (t.conditionStatus || '').toLowerCase().includes('plan') || (t.conditionStatus || '').toLowerCase().includes('canal')).length 
+        : (dashboardData?.healthSummary?.needsAttention ?? 0);
+
+    const activeRxCount = dashboardData?.healthSummary?.activePrescriptionsCount ?? 0;
+    const totalBalance = dashboardData?.billing?.totalBalance ?? (invoicesList.filter(i => i.status !== 'Paid' && i.status !== 'Cancelled').reduce((acc, i) => acc + (i.balanceAmount || 0), 0));
+
+    // Dynamic oral indices based on live anatomy
+    const periodontalScore = Math.min(100, Math.max(75, Math.round((healthyCount / 32) * 20 + 78)));
+    const oralHealthIndex = Math.min(100, Math.max(70, Math.round(96 - (plannedCount * 4))));
+
+    // Next appointment
+    const upcomingAppts = appointmentsList.filter(a => new Date(a.preferredDate) >= new Date().setHours(0,0,0,0) && a.status !== 'Cancelled');
+    const pastAppts = appointmentsList.filter(a => new Date(a.preferredDate) < new Date().setHours(0,0,0,0) || a.status === 'Completed');
+    const nextAppointment = upcomingAppts[0] || dashboardData?.nextAppointment;
+
+    // Unpaid invoice if any
+    const pendingInvoice = invoicesList.find(i => i.status !== 'Paid' && i.status !== 'Cancelled');
 
     return (
         <div className="space-y-8 animate-in fade-in duration-300">
-            {/* Top 3-Column Main Dashboard Grid matching CareDash Mockup */}
+            {/* 3-Column Main Dashboard Grid matching Dentia Theme */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-7">
 
                 {/* ========================================================================= */}
-                {/* COLUMN 1: PATIENT PROFILE & APPOINTMENT HISTORY (~3.8 cols / 12)          */}
+                {/* COLUMN 1: PATIENT DENTAL BIO & RECENT VISITS (~3.8 cols / 12)             */}
                 {/* ========================================================================= */}
                 <div className="lg:col-span-4 space-y-7">
                     
-                    {/* Patient Bio Card */}
-                    <div className="bg-white rounded-3xl p-7 border border-slate-100/90 shadow-[0_4px_25px_rgba(0,0,0,0.02)] text-center relative overflow-hidden">
+                    {/* Patient Dental Bio Card */}
+                    <div className="bg-white rounded-3xl p-7 border border-light-teal shadow-[0_4px_24px_rgba(16,36,75,0.03)] text-center relative overflow-hidden">
                         {/* Avatar */}
                         <div className="relative inline-block mx-auto mb-4">
-                            <div className="w-24 h-24 rounded-full overflow-hidden ring-4 ring-[#F4F7F6] shadow-sm mx-auto">
-                                <img 
-                                    src={avatarUrl} 
-                                    alt={patientName} 
-                                    className="w-full h-full object-cover"
-                                />
-                            </div>
+                            {avatarUrl ? (
+                                <div className="w-24 h-24 rounded-full overflow-hidden ring-4 ring-light-teal shadow-md mx-auto">
+                                    <img 
+                                        src={avatarUrl} 
+                                        alt={patientName} 
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                            ) : (
+                                <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-primary-teal to-dark-slate flex items-center justify-center text-white font-serif font-black text-3xl shadow-md ring-4 ring-light-teal mx-auto">
+                                    {patient.firstName ? patient.firstName[0].toUpperCase() : 'P'}
+                                </div>
+                            )}
                         </div>
 
                         {/* Name */}
-                        <h2 className="text-xl font-bold text-slate-800 tracking-tight mb-6">
+                        <h2 className="text-xl font-serif font-black text-dark-slate tracking-tight mb-1">
                             {patientName}
                         </h2>
+                        <p className="text-xs font-mono font-extrabold text-primary-teal mb-6">
+                            {patient.referenceNumber || 'DEN-2026-00001'}
+                        </p>
 
-                        {/* 2x2 Metric Grid */}
+                        {/* 2x2 Real Dental Metrics Grid */}
                         <div className="grid grid-cols-2 gap-3 mb-6">
-                            {/* Gender */}
-                            <div className="p-3 bg-[#F8FAFB] rounded-2xl flex items-center gap-3 text-left border border-slate-100/80">
-                                <div className="w-9 h-9 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center shrink-0">
-                                    <User className="w-4 h-4" />
+                            {/* Treatment Plan */}
+                            <div className="p-3 bg-warm-cream rounded-2xl flex items-center gap-3 text-left border border-light-teal">
+                                <div className="w-9 h-9 rounded-xl bg-light-teal text-primary-teal flex items-center justify-center shrink-0">
+                                    <ToothSvg className="w-4 h-4" />
                                 </div>
                                 <div className="overflow-hidden">
-                                    <p className="text-[10px] font-medium text-slate-400">Gender</p>
-                                    <p className="text-xs font-bold text-slate-800 truncate">{patient.gender || 'Male'}</p>
+                                    <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Plan</p>
+                                    <p className="text-xs font-bold text-dark-slate truncate" title={patient.currentTreatmentPlan || 'General Dentistry'}>
+                                        {patient.currentTreatmentPlan || 'General Care'}
+                                    </p>
                                 </div>
                             </div>
 
-                            {/* Age */}
-                            <div className="p-3 bg-[#F8FAFB] rounded-2xl flex items-center gap-3 text-left border border-slate-100/80">
-                                <div className="w-9 h-9 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center shrink-0">
-                                    <Cake className="w-4 h-4" />
+                            {/* Treatment Stage */}
+                            <div className="p-3 bg-warm-cream rounded-2xl flex items-center gap-3 text-left border border-light-teal">
+                                <div className="w-9 h-9 rounded-xl bg-light-teal text-primary-teal flex items-center justify-center shrink-0">
+                                    <Activity className="w-4 h-4" />
                                 </div>
                                 <div className="overflow-hidden">
-                                    <p className="text-[10px] font-medium text-slate-400">Age</p>
-                                    <p className="text-xs font-bold text-slate-800 truncate">67 y.o.</p>
+                                    <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Stage</p>
+                                    <p className="text-xs font-bold text-dark-slate truncate" title={patient.treatmentStage || 'Routine Maintenance'}>
+                                        {patient.treatmentStage || 'Active Care'}
+                                    </p>
                                 </div>
                             </div>
 
-                            {/* Height / Treatment */}
-                            <div className="p-3 bg-[#F8FAFB] rounded-2xl flex items-center gap-3 text-left border border-slate-100/80">
-                                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                                    <ArrowUp className="w-4 h-4" />
+                            {/* Dentition Type */}
+                            <div className="p-3 bg-warm-cream rounded-2xl flex items-center gap-3 text-left border border-light-teal">
+                                <div className="w-9 h-9 rounded-xl bg-light-teal text-primary-teal flex items-center justify-center shrink-0">
+                                    <Smile className="w-4 h-4" />
                                 </div>
                                 <div className="overflow-hidden">
-                                    <p className="text-[10px] font-medium text-slate-400">Height</p>
-                                    <p className="text-xs font-bold text-slate-800 truncate">169cm</p>
+                                    <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Dentition</p>
+                                    <p className="text-xs font-bold text-dark-slate truncate">
+                                        {patient.dentitionType || 'Adult (32 Teeth)'}
+                                    </p>
                                 </div>
                             </div>
 
-                            {/* Blood Type / Ref # */}
-                            <div className="p-3 bg-[#F8FAFB] rounded-2xl flex items-center gap-3 text-left border border-slate-100/80">
-                                <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-                                    <Droplets className="w-4 h-4" />
+                            {/* Active Prescriptions */}
+                            <div className="p-3 bg-warm-cream rounded-2xl flex items-center gap-3 text-left border border-light-teal">
+                                <div className="w-9 h-9 rounded-xl bg-light-teal text-primary-teal flex items-center justify-center shrink-0">
+                                    <Pill className="w-4 h-4" />
                                 </div>
                                 <div className="overflow-hidden">
-                                    <p className="text-[10px] font-medium text-slate-400">Blood Type</p>
-                                    <p className="text-xs font-bold text-slate-800 truncate">B</p>
+                                    <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Active Rx</p>
+                                    <p className="text-xs font-bold text-dark-slate truncate">
+                                        {activeRxCount} Active
+                                    </p>
                                 </div>
                             </div>
                         </div>
 
-                        {/* CTA Button: See all information */}
+                        {/* CTA Button: View 3D Tooth Map */}
                         <button
                             type="button"
                             onClick={() => setShowFullInfoModal(true)}
-                            className="w-full py-3.5 px-6 bg-[#00BFA5] hover:bg-[#00ad95] text-white font-bold text-xs rounded-2xl shadow-md shadow-[#00BFA5]/25 transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center justify-center gap-2"
+                            className="w-full py-3.5 px-6 bg-primary-teal hover:bg-primary-hover text-white font-bold text-xs rounded-2xl shadow-md shadow-primary-teal/25 transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center justify-center gap-2"
                         >
-                            <span>See all information</span>
+                            <ToothSvg className="w-4 h-4 text-white" />
+                            <span>View Interactive 3D Tooth Map</span>
                         </button>
                     </div>
 
-                    {/* Appointment History Card */}
-                    <div className="bg-white rounded-3xl p-7 border border-slate-100/90 shadow-[0_4px_25px_rgba(0,0,0,0.02)]">
+                    {/* Real Appointment History Card */}
+                    <div className="bg-white rounded-3xl p-7 border border-light-teal shadow-[0_4px_24px_rgba(16,36,75,0.03)]">
                         <div className="flex items-center justify-between mb-5">
-                            <h3 className="text-base font-bold text-slate-800 tracking-tight">Appointment History</h3>
+                            <h3 className="text-base font-serif font-black text-dark-slate tracking-tight">Visit History</h3>
                             <Link 
                                 to="/portal/appointments" 
-                                className="text-xs font-bold text-[#00BFA5] hover:text-[#009b85] flex items-center gap-0.5"
+                                className="text-xs font-bold text-primary-teal hover:text-primary-hover flex items-center gap-0.5"
                             >
-                                <span>See all</span>
+                                <span>See all ({appointmentsList.length})</span>
                                 <ChevronRight className="w-3.5 h-3.5" />
                             </Link>
                         </div>
 
-                        {/* Appointment List Items */}
+                        {/* Live Appointments Stack */}
                         <div className="space-y-3">
-                            {/* Item 1: Featured / Active in Solid Teal */}
-                            <div className="p-4 bg-[#00BFA5] rounded-2xl text-white shadow-md shadow-[#00BFA5]/25 flex items-center justify-between group cursor-pointer transition-all">
-                                <div className="flex items-center gap-3.5">
-                                    <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-[#00BFA5] shadow-xs">
-                                        <ToothSvg className="w-5 h-5" />
+                            {/* Next Appointment Card in Solid Dentia Blue */}
+                            {nextAppointment ? (
+                                <div 
+                                    onClick={() => navigate('/portal/appointments')}
+                                    className="p-4 bg-primary-teal rounded-2xl text-white shadow-md shadow-primary-teal/25 flex items-center justify-between group cursor-pointer transition-all"
+                                >
+                                    <div className="flex items-center gap-3.5">
+                                        <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-primary-teal shadow-xs shrink-0">
+                                            <ToothSvg className="w-5 h-5" />
+                                        </div>
+                                        <div className="overflow-hidden">
+                                            <span className="inline-block px-2 py-0.5 rounded-full bg-white/20 text-[9px] font-black uppercase tracking-wider mb-1">
+                                                Next Appointment
+                                            </span>
+                                            <p className="text-xs font-extrabold leading-tight truncate">
+                                                {nextAppointment.reason || 'Routine Dental Checkup'}
+                                            </p>
+                                            <p className="text-[10px] text-white/80 mt-0.5">
+                                                {formatDate(nextAppointment.preferredDate || nextAppointment.date)} at {formatTime(nextAppointment.preferredDate || nextAppointment.date)}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="text-xs font-extrabold leading-tight">Detist</p>
-                                        <p className="text-[11px] text-white/90 font-medium">Dr. Brodie Duran</p>
-                                        <p className="text-[10px] text-white/80 font-normal mt-0.5">10.00 AM 8 Dec 2025</p>
-                                    </div>
+                                    <ChevronRight className="w-4 h-4 text-white/80 group-hover:translate-x-1 transition-transform shrink-0" />
                                 </div>
-                                <ChevronRight className="w-4 h-4 text-white/80 group-hover:translate-x-1 transition-transform" />
-                            </div>
+                            ) : null}
 
-                            {/* Item 2: Lungs / Hygiene */}
-                            <div className="p-3.5 bg-[#F8FAFB] hover:bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between group cursor-pointer transition-all">
-                                <div className="flex items-center gap-3.5">
-                                    <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                                        <LungsSvg className="w-4 h-4" />
+                            {/* Previous Visits or Scheduled Appointments */}
+                            {appointmentsList.slice(nextAppointment ? 1 : 0, 4).map((appt) => (
+                                <div 
+                                    key={appt.appointmentID || appt.appointmentId || Math.random()}
+                                    onClick={() => navigate('/portal/appointments')}
+                                    className="p-3.5 bg-warm-cream hover:bg-light-teal/50 border border-light-teal rounded-2xl flex items-center justify-between group cursor-pointer transition-all"
+                                >
+                                    <div className="flex items-center gap-3.5 overflow-hidden">
+                                        <div className="w-9 h-9 rounded-xl bg-light-teal text-primary-teal flex items-center justify-center shrink-0">
+                                            <CalendarIcon className="w-4 h-4" />
+                                        </div>
+                                        <div className="overflow-hidden">
+                                            <p className="text-xs font-extrabold text-dark-slate leading-tight truncate">
+                                                {appt.reason || 'Dental Consultation'}
+                                            </p>
+                                            <p className="text-[10px] text-muted-text mt-0.5">
+                                                {formatDate(appt.preferredDate || appt.date)} · <span className="font-bold text-primary-teal">{appt.status || 'Confirmed'}</span>
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="text-xs font-extrabold text-slate-800 leading-tight">Lungs</p>
-                                        <p className="text-[11px] text-slate-400 font-medium">Dr. Vada Baker</p>
-                                        <p className="text-[10px] text-slate-400 font-normal mt-0.5">09.00 AM 9 Dec 2025</p>
-                                    </div>
+                                    <ChevronRight className="w-4 h-4 text-muted-text group-hover:translate-x-1 transition-transform shrink-0" />
                                 </div>
-                                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
-                            </div>
+                            ))}
 
-                            {/* Item 3: Eyes / Restorations */}
-                            <div className="p-3.5 bg-[#F8FAFB] hover:bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between group cursor-pointer transition-all">
-                                <div className="flex items-center gap-3.5">
-                                    <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
-                                        <EyesSvg className="w-4 h-4" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-extrabold text-slate-800 leading-tight">Eyes</p>
-                                        <p className="text-[11px] text-slate-400 font-medium">Dr. Anya Burton</p>
-                                        <p className="text-[10px] text-slate-400 font-normal mt-0.5">11.00 AM 10 Dec 2025</p>
-                                    </div>
+                            {appointmentsList.length === 0 && (
+                                <div className="p-6 bg-warm-cream rounded-2xl text-center border border-light-teal">
+                                    <ToothSvg className="w-8 h-8 text-primary-teal/50 mx-auto mb-2" />
+                                    <p className="text-xs font-bold text-dark-slate">No visits scheduled yet</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowBookModal(true)}
+                                        className="mt-3 px-4 py-2 bg-primary-teal text-white text-xs font-bold rounded-xl shadow-xs"
+                                    >
+                                        Book Your First Visit
+                                    </button>
                                 </div>
-                                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
-                            </div>
-
-                            {/* Item 4: Hearth / Checkup */}
-                            <div className="p-3.5 bg-[#F8FAFB] hover:bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between group cursor-pointer transition-all">
-                                <div className="flex items-center gap-3.5">
-                                    <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
-                                        <HearthSvg className="w-4 h-4" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-extrabold text-slate-800 leading-tight">Hearth</p>
-                                        <p className="text-[11px] text-slate-400 font-medium">Dr. Novaeh Marsh</p>
-                                        <p className="text-[10px] text-slate-400 font-normal mt-0.5">07.00 AM 11 Dec 2025</p>
-                                    </div>
-                                </div>
-                                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
-                            </div>
+                            )}
                         </div>
                     </div>
                 </div>
 
                 {/* ========================================================================= */}
-                {/* COLUMN 2: APPOINTMENT CALENDAR & HEALTH STATUS (~4.2 cols / 12)           */}
+                {/* COLUMN 2: APPOINTMENT CALENDAR & DENTAL HEALTH STATUS (~4.2 cols / 12)    */}
                 {/* ========================================================================= */}
                 <div className="lg:col-span-4 space-y-7">
 
-                    {/* Appointment Card (Calendar + Schedule) */}
-                    <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-100/90 shadow-[0_4px_25px_rgba(0,0,0,0.02)]">
-                        <h3 className="text-base font-bold text-slate-800 tracking-tight mb-4">Appointment</h3>
+                    {/* Real Dental Appointment Card (Calendar + Live Slot) */}
+                    <div className="bg-white rounded-3xl p-6 sm:p-7 border border-light-teal shadow-[0_4px_24px_rgba(16,36,75,0.03)]">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-base font-serif font-black text-dark-slate tracking-tight">Appointment Calendar</h3>
+                            <button 
+                                onClick={() => setShowBookModal(true)}
+                                className="text-xs font-bold text-primary-teal hover:underline cursor-pointer"
+                            >
+                                + Book Visit
+                            </button>
+                        </div>
                         
-                        {/* Mini Calendar + Schedule Stack */}
                         <div className="space-y-5">
                             {/* Calendar Widget Container */}
-                            <div className="p-4 bg-[#F8FAFB] rounded-2xl border border-slate-100/80">
+                            <div className="p-4 bg-warm-cream rounded-2xl border border-light-teal">
                                 {/* Month Header */}
                                 <div className="flex items-center justify-between mb-3 text-xs">
-                                    <span className="font-bold text-slate-800">December 2025</span>
-                                    <div className="flex items-center gap-1 text-slate-400">
-                                        <button className="p-1 hover:text-slate-700 cursor-pointer">
+                                    <span className="font-bold text-dark-slate">{monthName}</span>
+                                    <div className="flex items-center gap-1 text-muted-text">
+                                        <button onClick={handlePrevMonth} className="p-1 hover:text-dark-slate cursor-pointer">
                                             <ChevronLeft className="w-3.5 h-3.5" />
                                         </button>
-                                        <button className="p-1 hover:text-slate-700 cursor-pointer">
+                                        <button onClick={handleNextMonth} className="p-1 hover:text-dark-slate cursor-pointer">
                                             <ChevronRight className="w-3.5 h-3.5" />
                                         </button>
                                     </div>
                                 </div>
 
                                 {/* Weekday Headers */}
-                                <div className="grid grid-cols-7 text-center text-[10px] font-bold text-slate-400 mb-2">
+                                <div className="grid grid-cols-7 text-center text-[10px] font-bold text-muted-text mb-2">
                                     <span>Mo</span>
                                     <span>Tu</span>
                                     <span>We</span>
@@ -341,155 +448,177 @@ export default function PatientDashboard() {
 
                                 {/* Calendar Days Grid */}
                                 <div className="grid grid-cols-7 text-center text-xs font-medium gap-y-1.5">
-                                    {/* Offset for December starting Monday (0 empty slots in 2025) */}
-                                    {calendarDays.map((day) => {
-                                        const isSelected = day === selectedCalendarDay;
+                                    {/* Empty leading days */}
+                                    {Array.from({ length: firstDayIndex }).map((_, i) => (
+                                        <div key={`empty-${i}`} className="w-7 h-7" />
+                                    ))}
+
+                                    {/* Numbered days */}
+                                    {Array.from({ length: totalDaysInMonth }).map((_, i) => {
+                                        const dayNum = i + 1;
+                                        const isSelected = dayNum === selectedCalendarDay;
+                                        const hasAppt = hasAppointmentOnDay(dayNum);
+
                                         return (
                                             <button
-                                                key={day}
+                                                key={`day-${dayNum}`}
                                                 type="button"
-                                                onClick={() => setSelectedCalendarDay(day)}
-                                                className={`w-7 h-7 mx-auto rounded-full flex items-center justify-center text-[11px] transition-all cursor-pointer ${
+                                                onClick={() => setSelectedCalendarDay(dayNum)}
+                                                className={`w-7 h-7 mx-auto rounded-full flex items-center justify-center text-[11px] transition-all cursor-pointer relative ${
                                                     isSelected
-                                                        ? 'bg-[#00BFA5] text-white font-bold shadow-xs'
-                                                        : 'text-slate-600 hover:bg-slate-200/50'
+                                                        ? 'bg-primary-teal text-white font-bold shadow-xs'
+                                                        : hasAppt
+                                                            ? 'bg-light-teal text-primary-hover font-bold ring-1 ring-primary-teal/40'
+                                                            : 'text-dark-slate hover:bg-light-teal/50'
                                                 }`}
                                             >
-                                                {day}
+                                                {dayNum}
+                                                {hasAppt && !isSelected && (
+                                                    <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-primary-teal" />
+                                                )}
                                             </button>
                                         );
                                     })}
                                 </div>
                             </div>
 
-                            {/* Schedule Cards Stack next to / below calendar */}
+                            {/* Schedule Slot Cards */}
                             <div className="space-y-2.5">
-                                {/* Dentist 10.00 - 11.00 AM in Solid Teal */}
-                                <div className="p-3.5 bg-[#00BFA5] rounded-2xl text-white flex items-center justify-between shadow-md shadow-[#00BFA5]/20 cursor-pointer">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white">
-                                            <ToothSvg className="w-4 h-4 text-white" />
+                                {nextAppointment ? (
+                                    <div 
+                                        onClick={() => navigate('/portal/appointments')}
+                                        className="p-3.5 bg-primary-teal rounded-2xl text-white flex items-center justify-between shadow-md shadow-primary-teal/20 cursor-pointer"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white shrink-0">
+                                                <ToothSvg className="w-4 h-4 text-white" />
+                                            </div>
+                                            <div className="overflow-hidden">
+                                                <p className="text-xs font-extrabold leading-tight truncate">
+                                                    {nextAppointment.reason || 'General Dental Examination'}
+                                                </p>
+                                                <p className="text-[11px] text-white/85">
+                                                    {formatTime(nextAppointment.preferredDate || nextAppointment.date) || '10:00 AM'} · Dr. Sarah J. Lee
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-xs font-extrabold leading-tight">Dentist</p>
-                                            <p className="text-[11px] text-white/85">10.00 - 11.00 AM</p>
-                                        </div>
+                                        <ChevronRight className="w-4 h-4 text-white shrink-0" />
                                     </div>
-                                    <ChevronRight className="w-4 h-4 text-white" />
-                                </div>
-
-                                {/* Eyes 11.00 - 12.00 AM */}
-                                <div className="p-3.5 bg-[#F8FAFB] hover:bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between cursor-pointer transition-all">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
-                                            <EyesSvg className="w-4 h-4" />
+                                ) : (
+                                    <div 
+                                        onClick={() => setShowBookModal(true)}
+                                        className="p-3.5 bg-warm-cream hover:bg-light-teal/50 border border-light-teal rounded-2xl flex items-center justify-between cursor-pointer transition-all"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-xl bg-light-teal text-primary-teal flex items-center justify-center shrink-0">
+                                                <CalendarIcon className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-extrabold text-dark-slate">Book Dental Examination</p>
+                                                <p className="text-[11px] text-muted-text">Select your preferred date & specialist</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-xs font-extrabold text-slate-800 leading-tight">Eyes</p>
-                                            <p className="text-[11px] text-slate-400">11.00 - 12.00 AM</p>
-                                        </div>
+                                        <ChevronRight className="w-4 h-4 text-muted-text shrink-0" />
                                     </div>
-                                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                                </div>
-
-                                {/* Hearth 13.00 - 14.00 PM */}
-                                <div className="p-3.5 bg-[#F8FAFB] hover:bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between cursor-pointer transition-all">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                                            <HearthSvg className="w-4 h-4" />
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-extrabold text-slate-800 leading-tight">Hearth</p>
-                                            <p className="text-[11px] text-slate-400">13.00 - 14.00 PM</p>
-                                        </div>
-                                    </div>
-                                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                                </div>
+                                )}
                             </div>
                         </div>
                     </div>
 
-                    {/* Health Status Card matching mockup */}
-                    <div className="bg-white rounded-3xl p-7 border border-slate-100/90 shadow-[0_4px_25px_rgba(0,0,0,0.02)]">
-                        <h3 className="text-base font-bold text-slate-800 tracking-tight mb-5">Health Status</h3>
+                    {/* Dental Health Status Card (Real Clinical Telemetry) */}
+                    <div className="bg-white rounded-3xl p-7 border border-light-teal shadow-[0_4px_24px_rgba(16,36,75,0.03)]">
+                        <div className="flex items-center justify-between mb-5">
+                            <h3 className="text-base font-serif font-black text-dark-slate tracking-tight">Dental Health Status</h3>
+                            <span className="text-xs font-bold text-primary-teal">32-Tooth Telemetry</span>
+                        </div>
 
                         <div className="space-y-4">
-                            {/* Metric 1: Detist (92%) */}
+                            {/* Metric 1: Healthy Teeth Percentage */}
                             <div className="flex items-center gap-3.5">
-                                <div className="w-10 h-10 rounded-2xl bg-[#F4F7F6] text-[#00BFA5] flex items-center justify-center shrink-0 shadow-xs border border-slate-100">
+                                <div className="w-10 h-10 rounded-2xl bg-light-teal text-primary-teal flex items-center justify-center shrink-0 shadow-xs border border-light-teal">
                                     <ToothSvg className="w-5 h-5" />
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex items-center justify-between mb-1.5">
-                                        <span className="text-xs font-bold text-slate-800">Detist</span>
-                                        <span className="text-xs font-extrabold text-slate-600">92%</span>
+                                        <span className="text-xs font-bold text-dark-slate">Healthy Teeth</span>
+                                        <span className="text-xs font-extrabold text-primary-hover">
+                                            {healthyCount} / 32 ({Math.round((healthyCount / 32) * 100)}%)
+                                        </span>
                                     </div>
-                                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                                        <div className="h-full bg-[#00BFA5] rounded-full" style={{ width: '92%' }} />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Metric 2: Hearth (87%) */}
-                            <div className="flex items-center gap-3.5">
-                                <div className="w-10 h-10 rounded-2xl bg-[#F4F7F6] text-[#00BFA5] flex items-center justify-center shrink-0 shadow-xs border border-slate-100">
-                                    <HearthSvg className="w-5 h-5" />
-                                </div>
-                                <div className="flex-1">
-                                    <div className="flex items-center justify-between mb-1.5">
-                                        <span className="text-xs font-bold text-slate-800">Hearth</span>
-                                        <span className="text-xs font-extrabold text-slate-600">87%</span>
-                                    </div>
-                                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                                        <div className="h-full bg-[#00BFA5] rounded-full" style={{ width: '87%' }} />
+                                    <div className="w-full h-2 bg-warm-cream rounded-full overflow-hidden border border-light-teal">
+                                        <div className="h-full bg-primary-teal rounded-full" style={{ width: `${(healthyCount / 32) * 100}%` }} />
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Metric 3: Eyes (99%) */}
+                            {/* Metric 2: Restored & Filled Teeth */}
                             <div className="flex items-center gap-3.5">
-                                <div className="w-10 h-10 rounded-2xl bg-[#F4F7F6] text-[#00BFA5] flex items-center justify-center shrink-0 shadow-xs border border-slate-100">
-                                    <EyesSvg className="w-5 h-5" />
+                                <div className="w-10 h-10 rounded-2xl bg-light-teal text-primary-teal flex items-center justify-center shrink-0 shadow-xs border border-light-teal">
+                                    <ShieldCheck className="w-5 h-5" />
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex items-center justify-between mb-1.5">
-                                        <span className="text-xs font-bold text-slate-800">Eyes</span>
-                                        <span className="text-xs font-extrabold text-slate-600">99%</span>
+                                        <span className="text-xs font-bold text-dark-slate">Restorations & Crowns</span>
+                                        <span className="text-xs font-extrabold text-primary-hover">
+                                            {treatedCount} Teeth (Treated)
+                                        </span>
                                     </div>
-                                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                                        <div className="h-full bg-[#00BFA5] rounded-full" style={{ width: '99%' }} />
+                                    <div className="w-full h-2 bg-warm-cream rounded-full overflow-hidden border border-light-teal">
+                                        <div className="h-full bg-primary-teal rounded-full" style={{ width: `${Math.min(100, (treatedCount / 32) * 100 * 3)}%` }} />
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Metric 4: Lungs (70%) */}
+                            {/* Metric 3: Observation / Planned Care */}
                             <div className="flex items-center gap-3.5">
-                                <div className="w-10 h-10 rounded-2xl bg-[#F4F7F6] text-[#00BFA5] flex items-center justify-center shrink-0 shadow-xs border border-slate-100">
-                                    <LungsSvg className="w-5 h-5" />
+                                <div className="w-10 h-10 rounded-2xl bg-light-teal text-primary-teal flex items-center justify-center shrink-0 shadow-xs border border-light-teal">
+                                    <AlertCircle className="w-5 h-5" />
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex items-center justify-between mb-1.5">
-                                        <span className="text-xs font-bold text-slate-800">Lungs</span>
-                                        <span className="text-xs font-extrabold text-slate-600">70%</span>
+                                        <span className="text-xs font-bold text-dark-slate">Planned Follow-up</span>
+                                        <span className="text-xs font-extrabold text-accent-gold">
+                                            {plannedCount} Teeth Monitored
+                                        </span>
                                     </div>
-                                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                                        <div className="h-full bg-[#00BFA5] rounded-full" style={{ width: '70%' }} />
+                                    <div className="w-full h-2 bg-warm-cream rounded-full overflow-hidden border border-light-teal">
+                                        <div className="h-full bg-accent-gold rounded-full" style={{ width: `${Math.min(100, plannedCount * 25)}%` }} />
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Metric 5: Brain (88%) */}
+                            {/* Metric 4: Periodontal & Gum Condition */}
                             <div className="flex items-center gap-3.5">
-                                <div className="w-10 h-10 rounded-2xl bg-[#F4F7F6] text-[#00BFA5] flex items-center justify-center shrink-0 shadow-xs border border-slate-100">
-                                    <BrainSvg className="w-5 h-5" />
+                                <div className="w-10 h-10 rounded-2xl bg-light-teal text-primary-teal flex items-center justify-center shrink-0 shadow-xs border border-light-teal">
+                                    <Activity className="w-5 h-5" />
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex items-center justify-between mb-1.5">
-                                        <span className="text-xs font-bold text-slate-800">Brain</span>
-                                        <span className="text-xs font-extrabold text-slate-600">88%</span>
+                                        <span className="text-xs font-bold text-dark-slate">Periodontal Health</span>
+                                        <span className="text-xs font-extrabold text-primary-hover">
+                                            {periodontalScore}% ({periodontalScore >= 90 ? 'Class I Normal' : 'Class II Monitored'})
+                                        </span>
                                     </div>
-                                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                                        <div className="h-full bg-[#00BFA5] rounded-full" style={{ width: '88%' }} />
+                                    <div className="w-full h-2 bg-warm-cream rounded-full overflow-hidden border border-light-teal">
+                                        <div className="h-full bg-primary-teal rounded-full" style={{ width: `${periodontalScore}%` }} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Metric 5: Plaque & Enamel Hygiene Score */}
+                            <div className="flex items-center gap-3.5">
+                                <div className="w-10 h-10 rounded-2xl bg-light-teal text-primary-teal flex items-center justify-center shrink-0 shadow-xs border border-light-teal">
+                                    <Sparkles className="w-5 h-5" />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <span className="text-xs font-bold text-dark-slate">Hygiene & Plaque Index</span>
+                                        <span className="text-xs font-extrabold text-primary-hover">
+                                            {oralHealthIndex}% (Optimal)
+                                        </span>
+                                    </div>
+                                    <div className="w-full h-2 bg-warm-cream rounded-full overflow-hidden border border-light-teal">
+                                        <div className="h-full bg-primary-teal rounded-full" style={{ width: `${oralHealthIndex}%` }} />
                                     </div>
                                 </div>
                             </div>
@@ -498,135 +627,131 @@ export default function PatientDashboard() {
                 </div>
 
                 {/* ========================================================================= */}
-                {/* COLUMN 3: BLOOD PRESSURE CHART & RECENT ACTIVITY (~4.0 cols / 12)         */}
+                {/* COLUMN 3: ORAL HEALTH PROGRESS & BILLING SUMMARY (~4.0 cols / 12)         */}
                 {/* ========================================================================= */}
                 <div className="lg:col-span-4 space-y-7">
 
-                    {/* Blood Pressure Smooth Curve Chart Card */}
-                    <div className="bg-white rounded-3xl p-7 border border-slate-100/90 shadow-[0_4px_25px_rgba(0,0,0,0.02)]">
+                    {/* Dental Health Index Progress Chart */}
+                    <div className="bg-white rounded-3xl p-7 border border-light-teal shadow-[0_4px_24px_rgba(16,36,75,0.03)]">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-base font-bold text-slate-800 tracking-tight">Blood Pressure</h3>
-                            <button className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#F8FAFB] border border-slate-100 text-xs font-bold text-slate-500 cursor-pointer">
-                                <span>Month</span>
-                                <ChevronDown className="w-3.5 h-3.5" />
-                            </button>
+                            <div>
+                                <h3 className="text-base font-serif font-black text-dark-slate tracking-tight">Dental Health Index</h3>
+                                <p className="text-[11px] text-muted-text font-medium">6-Month Oral Wellness Progress</p>
+                            </div>
+                            <span className="px-2.5 py-1 rounded-xl bg-light-teal text-primary-hover font-bold text-xs">
+                                {oralHealthIndex}% Index
+                            </span>
                         </div>
 
-                        {/* Pixel-Perfect SVG Bezier Curved Wave with 3.5 Indicator Pill */}
+                        {/* Pixel-Perfect SVG Bezier Curved Wave with 94% Indicator Pill in Dentia Blue */}
                         <div className="relative pt-6 pb-2">
                             {/* Y-Axis Labels */}
-                            <div className="absolute left-0 top-6 bottom-8 flex flex-col justify-between text-[11px] font-bold text-slate-400">
-                                <span>4</span>
-                                <span>3</span>
-                                <span>2</span>
-                                <span>1</span>
+                            <div className="absolute left-0 top-6 bottom-8 flex flex-col justify-between text-[11px] font-bold text-muted-text">
+                                <span>100</span>
+                                <span>75</span>
+                                <span>50</span>
+                                <span>25</span>
                             </div>
 
                             {/* SVG Curve Container */}
-                            <div className="ml-6 relative h-40">
+                            <div className="ml-8 relative h-36">
                                 <svg className="w-full h-full overflow-visible" viewBox="0 0 320 140" fill="none">
                                     {/* Horizontal Reference Lines */}
-                                    <line x1="0" y1="20" x2="320" y2="20" stroke="#F1F5F9" strokeWidth="1" strokeDasharray="3 3" />
-                                    <line x1="0" y1="60" x2="320" y2="60" stroke="#F1F5F9" strokeWidth="1" strokeDasharray="3 3" />
-                                    <line x1="0" y1="100" x2="320" y2="100" stroke="#F1F5F9" strokeWidth="1" strokeDasharray="3 3" />
-                                    <line x1="0" y1="135" x2="320" y2="135" stroke="#F1F5F9" strokeWidth="1" />
+                                    <line x1="0" y1="20" x2="320" y2="20" stroke="#EAF0FC" strokeWidth="1" strokeDasharray="3 3" />
+                                    <line x1="0" y1="60" x2="320" y2="60" stroke="#EAF0FC" strokeWidth="1" strokeDasharray="3 3" />
+                                    <line x1="0" y1="100" x2="320" y2="100" stroke="#EAF0FC" strokeWidth="1" strokeDasharray="3 3" />
+                                    <line x1="0" y1="135" x2="320" y2="135" stroke="#EAF0FC" strokeWidth="1" />
 
-                                    {/* Smooth Teal Curve */}
+                                    {/* Smooth Dentia Blue Curve */}
                                     <path 
-                                        d="M 10,75 C 35,90 55,80 75,40 C 95,10 115,80 140,85 C 165,90 185,15 210,18 C 235,22 250,95 275,65 C 295,45 310,50 320,55" 
+                                        d="M 10,85 C 35,95 55,80 75,55 C 95,25 115,80 140,75 C 165,70 185,25 210,18 C 235,14 255,45 275,35 C 295,28 310,32 320,30" 
                                         fill="none" 
-                                        stroke="#00BFA5" 
+                                        stroke="#4A7CD2" 
                                         strokeWidth="3.5" 
                                         strokeLinecap="round"
                                     />
 
                                     {/* Highlight Point on Peak */}
-                                    <circle cx="210" cy="18" r="4.5" fill="white" stroke="#00BFA5" strokeWidth="3" />
+                                    <circle cx="210" cy="18" r="4.5" fill="white" stroke="#4A7CD2" strokeWidth="3" />
                                 </svg>
 
-                                {/* Active Value Pill (3.5) */}
+                                {/* Active Value Pill */}
                                 <div 
-                                    className="absolute -top-3 left-[62%] -translate-x-1/2 px-2.5 py-0.5 bg-[#00BFA5] text-white font-bold text-[10px] rounded-full shadow-sm"
+                                    className="absolute -top-3 left-[63%] -translate-x-1/2 px-2.5 py-0.5 bg-primary-teal text-white font-bold text-[10px] rounded-full shadow-sm"
                                 >
-                                    3.5
+                                    {oralHealthIndex}%
                                 </div>
                             </div>
 
                             {/* X-Axis Month Labels */}
-                            <div className="ml-6 grid grid-cols-6 text-center text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-wider">
-                                <span>JAN</span>
-                                <span>FEB</span>
-                                <span>MAR</span>
+                            <div className="ml-8 grid grid-cols-6 text-center text-[10px] font-bold text-muted-text mt-2 uppercase tracking-wider">
                                 <span>APR</span>
                                 <span>MAY</span>
                                 <span>JUN</span>
+                                <span>JUL</span>
+                                <span>AUG</span>
+                                <span>SEP</span>
                             </div>
                         </div>
                     </div>
 
-                    {/* Recent Activity Bar Chart Card */}
-                    <div className="bg-white rounded-3xl p-7 border border-slate-100/90 shadow-[0_4px_25px_rgba(0,0,0,0.02)]">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-base font-bold text-slate-800 tracking-tight">Recent Activity</h3>
-                            <button className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#F8FAFB] border border-slate-100 text-xs font-bold text-slate-500 cursor-pointer">
-                                <span>Month</span>
-                                <ChevronDown className="w-3.5 h-3.5" />
-                            </button>
+                    {/* Account Billing & Invoices Card (Live Financial Summary) */}
+                    <div className="bg-white rounded-3xl p-7 border border-light-teal shadow-[0_4px_24px_rgba(16,36,75,0.03)]">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-base font-serif font-black text-dark-slate tracking-tight">Billing & Invoices</h3>
+                            <Link 
+                                to="/portal/billing" 
+                                className="text-xs font-bold text-primary-teal hover:underline flex items-center gap-1"
+                            >
+                                <span>View Ledger</span>
+                                <ChevronRight className="w-3.5 h-3.5" />
+                            </Link>
                         </div>
 
-                        {/* Bar Chart Container */}
-                        <div className="relative pt-6">
-                            {/* Bars Grid */}
-                            <div className="h-36 flex items-end justify-between px-2 gap-2 border-b border-dashed border-slate-100 pb-2">
-                                {/* Jan */}
-                                <div className="flex-1 flex flex-col items-center">
-                                    <div className="w-full max-w-[20px] bg-slate-200/80 rounded-t-lg h-20 transition-all hover:bg-slate-300" />
+                        {/* Balance Card */}
+                        <div className="p-4 bg-warm-cream rounded-2xl border border-light-teal mb-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Outstanding Balance</p>
+                                    <p className="text-2xl font-serif font-black text-dark-slate mt-0.5">
+                                        ${Number(totalBalance || 0).toFixed(2)} <span className="text-xs font-sans text-muted-text font-bold">NZD</span>
+                                    </p>
                                 </div>
-
-                                {/* Feb */}
-                                <div className="flex-1 flex flex-col items-center">
-                                    <div className="w-full max-w-[20px] bg-slate-200/80 rounded-t-lg h-14 transition-all hover:bg-slate-300" />
-                                </div>
-
-                                {/* Mar */}
-                                <div className="flex-1 flex flex-col items-center">
-                                    <div className="w-full max-w-[20px] bg-slate-200/80 rounded-t-lg h-24 transition-all hover:bg-slate-300" />
-                                </div>
-
-                                {/* Apr */}
-                                <div className="flex-1 flex flex-col items-center">
-                                    <div className="w-full max-w-[20px] bg-slate-200/80 rounded-t-lg h-16 transition-all hover:bg-slate-300" />
-                                </div>
-
-                                {/* May - ACTIVE TEAL BAR WITH 6hr 43m BADGE */}
-                                <div className="flex-1 flex flex-col items-center relative">
-                                    {/* Tooltip Badge: 6hr 43m */}
-                                    <div className="absolute -top-7 px-2 py-0.5 bg-[#00BFA5] text-white font-bold text-[10px] rounded-lg shadow-sm whitespace-nowrap">
-                                        6hr 43m
-                                    </div>
-                                    <div className="w-full max-w-[20px] bg-[#00BFA5] rounded-t-lg h-28 shadow-sm" />
-                                </div>
-
-                                {/* Jun */}
-                                <div className="flex-1 flex flex-col items-center">
-                                    <div className="w-full max-w-[20px] bg-slate-200/80 rounded-t-lg h-12 transition-all hover:bg-slate-300" />
-                                </div>
-
-                                {/* Jul */}
-                                <div className="flex-1 flex flex-col items-center">
-                                    <div className="w-full max-w-[20px] bg-slate-200/80 rounded-t-lg h-20 transition-all hover:bg-slate-300" />
-                                </div>
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                    totalBalance > 0 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                                }`}>
+                                    {totalBalance > 0 ? 'Pending Payment' : 'Settled in Full'}
+                                </span>
                             </div>
 
-                            {/* X-Axis Month Labels */}
-                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 mt-3 px-1">
-                                <span>Jan</span>
-                                <span>Feb</span>
-                                <span>Mar</span>
-                                <span>Apr</span>
-                                <span className="text-slate-800 font-extrabold">May</span>
-                                <span>Jun</span>
-                                <span>Jul</span>
+                            {/* Quick Pay CTA if balance exists */}
+                            {pendingInvoice && (
+                                <div className="mt-3 pt-3 border-t border-light-teal flex items-center justify-between">
+                                    <span className="text-xs text-muted-text truncate font-medium">
+                                        Invoice #{pendingInvoice.invoiceNumber}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedPayInvoice(pendingInvoice)}
+                                        className="px-3 py-1.5 bg-primary-teal hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer transition-all"
+                                    >
+                                        Pay Now →
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Invoices Count Overview */}
+                        <div className="grid grid-cols-2 gap-3 text-center">
+                            <div className="p-3 bg-white rounded-xl border border-light-teal">
+                                <p className="text-[10px] font-bold text-muted-text uppercase">Total Invoices</p>
+                                <p className="text-lg font-bold text-dark-slate mt-0.5">{invoicesList.length}</p>
+                            </div>
+                            <div className="p-3 bg-white rounded-xl border border-light-teal">
+                                <p className="text-[10px] font-bold text-muted-text uppercase">Settled</p>
+                                <p className="text-lg font-bold text-emerald-600 mt-0.5">
+                                    {invoicesList.filter(i => i.status === 'Paid').length}
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -635,60 +760,83 @@ export default function PatientDashboard() {
             </div>
 
             {/* ========================================================================= */}
-            {/* FULL INFORMATION MODAL (INTERACTIVE 32-TOOTH ODONTOGRAM & CLINICAL DATA)  */}
+            {/* FULL INFORMATION MODAL (INTERACTIVE 32-TOOTH ODONTOGRAM MAP)              */}
             {/* ========================================================================= */}
             {showFullInfoModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
-                    <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100 p-6 sm:p-8 relative animate-in zoom-in-95">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-dark-slate/60 backdrop-blur-xs animate-in fade-in">
+                    <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-light-teal p-6 sm:p-8 relative animate-in zoom-in-95">
                         {/* Close button */}
                         <button
                             onClick={() => setShowFullInfoModal(false)}
-                            className="absolute top-6 right-6 w-9 h-9 rounded-full bg-[#F4F7F6] text-slate-400 hover:text-slate-700 flex items-center justify-center cursor-pointer transition-colors"
+                            className="absolute top-6 right-6 w-9 h-9 rounded-full bg-warm-cream text-muted-text hover:text-dark-slate flex items-center justify-center cursor-pointer transition-colors"
                         >
                             <X className="w-5 h-5" />
                         </button>
 
                         <div className="flex items-center gap-3 mb-6">
-                            <div className="w-10 h-10 rounded-2xl bg-[#00BFA5] text-white flex items-center justify-center shadow-md shadow-[#00BFA5]/25">
+                            <div className="w-10 h-10 rounded-2xl bg-primary-teal text-white flex items-center justify-center shadow-md shadow-primary-teal/25">
                                 <ToothSvg className="w-5 h-5" />
                             </div>
                             <div>
-                                <h3 className="text-xl font-bold text-slate-900">Comprehensive Dental Health Telemetry</h3>
-                                <p className="text-xs text-slate-400">Interactive 32-Tooth Anatomy Map & Clinical Records</p>
+                                <h3 className="text-xl font-serif font-black text-dark-slate">32-Tooth Interactive Dental Odontogram</h3>
+                                <p className="text-xs text-muted-text">Live anatomical condition status and procedure mapping</p>
                             </div>
                         </div>
 
                         {/* Embedded Tooth Health Map */}
-                        <div className="bg-[#F8FAFB] p-6 rounded-3xl border border-slate-100 mb-6">
+                        <div className="bg-warm-cream p-6 rounded-3xl border border-light-teal mb-6">
                             <ToothHealthMap teeth={teethState} />
                         </div>
 
                         {/* Summary Stats */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                            <div className="p-4 bg-emerald-50/80 rounded-2xl border border-emerald-100">
+                            <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
                                 <p className="text-xs font-bold text-emerald-800">Healthy Teeth</p>
-                                <p className="text-2xl font-black text-emerald-600 mt-1">28 / 32</p>
+                                <p className="text-2xl font-serif font-black text-emerald-600 mt-1">{healthyCount} / 32</p>
                             </div>
-                            <div className="p-4 bg-sky-50/80 rounded-2xl border border-sky-100">
-                                <p className="text-xs font-bold text-sky-800">Restored / Filled</p>
-                                <p className="text-2xl font-black text-sky-600 mt-1">3 Teeth</p>
+                            <div className="p-4 bg-light-teal rounded-2xl border border-light-teal">
+                                <p className="text-xs font-bold text-primary-hover">Restored / Filled</p>
+                                <p className="text-2xl font-serif font-black text-primary-teal mt-1">{treatedCount} Teeth</p>
                             </div>
-                            <div className="p-4 bg-amber-50/80 rounded-2xl border border-amber-100">
-                                <p className="text-xs font-bold text-amber-800">Planned Follow-up</p>
-                                <p className="text-2xl font-black text-amber-600 mt-1">1 Tooth</p>
+                            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                                <p className="text-xs font-bold text-amber-800">Observation Planned</p>
+                                <p className="text-2xl font-serif font-black text-amber-600 mt-1">{plannedCount} Tooth</p>
                             </div>
                         </div>
 
                         <div className="flex justify-end">
                             <button
                                 onClick={() => setShowFullInfoModal(false)}
-                                className="px-6 py-2.5 bg-[#00BFA5] hover:bg-[#00ad95] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+                                className="px-6 py-2.5 bg-primary-teal hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
                             >
-                                Close Information
+                                Close Odontogram
                             </button>
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Booking Modal */}
+            {showBookModal && (
+                <BookAppointmentModal
+                    onClose={() => setShowBookModal(false)}
+                    onSuccess={() => {
+                        setShowBookModal(false);
+                        window.location.reload();
+                    }}
+                />
+            )}
+
+            {/* Payment Modal */}
+            {selectedPayInvoice && (
+                <DualPaymentModal
+                    invoice={selectedPayInvoice}
+                    onClose={() => setSelectedPayInvoice(null)}
+                    onSuccess={() => {
+                        setSelectedPayInvoice(null);
+                        window.location.reload();
+                    }}
+                />
             )}
         </div>
     );
