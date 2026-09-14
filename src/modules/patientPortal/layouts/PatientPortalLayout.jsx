@@ -18,7 +18,9 @@ import {
     ShieldCheck, 
     Clock,
     Activity,
-    Stethoscope
+    Stethoscope,
+    PlusCircle,
+    Smile
 } from 'lucide-react';
 
 export default function PatientPortalLayout() {
@@ -43,6 +45,8 @@ export default function PatientPortalLayout() {
     const generalNav = [
         { path: '/portal/dashboard', label: 'Overview', icon: Home },
         { path: '/portal/appointments', label: 'Appointments', icon: Calendar },
+        { path: '/portal/book', label: 'Book Visit', icon: PlusCircle },
+        { path: '/portal/odontogram', label: 'Dental Map', icon: Smile },
         { path: '/portal/reports', label: 'Clinical Reports', icon: FileText },
         { path: '/portal/billing', label: 'Invoices & Billing', icon: CreditCard },
     ];

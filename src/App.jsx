@@ -29,6 +29,8 @@ const PatientRegister = lazy(() => import('./modules/patientPortal/pages/Patient
 const PatientActivate = lazy(() => import('./modules/patientPortal/pages/PatientActivate'));
 const PatientDashboard = lazy(() => import('./modules/patientPortal/pages/PatientDashboard'));
 const PatientAppointments = lazy(() => import('./modules/patientPortal/pages/PatientAppointments'));
+const PatientBookAppointment = lazy(() => import('./modules/patientPortal/pages/PatientBookAppointment'));
+const PatientOdontogramPage = lazy(() => import('./modules/patientPortal/pages/PatientOdontogramPage'));
 const PatientReports = lazy(() => import('./modules/patientPortal/pages/PatientReports'));
 const PatientBilling = lazy(() => import('./modules/patientPortal/pages/PatientBilling'));
 import PatientProtectedRoute from './modules/patientPortal/components/PatientProtectedRoute';
@@ -129,6 +131,9 @@ export default function App() {
                 <Route index element={<Navigate to="/portal/dashboard" replace />} />
                 <Route path="dashboard" element={<PatientDashboard />} />
                 <Route path="appointments" element={<PatientAppointments />} />
+                <Route path="book" element={<PatientBookAppointment />} />
+                <Route path="appointments/book" element={<PatientBookAppointment />} />
+                <Route path="odontogram" element={<PatientOdontogramPage />} />
                 <Route path="reports" element={<PatientReports />} />
                 <Route path="billing" element={<PatientBilling />} />
             </Route>

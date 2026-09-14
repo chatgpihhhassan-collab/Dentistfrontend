@@ -24,8 +24,6 @@ import {
     Pill
 } from 'lucide-react';
 import API_BASE_URL from '../../../config/apiConfig';
-import ToothHealthMap from '../components/ToothHealthMap';
-import BookAppointmentModal from '../components/BookAppointmentModal';
 import DualPaymentModal from '../components/DualPaymentModal';
 
 export default function PatientDashboard() {
@@ -37,9 +35,7 @@ export default function PatientDashboard() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    // Modals
-    const [showFullInfoModal, setShowFullInfoModal] = useState(false);
-    const [showBookModal, setShowBookModal] = useState(false);
+    // Payment Modal
     const [selectedPayInvoice, setSelectedPayInvoice] = useState(null);
 
     // Current Date / Calendar State
@@ -312,7 +308,7 @@ export default function PatientDashboard() {
                         {/* CTA Button: View 3D Tooth Map */}
                         <button
                             type="button"
-                            onClick={() => setShowFullInfoModal(true)}
+                            onClick={() => navigate('/portal/odontogram')}
                             className="w-full py-3.5 px-6 bg-primary-teal hover:bg-primary-hover text-white font-bold text-xs rounded-2xl shadow-md shadow-primary-teal/25 transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center justify-center gap-2"
                         >
                             <ToothSvg className="w-4 h-4 text-white" />
@@ -391,7 +387,7 @@ export default function PatientDashboard() {
                                     <p className="text-xs font-bold text-dark-slate">No visits scheduled yet</p>
                                     <button
                                         type="button"
-                                        onClick={() => setShowBookModal(true)}
+                                        onClick={() => navigate('/portal/book')}
                                         className="mt-3 px-4 py-2 bg-primary-teal text-white text-xs font-bold rounded-xl shadow-xs"
                                     >
                                         Book Your First Visit
@@ -412,7 +408,7 @@ export default function PatientDashboard() {
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-base font-serif font-black text-dark-slate tracking-tight">Appointment Calendar</h3>
                             <button 
-                                onClick={() => setShowBookModal(true)}
+                                onClick={() => navigate('/portal/book')}
                                 className="text-xs font-bold text-primary-teal hover:underline cursor-pointer"
                             >
                                 + Book Visit
@@ -506,7 +502,7 @@ export default function PatientDashboard() {
                                     </div>
                                 ) : (
                                     <div 
-                                        onClick={() => setShowBookModal(true)}
+                                        onClick={() => navigate('/portal/book')}
                                         className="p-3.5 bg-warm-cream hover:bg-light-teal/50 border border-light-teal rounded-2xl flex items-center justify-between cursor-pointer transition-all"
                                     >
                                         <div className="flex items-center gap-3">
@@ -758,74 +754,6 @@ export default function PatientDashboard() {
                 </div>
 
             </div>
-
-            {/* ========================================================================= */}
-            {/* FULL INFORMATION MODAL (INTERACTIVE 32-TOOTH ODONTOGRAM MAP)              */}
-            {/* ========================================================================= */}
-            {showFullInfoModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-dark-slate/60 backdrop-blur-xs animate-in fade-in">
-                    <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-light-teal p-6 sm:p-8 relative animate-in zoom-in-95">
-                        {/* Close button */}
-                        <button
-                            onClick={() => setShowFullInfoModal(false)}
-                            className="absolute top-6 right-6 w-9 h-9 rounded-full bg-warm-cream text-muted-text hover:text-dark-slate flex items-center justify-center cursor-pointer transition-colors"
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
-
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="w-10 h-10 rounded-2xl bg-primary-teal text-white flex items-center justify-center shadow-md shadow-primary-teal/25">
-                                <ToothSvg className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-serif font-black text-dark-slate">32-Tooth Interactive Dental Odontogram</h3>
-                                <p className="text-xs text-muted-text">Live anatomical condition status and procedure mapping</p>
-                            </div>
-                        </div>
-
-                        {/* Embedded Tooth Health Map */}
-                        <div className="bg-warm-cream p-6 rounded-3xl border border-light-teal mb-6">
-                            <ToothHealthMap teeth={teethState} />
-                        </div>
-
-                        {/* Summary Stats */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                            <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
-                                <p className="text-xs font-bold text-emerald-800">Healthy Teeth</p>
-                                <p className="text-2xl font-serif font-black text-emerald-600 mt-1">{healthyCount} / 32</p>
-                            </div>
-                            <div className="p-4 bg-light-teal rounded-2xl border border-light-teal">
-                                <p className="text-xs font-bold text-primary-hover">Restored / Filled</p>
-                                <p className="text-2xl font-serif font-black text-primary-teal mt-1">{treatedCount} Teeth</p>
-                            </div>
-                            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
-                                <p className="text-xs font-bold text-amber-800">Observation Planned</p>
-                                <p className="text-2xl font-serif font-black text-amber-600 mt-1">{plannedCount} Tooth</p>
-                            </div>
-                        </div>
-
-                        <div className="flex justify-end">
-                            <button
-                                onClick={() => setShowFullInfoModal(false)}
-                                className="px-6 py-2.5 bg-primary-teal hover:bg-primary-hover text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
-                            >
-                                Close Odontogram
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Booking Modal */}
-            {showBookModal && (
-                <BookAppointmentModal
-                    onClose={() => setShowBookModal(false)}
-                    onSuccess={() => {
-                        setShowBookModal(false);
-                        window.location.reload();
-                    }}
-                />
-            )}
 
             {/* Payment Modal */}
             {selectedPayInvoice && (

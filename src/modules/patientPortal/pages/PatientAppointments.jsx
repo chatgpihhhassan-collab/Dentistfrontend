@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Calendar, Clock, Plus, XCircle, CheckCircle2, AlertCircle, FileText, Download, ArrowRight } from 'lucide-react';
 import API_BASE_URL from '../../../config/apiConfig';
-import BookAppointmentModal from '../components/BookAppointmentModal';
 
 export default function PatientAppointments() {
+    const navigate = useNavigate();
     const [appointments, setAppointments] = useState([]);
     const [activeTab, setActiveTab] = useState('upcoming'); // 'upcoming' | 'past'
     const [loading, setLoading] = useState(true);
-    const [isModalOpen, setIsModalOpen] = useState(false);
     const [actionMsg, setActionMsg] = useState('');
     const [cancellingId, setCancellingId] = useState(null);
 
@@ -115,13 +115,13 @@ export default function PatientAppointments() {
                     <h2 className="text-2xl sm:text-3xl font-serif font-black text-dark-slate">Appointments Hub</h2>
                     <p className="text-xs sm:text-sm text-muted-text">Manage your scheduled clinic visits and view past consultation history.</p>
                 </div>
-                <button
-                    onClick={() => setIsModalOpen(true)}
+                <Link
+                    to="/portal/book"
                     className="px-5 py-3 rounded-2xl bg-primary-teal hover:bg-primary-hover text-white text-xs font-bold transition-all shadow-md shadow-primary-teal/20 flex items-center justify-center gap-2"
                 >
                     <Plus className="w-4 h-4" />
                     <span>Book New Appointment</span>
-                </button>
+                </Link>
             </div>
 
             {/* Notification message */}
@@ -258,27 +258,16 @@ export default function PatientAppointments() {
                         Need to see your dentist? Schedule an appointment in under 2 minutes.
                     </p>
                     {activeTab === 'upcoming' && (
-                        <button
-                            onClick={() => setIsModalOpen(true)}
+                        <Link
+                            to="/portal/book"
                             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-teal text-white text-xs font-bold shadow-sm hover:bg-primary-hover transition-colors mt-2"
                         >
                             <Plus className="w-4 h-4" />
                             <span>Book Consultation Now</span>
-                        </button>
+                        </Link>
                     )}
                 </div>
             )}
-
-            {/* Booking Modal */}
-            <BookAppointmentModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onBookingSuccess={(res) => {
-                    setActionMsg(res.message || 'Consultation reserved successfully!');
-                    fetchAppointments();
-                    setTimeout(() => setActionMsg(''), 5000);
-                }}
-            />
         </div>
     );
 }
