@@ -143,11 +143,15 @@ export default function DoctorTreatmentPricing() {
             setLoading(true);
             setFeedback({ type: '', message: '' });
 
+            const headers = {
+                ...(doctor?.token ? { 'Authorization': `Bearer ${doctor.token}` } : {})
+            };
+
             let res;
             try {
-                res = await fetch(`${API_BASE_URL}/api/treatment-pricing/doctor/${doctorId}`);
+                res = await fetch(`${API_BASE_URL}/api/treatment-pricing/doctor/${doctorId}`, { headers });
             } catch {
-                res = await fetch(`/api/treatment-pricing/doctor/${doctorId}`);
+                res = await fetch(`/api/treatment-pricing/doctor/${doctorId}`, { headers });
             }
 
             if (res.ok) {
@@ -261,22 +265,28 @@ export default function DoctorTreatmentPricing() {
                 procedures: updatedList
             };
 
+            const headers = {
+                'Content-Type': 'application/json',
+                ...(doctor?.token ? { 'Authorization': `Bearer ${doctor.token}` } : {})
+            };
+
             let res;
             try {
                 res = await fetch(`${API_BASE_URL}/api/treatment-pricing/doctor/${doctorId}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify(payload)
                 });
             } catch {
                 res = await fetch(`/api/treatment-pricing/doctor/${doctorId}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify(payload)
                 });
             }
 
-            if (res.ok) {
+            const data = await res.json();
+            if (res.ok && data.status !== 'handled_warning') {
                 setProcedures(updatedList);
                 setEditingId(null);
                 setEditFormData({});
@@ -289,8 +299,7 @@ export default function DoctorTreatmentPricing() {
                     message: `✓ Saved '${updatedItem.procedureName}' (${currentCurrencySymbol} ${updatedFee.toLocaleString()}) to database successfully!`
                 });
             } else {
-                const err = await res.json();
-                setFeedback({ type: 'error', message: err.message || 'Failed to save changes to database.' });
+                setFeedback({ type: 'error', message: data.message || 'Failed to save changes to database.' });
             }
         } catch (err) {
             console.error('Save row error:', err);
@@ -311,22 +320,28 @@ export default function DoctorTreatmentPricing() {
                 procedures
             };
 
+            const headers = {
+                'Content-Type': 'application/json',
+                ...(doctor?.token ? { 'Authorization': `Bearer ${doctor.token}` } : {})
+            };
+
             let res;
             try {
                 res = await fetch(`${API_BASE_URL}/api/treatment-pricing/doctor/${doctorId}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify(payload)
                 });
             } catch {
                 res = await fetch(`/api/treatment-pricing/doctor/${doctorId}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify(payload)
                 });
             }
 
-            if (res.ok) {
+            const data = await res.json();
+            if (res.ok && data.status !== 'handled_warning') {
                 setHasUnsavedChanges(false);
                 setFeedback({ 
                     type: 'success', 
@@ -334,8 +349,7 @@ export default function DoctorTreatmentPricing() {
                 });
                 fetchFeeSchedule();
             } else {
-                const errData = await res.json();
-                setFeedback({ type: 'error', message: errData.message || 'Failed to save changes.' });
+                setFeedback({ type: 'error', message: data.message || 'Failed to save changes.' });
             }
         } catch (err) {
             console.error('Error saving fee schedule:', err);
