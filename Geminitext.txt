@@ -1,0 +1,43 @@
+Yeh rahi Patient #26 (Ehtsham Ali) ke logs main se sab se latest (most recent) entry ki mukammal detail:
+
+📌 Sab Se Latest Entry (Entry #1 in Logs)
+Parameter	Detail
+Call Type	CLINICAL DENTAL SOAP NOTE GENERATION
+Status	SUCCESS ✅
+Timestamp (Sent)	2026-09-08 04:44:38.529
+Timestamp (Received)	2026-09-08 04:44:43.624
+Total Duration	5094 ms (5.09 seconds)
+Model Used	gemini-3.5-flash-lite
+Doctor	Dr. Jhangir Ahmed (ID: 2)
+Patient	Ehtsham Ali (ID: 26)
+Database Note ID	Note #109 (Audio ID: 73, Session ID: 152)
+🎙️ 1. Doctor Spoken Mic Transcription (Jo Mic Se Record Hua):
+"38 is here for the evaluation of a dark upper front tooth tooth 11. He reports no active pain but noticed a small painless bump on his upper gums he has a history of trauma to the tooth 15 years ago on examination tooth 11 is visiblyDiscolored grayish there is a patient sinus tractOn the Buckle on the buccal mukwa near the Apex of the tooth 11 cold and electric bulb test EBT are non-responsivePercussion is mildly positive I traced the sinus tract with a gotta Pasha cone and took a peripheral x-ray which reveals a large well-defined 6 mm radial look and see at the Apex of tooth 11. My assessment is pulp necrosis with a chronic apical abscess on tooth 11. Today I initiated root Canal therapy I prepared and shaved the canal to size 40 by 40Disinfected it thoroughly with sodium hypochlorite and an objected using gyota Parsna and ah plus sealer with warm vertical condensation I placed a glassIron merge base and restored the excess cavity permanently with composite resin no antibiotics are indicated because the infection has an active Pathway to drain sinus tract advised patient to monitor for any sudden swelling"
+
+🤖 2. Gemini AI Response (AI ne jo Note & Analysis generate kia):
+A. AI Clinical Overview (Summary):
+"Patient presented for evaluation of a discolored upper front tooth (tooth 11) with a history of trauma 15 years ago and a sinus tract on the buccal mucosa. Diagnosed with pulp necrosis and chronic apical abscess. Root canal therapy was initiated and completed today along with a permanent composite restoration."
+
+B. Breakdown by SOAP Fields:
+Chief Complaint:
+"Dark upper front tooth (tooth 11) with no active pain, but noticed a small painless bump on upper gums."
+History:
+"History of trauma to tooth 11 approximately 15 years ago."
+Examination:
+"Tooth 11 is visibly discolored (grayish). Sinus tract present on the buccal mucosa near the apex of tooth 11. Cold and electric pulp tests (EPT) are non-responsive. Percussion is mildly positive."
+Assessment / Diagnosis:
+"Pulp necrosis with a chronic apical abscess on tooth 11."
+Treatment Rendered Today:
+"Initiated and completed root canal therapy on tooth 11. Prepared and shaped the canal to size 40, disinfected with sodium hypochlorite, obturated using gutta-percha and AH Plus sealer with warm vertical condensation. Placed a glass ionomer base and restored access cavity permanently with composite resin."
+Post-Op Advice:
+"Advised patient to monitor for any sudden swelling."
+C. 3D Dental Chart Odontogram Update:
+Detected Tooth Update:
+Tooth #11 ➔ ROOT CANAL NEEDED
+D. AI Voice Prompt (doctorPrompt):
+"Dr. jhangir ahmed, could you please specify the follow-up timeline for the patient?"
+(AI ne note kiya ke follow-up timeline missing thi, is liye doctor se follow-up pucha).
+Tamam purani aur latest 14 entries ki raw detail dekhne ke liye file:
+📄 
+
+patient_26_mic_transcription_and_gemini_logs.txt
