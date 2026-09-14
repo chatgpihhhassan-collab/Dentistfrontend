@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Camera, CheckCircle2, HardDrive, RefreshCw, Sparkles, X, Usb, Activity, Radio, AlertCircle } from 'lucide-react';
+import { Camera, CheckCircle2, HardDrive, RefreshCw, Sparkles, X, Usb, Activity, Radio, AlertCircle, Video } from 'lucide-react';
 import { useHardwareDeviceWatcher } from '../hooks/useHardwareDeviceWatcher';
+import { CameraCapturePanel } from './CameraCapturePanel';
 
 export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
-  const { isConnected, deviceName, deviceBrand, deviceType, deviceList, status, refreshDevices } = useHardwareDeviceWatcher();
+  const { isConnected, deviceName, deviceBrand, deviceType, deviceList, hasBuiltInCamera, status, refreshDevices } = useHardwareDeviceWatcher();
   const [showModal, setShowModal] = useState(false);
+  const [showCapturePanel, setShowCapturePanel] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
 
@@ -143,19 +145,42 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
               Close
             </button>
 
-            {onOpenCapturePanel && (
-              <button
-                onClick={() => {
-                  setShowModal(false);
+            <button
+              onClick={() => {
+                setShowModal(false);
+                if (onOpenCapturePanel) {
                   onOpenCapturePanel();
-                }}
-                className="px-4 py-2 bg-gradient-to-r from-teal-700 to-[#0B4F4A] hover:from-teal-800 hover:to-[#083c38] text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer"
-              >
-                <Camera className="w-3.5 h-3.5" /> Open Live Feed
-              </button>
-            )}
+                } else {
+                  setShowCapturePanel(true);
+                }
+              }}
+              className="px-4 py-2 bg-gradient-to-r from-teal-700 to-[#0B4F4A] hover:from-teal-800 hover:to-[#083c38] text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer"
+            >
+              <Camera className="w-3.5 h-3.5" /> Open Live Camera Feed
+            </button>
           </div>
         </div>
+      </div>
+    </div>
+  ) : null;
+
+  const capturePanelPortal = showCapturePanel && mounted ? (
+    <div 
+      className="fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+      onClick={() => setShowCapturePanel(false)}
+    >
+      <div 
+        className="w-full max-w-2xl relative animate-in zoom-in-95 duration-200 max-h-[95vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <CameraCapturePanel 
+          patientId={1} 
+          onClose={() => setShowCapturePanel(false)}
+          onUploadSuccess={(data) => {
+            alert('Capture saved & analyzed successfully with AI Groq Vision!');
+            setShowCapturePanel(false);
+          }}
+        />
       </div>
     </div>
   ) : null;
@@ -192,6 +217,7 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
 
       {/* Render via Portal so it is never constrained by parent backdrop-filter */}
       {modalContent && createPortal(modalContent, document.body)}
+      {capturePanelPortal && createPortal(capturePanelPortal, document.body)}
     </>
   );
 };
