@@ -29,7 +29,10 @@ import {
     FileText,
     Activity,
     ChevronRight,
-    X
+    X,
+    ChevronDown,
+    Info,
+    Calendar
 } from 'lucide-react';
 import API_BASE_URL from '../config/apiConfig';
 import { STANDARD_DENTAL_PROCEDURES, DENTAL_CATEGORIES } from '../data/standardProcedures';
@@ -53,6 +56,25 @@ const categoryBadgeColors = {
     'Other Dental Services': 'bg-emerald-50/80 text-emerald-800 border-emerald-200'
 };
 
+// Friendly subtitle descriptions for each specialty
+const categoryDescriptions = {
+    'Examination & Diagnosis': 'Consultations, comprehensive checkups, digital radiographs (OPG & intraoral), CBCT scans, and diagnostic evaluations.',
+    'Preventive Dentistry': 'Prophylactic teeth cleaning, ultrasonic scaling, polishing, topical fluoride therapy, and preventive sealants.',
+    'Fillings & Restorative Treatment': 'Direct composite resin restorations, tooth-colored bonding, glass ionomer fillings, and custom inlays/onlays.',
+    'Crowns & Bridges': 'Monolithic zirconia crowns, porcelain-fused-to-metal (PFM), e.max ceramic units, and fixed prosthetic bridges.',
+    'Root Canal Treatment': 'Endodontic therapies, pulpectomy, root canal retreatment, fiber-post foundation, and endodontic restoration.',
+    'Extractions & Oral Surgery': 'Routine & complex exodontia, surgical impactions, wisdom tooth management, and pre-prosthetic ridge preparation.',
+    'Gum / Periodontal Treatment': 'Deep subgingival scaling, root planing, periodontal debridement, gingival surgery, and regenerative procedures.',
+    'Dentures': 'Complete precision prosthetics, flexible partials, cast metal frameworks, relining, and immediate temporary dentures.',
+    'Dental Implants': 'Titanium fixture surgical placement, all-on-4/6 full arch rehabilitation, sinus elevation, and custom abutment restoration.',
+    'Cosmetic Dentistry': 'Porcelain & composite veneers, chairside power whitening, smile design, aesthetic contouring, and composite layering.',
+    'Orthodontics': 'Clear aligner therapy, fixed ceramic & metallic brackets, orthodontic retention systems, and palatal expansion.',
+    'Pediatric Dentistry': 'Pediatric consultations, pulpotomy, stainless steel crowns, space maintainers, and child preventive care.',
+    'Emergency Dental Treatment': 'Urgent odontalgia alleviation, acute dental trauma stabilization, tooth replantation, and pulp extirpation.',
+    'Prosthetic / Laboratory Procedures': 'Diagnostic aesthetic wax-ups, custom surgical splints, 3D study models, and custom laboratory appliances.',
+    'Other Dental Services': 'TMJ / TMD therapy, sleep apnea splints, custom athletic mouthguards, and specialized sedation dental care.'
+};
+
 export default function DoctorTreatmentPricing() {
     const [doctor, setDoctor] = useState(() => JSON.parse(localStorage.getItem('doctor') || '{}'));
     const doctorId = doctor.doctorID || doctor.DoctorID || doctor.id || 1;
@@ -63,20 +85,24 @@ export default function DoctorTreatmentPricing() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [syncing, setSyncing] = useState(false);
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [feedback, setFeedback] = useState({ type: '', message: '' });
 
-    // Main in-page active view: 'schedule' (My Active Fee Schedule), 'library' (Browse Standard Catalog), 'custom' (Create Custom)
+    // Main workspace view: 'schedule' (My Active Fee Studio), 'library' (Browse Standard Catalog), 'custom' (Create Custom)
     const [activeView, setActiveView] = useState('schedule');
 
-    // Filter states for Active Schedule
-    const [scheduleCategory, setScheduleCategory] = useState('All');
+    // Active Specialty Category selection in the left sidebar
+    const [selectedCategory, setSelectedCategory] = useState('All');
     const [scheduleSearch, setScheduleSearch] = useState('');
 
-    // Filter states for Standard Library
+    // Toggle for inline custom procedure drawer right inside the workspace
+    const [showInlineAdd, setShowInlineAdd] = useState(false);
+
+    // Filter states for Standard Library tab
     const [libraryCategory, setLibraryCategory] = useState('All');
     const [librarySearch, setLibrarySearch] = useState('');
 
-    // Inline custom procedure creation state
+    // State for creating new custom procedure
     const [newCustomProc, setNewCustomProc] = useState({
         procedureCode: '',
         procedureName: '',
@@ -122,6 +148,7 @@ export default function DoctorTreatmentPricing() {
                 const data = await res.json();
                 setCurrency(data.currency || (doctor.region === 'PK' ? 'PKR' : 'NZD'));
                 setProcedures(data.procedures || []);
+                setHasUnsavedChanges(false);
             } else {
                 setFeedback({ type: 'error', message: 'Failed to load clinic fee schedule.' });
             }
@@ -143,6 +170,7 @@ export default function DoctorTreatmentPricing() {
         setProcedures(prev => prev.map(p => 
             p.feeScheduleID === feeScheduleID ? { ...p, standardFee: parsed } : p
         ));
+        setHasUnsavedChanges(true);
     };
 
     // Handle inline duration change
@@ -150,6 +178,7 @@ export default function DoctorTreatmentPricing() {
         setProcedures(prev => prev.map(p => 
             p.feeScheduleID === feeScheduleID ? { ...p, estimatedDuration: newDuration } : p
         ));
+        setHasUnsavedChanges(true);
     };
 
     // Handle inline name change
@@ -157,11 +186,13 @@ export default function DoctorTreatmentPricing() {
         setProcedures(prev => prev.map(p => 
             p.feeScheduleID === feeScheduleID ? { ...p, procedureName: newName } : p
         ));
+        setHasUnsavedChanges(true);
     };
 
     // Remove procedure from schedule
     const handleRemoveProcedure = (code) => {
         setProcedures(prev => prev.filter(p => p.procedureCode !== code));
+        setHasUnsavedChanges(true);
         setFeedback({
             type: 'info',
             message: `Removed procedure [${code}]. Click "Save Fee Schedule" to commit changes.`
@@ -195,6 +226,7 @@ export default function DoctorTreatmentPricing() {
             }
 
             if (res.ok) {
+                setHasUnsavedChanges(false);
                 setFeedback({ 
                     type: 'success', 
                     message: `Fee schedule saved successfully! All consultation bookings and patient invoices are now active in ${currency}.` 
@@ -238,6 +270,7 @@ export default function DoctorTreatmentPricing() {
                 setCurrency(data.currency || currency);
                 setProcedures(data.procedures || []);
                 setActiveView('schedule');
+                setHasUnsavedChanges(false);
                 setFeedback({
                     type: 'success',
                     message: 'Successfully synchronized 141 procedures across all 15 clinical categories!'
@@ -276,6 +309,7 @@ export default function DoctorTreatmentPricing() {
         };
 
         setProcedures(prev => [...prev, newItem]);
+        setHasUnsavedChanges(true);
         setFeedback({
             type: 'success',
             message: `Added '${item.name}' (${currentCurrencySymbol} ${fee}) to your schedule. Remember to Save Changes!`
@@ -311,6 +345,7 @@ export default function DoctorTreatmentPricing() {
         }
 
         setProcedures(prev => [...prev, ...toAdd]);
+        setHasUnsavedChanges(true);
         setFeedback({
             type: 'success',
             message: `Added ${toAdd.length} procedures from '${catName}' to your active schedule!`
@@ -346,6 +381,7 @@ export default function DoctorTreatmentPricing() {
 
         setProcedures(prev => [...prev, ...toAdd]);
         setActiveView('schedule');
+        setHasUnsavedChanges(true);
         setFeedback({
             type: 'success',
             message: `Added ${toAdd.length} procedures to your fee schedule! Click "Save Fee Schedule" to commit to database.`
@@ -377,11 +413,15 @@ export default function DoctorTreatmentPricing() {
         };
 
         setProcedures(prev => [created, ...prev]);
+        setHasUnsavedChanges(true);
+        setShowInlineAdd(false);
         setActiveView('schedule');
+        setSelectedCategory(created.category);
+
         setNewCustomProc({
             procedureCode: '',
             procedureName: '',
-            category: 'Examination & Diagnosis',
+            category: selectedCategory !== 'All' ? selectedCategory : 'Examination & Diagnosis',
             estimatedDuration: '45 mins',
             standardFee: '',
             description: ''
@@ -398,7 +438,7 @@ export default function DoctorTreatmentPricing() {
         return new Set(procedures.map(p => p.procedureCode));
     }, [procedures]);
 
-    // Counters for Active Schedule
+    // Counters for Active Schedule per category
     const scheduleCategoryCounts = useMemo(() => {
         const counts = { All: procedures.length };
         procedures.forEach(p => {
@@ -410,7 +450,7 @@ export default function DoctorTreatmentPricing() {
     // Active Schedule Filtered List
     const filteredScheduleProcedures = useMemo(() => {
         return procedures.filter(p => {
-            const matchesCat = scheduleCategory === 'All' || p.category === scheduleCategory;
+            const matchesCat = selectedCategory === 'All' || p.category === selectedCategory;
             const q = scheduleSearch.toLowerCase().trim();
             const matchesSearch = !q || 
                                   p.procedureName.toLowerCase().includes(q) || 
@@ -419,7 +459,7 @@ export default function DoctorTreatmentPricing() {
                                   (p.description && p.description.toLowerCase().includes(q));
             return matchesCat && matchesSearch;
         });
-    }, [procedures, scheduleCategory, scheduleSearch]);
+    }, [procedures, selectedCategory, scheduleSearch]);
 
     // Standard Library Filtered List
     const filteredLibraryProcedures = useMemo(() => {
@@ -435,28 +475,25 @@ export default function DoctorTreatmentPricing() {
         });
     }, [libraryCategory, librarySearch]);
 
-    // Active Category List (Only categories that actually have procedures in doctor's schedule)
-    const activeScheduleCategories = useMemo(() => {
-        const setCats = new Set(procedures.map(p => p.category));
-        const list = ['All'];
-        DENTAL_CATEGORIES.forEach(c => {
-            if (setCats.has(c)) list.push(c);
-        });
-        setCats.forEach(c => {
-            if (!list.includes(c)) list.push(c);
-        });
-        return list;
-    }, [procedures]);
+    // Calculate category summary statistics
+    const activeCategoryStats = useMemo(() => {
+        if (filteredScheduleProcedures.length === 0) return { count: 0, avgFee: 0 };
+        const total = filteredScheduleProcedures.reduce((acc, p) => acc + (parseFloat(p.standardFee) || 0), 0);
+        return {
+            count: filteredScheduleProcedures.length,
+            avgFee: Math.round(total / filteredScheduleProcedures.length)
+        };
+    }, [filteredScheduleProcedures]);
 
     return (
         <div className="min-h-screen bg-[#FBFBFA] text-dark-slate font-sans flex flex-col selection:bg-light-teal selection:text-primary-teal">
             <Navigation />
 
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full space-y-6">
+            <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full space-y-5">
                 
-                {/* Header Banner */}
-                <div className="bg-white rounded-3xl p-6 sm:p-8 border border-light-teal shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-                    <div className="space-y-2">
+                {/* Header Banner & Studio Command Bar */}
+                <div className="bg-white rounded-3xl p-5 sm:p-7 border border-light-teal shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
+                    <div className="space-y-1.5">
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-light-teal text-primary-hover text-xs font-bold font-mono uppercase tracking-wider">
                             <Stethoscope className="w-3.5 h-3.5" />
                             <span>Clinical Procedure & Fee Studio</span>
@@ -465,59 +502,67 @@ export default function DoctorTreatmentPricing() {
                             Dental Treatment Pricing & Currency
                         </h1>
                         <p className="text-xs sm:text-sm text-muted-text max-w-2xl leading-relaxed">
-                            Manage your clinical catalog across 15 standard dental specialties for <span className="font-bold text-dark-slate">{doctorName}</span>. 
-                            Active rates propagate in real-time to patient consultation bookings and itemized billing ledgers.
+                            Manage your active clinical fee catalog across 15 dental specialties for <span className="font-bold text-dark-slate">{doctorName}</span>. 
+                            Rates automatically propagate to consultation bookings and patient billing ledgers.
                         </p>
                     </div>
 
-                    {/* Controls: Currency Switcher & Save Schedule */}
+                    {/* Controls: Currency Switcher & Save Button */}
                     <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                        <div className="flex items-center gap-2 bg-warm-cream px-3.5 py-2.5 rounded-2xl border border-light-teal">
+                        
+                        {/* Currency Selector */}
+                        <div className="flex items-center gap-2 bg-warm-cream px-3 py-2 rounded-2xl border border-light-teal">
                             <Globe className="w-4 h-4 text-primary-teal shrink-0" />
                             <div className="flex flex-col">
-                                <span className="text-[10px] font-bold text-muted-text uppercase">Billing Currency</span>
+                                <span className="text-[10px] font-bold text-muted-text uppercase">Active Currency</span>
                                 <select 
                                     value={currency}
-                                    onChange={(e) => setCurrency(e.target.value)}
-                                    className="bg-transparent text-xs font-black text-dark-slate focus:outline-none cursor-pointer"
+                                    onChange={(e) => {
+                                        setCurrency(e.target.value);
+                                        setHasUnsavedChanges(true);
+                                    }}
+                                    className="bg-transparent font-bold text-xs text-dark-slate focus:outline-none cursor-pointer pr-2"
                                 >
                                     {currencyOptions.map(c => (
                                         <option key={c.code} value={c.code}>
-                                            {c.label}
+                                            {c.code} ({c.symbol}) — {c.label}
                                         </option>
                                     ))}
                                 </select>
                             </div>
                         </div>
 
+                        {/* Save Schedule Primary Button */}
                         <button
                             type="button"
                             onClick={handleSaveSchedule}
                             disabled={saving}
-                            className="px-6 py-3 bg-primary-teal hover:bg-primary-hover disabled:opacity-50 text-white text-xs font-bold rounded-2xl shadow-md shadow-primary-teal/25 transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
+                            className={`px-5 py-3 rounded-2xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer ${
+                                hasUnsavedChanges 
+                                    ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/20 ring-2 ring-amber-400/40 animate-pulse'
+                                    : 'bg-primary-teal hover:bg-primary-hover text-white shadow-primary-teal/20'
+                            } disabled:opacity-50`}
                         >
-                            {saving ? (
-                                <RefreshCw className="w-4 h-4 animate-spin" />
-                            ) : (
-                                <Save className="w-4 h-4" />
-                            )}
-                            <span>{saving ? 'Saving...' : 'Save Fee Schedule'}</span>
+                            <Save className={`w-4 h-4 ${saving ? 'animate-spin' : ''}`} />
+                            <span>{saving ? 'Saving...' : hasUnsavedChanges ? 'Save Changes *' : 'Save Fee Schedule'}</span>
                         </button>
                     </div>
                 </div>
 
-                {/* Feedback Toast */}
+                {/* Feedback Notification Banner */}
                 {feedback.message && (
-                    <div className={`p-4 rounded-2xl border flex items-center justify-between gap-3 animate-in fade-in text-xs font-bold ${
+                    <div className={`p-4 rounded-2xl border text-xs font-medium flex items-center justify-between gap-3 transition-all ${
                         feedback.type === 'success' 
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
-                            : feedback.type === 'error'
-                            ? 'bg-rose-50 border-rose-200 text-rose-800'
-                            : 'bg-sky-50 border-sky-200 text-sky-800'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                            : feedback.type === 'info'
+                            ? 'bg-sky-50 text-sky-800 border-sky-200'
+                            : 'bg-rose-50 text-rose-800 border-rose-200'
                     }`}>
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-2">
                             {feedback.type === 'success' ? (
                                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            ) : feedback.type === 'info' ? (
+                                <Sparkles className="w-4 h-4 text-sky-600 shrink-0" />
                             ) : (
                                 <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                             )}
@@ -533,22 +578,22 @@ export default function DoctorTreatmentPricing() {
                     </div>
                 )}
 
-                {/* IN-PAGE WORKSPACE NAVIGATION (Zero Popups) */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-light-teal/80 pb-4">
+                {/* WORKSPACE TOP NAVIGATION TABS (Zero Popups) */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-light-teal/80 pb-3">
                     <div className="flex items-center gap-2 bg-warm-cream p-1.5 rounded-2xl border border-light-teal/70 w-full sm:w-auto">
                         
-                        {/* Tab 1: My Active Schedule */}
+                        {/* Tab 1: My Active Schedule Studio */}
                         <button
                             type="button"
                             onClick={() => setActiveView('schedule')}
-                            className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                            className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                                 activeView === 'schedule'
                                     ? 'bg-primary-teal text-white shadow-xs'
                                     : 'text-dark-slate hover:bg-light-teal'
                             }`}
                         >
                             <Layers className="w-3.5 h-3.5" />
-                            <span>My Fee Schedule</span>
+                            <span>My Fee Studio</span>
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
                                 activeView === 'schedule' ? 'bg-white/20 text-white' : 'bg-white text-dark-slate'
                             }`}>
@@ -556,18 +601,18 @@ export default function DoctorTreatmentPricing() {
                             </span>
                         </button>
 
-                        {/* Tab 2: Standard Library (100% In-Page) */}
+                        {/* Tab 2: Standard Library (141 Procedures) */}
                         <button
                             type="button"
                             onClick={() => setActiveView('library')}
-                            className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                            className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                                 activeView === 'library'
                                     ? 'bg-primary-teal text-white shadow-xs'
                                     : 'text-dark-slate hover:bg-light-teal'
                             }`}
                         >
                             <BookOpen className="w-3.5 h-3.5" />
-                            <span>Standard Procedure Library</span>
+                            <span>Standard Library</span>
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
                                 activeView === 'library' ? 'bg-white/20 text-white' : 'bg-white text-dark-slate'
                             }`}>
@@ -575,11 +620,11 @@ export default function DoctorTreatmentPricing() {
                             </span>
                         </button>
 
-                        {/* Tab 3: Create Custom Procedure (100% In-Page) */}
+                        {/* Tab 3: Create Custom Procedure */}
                         <button
                             type="button"
                             onClick={() => setActiveView('custom')}
-                            className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                            className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                                 activeView === 'custom'
                                     ? 'bg-primary-teal text-white shadow-xs'
                                     : 'text-dark-slate hover:bg-light-teal'
@@ -590,7 +635,7 @@ export default function DoctorTreatmentPricing() {
                         </button>
                     </div>
 
-                    {/* Quick Batch Actions */}
+                    {/* Quick Studio Actions */}
                     <div className="flex items-center gap-2 self-end sm:self-auto">
                         <button
                             type="button"
@@ -616,217 +661,418 @@ export default function DoctorTreatmentPricing() {
                 </div>
 
                 {/* ========================================================================= */}
-                {/* VIEW 1: MY ACTIVE CLINIC FEE SCHEDULE (Inline Editable)                   */}
+                {/* VIEW 1: MASTER-DETAIL CLINICAL FEE STUDIO (Clean, Friendly, Organized)    */}
                 {/* ========================================================================= */}
                 {activeView === 'schedule' && (
-                    <div className="space-y-5 animate-in fade-in">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start animate-in fade-in">
                         
-                        {/* Search & Active Category Filters */}
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                            <div className="relative flex-1 max-w-md">
-                                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-text" />
-                                <input
-                                    type="text"
-                                    value={scheduleSearch}
-                                    onChange={(e) => setScheduleSearch(e.target.value)}
-                                    placeholder="Search active procedures by code, name, or keywords..."
-                                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-light-teal rounded-2xl text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 shadow-xs"
-                                />
-                                {scheduleSearch && (
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setScheduleSearch('')} 
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-text hover:text-dark-slate text-xs"
-                                    >
-                                        ✕
-                                    </button>
-                                )}
+                        {/* ------------------------------------------------------------- */}
+                        {/* LEFT COLUMN: 15 CLINICAL SPECIALTIES NAVIGATOR (SIDEBAR)      */}
+                        {/* ------------------------------------------------------------- */}
+                        <div className="lg:col-span-4 xl:col-span-3 space-y-3">
+                            <div className="bg-white rounded-3xl p-4 border border-light-teal shadow-xs space-y-3">
+                                <div className="flex items-center justify-between pb-2 border-b border-light-teal/60">
+                                    <div className="flex items-center gap-2">
+                                        <Sliders className="w-4 h-4 text-primary-teal" />
+                                        <span className="text-xs font-bold text-dark-slate uppercase tracking-wider">
+                                            Specialties ({DENTAL_CATEGORIES.length})
+                                        </span>
+                                    </div>
+                                    <span className="text-[11px] font-mono font-bold text-muted-text">
+                                        {procedures.length} Total
+                                    </span>
+                                </div>
+
+                                {/* "All Procedures" Master Selector */}
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedCategory('All')}
+                                    className={`w-full px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
+                                        selectedCategory === 'All'
+                                            ? 'bg-primary-teal text-white shadow-sm'
+                                            : 'bg-warm-cream hover:bg-light-teal text-dark-slate border border-light-teal/60'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <Layers className="w-4 h-4" />
+                                        <span>All Dental Procedures</span>
+                                    </div>
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+                                        selectedCategory === 'All' ? 'bg-white/20 text-white' : 'bg-white text-dark-slate'
+                                    }`}>
+                                        {procedures.length}
+                                    </span>
+                                </button>
+
+                                {/* 15 Clinical Specialty List with live counters */}
+                                <div className="space-y-1 max-h-[520px] overflow-y-auto pr-1">
+                                    {DENTAL_CATEGORIES.map((cat, idx) => {
+                                        const count = scheduleCategoryCounts[cat] || 0;
+                                        const isSelected = selectedCategory === cat;
+                                        return (
+                                            <button
+                                                key={cat}
+                                                type="button"
+                                                onClick={() => setSelectedCategory(cat)}
+                                                className={`w-full px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer text-left ${
+                                                    isSelected
+                                                        ? 'bg-primary-teal text-white shadow-xs'
+                                                        : 'hover:bg-warm-cream text-dark-slate'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-2 truncate">
+                                                    <span className={`w-5 h-5 rounded-full text-[10px] flex items-center justify-center shrink-0 font-mono ${
+                                                        isSelected ? 'bg-white/20 text-white' : 'bg-warm-cream text-muted-text border border-light-teal'
+                                                    }`}>
+                                                        {idx + 1}
+                                                    </span>
+                                                    <span className="truncate">{cat}</span>
+                                                </div>
+                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono shrink-0 ml-2 ${
+                                                    isSelected ? 'bg-white/20 text-white' : count > 0 ? 'bg-light-teal text-primary-hover font-bold' : 'bg-warm-cream text-muted-text'
+                                                }`}>
+                                                    {count}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
 
-                            <div className="flex items-center gap-3">
-                                <span className="text-xs font-bold text-muted-text">
-                                    Displaying <span className="text-dark-slate font-black">{filteredScheduleProcedures.length}</span> of {procedures.length} Procedures
-                                </span>
+                            {/* Specialty Action Card */}
+                            <div className="p-4 rounded-3xl bg-warm-cream/70 border border-light-teal/80 text-xs space-y-2">
+                                <div className="flex items-center gap-1.5 font-bold text-dark-slate">
+                                    <Sparkles className="w-3.5 h-3.5 text-primary-teal" />
+                                    <span>Specialty Management</span>
+                                </div>
+                                <p className="text-muted-text text-[11px] leading-relaxed">
+                                    Select any specialty on the left to isolate and update chair times and fees without scrolling through 141 rows.
+                                </p>
                                 <button
                                     type="button"
                                     onClick={() => setActiveView('library')}
-                                    className="px-3.5 py-2 bg-light-teal hover:bg-light-teal-hover text-primary-hover border border-light-teal rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                                    className="w-full mt-1 py-2 px-3 bg-white hover:bg-light-teal text-primary-teal border border-light-teal rounded-xl font-bold transition-all text-center block cursor-pointer"
                                 >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    <span>Browse Library to Add More</span>
+                                    Browse Standard Catalog →
                                 </button>
                             </div>
                         </div>
 
-                        {/* Category Filter Pills */}
-                        <div className="flex items-center gap-1.5 overflow-x-auto pb-2 pt-1 no-scrollbar scroll-smooth">
-                            {activeScheduleCategories.map((cat) => {
-                                const count = scheduleCategoryCounts[cat] || 0;
-                                const isSelected = scheduleCategory === cat;
-                                return (
-                                    <button
-                                        key={cat}
-                                        type="button"
-                                        onClick={() => setScheduleCategory(cat)}
-                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
-                                            isSelected
-                                                ? 'bg-primary-teal text-white shadow-xs'
-                                                : 'bg-white text-dark-slate hover:bg-light-teal border border-light-teal/70'
-                                        }`}
-                                    >
-                                        <span>{cat}</span>
-                                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                                            isSelected ? 'bg-white/20 text-white' : 'bg-warm-cream text-muted-text'
-                                        }`}>
-                                            {count}
-                                        </span>
-                                    </button>
-                                );
-                            })}
-                        </div>
+                        {/* ------------------------------------------------------------- */}
+                        {/* RIGHT COLUMN: ACTIVE PROCEDURES WORKSPACE & TABLE             */}
+                        {/* ------------------------------------------------------------- */}
+                        <div className="lg:col-span-8 xl:col-span-9 space-y-4">
+                            
+                            {/* Active Category Header Card */}
+                            <div className="bg-white rounded-3xl p-5 border border-light-teal shadow-xs space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-light-teal/60">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${categoryBadgeColors[selectedCategory] || 'bg-slate-100 text-slate-700'}`}>
+                                                {selectedCategory === 'All' ? 'All 15 Specialties' : selectedCategory}
+                                            </span>
+                                            <span className="text-xs font-bold text-muted-text">
+                                                {activeCategoryStats.count} procedures
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-muted-text mt-1 max-w-xl">
+                                            {categoryDescriptions[selectedCategory] || 'Comprehensive dental procedures across all 15 clinical departments.'}
+                                        </p>
+                                    </div>
 
-                        {/* Active Fee Schedule Table */}
-                        <div className="bg-white rounded-3xl border border-light-teal shadow-xs overflow-hidden">
-                            {loading ? (
-                                <div className="p-16 text-center space-y-3">
-                                    <div className="w-8 h-8 border-3 border-primary-teal/30 border-t-primary-teal rounded-full animate-spin mx-auto" />
-                                    <p className="text-xs text-muted-text font-bold">Loading your active clinic fee schedule...</p>
-                                </div>
-                            ) : filteredScheduleProcedures.length === 0 ? (
-                                <div className="p-16 text-center space-y-4">
-                                    <Stethoscope className="w-12 h-12 text-muted-text/40 mx-auto" />
-                                    <h3 className="text-base font-bold text-dark-slate">No procedures in your active fee schedule</h3>
-                                    <p className="text-xs text-muted-text max-w-md mx-auto">
-                                        {procedures.length === 0
-                                            ? 'Your clinic fee schedule is currently unpopulated. Click below to load all 141 standard procedures or browse the library.'
-                                            : 'No procedures match your current search query or category filter.'}
-                                    </p>
-                                    <div className="flex items-center justify-center gap-3 pt-2">
+                                    {/* Action Buttons: Add Custom & Save */}
+                                    <div className="flex items-center gap-2">
                                         <button
                                             type="button"
-                                            onClick={handleAddAllFromLibrary}
-                                            className="px-5 py-2.5 bg-primary-teal text-white rounded-xl text-xs font-bold hover:bg-primary-hover transition-all cursor-pointer shadow-md shadow-primary-teal/20 flex items-center gap-2"
+                                            onClick={() => {
+                                                setShowInlineAdd(!showInlineAdd);
+                                                if (!showInlineAdd) {
+                                                    setNewCustomProc(prev => ({
+                                                        ...prev,
+                                                        category: selectedCategory !== 'All' ? selectedCategory : 'Examination & Diagnosis'
+                                                    }));
+                                                }
+                                            }}
+                                            className="px-3.5 py-2 bg-light-teal hover:bg-light-teal-hover text-primary-hover border border-light-teal rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap"
                                         >
-                                            <Sparkles className="w-4 h-4" />
-                                            <span>Load All 141 Procedures</span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setActiveView('library')}
-                                            className="px-5 py-2.5 bg-warm-cream text-dark-slate border border-light-teal rounded-xl text-xs font-bold hover:bg-light-teal transition-all cursor-pointer"
-                                        >
-                                            <span>Browse Standard Library</span>
+                                            <Plus className="w-3.5 h-3.5" />
+                                            <span>{showInlineAdd ? 'Close Add Form' : '+ Custom Procedure'}</span>
                                         </button>
                                     </div>
                                 </div>
-                            ) : (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse text-xs">
-                                        <thead>
-                                            <tr className="bg-warm-cream/80 border-b border-light-teal text-[11px] font-bold text-muted-text uppercase tracking-wider">
-                                                <th className="py-3.5 px-5">Code</th>
-                                                <th className="py-3.5 px-5">Procedure Name</th>
-                                                <th className="py-3.5 px-5">Category</th>
-                                                <th className="py-3.5 px-5">Duration</th>
-                                                <th className="py-3.5 px-5">Fee ({currentCurrencySymbol})</th>
-                                                <th className="py-3.5 px-5">Clinical Description</th>
-                                                <th className="py-3.5 px-4 text-center">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-light-teal/50">
-                                            {filteredScheduleProcedures.map((proc) => {
-                                                const badgeColor = categoryBadgeColors[proc.category] || 'bg-slate-100 text-slate-700 border-slate-200';
-                                                return (
-                                                    <tr key={proc.feeScheduleID || proc.procedureCode} className="hover:bg-warm-cream/30 transition-colors">
-                                                        
-                                                        {/* Code */}
-                                                        <td className="py-3.5 px-5">
-                                                            <span className="px-2.5 py-1 rounded-lg bg-light-teal text-primary-hover font-mono font-bold text-[11px] border border-light-teal/50 whitespace-nowrap">
-                                                                {proc.procedureCode}
-                                                            </span>
-                                                        </td>
 
-                                                        {/* Procedure Name (Inline Editable) */}
-                                                        <td className="py-3.5 px-5">
-                                                            <input 
-                                                                type="text"
-                                                                value={proc.procedureName}
-                                                                onChange={(e) => handleNameChange(proc.feeScheduleID, e.target.value)}
-                                                                className="w-full font-bold text-dark-slate bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-light-teal focus:border-primary-teal rounded-lg px-2 py-1 text-xs transition-colors"
-                                                            />
-                                                        </td>
+                                {/* Real-time Search Input */}
+                                <div className="relative">
+                                    <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-text" />
+                                    <input
+                                        type="text"
+                                        value={scheduleSearch}
+                                        onChange={(e) => setScheduleSearch(e.target.value)}
+                                        placeholder={`Search ${selectedCategory === 'All' ? 'all 141 procedures' : selectedCategory} by code (e.g. D0120), name, or keyword...`}
+                                        className="w-full pl-10 pr-9 py-2.5 bg-warm-cream border border-light-teal rounded-2xl text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 font-medium shadow-xs"
+                                    />
+                                    {scheduleSearch && (
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setScheduleSearch('')} 
+                                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-text hover:text-dark-slate text-xs cursor-pointer"
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
+                                </div>
 
-                                                        {/* Category */}
-                                                        <td className="py-3.5 px-5">
-                                                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badgeColor} whitespace-nowrap`}>
-                                                                {proc.category}
-                                                            </span>
-                                                        </td>
+                                {/* INLINE CUSTOM PROCEDURE CREATION DRAWER (Zero Popups) */}
+                                {showInlineAdd && (
+                                    <form onSubmit={handleCreateCustomProcedure} className="p-4 rounded-2xl bg-warm-cream/80 border border-light-teal space-y-3 animate-in fade-in">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-1.5 font-bold text-xs text-dark-slate">
+                                                <Plus className="w-3.5 h-3.5 text-primary-teal" />
+                                                <span>Add Custom Clinic Procedure</span>
+                                            </div>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setShowInlineAdd(false)}
+                                                className="text-muted-text hover:text-dark-slate text-xs cursor-pointer"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
 
-                                                        {/* Duration */}
-                                                        <td className="py-3.5 px-5">
-                                                            <div className="flex items-center gap-1 text-muted-text">
-                                                                <Clock className="w-3 h-3 text-primary-teal shrink-0" />
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-dark-slate uppercase mb-1">Procedure Name *</label>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    value={newCustomProc.procedureName}
+                                                    onChange={(e) => setNewCustomProc({ ...newCustomProc, procedureName: e.target.value })}
+                                                    placeholder="e.g. Custom Bleach Tray"
+                                                    className="w-full px-3 py-1.5 bg-white border border-light-teal rounded-xl text-xs font-bold text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-dark-slate uppercase mb-1">Clinical Specialty</label>
+                                                <select
+                                                    value={newCustomProc.category}
+                                                    onChange={(e) => setNewCustomProc({ ...newCustomProc, category: e.target.value })}
+                                                    className="w-full px-3 py-1.5 bg-white border border-light-teal rounded-xl text-xs font-bold text-dark-slate focus:outline-none cursor-pointer"
+                                                >
+                                                    {DENTAL_CATEGORIES.map(cat => (
+                                                        <option key={cat} value={cat}>{cat}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-dark-slate uppercase mb-1">Standard Fee ({currentCurrencySymbol}) *</label>
+                                                <input
+                                                    type="number"
+                                                    step="any"
+                                                    required
+                                                    value={newCustomProc.standardFee}
+                                                    onChange={(e) => setNewCustomProc({ ...newCustomProc, standardFee: e.target.value })}
+                                                    placeholder="0.00"
+                                                    className="w-full px-3 py-1.5 bg-white border border-light-teal rounded-xl text-xs font-mono font-black text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-dark-slate uppercase mb-1">Duration</label>
+                                                <input
+                                                    type="text"
+                                                    value={newCustomProc.estimatedDuration}
+                                                    onChange={(e) => setNewCustomProc({ ...newCustomProc, estimatedDuration: e.target.value })}
+                                                    placeholder="e.g. 45 mins"
+                                                    className="w-full px-3 py-1.5 bg-white border border-light-teal rounded-xl text-xs font-bold text-dark-slate focus:outline-none"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-end gap-2 pt-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowInlineAdd(false)}
+                                                className="px-3 py-1.5 bg-white hover:bg-light-teal text-dark-slate text-xs font-bold rounded-xl border border-light-teal cursor-pointer"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                className="px-4 py-1.5 bg-primary-teal hover:bg-primary-hover text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer"
+                                            >
+                                                Add to Fee Schedule
+                                            </button>
+                                        </div>
+                                    </form>
+                                )}
+                            </div>
+
+                            {/* CONTAINED BOUNDED PROCEDURE TABLE */}
+                            <div className="bg-white rounded-3xl border border-light-teal shadow-xs overflow-hidden">
+                                {loading ? (
+                                    <div className="p-16 text-center space-y-3">
+                                        <div className="w-8 h-8 border-3 border-primary-teal/30 border-t-primary-teal rounded-full animate-spin mx-auto" />
+                                        <p className="text-xs text-muted-text font-bold">Loading your active clinical fee schedule...</p>
+                                    </div>
+                                ) : filteredScheduleProcedures.length === 0 ? (
+                                    <div className="p-16 text-center space-y-4">
+                                        <Stethoscope className="w-12 h-12 text-muted-text/40 mx-auto" />
+                                        <h3 className="text-base font-bold text-dark-slate">No procedures in this selection</h3>
+                                        <p className="text-xs text-muted-text max-w-md mx-auto">
+                                            {procedures.length === 0
+                                                ? 'Your clinic fee schedule is currently unpopulated. Click below to load all 141 standard procedures.'
+                                                : `No active procedures found matching "${scheduleSearch}" in ${selectedCategory}.`}
+                                        </p>
+                                        <div className="flex items-center justify-center gap-3 pt-2">
+                                            <button
+                                                type="button"
+                                                onClick={handleAddAllFromLibrary}
+                                                className="px-5 py-2.5 bg-primary-teal text-white rounded-xl text-xs font-bold hover:bg-primary-hover transition-all cursor-pointer shadow-md shadow-primary-teal/20 flex items-center gap-2"
+                                            >
+                                                <Sparkles className="w-4 h-4" />
+                                                <span>Load All 141 Procedures</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setActiveView('library')}
+                                                className="px-5 py-2.5 bg-warm-cream text-dark-slate border border-light-teal rounded-xl text-xs font-bold hover:bg-light-teal transition-all cursor-pointer"
+                                            >
+                                                <span>Browse Standard Library</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /* Bounded Scroll Container with Sticky Header */
+                                    <div className="max-h-[580px] overflow-y-auto">
+                                        <table className="w-full text-left border-collapse text-xs">
+                                            <thead className="sticky top-0 bg-warm-cream/95 backdrop-blur-xs border-b border-light-teal z-10 text-[11px] font-bold text-muted-text uppercase tracking-wider">
+                                                <tr>
+                                                    <th className="py-3 px-4 w-24">Code</th>
+                                                    <th className="py-3 px-4 min-w-[200px]">Procedure Name</th>
+                                                    <th className="py-3 px-4 hidden sm:table-cell">Specialty</th>
+                                                    <th className="py-3 px-4 w-28">Duration</th>
+                                                    <th className="py-3 px-4 w-36">Standard Fee ({currentCurrencySymbol})</th>
+                                                    <th className="py-3 px-4 hidden md:table-cell">Clinical Notes</th>
+                                                    <th className="py-3 px-3 text-center w-16">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-light-teal/50">
+                                                {filteredScheduleProcedures.map((proc) => {
+                                                    const badgeColor = categoryBadgeColors[proc.category] || 'bg-slate-100 text-slate-700 border-slate-200';
+                                                    return (
+                                                        <tr key={proc.feeScheduleID || proc.procedureCode} className="hover:bg-warm-cream/40 transition-colors">
+                                                            
+                                                            {/* Code Badge */}
+                                                            <td className="py-3 px-4 font-mono font-bold">
+                                                                <span className="px-2 py-0.5 rounded-lg bg-light-teal text-primary-hover font-bold text-[11px] border border-light-teal/60 whitespace-nowrap">
+                                                                    {proc.procedureCode}
+                                                                </span>
+                                                            </td>
+
+                                                            {/* Procedure Name (Inline Editable) */}
+                                                            <td className="py-3 px-4">
                                                                 <input 
                                                                     type="text"
-                                                                    value={proc.estimatedDuration}
-                                                                    onChange={(e) => handleDurationChange(proc.feeScheduleID, e.target.value)}
-                                                                    className="w-20 font-medium text-dark-slate bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-light-teal focus:border-primary-teal rounded-lg px-1.5 py-0.5 text-xs transition-colors"
+                                                                    value={proc.procedureName}
+                                                                    onChange={(e) => handleNameChange(proc.feeScheduleID, e.target.value)}
+                                                                    className="w-full font-bold text-dark-slate bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-light-teal focus:border-primary-teal rounded-lg px-2 py-1 text-xs transition-colors"
                                                                 />
-                                                            </div>
-                                                        </td>
+                                                            </td>
 
-                                                        {/* Standard Fee (Inline Editable with Live Currency Prefix) */}
-                                                        <td className="py-3.5 px-5">
-                                                            <div className="flex items-center gap-1 font-mono font-black text-dark-slate bg-warm-cream px-2 py-1 rounded-xl border border-light-teal w-32 focus-within:ring-2 focus-within:ring-primary-teal/40">
-                                                                <span className="text-primary-teal text-xs">{currentCurrencySymbol}</span>
-                                                                <input 
-                                                                    type="number"
-                                                                    step="any"
-                                                                    value={proc.standardFee}
-                                                                    onChange={(e) => handleFeeChange(proc.feeScheduleID, e.target.value)}
-                                                                    className="w-full bg-transparent text-xs font-mono font-black text-dark-slate focus:outline-none"
-                                                                />
-                                                            </div>
-                                                        </td>
+                                                            {/* Specialty Category Badge */}
+                                                            <td className="py-3 px-4 hidden sm:table-cell">
+                                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeColor} whitespace-nowrap`}>
+                                                                    {proc.category}
+                                                                </span>
+                                                            </td>
 
-                                                        {/* Description */}
-                                                        <td className="py-3.5 px-5 text-muted-text text-[11px] max-w-xs truncate" title={proc.description}>
-                                                            {proc.description || 'Standard clinic procedure'}
-                                                        </td>
+                                                            {/* Duration */}
+                                                            <td className="py-3 px-4">
+                                                                <div className="flex items-center gap-1 text-muted-text">
+                                                                    <Clock className="w-3 h-3 text-primary-teal shrink-0" />
+                                                                    <input 
+                                                                        type="text"
+                                                                        value={proc.estimatedDuration}
+                                                                        onChange={(e) => handleDurationChange(proc.feeScheduleID, e.target.value)}
+                                                                        className="w-20 font-medium text-dark-slate bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-light-teal focus:border-primary-teal rounded-lg px-1 py-0.5 text-xs transition-colors"
+                                                                    />
+                                                                </div>
+                                                            </td>
 
-                                                        {/* Remove Action */}
-                                                        <td className="py-3.5 px-4 text-center">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleRemoveProcedure(proc.procedureCode)}
-                                                                className="p-1.5 text-muted-text hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                                                title="Remove from schedule"
-                                                            >
-                                                                <Trash2 className="w-3.5 h-3.5" />
-                                                            </button>
-                                                        </td>
+                                                            {/* Standard Fee (Inline Editable with Live Currency Prefix) */}
+                                                            <td className="py-3 px-4">
+                                                                <div className="flex items-center gap-1 font-mono font-black text-dark-slate bg-warm-cream px-2 py-1 rounded-xl border border-light-teal w-32 focus-within:ring-2 focus-within:ring-primary-teal/40">
+                                                                    <span className="text-primary-teal text-xs shrink-0">{currentCurrencySymbol}</span>
+                                                                    <input 
+                                                                        type="number"
+                                                                        step="any"
+                                                                        value={proc.standardFee}
+                                                                        onChange={(e) => handleFeeChange(proc.feeScheduleID, e.target.value)}
+                                                                        className="w-full bg-transparent text-xs font-mono font-black text-dark-slate focus:outline-none"
+                                                                    />
+                                                                </div>
+                                                            </td>
 
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
+                                                            {/* Description */}
+                                                            <td className="py-3 px-4 hidden md:table-cell text-muted-text text-[11px] max-w-xs truncate" title={proc.description}>
+                                                                {proc.description || 'Standard clinic procedure'}
+                                                            </td>
+
+                                                            {/* Remove Action */}
+                                                            <td className="py-3 px-3 text-center">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleRemoveProcedure(proc.procedureCode)}
+                                                                    className="p-1.5 text-muted-text hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                                                    title="Remove from schedule"
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </td>
+
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+
+                                {/* Bottom Table Summary Bar */}
+                                <div className="p-3 bg-warm-cream/80 border-t border-light-teal flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+                                    <span className="text-muted-text font-medium">
+                                        Showing <span className="font-bold text-dark-slate">{filteredScheduleProcedures.length}</span> of {procedures.length} procedures in your clinic schedule
+                                    </span>
+                                    <div className="flex items-center gap-3">
+                                        {hasUnsavedChanges && (
+                                            <span className="text-amber-600 font-bold text-[11px] flex items-center gap-1">
+                                                ● Unsaved edits
+                                            </span>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={handleSaveSchedule}
+                                            disabled={saving}
+                                            className="px-4 py-1.5 bg-primary-teal hover:bg-primary-hover text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                                        >
+                                            <Save className="w-3.5 h-3.5" />
+                                            <span>{saving ? 'Saving...' : 'Save Changes'}</span>
+                                        </button>
+                                    </div>
                                 </div>
-                            )}
-                        </div>
+                            </div>
 
+                        </div>
                     </div>
                 )}
 
                 {/* ========================================================================= */}
-                {/* VIEW 2: STANDARD PROCEDURE LIBRARY (100% In-Page, Browsable, Searchable) */}
+                {/* VIEW 2: STANDARD PROCEDURE LIBRARY (141 Procedures Browsable)             */}
                 {/* ========================================================================= */}
                 {activeView === 'library' && (
-                    <div className="space-y-6 animate-in fade-in">
+                    <div className="space-y-5 animate-in fade-in">
                         
                         {/* Library Header & Search Bar */}
-                        <div className="bg-white rounded-3xl p-6 border border-light-teal shadow-xs space-y-4">
+                        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-light-teal shadow-xs space-y-4">
                             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                                 <div>
                                     <h2 className="text-lg font-serif font-black text-dark-slate flex items-center gap-2">
@@ -834,7 +1080,7 @@ export default function DoctorTreatmentPricing() {
                                         <span>Standard Dental Procedure Catalog (141 Procedures)</span>
                                     </h2>
                                     <p className="text-xs text-muted-text">
-                                        Browse all 15 clinical dental specialties. Click <span className="font-bold text-primary-teal">+ Add to My Schedule</span> to activate any procedure in your clinic.
+                                        Browse all 15 clinical dental specialties. Click <span className="font-bold text-primary-teal">+ Add</span> to activate any procedure in your clinic.
                                     </p>
                                 </div>
 
@@ -862,7 +1108,7 @@ export default function DoctorTreatmentPricing() {
                                     <button 
                                         type="button" 
                                         onClick={() => setLibrarySearch('')} 
-                                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-text hover:text-dark-slate text-xs"
+                                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-text hover:text-dark-slate text-xs cursor-pointer"
                                     >
                                         ✕
                                     </button>
@@ -914,7 +1160,7 @@ export default function DoctorTreatmentPricing() {
                             })}
                         </div>
 
-                        {/* Category Bulk Action Banner (when a specific category is filtered) */}
+                        {/* Category Bulk Action Banner */}
                         {libraryCategory !== 'All' && (
                             <div className="p-4 rounded-2xl bg-white border border-light-teal flex items-center justify-between gap-4">
                                 <div className="flex items-center gap-2">
@@ -936,7 +1182,7 @@ export default function DoctorTreatmentPricing() {
                             </div>
                         )}
 
-                        {/* Standard Procedures Grid / List */}
+                        {/* Standard Procedures Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {filteredLibraryProcedures.map((item) => {
                                 const isAdded = activeProcedureCodeSet.has(item.code);
@@ -1011,7 +1257,7 @@ export default function DoctorTreatmentPricing() {
                 )}
 
                 {/* ========================================================================= */}
-                {/* VIEW 3: CREATE CUSTOM PROCEDURE (100% In-Page, Zero Popups)              */}
+                {/* VIEW 3: CREATE CUSTOM PROCEDURE (Dedicated Tab View)                      */}
                 {/* ========================================================================= */}
                 {activeView === 'custom' && (
                     <div className="bg-white rounded-3xl p-6 sm:p-8 border border-light-teal shadow-xs max-w-2xl mx-auto space-y-6 animate-in fade-in">

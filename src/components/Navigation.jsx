@@ -26,9 +26,8 @@ export default function Navigation() {
             ? `${baseClasses} text-primary-teal font-bold bg-white shadow-md scale-105 ring-1 ring-[#4A7CD2]/25`
             : `${baseClasses} text-slate-600 hover:text-primary-teal hover:bg-white/60 hover:scale-105`;
     };
-
     return (
-        <div className="pt-4 px-6 sticky top-0 z-50">
+        <div className="pt-3 pb-2 px-4 sm:px-6 sticky top-0 z-50 bg-[#FBFBFA]/95 backdrop-blur-md border-b border-light-teal/40 transition-all shadow-xs">
             {/* Top Contact Bar */}
             <div className="w-full max-w-[1800px] mx-auto px-4 mb-2 flex items-center justify-between text-xs text-muted-text font-medium">
                 <div className="flex items-center space-x-6">
