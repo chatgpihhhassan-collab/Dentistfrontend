@@ -28,6 +28,7 @@ import {
     HelpCircle,
     FileText,
     Activity,
+    ChevronLeft,
     ChevronRight,
     X,
     ChevronDown,
@@ -94,6 +95,10 @@ export default function DoctorTreatmentPricing() {
     // Active Specialty Category selection in the left sidebar
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [scheduleSearch, setScheduleSearch] = useState('');
+
+    // Pagination state for active fee schedule
+    const [schedulePage, setSchedulePage] = useState(1);
+    const [schedulePageSize, setSchedulePageSize] = useState(10);
 
     // Toggle for inline custom procedure drawer right inside the workspace
     const [showInlineAdd, setShowInlineAdd] = useState(false);
@@ -577,6 +582,24 @@ export default function DoctorTreatmentPricing() {
         });
     }, [procedures, selectedCategory, scheduleSearch]);
 
+    // Reset pagination to first page whenever category or search changes
+    useEffect(() => {
+        setSchedulePage(1);
+    }, [selectedCategory, scheduleSearch]);
+
+    // Pagination calculations for schedule table
+    const totalSchedulePages = Math.ceil(filteredScheduleProcedures.length / schedulePageSize) || 1;
+    const currentSchedulePage = Math.min(Math.max(schedulePage, 1), totalSchedulePages);
+
+    const paginatedScheduleProcedures = useMemo(() => {
+        if (schedulePageSize >= 141) return filteredScheduleProcedures;
+        const start = (currentSchedulePage - 1) * schedulePageSize;
+        return filteredScheduleProcedures.slice(start, start + schedulePageSize);
+    }, [filteredScheduleProcedures, currentSchedulePage, schedulePageSize]);
+
+    const scheduleStartIndex = filteredScheduleProcedures.length === 0 ? 0 : (currentSchedulePage - 1) * schedulePageSize + 1;
+    const scheduleEndIndex = Math.min(currentSchedulePage * schedulePageSize, filteredScheduleProcedures.length);
+
     // Standard Library Filtered List
     const filteredLibraryProcedures = useMemo(() => {
         return STANDARD_DENTAL_PROCEDURES.filter(p => {
@@ -1057,22 +1080,20 @@ export default function DoctorTreatmentPricing() {
                                         </div>
                                     </div>
                                 ) : (
-                                    /* Bounded Scroll Container with Sticky Header */
-                                    <div className="max-h-[580px] overflow-y-auto">
-                                        <table className="w-full text-left border-collapse text-xs">
+                                    /* Table Container with ZERO horizontal scroll */
+                                    <div className={`w-full overflow-x-hidden ${schedulePageSize > 20 ? 'max-h-[620px] overflow-y-auto' : ''}`}>
+                                        <table className="w-full table-fixed text-left border-collapse text-xs">
                                             <thead className="sticky top-0 bg-warm-cream/95 backdrop-blur-xs border-b border-light-teal z-10 text-[11px] font-bold text-muted-text uppercase tracking-wider">
                                                 <tr>
-                                                    <th className="py-3 px-4 w-24">Code</th>
-                                                    <th className="py-3 px-4 min-w-[200px]">Procedure Name</th>
-                                                    <th className="py-3 px-4 hidden sm:table-cell">Specialty</th>
-                                                    <th className="py-3 px-4 w-28">Duration</th>
-                                                    <th className="py-3 px-4 w-36">Standard Fee ({currentCurrencySymbol})</th>
-                                                    <th className="py-3 px-4 hidden md:table-cell">Clinical Notes</th>
-                                                    <th className="py-3 px-3 text-center min-w-[140px]">Actions</th>
+                                                    <th className="py-3 px-3 w-[76px]">Code</th>
+                                                    <th className="py-3 px-3">Procedure & Clinical Details</th>
+                                                    <th className="py-3 px-3 w-[90px]">Duration</th>
+                                                    <th className="py-3 px-3 w-[125px]">Standard Fee</th>
+                                                    <th className="py-3 px-2 text-center w-[125px]">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-light-teal/50">
-                                                {filteredScheduleProcedures.map((proc) => {
+                                                {paginatedScheduleProcedures.map((proc) => {
                                                     const rowKey = proc.feeScheduleID || proc.procedureCode;
                                                     const isEditing = editingId === rowKey;
                                                     const isSaving = savingRowId === rowKey;
@@ -1083,22 +1104,35 @@ export default function DoctorTreatmentPricing() {
                                                         return (
                                                             <tr key={rowKey} className="bg-sky-50/70 ring-2 ring-primary-teal/50 transition-all">
                                                                 {/* Code */}
-                                                                <td className="py-3 px-4 font-mono font-bold align-top pt-3.5">
+                                                                <td className="py-3 px-3 font-mono font-bold align-top pt-3.5">
                                                                     <span className="px-2 py-0.5 rounded-lg bg-primary-teal text-white font-bold text-[11px] whitespace-nowrap shadow-xs">
                                                                         {proc.procedureCode}
                                                                     </span>
                                                                 </td>
 
                                                                 {/* Procedure Name & Inline Description Editor */}
-                                                                <td className="py-3 px-4 align-top">
-                                                                    <input 
-                                                                        type="text"
-                                                                        value={editFormData.procedureName || ''}
-                                                                        onChange={(e) => setEditFormData({ ...editFormData, procedureName: e.target.value })}
-                                                                        className="w-full font-bold text-dark-slate bg-white border border-primary-teal rounded-lg px-2.5 py-1 text-xs shadow-xs focus:outline-none focus:ring-2 focus:ring-primary-teal/30"
-                                                                        placeholder="Procedure name"
-                                                                    />
-                                                                    <div className="mt-1.5">
+                                                                <td className="py-3 px-3 align-top">
+                                                                    <div className="space-y-1.5">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <input 
+                                                                                type="text"
+                                                                                value={editFormData.procedureName || ''}
+                                                                                onChange={(e) => setEditFormData({ ...editFormData, procedureName: e.target.value })}
+                                                                                className="w-full font-bold text-dark-slate bg-white border border-primary-teal rounded-lg px-2.5 py-1 text-xs shadow-xs focus:outline-none focus:ring-2 focus:ring-primary-teal/30"
+                                                                                placeholder="Procedure name"
+                                                                            />
+                                                                            {selectedCategory === 'All' && (
+                                                                                <select
+                                                                                    value={editFormData.category || ''}
+                                                                                    onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
+                                                                                    className="px-2 py-1 bg-white border border-primary-teal/50 rounded-lg text-[11px] font-bold text-dark-slate cursor-pointer focus:outline-none shrink-0 max-w-[140px]"
+                                                                                >
+                                                                                    {DENTAL_CATEGORIES.map(cat => (
+                                                                                        <option key={cat} value={cat}>{cat}</option>
+                                                                                    ))}
+                                                                                </select>
+                                                                            )}
+                                                                        </div>
                                                                         <textarea
                                                                             rows="2"
                                                                             value={editFormData.description || ''}
@@ -1109,36 +1143,20 @@ export default function DoctorTreatmentPricing() {
                                                                     </div>
                                                                 </td>
 
-                                                                {/* Specialty Category Selector */}
-                                                                <td className="py-3 px-4 hidden sm:table-cell align-top pt-3.5">
-                                                                    <select
-                                                                        value={editFormData.category || ''}
-                                                                        onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
-                                                                        className="px-2 py-1 bg-white border border-primary-teal/50 rounded-lg text-[11px] font-bold text-dark-slate cursor-pointer focus:outline-none focus:border-primary-teal"
-                                                                    >
-                                                                        {DENTAL_CATEGORIES.map(cat => (
-                                                                            <option key={cat} value={cat}>{cat}</option>
-                                                                        ))}
-                                                                    </select>
-                                                                </td>
-
                                                                 {/* Duration */}
-                                                                <td className="py-3 px-4 align-top pt-3.5">
-                                                                    <div className="flex items-center gap-1 text-muted-text">
-                                                                        <Clock className="w-3 h-3 text-primary-teal shrink-0" />
-                                                                        <input 
-                                                                            type="text"
-                                                                            value={editFormData.estimatedDuration || ''}
-                                                                            onChange={(e) => setEditFormData({ ...editFormData, estimatedDuration: e.target.value })}
-                                                                            className="w-22 font-medium text-dark-slate bg-white border border-primary-teal/50 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-primary-teal"
-                                                                            placeholder="45 mins"
-                                                                        />
-                                                                    </div>
+                                                                <td className="py-3 px-3 align-top pt-3.5">
+                                                                    <input 
+                                                                        type="text"
+                                                                        value={editFormData.estimatedDuration || ''}
+                                                                        onChange={(e) => setEditFormData({ ...editFormData, estimatedDuration: e.target.value })}
+                                                                        className="w-full font-medium text-dark-slate bg-white border border-primary-teal/50 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-primary-teal"
+                                                                        placeholder="45 mins"
+                                                                    />
                                                                 </td>
 
                                                                 {/* Standard Fee */}
-                                                                <td className="py-3 px-4 align-top pt-3.5">
-                                                                    <div className="flex items-center gap-1 font-mono font-black text-dark-slate bg-white px-2 py-1 rounded-xl border-2 border-primary-teal w-36 shadow-xs">
+                                                                <td className="py-3 px-3 align-top pt-3.5">
+                                                                    <div className="flex items-center gap-1 font-mono font-black text-dark-slate bg-white px-2 py-1 rounded-xl border-2 border-primary-teal w-full shadow-xs">
                                                                         <span className="text-primary-teal text-xs shrink-0 font-bold">{currentCurrencySymbol}</span>
                                                                         <input 
                                                                             type="number"
@@ -1151,30 +1169,25 @@ export default function DoctorTreatmentPricing() {
                                                                     </div>
                                                                 </td>
 
-                                                                {/* Clinical Notes (Cell indicator) */}
-                                                                <td className="py-3 px-4 hidden md:table-cell align-top text-[11px] text-muted-text italic pt-3.5">
-                                                                    (Editing note below name)
-                                                                </td>
-
                                                                 {/* Action: SAVE TO DB / CANCEL */}
-                                                                <td className="py-3 px-3 align-top pt-3">
-                                                                    <div className="flex flex-col sm:flex-row items-center justify-center gap-1.5">
+                                                                <td className="py-3 px-2 align-top pt-3 text-center">
+                                                                    <div className="flex items-center justify-center gap-1">
                                                                         <button
                                                                             type="button"
                                                                             onClick={handleSaveRowToDb}
                                                                             disabled={isSaving}
-                                                                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                                                                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50 whitespace-nowrap"
                                                                             title="Save changes directly to database"
                                                                         >
                                                                             {isSaving ? (
                                                                                 <>
-                                                                                    <RotateCcw className="w-3.5 h-3.5 animate-spin" />
-                                                                                    <span>Saving...</span>
+                                                                                    <RotateCcw className="w-3 h-3 animate-spin" />
+                                                                                    <span>Saving</span>
                                                                                 </>
                                                                             ) : (
                                                                                 <>
-                                                                                    <Save className="w-3.5 h-3.5" />
-                                                                                    <span>Save to DB</span>
+                                                                                    <Save className="w-3 h-3" />
+                                                                                    <span>Save</span>
                                                                                 </>
                                                                             )}
                                                                         </button>
@@ -1182,11 +1195,10 @@ export default function DoctorTreatmentPricing() {
                                                                             type="button"
                                                                             onClick={handleCancelEdit}
                                                                             disabled={isSaving}
-                                                                            className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-dark-slate rounded-xl text-xs font-bold transition-all border border-light-teal flex items-center gap-1 cursor-pointer"
+                                                                            className="p-1 bg-white hover:bg-slate-100 text-dark-slate rounded-lg text-xs transition-all border border-light-teal flex items-center cursor-pointer"
                                                                             title="Cancel editing"
                                                                         >
                                                                             <X className="w-3.5 h-3.5" />
-                                                                            <span>Cancel</span>
                                                                         </button>
                                                                     </div>
                                                                 </td>
@@ -1199,69 +1211,69 @@ export default function DoctorTreatmentPricing() {
                                                         <tr key={rowKey} className="hover:bg-warm-cream/40 transition-colors group">
                                                             
                                                             {/* Code Badge */}
-                                                            <td className="py-3 px-4 font-mono font-bold">
+                                                            <td className="py-3 px-3 font-mono font-bold align-top">
                                                                 <span className="px-2 py-0.5 rounded-lg bg-light-teal text-primary-hover font-bold text-[11px] border border-light-teal/60 whitespace-nowrap">
                                                                     {proc.procedureCode}
                                                                 </span>
                                                             </td>
 
-                                                            {/* Procedure Name */}
-                                                            <td className="py-3 px-4">
-                                                                <div className="flex items-center gap-1.5">
-                                                                    <span 
-                                                                        onClick={() => handleStartEdit(proc)}
-                                                                        className="font-bold text-dark-slate text-xs hover:text-primary-teal cursor-pointer transition-colors"
-                                                                        title="Click to edit procedure"
-                                                                    >
-                                                                        {proc.procedureName}
-                                                                    </span>
-                                                                    {isJustSaved && (
-                                                                        <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold animate-pulse whitespace-nowrap">
-                                                                            <Check className="w-3 h-3" />
-                                                                            <span>Saved to DB</span>
+                                                            {/* Procedure Name & Description & Category Tag */}
+                                                            <td className="py-3 px-3 align-top">
+                                                                <div className="space-y-0.5">
+                                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                                        <span 
+                                                                            onClick={() => handleStartEdit(proc)}
+                                                                            className="font-bold text-dark-slate text-xs hover:text-primary-teal cursor-pointer transition-colors"
+                                                                            title="Click to edit procedure"
+                                                                        >
+                                                                            {proc.procedureName}
                                                                         </span>
+                                                                        {selectedCategory === 'All' && (
+                                                                            <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold border ${badgeColor} whitespace-nowrap`}>
+                                                                                {proc.category}
+                                                                            </span>
+                                                                        )}
+                                                                        {isJustSaved && (
+                                                                            <span className="inline-flex items-center gap-0.5 px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold animate-pulse whitespace-nowrap">
+                                                                                <Check className="w-3 h-3" />
+                                                                                <span>Saved</span>
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    {proc.description && (
+                                                                        <p className="text-[11px] text-muted-text truncate max-w-xl" title={proc.description}>
+                                                                            {proc.description}
+                                                                        </p>
                                                                     )}
                                                                 </div>
                                                             </td>
 
-                                                            {/* Specialty Category Badge */}
-                                                            <td className="py-3 px-4 hidden sm:table-cell">
-                                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeColor} whitespace-nowrap`}>
-                                                                    {proc.category}
-                                                                </span>
-                                                            </td>
-
                                                             {/* Duration */}
-                                                            <td className="py-3 px-4">
-                                                                <div className="flex items-center gap-1 text-muted-text">
+                                                            <td className="py-3 px-3 align-top">
+                                                                <div className="flex items-center gap-1 text-muted-text whitespace-nowrap">
                                                                     <Clock className="w-3 h-3 text-primary-teal shrink-0" />
                                                                     <span className="font-medium text-dark-slate text-xs">{proc.estimatedDuration}</span>
                                                                 </div>
                                                             </td>
 
                                                             {/* Standard Fee */}
-                                                            <td className="py-3 px-4">
+                                                            <td className="py-3 px-3 align-top">
                                                                 <div 
                                                                     onClick={() => handleStartEdit(proc)}
-                                                                    className="font-mono font-black text-xs text-dark-slate bg-warm-cream hover:bg-light-teal/60 px-2.5 py-1 rounded-xl border border-light-teal w-fit cursor-pointer transition-colors"
+                                                                    className="font-mono font-black text-xs text-dark-slate bg-warm-cream hover:bg-light-teal/60 px-2 py-1 rounded-xl border border-light-teal w-fit cursor-pointer transition-colors whitespace-nowrap"
                                                                     title="Click to edit fee"
                                                                 >
                                                                     {currentCurrencySymbol} {Number(proc.standardFee).toLocaleString()}
                                                                 </div>
                                                             </td>
 
-                                                            {/* Description */}
-                                                            <td className="py-3 px-4 hidden md:table-cell text-muted-text text-[11px] max-w-xs truncate" title={proc.description}>
-                                                                {proc.description || 'Standard clinic procedure'}
-                                                            </td>
-
                                                             {/* Actions: EDIT & DELETE BUTTONS */}
-                                                            <td className="py-3 px-3 text-center">
-                                                                <div className="flex items-center justify-center gap-1.5">
+                                                            <td className="py-3 px-2 text-center align-top">
+                                                                <div className="flex items-center justify-center gap-1">
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => handleStartEdit(proc)}
-                                                                        className="px-2.5 py-1.5 rounded-xl bg-light-teal hover:bg-primary-teal text-primary-hover hover:text-white font-bold text-xs transition-all flex items-center gap-1 cursor-pointer shadow-2xs border border-light-teal-hover"
+                                                                        className="px-2.5 py-1 rounded-xl bg-light-teal hover:bg-primary-teal text-primary-hover hover:text-white font-bold text-xs transition-all flex items-center gap-1 cursor-pointer shadow-2xs border border-light-teal-hover"
                                                                         title="Edit procedure and save to database"
                                                                     >
                                                                         <Edit3 className="w-3.5 h-3.5" />
@@ -1271,7 +1283,7 @@ export default function DoctorTreatmentPricing() {
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => handleRemoveProcedure(proc.procedureCode, proc.procedureName)}
-                                                                        className="p-1.5 text-muted-text hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                                                        className="p-1 text-muted-text hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                                                                         title="Remove from schedule"
                                                                     >
                                                                         <Trash2 className="w-3.5 h-3.5" />
@@ -1287,11 +1299,86 @@ export default function DoctorTreatmentPricing() {
                                     </div>
                                 )}
 
-                                {/* Bottom Table Summary Bar */}
-                                <div className="p-3 bg-warm-cream/80 border-t border-light-teal flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
-                                    <span className="text-muted-text font-medium">
-                                        Showing <span className="font-bold text-dark-slate">{filteredScheduleProcedures.length}</span> of {procedures.length} procedures in your clinic schedule
-                                    </span>
+                                {/* Bottom Table Pagination & Action Bar */}
+                                <div className="p-3.5 bg-warm-cream/90 border-t border-light-teal flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
+                                    
+                                    {/* Left: Summary & Per Page Selector */}
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <span className="text-muted-text font-medium">
+                                            Showing <span className="font-bold text-dark-slate">{scheduleStartIndex}</span>–<span className="font-bold text-dark-slate">{scheduleEndIndex}</span> of <span className="font-bold text-dark-slate">{filteredScheduleProcedures.length}</span> procedures
+                                        </span>
+
+                                        <div className="flex items-center gap-1.5 text-[11px] text-muted-text">
+                                            <span>Rows:</span>
+                                            <select
+                                                value={schedulePageSize}
+                                                onChange={(e) => {
+                                                    setSchedulePageSize(Number(e.target.value));
+                                                    setSchedulePage(1);
+                                                }}
+                                                className="bg-white border border-light-teal rounded-lg px-2 py-0.5 text-xs font-bold text-dark-slate focus:outline-none cursor-pointer"
+                                            >
+                                                <option value={10}>10</option>
+                                                <option value={20}>20</option>
+                                                <option value={50}>50</option>
+                                                <option value={141}>All</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {/* Middle: Pagination Navigation */}
+                                    {totalSchedulePages > 1 && (
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => setSchedulePage(prev => Math.max(prev - 1, 1))}
+                                                disabled={currentSchedulePage <= 1}
+                                                className="px-2.5 py-1 rounded-xl border border-light-teal bg-white hover:bg-light-teal text-dark-slate text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer"
+                                                title="Previous page"
+                                            >
+                                                <ChevronLeft className="w-3.5 h-3.5" />
+                                                <span className="hidden sm:inline">Prev</span>
+                                            </button>
+
+                                            <div className="flex items-center gap-1">
+                                                {Array.from({ length: totalSchedulePages }, (_, i) => i + 1)
+                                                    .filter(p => p === 1 || p === totalSchedulePages || Math.abs(p - currentSchedulePage) <= 1)
+                                                    .map((pageNum, idx, arr) => {
+                                                        const prevPage = arr[idx - 1];
+                                                        const showEllipsis = prevPage && pageNum - prevPage > 1;
+                                                        return (
+                                                            <React.Fragment key={pageNum}>
+                                                                {showEllipsis && <span className="px-1 text-muted-text font-bold">…</span>}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setSchedulePage(pageNum)}
+                                                                    className={`w-7 h-7 rounded-xl text-xs font-bold transition-all flex items-center justify-center cursor-pointer ${
+                                                                        currentSchedulePage === pageNum
+                                                                            ? 'bg-primary-teal text-white shadow-xs'
+                                                                            : 'bg-white hover:bg-light-teal text-dark-slate border border-light-teal'
+                                                                    }`}
+                                                                >
+                                                                    {pageNum}
+                                                                </button>
+                                                            </React.Fragment>
+                                                        );
+                                                    })}
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setSchedulePage(prev => Math.min(prev + 1, totalSchedulePages))}
+                                                disabled={currentSchedulePage >= totalSchedulePages}
+                                                className="px-2.5 py-1 rounded-xl border border-light-teal bg-white hover:bg-light-teal text-dark-slate text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer"
+                                                title="Next page"
+                                            >
+                                                <span className="hidden sm:inline">Next</span>
+                                                <ChevronRight className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Right: Unsaved status and Save button */}
                                     <div className="flex items-center gap-3">
                                         {hasUnsavedChanges && (
                                             <span className="text-amber-600 font-bold text-[11px] flex items-center gap-1">
