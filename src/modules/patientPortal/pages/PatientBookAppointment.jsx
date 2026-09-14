@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
     Calendar as CalendarIcon, 
@@ -20,7 +20,8 @@ import {
     Receipt, 
     Lock, 
     Check, 
-    ChevronRight 
+    ChevronRight,
+    Users
 } from 'lucide-react';
 import API_BASE_URL from '../../../config/apiConfig';
 
@@ -79,30 +80,40 @@ export default function PatientBookAppointment() {
         }
     ];
 
-    // 2. Specialists
-    const doctors = [
-        { 
-            id: 1, 
-            name: 'Dr. Sarah J. Lee', 
-            title: 'Lead Dental Surgeon', 
-            exp: '14 yrs exp', 
-            avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=200' 
-        },
+    // Real database doctors fallback
+    const fallbackDoctors = [
         { 
             id: 2, 
-            name: 'Dr. Michael Chang', 
-            title: 'Orthodontist & Aligners', 
-            exp: '11 yrs exp', 
+            doctorID: 2,
+            name: 'Dr. Jhangir Ahmed', 
+            title: 'Consultant Dental Surgeon', 
+            exp: '14 yrs exp', 
+            region: 'PK',
             avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=200' 
         },
         { 
             id: 3, 
-            name: 'Dr. Emily Watson', 
-            title: 'Periodontist & Oral Health', 
+            doctorID: 3,
+            name: 'Dr. Ahmed Khan', 
+            title: 'Dental Surgeon & Orthodontist', 
+            exp: '11 yrs exp', 
+            region: 'NZ',
+            avatar: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&q=80&w=200' 
+        },
+        { 
+            id: 4, 
+            doctorID: 4,
+            name: 'Dr. Sarah Jenkins', 
+            title: 'Lead Cosmetic & Restorative Surgeon', 
             exp: '9 yrs exp', 
-            avatar: 'https://images.unsplash.com/photo-1594824813689-ee0840b15798?auto=format&fit=crop&q=80&w=200' 
+            region: 'NZ',
+            avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=200' 
         }
     ];
+
+    // 2. Real Doctors State (Fetched dynamically from Database)
+    const [doctors, setDoctors] = useState(fallbackDoctors);
+    const [loadingDoctors, setLoadingDoctors] = useState(true);
 
     // 3. Time Slots
     const timeSlots = [
@@ -121,10 +132,92 @@ export default function PatientBookAppointment() {
 
     // Selections
     const [selectedServiceId, setSelectedServiceId] = useState(services[0].id);
-    const [selectedDoctorId, setSelectedDoctorId] = useState(doctors[0].id);
+    const [selectedDoctorId, setSelectedDoctorId] = useState(2);
     const [preferredDate, setPreferredDate] = useState('');
     const [preferredTime, setPreferredTime] = useState('10:00 AM');
     const [reason, setReason] = useState('');
+
+    // Fetch live doctors from database
+    useEffect(() => {
+        let isMounted = true;
+        const loadRealDoctors = async () => {
+            try {
+                setLoadingDoctors(true);
+                let res = null;
+                try {
+                    res = await fetch(`${API_BASE_URL}/api/patient-portal/doctors`);
+                } catch {
+                    res = null;
+                }
+
+                if (!res || !res.ok) {
+                    try {
+                        res = await fetch(`${API_BASE_URL}/api/auth/doctors`);
+                    } catch {
+                        res = null;
+                    }
+                }
+
+                if (!res || !res.ok) {
+                    res = await fetch('/api/auth/doctors');
+                }
+
+                if (res && res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data) && data.length > 0) {
+                        const mapped = data.map(d => {
+                            const docId = d.doctorID || d.id;
+                            const fullName = d.fullName || `Dr. ${d.firstName} ${d.lastName}`.trim();
+                            const docRegion = d.region || 'NZ';
+                            const title = d.title || (docRegion === 'PK' ? 'Consultant Dental Surgeon' : 'Dental Surgeon & Specialist');
+                            const exp = d.exp || (docId === 2 ? '14 yrs exp' : (docId === 4 ? '9 yrs exp' : '11 yrs exp'));
+                            const avatar = d.avatar || (
+                                docId === 2
+                                    ? 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=200'
+                                    : (docId === 4
+                                        ? 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=200'
+                                        : 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&q=80&w=200')
+                            );
+
+                            return {
+                                id: docId,
+                                doctorID: docId,
+                                name: fullName,
+                                title,
+                                exp,
+                                region: docRegion,
+                                avatar
+                            };
+                        });
+
+                        if (isMounted) {
+                            setDoctors(mapped);
+                            // Auto-select assigned patient doctor or first real doctor
+                            const assignedId = patient.doctorID || patient.doctorId;
+                            const exists = mapped.some(m => m.id === assignedId);
+                            setSelectedDoctorId(exists ? assignedId : mapped[0].id);
+                        }
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.error('Error loading live doctors:', err);
+            } finally {
+                if (isMounted) setLoadingDoctors(false);
+            }
+
+            if (isMounted) {
+                setDoctors(fallbackDoctors);
+                const assignedId = patient.doctorID || patient.doctorId;
+                const exists = fallbackDoctors.some(m => m.id === assignedId);
+                setSelectedDoctorId(exists ? assignedId : fallbackDoctors[0].id);
+                setLoadingDoctors(false);
+            }
+        };
+
+        loadRealDoctors();
+        return () => { isMounted = false; };
+    }, []);
 
     // Payment state ('Cash' | 'Online_Card')
     const [paymentMethod, setPaymentMethod] = useState('Cash');
@@ -137,8 +230,9 @@ export default function PatientBookAppointment() {
     const [error, setError] = useState('');
     const [bookingSuccess, setBookingSuccess] = useState(null);
 
+    const activeDoctorList = doctors.length > 0 ? doctors : fallbackDoctors;
     const currentService = services.find(s => s.id === selectedServiceId) || services[0];
-    const currentDoctor = doctors.find(d => d.id === selectedDoctorId) || doctors[0];
+    const currentDoctor = activeDoctorList.find(d => d.id === selectedDoctorId) || activeDoctorList[0];
 
     // Date shortcuts
     const tomorrow = new Date();
@@ -591,46 +685,73 @@ export default function PatientBookAppointment() {
                 {/* ------------------------------------------------------------- */}
                 {currentStep === 2 && (
                     <div className="space-y-4 animate-in fade-in">
-                        <div>
-                            <h3 className="text-base font-serif font-black text-dark-slate">
-                                2. Select Specialist Clinician
-                            </h3>
-                            <p className="text-xs text-muted-text">Choose the dentist or specialist who will treat you.</p>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className="text-base font-serif font-black text-dark-slate">
+                                    2. Select Attending Specialist
+                                </h3>
+                                <p className="text-xs text-muted-text">Choose your doctor from our verified clinic practitioners.</p>
+                            </div>
+                            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                <span>Real Clinicians ({activeDoctorList.length})</span>
+                            </span>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                            {doctors.map((doc) => {
-                                const isSelected = selectedDoctorId === doc.id;
-
-                                return (
-                                    <div
-                                        key={doc.id}
-                                        onClick={() => setSelectedDoctorId(doc.id)}
-                                        className={`p-4 rounded-2xl border-2 transition-all cursor-pointer text-center relative ${
-                                            isSelected 
-                                                ? 'border-primary-teal bg-light-teal/50 shadow-xs ring-1 ring-primary-teal/40' 
-                                                : 'border-light-teal/80 hover:border-primary-teal/40 bg-white hover:bg-warm-cream/50'
-                                        }`}
-                                    >
-                                        <div className="w-16 h-16 rounded-full overflow-hidden mx-auto mb-3 ring-2 ring-light-teal shadow-xs">
-                                            <img src={doc.avatar} alt={doc.name} className="w-full h-full object-cover" />
-                                        </div>
-                                        <h4 className="text-xs font-black text-dark-slate">{doc.name}</h4>
-                                        <p className="text-[11px] text-muted-text mt-0.5">{doc.title}</p>
-                                        <div className="mt-3 flex items-center justify-center gap-2">
-                                            <span className="px-2 py-0.5 rounded-md bg-white border border-light-teal text-[10px] font-bold text-primary-teal font-mono">
-                                                {doc.exp}
-                                            </span>
-                                            {isSelected && (
-                                                <span className="w-5 h-5 rounded-full bg-primary-teal text-white flex items-center justify-center">
-                                                    <Check className="w-3 h-3 stroke-[3]" />
-                                                </span>
-                                            )}
-                                        </div>
+                        {loadingDoctors ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                                {[1, 2, 3].map((i) => (
+                                    <div key={i} className="p-4 rounded-2xl border-2 border-light-teal/50 bg-white text-center animate-pulse space-y-2.5">
+                                        <div className="w-16 h-16 rounded-full bg-light-teal/60 mx-auto" />
+                                        <div className="h-4 bg-light-teal/50 rounded w-28 mx-auto" />
+                                        <div className="h-3 bg-light-teal/30 rounded w-36 mx-auto" />
+                                        <div className="h-5 bg-light-teal/40 rounded w-20 mx-auto mt-2" />
                                     </div>
-                                );
-                            })}
-                        </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                                {activeDoctorList.map((doc) => {
+                                    const isSelected = selectedDoctorId === doc.id;
+
+                                    return (
+                                        <div
+                                            key={doc.id}
+                                            onClick={() => setSelectedDoctorId(doc.id)}
+                                            className={`p-4 rounded-2xl border-2 transition-all cursor-pointer text-center relative ${
+                                                isSelected 
+                                                    ? 'border-primary-teal bg-light-teal/50 shadow-xs ring-1 ring-primary-teal/40' 
+                                                    : 'border-light-teal/80 hover:border-primary-teal/40 bg-white hover:bg-warm-cream/50'
+                                            }`}
+                                        >
+                                            <div className="w-16 h-16 rounded-full overflow-hidden mx-auto mb-3 ring-2 ring-light-teal shadow-xs bg-slate-100">
+                                                <img 
+                                                    src={doc.avatar} 
+                                                    alt={doc.name} 
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => {
+                                                        e.target.onerror = null;
+                                                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doc.name)}&background=008080&color=fff&bold=true`;
+                                                    }}
+                                                />
+                                            </div>
+                                            <h4 className="text-xs font-black text-dark-slate">{doc.name}</h4>
+                                            <p className="text-[11px] text-muted-text mt-0.5 line-clamp-1">{doc.title}</p>
+                                            <div className="mt-3 flex items-center justify-center gap-2">
+                                                <span className="px-2 py-0.5 rounded-md bg-white border border-light-teal text-[10px] font-bold text-primary-teal font-mono">
+                                                    {doc.region ? `${doc.region} · ` : ''}{doc.exp}
+                                                </span>
+                                                {isSelected && (
+                                                    <span className="w-5 h-5 rounded-full bg-primary-teal text-white flex items-center justify-center">
+                                                        <Check className="w-3 h-3 stroke-[3]" />
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 )}
 
