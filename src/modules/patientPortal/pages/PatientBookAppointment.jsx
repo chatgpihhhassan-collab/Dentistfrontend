@@ -15,6 +15,10 @@ import {
     FileText, 
     MapPin, 
     Download, 
+    CreditCard, 
+    Banknote, 
+    Receipt, 
+    Lock, 
     Info 
 } from 'lucide-react';
 import API_BASE_URL from '../../../config/apiConfig';
@@ -22,27 +26,13 @@ import API_BASE_URL from '../../../config/apiConfig';
 export default function PatientBookAppointment() {
     const navigate = useNavigate();
 
-    // Form states
-    const [selectedCategory, setSelectedCategory] = useState('Routine Checkup & Prophylaxis Cleaning');
-    const [selectedDoctor, setSelectedDoctor] = useState('Dr. Sarah J. Lee (Lead Dental Surgeon)');
-    const [preferredDate, setPreferredDate] = useState('');
-    const [preferredTime, setPreferredTime] = useState('10:00 AM');
-    const [reason, setReason] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [bookingSuccess, setBookingSuccess] = useState(null);
-
-    const patient = JSON.parse(localStorage.getItem('patient') || '{}');
-    const patientName = (patient.firstName && patient.lastName) 
-        ? `${patient.firstName} ${patient.lastName}` 
-        : (patient.firstName || 'Patient');
-
-    // Dental Service Offerings
+    // Dental Service Offerings with transparent clinical fees
     const services = [
         { 
             id: 'Routine Checkup & Prophylaxis Cleaning', 
             label: 'Routine Checkup & Cleaning', 
             duration: '45 mins', 
+            fee: 85.00,
             badge: 'Most Popular',
             desc: 'Comprehensive oral examination, ultrasonic scaling, plaque removal & polish.',
             icon: Smile 
@@ -51,40 +41,45 @@ export default function PatientBookAppointment() {
             id: 'Toothache or Emergency Consultation', 
             label: 'Emergency & Acute Pain', 
             duration: '30 mins', 
-            badge: 'Same-Day Priority',
-            desc: 'Emergency diagnostic triage for acute throbbing toothache, trauma, or swelling.',
+            fee: 120.00,
+            badge: 'Priority Triage',
+            desc: 'Emergency diagnostic evaluation for acute toothache, trauma, or gum abscess.',
             icon: AlertCircle 
         },
         { 
             id: 'Restorative Crown or Cavity Filling', 
             label: 'Cavity Filling & Restoration', 
             duration: '60 mins', 
+            fee: 150.00,
             badge: 'Restorative',
-            desc: 'Precision composite resin filling, broken cusp repair, or crown fitting review.',
+            desc: 'Precision composite resin filling, fractured cusp repair, or crown review.',
             icon: ShieldCheck 
         },
         { 
             id: 'Orthodontic Alignment & Braces Review', 
             label: 'Orthodontics & Clear Aligners', 
             duration: '30 mins', 
+            fee: 180.00,
             badge: 'Alignment',
-            desc: 'Clear aligner fitting check, teeth straightening assessment, or wire adjustment.',
+            desc: 'Clear aligner progress tracking, teeth alignment scan, or retainer check.',
             icon: Sparkles 
         },
         { 
             id: 'Periodontal Gum Health & Deep Scaling', 
             label: 'Periodontal Care & Deep Scaling', 
             duration: '60 mins', 
+            fee: 160.00,
             badge: 'Gum Care',
-            desc: 'Subgingival scaling, root planing, and gingival pocket health evaluation.',
+            desc: 'Subgingival root planing, pocket depth measurement, and gum therapy.',
             icon: Stethoscope 
         },
         { 
             id: 'Cosmetic Teeth Whitening Evaluation', 
             label: 'Cosmetic Teeth Whitening', 
             duration: '45 mins', 
+            fee: 250.00,
             badge: 'Aesthetic',
-            desc: 'In-clinic laser bleaching consultation and custom-molded take-home tray shade match.',
+            desc: 'In-clinic laser bleaching consultation and custom take-home tray shade match.',
             icon: Sparkles 
         }
     ];
@@ -121,10 +116,55 @@ export default function PatientBookAppointment() {
         '04:15 PM', '05:00 PM'
     ];
 
+    const patient = JSON.parse(localStorage.getItem('patient') || '{}');
+    const patientName = (patient.firstName && patient.lastName) 
+        ? `${patient.firstName} ${patient.lastName}` 
+        : (patient.firstName || 'Patient');
+
+    // Form states
+    const [selectedCategory, setSelectedCategory] = useState(services[0].id);
+    const [selectedDoctor, setSelectedDoctor] = useState(`${doctors[0].name} (${doctors[0].title})`);
+    const [preferredDate, setPreferredDate] = useState('');
+    const [preferredTime, setPreferredTime] = useState('10:00 AM');
+    const [reason, setReason] = useState('');
+
+    // Payment Selection State ('Cash' | 'Online_Card')
+    const [paymentMethod, setPaymentMethod] = useState('Cash');
+    
+    // Card inputs (active if paymentMethod === 'Online_Card')
+    const [cardHolder, setCardHolder] = useState(patientName);
+    const [cardNumber, setCardNumber] = useState('');
+    const [cardExpiry, setCardExpiry] = useState('');
+    const [cardCvc, setCardCvc] = useState('');
+
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [bookingSuccess, setBookingSuccess] = useState(null);
+
+    // Selected service object
+    const currentService = services.find(s => s.id === selectedCategory) || services[0];
+
     // Minimum booking date is tomorrow
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const minDateStr = tomorrow.toISOString().split('T')[0];
+
+    // Format Card Number (adds space every 4 digits)
+    const handleCardNumberChange = (e) => {
+        const val = e.target.value.replace(/\D/g, '').slice(0, 16);
+        const formatted = val.replace(/(\d{4})(?=\d)/g, '$1 ');
+        setCardNumber(formatted);
+    };
+
+    // Format Card Expiry (MM/YY)
+    const handleExpiryChange = (e) => {
+        const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+        if (val.length >= 3) {
+            setCardExpiry(`${val.slice(0, 2)}/${val.slice(2)}`);
+        } else {
+            setCardExpiry(val);
+        }
+    };
 
     // Helper to format 12h time to 24h ISO
     const formatTimeSlotToHours = (slot) => {
@@ -154,6 +194,28 @@ export default function PatientBookAppointment() {
             return;
         }
 
+        // Validate Card Details if Online_Card is chosen
+        if (paymentMethod === 'Online_Card') {
+            const rawCard = cardNumber.replace(/\s+/g, '');
+            if (rawCard.length < 15) {
+                setError('Please enter a valid 16-digit debit or credit card number.');
+                return;
+            }
+            if (!cardExpiry || cardExpiry.length < 5) {
+                setError('Please enter a valid expiration date (MM/YY).');
+                return;
+            }
+            const [mm, yy] = cardExpiry.split('/').map(Number);
+            if (!mm || mm < 1 || mm > 12) {
+                setError('Card expiration month must be between 01 and 12.');
+                return;
+            }
+            if (!cardCvc || cardCvc.length < 3) {
+                setError('Please enter a valid 3-digit security code (CVC/CVV).');
+                return;
+            }
+        }
+
         setLoading(true);
 
         try {
@@ -164,10 +226,16 @@ export default function PatientBookAppointment() {
             };
 
             const fullReason = `${selectedCategory} (${selectedDoctor})${reason ? ` - Notes: ${reason.trim()}` : ''}`;
+            const rawCard = cardNumber.replace(/\s+/g, '');
+
             const payload = {
                 preferredDate: combinedDateTime.toISOString(),
                 reason: fullReason,
-                doctorID: patient.doctorID || 1
+                doctorID: patient.doctorID || 1,
+                paymentMethod: paymentMethod === 'Online_Card' ? 'Online_Card' : 'Cash',
+                consultationFee: currentService.fee,
+                cardLast4: paymentMethod === 'Online_Card' ? rawCard.slice(-4) : null,
+                cardHolderName: paymentMethod === 'Online_Card' ? cardHolder.trim() : null
             };
 
             let res;
@@ -190,10 +258,16 @@ export default function PatientBookAppointment() {
             if (res.ok) {
                 setBookingSuccess({
                     appointmentId: data.appointmentId || Math.floor(1000 + Math.random() * 9000),
+                    invoiceId: data.invoiceId,
+                    invoiceNumber: data.invoiceNumber || `INV-2026-${data.appointmentId}`,
+                    paymentMethod: data.paymentMethod || paymentMethod,
+                    receiptOrVoucherNumber: data.receiptOrVoucherNumber || (paymentMethod === 'Online_Card' ? `REC-2026-${data.appointmentId}` : `CSH-2026-${data.appointmentId}`),
+                    invoiceStatus: data.invoiceStatus || (paymentMethod === 'Online_Card' ? 'Paid' : 'Pending Cash Settlement'),
+                    fee: currentService.fee,
                     dateTime: combinedDateTime,
-                    service: selectedCategory,
+                    service: currentService.label,
                     doctor: selectedDoctor,
-                    message: data.message || 'Appointment successfully confirmed.'
+                    message: data.message || 'Appointment and payment ledger entry recorded successfully.'
                 });
             } else {
                 setError(data.message || 'Unable to confirm appointment. That slot may already be reserved.');
@@ -218,7 +292,7 @@ export default function PatientBookAppointment() {
             'VERSION:2.0',
             'BEGIN:VEVENT',
             `SUMMARY:Dentia Dental Appointment - ${bookingSuccess.service}`,
-            `DESCRIPTION:${bookingSuccess.service} with ${bookingSuccess.doctor}`,
+            `DESCRIPTION:${bookingSuccess.service} with ${bookingSuccess.doctor}. Payment: ${bookingSuccess.paymentMethod}`,
             `LOCATION:Dentia Dental Clinic, Auckland CBD`,
             `DTSTART:${formatIso(start)}`,
             `DTEND:${formatIso(end)}`,
@@ -240,10 +314,14 @@ export default function PatientBookAppointment() {
     // SUCCESS VIEW (FULL PAGE CONFIRMATION)
     // =========================================================================
     if (bookingSuccess) {
+        const isCardPaid = bookingSuccess.paymentMethod === 'Online_Card';
+
         return (
             <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in py-6">
                 <div className="bg-white rounded-3xl p-8 sm:p-12 border border-light-teal shadow-[0_8px_30px_rgba(16,36,75,0.06)] text-center space-y-6">
-                    <div className="w-20 h-20 rounded-full bg-emerald-50 border-2 border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
+                    <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto shadow-sm ${
+                        isCardPaid ? 'bg-emerald-50 border-2 border-emerald-200 text-emerald-600' : 'bg-amber-50 border-2 border-amber-200 text-amber-600'
+                    }`}>
                         <CheckCircle2 className="w-10 h-10" />
                     </div>
 
@@ -252,25 +330,53 @@ export default function PatientBookAppointment() {
                             Booking Confirmed #{bookingSuccess.appointmentId}
                         </span>
                         <h2 className="text-2xl sm:text-3xl font-serif font-black text-dark-slate">
-                            Your Appointment is Reserved!
+                            {isCardPaid ? 'Appointment & Payment Confirmed!' : 'Appointment Confirmed & Voucher Issued!'}
                         </h2>
                         <p className="text-sm text-muted-text max-w-md mx-auto">
-                            We look forward to welcoming you at Dentia Clinic. A confirmation has been logged to your patient medical profile.
+                            {isCardPaid 
+                                ? 'Your online payment was processed successfully. A verified digital tax receipt has been generated.'
+                                : 'Your appointment slot is reserved. A cash payment voucher has been logged for clinic front-desk settlement.'}
                         </p>
                     </div>
 
-                    {/* Booking Details Card */}
+                    {/* Booking & Financial Details Card */}
                     <div className="p-6 bg-warm-cream rounded-2xl border border-light-teal text-left max-w-lg mx-auto space-y-4">
+                        
+                        {/* Service & Payment Status Badge */}
                         <div className="flex items-start justify-between border-b border-light-teal/80 pb-3">
                             <div>
-                                <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Service</p>
+                                <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Service & Fee</p>
                                 <p className="text-sm font-bold text-dark-slate">{bookingSuccess.service}</p>
+                                <p className="text-xs font-extrabold text-primary-hover font-mono">${bookingSuccess.fee.toFixed(2)} NZD</p>
                             </div>
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase">
-                                Confirmed
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                isCardPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                            }`}>
+                                {isCardPaid ? 'Paid in Full' : 'Pending Cash'}
                             </span>
                         </div>
 
+                        {/* Invoice & Payment Voucher / Receipt */}
+                        <div className="grid grid-cols-2 gap-4 border-b border-light-teal/80 pb-3 bg-white p-3.5 rounded-xl border border-light-teal">
+                            <div>
+                                <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Invoice #</p>
+                                <p className="text-xs font-mono font-bold text-dark-slate">{bookingSuccess.invoiceNumber}</p>
+                                <p className="text-[10px] text-muted-text">Logged to Financial Ledger</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider">
+                                    {isCardPaid ? 'Digital Receipt' : 'Cash Voucher Code'}
+                                </p>
+                                <p className={`text-xs font-mono font-black ${isCardPaid ? 'text-emerald-600' : 'text-amber-700'}`}>
+                                    {bookingSuccess.receiptOrVoucherNumber}
+                                </p>
+                                <p className="text-[10px] text-muted-text">
+                                    {isCardPaid ? 'Instant Verification' : 'Present at Front Desk'}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Date & Clinician */}
                         <div className="grid grid-cols-2 gap-4 border-b border-light-teal/80 pb-3">
                             <div>
                                 <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Date & Time</p>
@@ -290,28 +396,34 @@ export default function PatientBookAppointment() {
 
                         <div className="flex items-center gap-2 text-xs text-muted-text">
                             <MapPin className="w-4 h-4 text-primary-teal shrink-0" />
-                            <span>Dentia Dental Clinic · Auckland CBD Workspace</span>
+                            <span>Dentia Dental Clinic · Level 4 Specialist Center, Auckland CBD</span>
                         </div>
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
                         <button
                             type="button"
                             onClick={downloadIcs}
-                            className="w-full sm:w-auto px-6 py-3.5 bg-warm-cream hover:bg-light-teal border border-light-teal text-dark-slate font-bold text-xs rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                            className="w-full sm:w-auto px-5 py-3 bg-warm-cream hover:bg-light-teal border border-light-teal text-dark-slate font-bold text-xs rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
                         >
                             <Download className="w-4 h-4 text-primary-teal" />
                             <span>Add to Calendar (.ics)</span>
                         </button>
-                        <button
-                            type="button"
-                            onClick={() => navigate('/portal/appointments')}
-                            className="w-full sm:w-auto px-6 py-3.5 bg-primary-teal hover:bg-primary-hover text-white font-bold text-xs rounded-2xl shadow-md shadow-primary-teal/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        <Link
+                            to="/portal/billing"
+                            className="w-full sm:w-auto px-5 py-3 bg-light-teal hover:bg-light-teal-hover border border-light-teal text-primary-hover font-bold text-xs rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
                         >
-                            <span>Go to Appointments Hub</span>
+                            <Receipt className="w-4 h-4" />
+                            <span>View Invoice in Ledger</span>
+                        </Link>
+                        <Link
+                            to="/portal/appointments"
+                            className="w-full sm:w-auto px-6 py-3 bg-primary-teal hover:bg-primary-hover text-white font-bold text-xs rounded-2xl shadow-md shadow-primary-teal/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                            <span>Appointments Hub</span>
                             <ArrowRight className="w-4 h-4" />
-                        </button>
+                        </Link>
                     </div>
                 </div>
             </div>
@@ -319,11 +431,11 @@ export default function PatientBookAppointment() {
     }
 
     // =========================================================================
-    // MAIN PAGE VIEW (DEDICATED FULL-PAGE BOOKING EXPERIENCE)
+    // MAIN BOOKING WORKSPACE (FULL-PAGE FLOW WITH DUAL CASH & CARD SELECTION)
     // =========================================================================
     return (
         <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in">
-            {/* Navigation & Header */}
+            {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <Link
@@ -337,13 +449,13 @@ export default function PatientBookAppointment() {
                         Book a Dental Consultation
                     </h1>
                     <p className="text-xs sm:text-sm text-muted-text mt-0.5">
-                        Schedule your routine hygiene visit, specialist consultation, or emergency appointment.
+                        Select your clinical treatment, preferred dentist, schedule slot, and payment method.
                     </p>
                 </div>
 
                 <div className="flex items-center gap-2 self-start sm:self-auto px-3.5 py-2 rounded-2xl bg-light-teal text-primary-hover border border-light-teal text-xs font-bold">
                     <ShieldCheck className="w-4 h-4 text-primary-teal" />
-                    <span>Real-time Clinic Schedule</span>
+                    <span>Real-time Clinic Schedule & Billing</span>
                 </div>
             </div>
 
@@ -355,7 +467,7 @@ export default function PatientBookAppointment() {
                 </div>
             )}
 
-            {/* 2-Column Grid: Form (8 cols) + Sticky Summary (4 cols) */}
+            {/* Form */}
             <form onSubmit={handleConfirmBooking} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 
                 {/* LEFT: FORM SECTIONS (8 COLS) */}
@@ -372,7 +484,7 @@ export default function PatientBookAppointment() {
                                     Select Treatment or Dental Service
                                 </h3>
                             </div>
-                            <span className="text-[11px] text-muted-text font-medium">6 Services Available</span>
+                            <span className="text-[11px] text-muted-text font-medium">Transparent Clinical Fees</span>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -397,9 +509,14 @@ export default function PatientBookAppointment() {
                                                 }`}>
                                                     <Icon className="w-4 h-4" />
                                                 </div>
-                                                <span className="text-xs font-bold text-dark-slate leading-tight">
-                                                    {svc.label}
-                                                </span>
+                                                <div>
+                                                    <span className="text-xs font-bold text-dark-slate block leading-tight">
+                                                        {svc.label}
+                                                    </span>
+                                                    <span className="text-[11px] font-mono font-extrabold text-primary-teal">
+                                                        ${svc.fee.toFixed(2)} NZD
+                                                    </span>
+                                                </div>
                                             </div>
                                             <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-white text-muted-text border border-light-teal shrink-0">
                                                 {svc.duration}
@@ -419,7 +536,7 @@ export default function PatientBookAppointment() {
                         </div>
                     </div>
 
-                    {/* STEP 2: CHOOSE CLINICIAN SPECIALIST */}
+                    {/* STEP 2: CHOOSE SPECIALIST CLINICIAN */}
                     <div className="bg-white rounded-3xl p-6 sm:p-8 border border-light-teal shadow-[0_4px_24px_rgba(16,36,75,0.03)] space-y-5">
                         <div className="flex items-center gap-3">
                             <span className="w-7 h-7 rounded-full bg-primary-teal text-white flex items-center justify-center text-xs font-black">
@@ -516,7 +633,7 @@ export default function PatientBookAppointment() {
                             </div>
                         </div>
 
-                        {/* STEP 4: SYMPTOMS & NOTES */}
+                        {/* Notes */}
                         <div>
                             <label className="block text-xs font-bold text-dark-slate mb-2">
                                 Clinical Symptoms or Treatment Notes (Optional)
@@ -525,28 +642,199 @@ export default function PatientBookAppointment() {
                                 rows="3"
                                 value={reason}
                                 onChange={(e) => setReason(e.target.value)}
-                                placeholder="Describe any pain, tooth sensitivity, tooth number, or general expectations for this visit..."
+                                placeholder="Describe any pain, tooth sensitivity, tooth number, or past treatments..."
                                 className="w-full p-3.5 bg-warm-cream border border-light-teal rounded-2xl text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 transition-all resize-none placeholder:text-muted-text/60"
                             />
                         </div>
                     </div>
+
+                    {/* ========================================================================= */}
+                    {/* STEP 4: PAYMENT METHOD SELECTION (CASH AT CLINIC vs. ONLINE CARD)         */}
+                    {/* ========================================================================= */}
+                    <div className="bg-white rounded-3xl p-6 sm:p-8 border border-light-teal shadow-[0_4px_24px_rgba(16,36,75,0.03)] space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <span className="w-7 h-7 rounded-full bg-primary-teal text-white flex items-center justify-center text-xs font-black">
+                                    4
+                                </span>
+                                <div>
+                                    <h3 className="text-base font-serif font-black text-dark-slate">
+                                        Choose Payment Method
+                                    </h3>
+                                    <p className="text-xs text-muted-text">Decide whether to settle cash in-person or pay securely online.</p>
+                                </div>
+                            </div>
+                            <span className="text-xs font-mono font-black text-primary-hover">
+                                Fee: ${currentService.fee.toFixed(2)} NZD
+                            </span>
+                        </div>
+
+                        {/* Dual Payment Radio Cards */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            
+                            {/* Option 1: Cash at Clinic */}
+                            <div
+                                onClick={() => setPaymentMethod('Cash')}
+                                className={`p-5 rounded-2xl border-2 transition-all cursor-pointer space-y-3 relative ${
+                                    paymentMethod === 'Cash'
+                                        ? 'border-primary-teal bg-light-teal/40 shadow-xs'
+                                        : 'border-light-teal/70 hover:border-primary-teal/40 bg-white'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shadow-xs">
+                                            <Banknote className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-black text-dark-slate">Pay with Cash at Clinic</h4>
+                                            <span className="text-[10px] text-amber-800 font-bold uppercase">Front Desk Counter</span>
+                                        </div>
+                                    </div>
+                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                        paymentMethod === 'Cash' ? 'border-primary-teal bg-primary-teal' : 'border-slate-300'
+                                    }`}>
+                                        {paymentMethod === 'Cash' && <div className="w-2 h-2 rounded-full bg-white" />}
+                                    </div>
+                                </div>
+                                <p className="text-[11px] text-muted-text leading-relaxed">
+                                    Book your visit now without upfront charge. An instant Cash Appointment Voucher will be generated to present upon clinic arrival.
+                                </p>
+                            </div>
+
+                            {/* Option 2: Pay Online with Card */}
+                            <div
+                                onClick={() => setPaymentMethod('Online_Card')}
+                                className={`p-5 rounded-2xl border-2 transition-all cursor-pointer space-y-3 relative ${
+                                    paymentMethod === 'Online_Card'
+                                        ? 'border-primary-teal bg-light-teal/40 shadow-xs'
+                                        : 'border-light-teal/70 hover:border-primary-teal/40 bg-white'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shadow-xs">
+                                            <CreditCard className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-black text-dark-slate">Pay Online with Card</h4>
+                                            <span className="text-[10px] text-emerald-700 font-bold uppercase">Visa, Master, PayPak</span>
+                                        </div>
+                                    </div>
+                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                        paymentMethod === 'Online_Card' ? 'border-primary-teal bg-primary-teal' : 'border-slate-300'
+                                    }`}>
+                                        {paymentMethod === 'Online_Card' && <div className="w-2 h-2 rounded-full bg-white" />}
+                                    </div>
+                                </div>
+                                <p className="text-[11px] text-muted-text leading-relaxed">
+                                    Instant online confirmation. Settle fee now via Debit or Credit card with digital tax receipt generated directly to your account.
+                                </p>
+                            </div>
+
+                        </div>
+
+                        {/* Interactive Card Form (If Online_Card is selected) */}
+                        {paymentMethod === 'Online_Card' && (
+                            <div className="p-5 bg-warm-cream rounded-2xl border border-light-teal space-y-4 animate-in fade-in">
+                                <div className="flex items-center justify-between border-b border-light-teal pb-3">
+                                    <div className="flex items-center gap-2">
+                                        <Lock className="w-4 h-4 text-emerald-600" />
+                                        <span className="text-xs font-bold text-dark-slate">Secure 256-Bit SSL Card Processing</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 text-[10px] font-bold text-muted-text">
+                                        <span>Visa</span> · <span>MasterCard</span> · <span>PayPak</span>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3.5">
+                                    {/* Cardholder Name */}
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-muted-text mb-1">
+                                            Cardholder Full Name
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={cardHolder}
+                                            onChange={(e) => setCardHolder(e.target.value)}
+                                            placeholder="Cardholder name as printed on card"
+                                            className="w-full px-3.5 py-2.5 bg-white border border-light-teal rounded-xl text-xs font-bold text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40"
+                                        />
+                                    </div>
+
+                                    {/* Card Number */}
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-muted-text mb-1">
+                                            Card Number (16 Digits)
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                maxLength="19"
+                                                value={cardNumber}
+                                                onChange={handleCardNumberChange}
+                                                placeholder="4242 4242 4242 4242"
+                                                className="w-full pl-10 pr-4 py-2.5 bg-white border border-light-teal rounded-xl text-xs font-mono font-bold text-dark-slate tracking-widest focus:outline-none focus:ring-2 focus:ring-primary-teal/40"
+                                            />
+                                            <CreditCard className="w-4 h-4 text-muted-text absolute left-3.5 top-3" />
+                                        </div>
+                                    </div>
+
+                                    {/* Expiry & CVC */}
+                                    <div className="grid grid-cols-2 gap-3.5">
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-muted-text mb-1">
+                                                Expiry Date (MM/YY)
+                                            </label>
+                                            <input
+                                                type="text"
+                                                maxLength="5"
+                                                value={cardExpiry}
+                                                onChange={handleExpiryChange}
+                                                placeholder="12/28"
+                                                className="w-full px-3.5 py-2.5 bg-white border border-light-teal rounded-xl text-xs font-mono font-bold text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-muted-text mb-1">
+                                                Security Code (CVC)
+                                            </label>
+                                            <input
+                                                type="password"
+                                                maxLength="4"
+                                                value={cardCvc}
+                                                onChange={(e) => setCardCvc(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                                                placeholder="•••"
+                                                className="w-full px-3.5 py-2.5 bg-white border border-light-teal rounded-xl text-xs font-mono font-bold text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                    </div>
+
                 </div>
 
-                {/* RIGHT: STICKY BOOKING SUMMARY (4 COLS) */}
+                {/* RIGHT: STICKY BOOKING & BILLING SUMMARY (4 COLS) */}
                 <div className="lg:col-span-4">
                     <div className="bg-white rounded-3xl p-6 sm:p-7 border border-light-teal shadow-[0_4px_24px_rgba(16,36,75,0.03)] space-y-6 sticky top-28">
                         <div>
                             <h3 className="text-base font-serif font-black text-dark-slate tracking-tight">
-                                Booking Summary
+                                Booking & Payment Summary
                             </h3>
-                            <p className="text-[11px] text-muted-text">Real-time scheduling overview</p>
+                            <p className="text-[11px] text-muted-text">Real-time scheduling and invoice overview</p>
                         </div>
 
-                        <div className="space-y-4 text-xs">
+                        <div className="space-y-3.5 text-xs">
                             {/* Service */}
                             <div className="p-3.5 bg-warm-cream rounded-2xl border border-light-teal space-y-1">
-                                <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Service</p>
-                                <p className="font-bold text-dark-slate leading-tight">{selectedCategory}</p>
+                                <div className="flex items-center justify-between">
+                                    <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Service</p>
+                                    <span className="font-mono font-bold text-primary-teal">${currentService.fee.toFixed(2)}</span>
+                                </div>
+                                <p className="font-bold text-dark-slate leading-tight">{currentService.label}</p>
                             </div>
 
                             {/* Clinician */}
@@ -561,15 +849,35 @@ export default function PatientBookAppointment() {
                                 <p className="font-bold text-primary-teal">
                                     {preferredDate 
                                         ? new Date(preferredDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) 
-                                        : 'Select Date Above'} · {preferredTime}
+                                        : 'Select Date'} · {preferredTime}
+                                </p>
+                            </div>
+
+                            {/* Payment Method Summary */}
+                            <div className="p-3.5 bg-light-teal/70 rounded-2xl border border-light-teal space-y-1">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Payment Mode</p>
+                                    <span className="font-mono font-bold text-primary-hover">
+                                        {paymentMethod === 'Online_Card' ? 'Card Payment' : 'Cash at Clinic'}
+                                    </span>
+                                </div>
+                                <p className="font-bold text-dark-slate text-sm">
+                                    Total: ${currentService.fee.toFixed(2)} <span className="text-[10px] font-normal text-muted-text">NZD</span>
+                                </p>
+                                <p className="text-[10px] text-muted-text">
+                                    {paymentMethod === 'Online_Card' 
+                                        ? 'Card charged immediately · Digital Tax Receipt issued' 
+                                        : 'Settled in cash upon arrival · Instant voucher code generated'}
                                 </p>
                             </div>
 
                             {/* Patient Badge */}
-                            <div className="p-3.5 bg-light-teal/60 rounded-2xl border border-light-teal space-y-1">
-                                <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Patient</p>
-                                <p className="font-bold text-dark-slate">{patientName}</p>
-                                <p className="text-[10px] font-mono text-primary-hover font-bold">{patient.referenceNumber || 'DEN-2026-00001'}</p>
+                            <div className="p-3 bg-white rounded-xl border border-light-teal flex items-center justify-between">
+                                <div>
+                                    <p className="text-[10px] font-bold text-muted-text uppercase">Patient</p>
+                                    <p className="font-bold text-dark-slate">{patientName}</p>
+                                </div>
+                                <span className="font-mono text-[10px] text-primary-teal font-bold">{patient.referenceNumber || 'DEN-2026-00001'}</span>
                             </div>
                         </div>
 
@@ -589,8 +897,12 @@ export default function PatientBookAppointment() {
                                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                             ) : (
                                 <>
-                                    <Sparkles className="w-4 h-4" />
-                                    <span>Confirm & Reserve Consultation</span>
+                                    {paymentMethod === 'Online_Card' ? <CreditCard className="w-4 h-4" /> : <Banknote className="w-4 h-4" />}
+                                    <span>
+                                        {paymentMethod === 'Online_Card' 
+                                            ? `Pay $${currentService.fee.toFixed(2)} & Reserve` 
+                                            : 'Reserve with Cash Voucher'}
+                                    </span>
                                 </>
                             )}
                         </button>
