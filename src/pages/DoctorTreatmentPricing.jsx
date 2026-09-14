@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
 import { 
@@ -16,19 +16,59 @@ import {
     RefreshCw, 
     Globe, 
     Stethoscope, 
-    Filter 
+    Filter,
+    Layers,
+    RotateCcw
 } from 'lucide-react';
 import API_BASE_URL from '../config/apiConfig';
 
+// Standard 15 Clinical Dental Categories
+export const DENTAL_CATEGORIES = [
+    'Examination & Diagnosis',
+    'Preventive Dentistry',
+    'Fillings & Restorative Treatment',
+    'Crowns & Bridges',
+    'Root Canal Treatment',
+    'Extractions & Oral Surgery',
+    'Gum / Periodontal Treatment',
+    'Dentures',
+    'Dental Implants',
+    'Cosmetic Dentistry',
+    'Orthodontics',
+    'Pediatric Dentistry',
+    'Emergency Dental Treatment',
+    'Prosthetic / Laboratory Procedures',
+    'Other Dental Services'
+];
+
+const categoryBadgeColors = {
+    'Examination & Diagnosis': 'bg-sky-50 text-sky-700 border-sky-200',
+    'Preventive Dentistry': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    'Fillings & Restorative Treatment': 'bg-teal-50 text-teal-700 border-teal-200',
+    'Crowns & Bridges': 'bg-amber-50 text-amber-700 border-amber-200',
+    'Root Canal Treatment': 'bg-purple-50 text-purple-700 border-purple-200',
+    'Extractions & Oral Surgery': 'bg-rose-50 text-rose-700 border-rose-200',
+    'Gum / Periodontal Treatment': 'bg-cyan-50 text-cyan-700 border-cyan-200',
+    'Dentures': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    'Dental Implants': 'bg-blue-50 text-blue-700 border-blue-200',
+    'Cosmetic Dentistry': 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
+    'Orthodontics': 'bg-violet-50 text-violet-700 border-violet-200',
+    'Pediatric Dentistry': 'bg-orange-50 text-orange-700 border-orange-200',
+    'Emergency Dental Treatment': 'bg-red-50 text-red-700 border-red-200',
+    'Prosthetic / Laboratory Procedures': 'bg-slate-100 text-slate-700 border-slate-300',
+    'Other Dental Services': 'bg-emerald-50/80 text-emerald-800 border-emerald-200'
+};
+
 export default function DoctorTreatmentPricing() {
     const [doctor, setDoctor] = useState(() => JSON.parse(localStorage.getItem('doctor') || '{}'));
-    const doctorId = doctor.doctorID || doctor.DoctorID || 2;
-    const doctorName = doctor.firstName ? `Dr. ${doctor.firstName} ${doctor.lastName}` : 'Attending Clinician';
+    const doctorId = doctor.doctorID || doctor.DoctorID || doctor.id || 1;
+    const doctorName = doctor.firstName ? `Dr. ${doctor.firstName} ${doctor.lastName}` : (doctor.username || 'Attending Clinician');
 
     const [currency, setCurrency] = useState('NZD');
     const [procedures, setProcedures] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [resetting, setResetting] = useState(false);
     const [feedback, setFeedback] = useState({ type: '', message: '' });
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
@@ -38,7 +78,7 @@ export default function DoctorTreatmentPricing() {
     const [newProc, setNewProc] = useState({
         procedureCode: '',
         procedureName: '',
-        category: 'Preventative',
+        category: 'Examination & Diagnosis',
         estimatedDuration: '45 mins',
         standardFee: '',
         description: ''
@@ -153,6 +193,46 @@ export default function DoctorTreatmentPricing() {
         }
     };
 
+    // Reset to full 15-category master procedure catalog
+    const handleResetToMaster = async () => {
+        if (!window.confirm('Reload all 15 clinical categories (140+ standard procedures) from the Dentia master catalog? Custom edits will be synchronized.')) {
+            return;
+        }
+
+        try {
+            setResetting(true);
+            setFeedback({ type: '', message: '' });
+
+            let res;
+            try {
+                res = await fetch(`${API_BASE_URL}/api/treatment-pricing/doctor/${doctorId}/reset-master?currency=${currency}`, {
+                    method: 'POST'
+                });
+            } catch {
+                res = await fetch(`/api/treatment-pricing/doctor/${doctorId}/reset-master?currency=${currency}`, {
+                    method: 'POST'
+                });
+            }
+
+            if (res.ok) {
+                const data = await res.json();
+                setCurrency(data.currency || currency);
+                setProcedures(data.procedures || []);
+                setFeedback({
+                    type: 'success',
+                    message: 'Successfully loaded 140+ procedures across all 15 clinical categories!'
+                });
+            } else {
+                setFeedback({ type: 'error', message: 'Failed to reload master catalog.' });
+            }
+        } catch (err) {
+            console.error('Error resetting to master:', err);
+            setFeedback({ type: 'error', message: 'Network error resetting catalog.' });
+        } finally {
+            setResetting(false);
+        }
+    };
+
     // Add custom procedure
     const handleAddProcedure = (e) => {
         e.preventDefault();
@@ -182,7 +262,7 @@ export default function DoctorTreatmentPricing() {
         setNewProc({
             procedureCode: '',
             procedureName: '',
-            category: 'Preventative',
+            category: 'Examination & Diagnosis',
             estimatedDuration: '45 mins',
             standardFee: '',
             description: ''
@@ -195,11 +275,35 @@ export default function DoctorTreatmentPricing() {
     };
 
     // Filter procedures
-    const categories = ['All', ...new Set(procedures.map(p => p.category))];
+    const categoryCounts = useMemo(() => {
+        const counts = { All: procedures.length };
+        procedures.forEach(p => {
+            counts[p.category] = (counts[p.category] || 0) + 1;
+        });
+        return counts;
+    }, [procedures]);
+
+    const activeCategories = useMemo(() => {
+        const setCats = new Set(procedures.map(p => p.category));
+        const list = ['All'];
+        DENTAL_CATEGORIES.forEach(c => {
+            if (setCats.has(c)) list.push(c);
+        });
+        // Include any custom categories not in default list
+        setCats.forEach(c => {
+            if (!list.includes(c)) list.push(c);
+        });
+        return list;
+    }, [procedures]);
+
     const filteredProcedures = procedures.filter(p => {
         const matchesCat = selectedCategory === 'All' || p.category === selectedCategory;
-        const matchesSearch = p.procedureName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                              p.procedureCode.toLowerCase().includes(searchQuery.toLowerCase());
+        const q = searchQuery.toLowerCase();
+        const matchesSearch = !q || 
+                              p.procedureName.toLowerCase().includes(q) || 
+                              p.procedureCode.toLowerCase().includes(q) ||
+                              (p.category && p.category.toLowerCase().includes(q)) ||
+                              (p.description && p.description.toLowerCase().includes(q));
         return matchesCat && matchesSearch;
     });
 
@@ -217,19 +321,21 @@ export default function DoctorTreatmentPricing() {
                             <span>Clinician Fee Schedule</span>
                         </div>
                         <h1 className="text-2xl sm:text-3xl font-serif font-black text-dark-slate tracking-tight">
-                            Treatment Pricing & Currency Settings
+                            Dental Procedure Pricing & Currency
                         </h1>
                         <p className="text-xs sm:text-sm text-muted-text max-w-xl leading-relaxed">
-                            Configure standard procedure rates, appointment durations, and billing currency for <span className="font-bold text-dark-slate">{doctorName}</span>. Prices sync dynamically with patient booking and billing ledgers.
+                            Configure standard procedure rates, chair times, and currency for <span className="font-bold text-dark-slate">{doctorName}</span>. 
+                            Managing 15 standard clinical categories with live patient ledger synchronization.
                         </p>
                     </div>
 
-                    {/* Currency Selector & Save CTA */}
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+                    {/* Actions: Currency Selector, Master Reload & Save CTA */}
+                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                        {/* Currency Selector */}
                         <div className="flex items-center gap-2 bg-warm-cream px-3 py-2 rounded-2xl border border-light-teal">
                             <Globe className="w-4 h-4 text-primary-teal shrink-0" />
                             <div className="flex flex-col">
-                                <span className="text-[10px] font-bold text-muted-text uppercase">Billing Currency</span>
+                                <span className="text-[10px] font-bold text-muted-text uppercase">Currency</span>
                                 <select 
                                     value={currency}
                                     onChange={(e) => setCurrency(e.target.value)}
@@ -244,11 +350,24 @@ export default function DoctorTreatmentPricing() {
                             </div>
                         </div>
 
+                        {/* Reload Master Catalog Button */}
+                        <button
+                            type="button"
+                            onClick={handleResetToMaster}
+                            disabled={resetting || loading}
+                            title="Reset all 15 categories to standard master catalog"
+                            className="px-4 py-2.5 bg-white hover:bg-light-teal text-dark-slate border border-light-teal rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                        >
+                            <RotateCcw className={`w-3.5 h-3.5 text-primary-teal ${resetting ? 'animate-spin' : ''}`} />
+                            <span>{resetting ? 'Loading...' : 'Reload Master Catalog'}</span>
+                        </button>
+
+                        {/* Save Button */}
                         <button
                             type="button"
                             onClick={handleSaveSchedule}
                             disabled={saving}
-                            className="px-6 py-3 bg-primary-teal hover:bg-primary-hover disabled:opacity-50 text-white text-xs font-bold rounded-2xl shadow-md shadow-primary-teal/25 transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
+                            className="px-5 py-3 bg-primary-teal hover:bg-primary-hover disabled:opacity-50 text-white text-xs font-bold rounded-2xl shadow-md shadow-primary-teal/25 transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
                         >
                             {saving ? (
                                 <RefreshCw className="w-4 h-4 animate-spin" />
@@ -260,75 +379,79 @@ export default function DoctorTreatmentPricing() {
                     </div>
                 </div>
 
-                {/* Feedback Alerts */}
+                {/* Feedback Toast Banner */}
                 {feedback.message && (
-                    <div className={`p-4 rounded-2xl border text-xs font-semibold flex items-center justify-between gap-3 animate-in fade-in ${
+                    <div className={`p-4 rounded-2xl border flex items-center gap-3 animate-in fade-in slide-in-from-top-2 text-xs font-bold ${
                         feedback.type === 'success' 
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
-                            : feedback.type === 'info'
-                                ? 'bg-sky-50 border-sky-200 text-sky-900'
-                                : 'bg-rose-50 border-rose-200 text-rose-900'
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                            : feedback.type === 'error'
+                            ? 'bg-rose-50 border-rose-200 text-rose-800'
+                            : 'bg-sky-50 border-sky-200 text-sky-800'
                     }`}>
-                        <div className="flex items-center gap-2.5">
-                            {feedback.type === 'success' ? (
-                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                            ) : (
-                                <AlertCircle className="w-4 h-4 text-primary-teal shrink-0" />
-                            )}
-                            <span>{feedback.message}</span>
-                        </div>
-                        <button 
-                            type="button" 
-                            onClick={() => setFeedback({ type: '', message: '' })}
-                            className="text-muted-text hover:text-dark-slate cursor-pointer"
-                        >
-                            ✕
-                        </button>
+                        {feedback.type === 'success' ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        ) : (
+                            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                        )}
+                        <span>{feedback.message}</span>
                     </div>
                 )}
 
-                {/* Filters & Actions Bar */}
-                <div className="bg-white rounded-2xl p-4 border border-light-teal flex flex-col sm:flex-row items-center justify-between gap-4">
-                    
-                    {/* Category Filter Pills */}
-                    <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
-                        {categories.map((cat) => (
-                            <button
-                                key={cat}
-                                type="button"
-                                onClick={() => setSelectedCategory(cat)}
-                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                                    selectedCategory === cat 
-                                        ? 'bg-primary-teal text-white shadow-xs' 
-                                        : 'bg-warm-cream text-dark-slate hover:bg-light-teal border border-light-teal/80'
-                                }`}
-                            >
-                                {cat}
-                            </button>
-                        ))}
+                {/* Search & Actions Bar */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                    <div className="relative flex-1 max-w-md">
+                        <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-text" />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search by code, procedure name, or category..."
+                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-light-teal rounded-2xl text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 shadow-xs"
+                        />
                     </div>
 
-                    {/* Search & Add Custom Button */}
-                    <div className="flex items-center gap-2.5 w-full sm:w-auto">
-                        <div className="relative flex-1 sm:w-60">
-                            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-text" />
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Search procedure code or name..."
-                                className="w-full pl-9 pr-3 py-2 bg-warm-cream border border-light-teal rounded-xl text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40"
-                            />
-                        </div>
+                    <div className="flex items-center gap-3">
+                        <span className="text-xs font-bold text-muted-text">
+                            Showing <span className="text-dark-slate font-black">{filteredProcedures.length}</span> of {procedures.length} Procedures
+                        </span>
 
                         <button
                             type="button"
                             onClick={() => setShowAddModal(true)}
-                            className="px-3.5 py-2 bg-light-teal hover:bg-light-teal-hover text-primary-hover border border-light-teal rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                            className="px-4 py-2.5 bg-light-teal hover:bg-light-teal-hover text-primary-hover border border-light-teal rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-xs"
                         >
-                            <Plus className="w-3.5 h-3.5" />
+                            <Plus className="w-4 h-4" />
                             <span>Add Procedure</span>
                         </button>
+                    </div>
+                </div>
+
+                {/* 15 Category Filter Pills (Scrollable Bar) */}
+                <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-2 pt-1 no-scrollbar scroll-smooth">
+                        {activeCategories.map((cat) => {
+                            const count = categoryCounts[cat] || 0;
+                            const isSelected = selectedCategory === cat;
+                            return (
+                                <button
+                                    key={cat}
+                                    type="button"
+                                    onClick={() => setSelectedCategory(cat)}
+                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+                                        isSelected
+                                            ? 'bg-primary-teal text-white shadow-xs'
+                                            : 'bg-white text-dark-slate hover:bg-light-teal border border-light-teal/70'
+                                    }`}
+                                >
+                                    <span>{cat}</span>
+                                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                                        isSelected ? 'bg-white/20 text-white' : 'bg-warm-cream text-muted-text'
+                                    }`}>
+                                        {count}
+                                    </span>
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
 
@@ -340,10 +463,21 @@ export default function DoctorTreatmentPricing() {
                             <p className="text-xs text-muted-text font-bold">Loading clinic fee schedule...</p>
                         </div>
                     ) : filteredProcedures.length === 0 ? (
-                        <div className="p-16 text-center space-y-2">
+                        <div className="p-16 text-center space-y-3">
                             <Stethoscope className="w-10 h-10 text-muted-text/40 mx-auto" />
                             <h3 className="text-sm font-bold text-dark-slate">No procedures found</h3>
-                            <p className="text-xs text-muted-text">Try adjusting your search query or category filter.</p>
+                            <p className="text-xs text-muted-text">
+                                {procedures.length === 0 ? 'Your schedule is currently empty.' : 'Try adjusting your search query or category filter.'}
+                            </p>
+                            {procedures.length === 0 && (
+                                <button
+                                    type="button"
+                                    onClick={handleResetToMaster}
+                                    className="px-4 py-2 bg-primary-teal text-white rounded-xl text-xs font-bold hover:bg-primary-hover transition-all cursor-pointer shadow-xs"
+                                >
+                                    Load All 15 Standard Categories (140+ Procedures)
+                                </button>
+                            )}
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
@@ -359,67 +493,70 @@ export default function DoctorTreatmentPricing() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-light-teal/50">
-                                    {filteredProcedures.map((proc) => (
-                                        <tr key={proc.feeScheduleID || proc.procedureCode} className="hover:bg-warm-cream/30 transition-colors">
-                                            
-                                            {/* Code */}
-                                            <td className="py-4 px-5">
-                                                <span className="px-2.5 py-1 rounded-lg bg-light-teal text-primary-hover font-mono font-bold text-[11px]">
-                                                    {proc.procedureCode}
-                                                </span>
-                                            </td>
+                                    {filteredProcedures.map((proc) => {
+                                        const badgeColor = categoryBadgeColors[proc.category] || 'bg-slate-100 text-slate-700 border-slate-200';
+                                        return (
+                                            <tr key={proc.feeScheduleID || proc.procedureCode} className="hover:bg-warm-cream/30 transition-colors">
+                                                
+                                                {/* Code */}
+                                                <td className="py-4 px-5">
+                                                    <span className="px-2.5 py-1 rounded-lg bg-light-teal text-primary-hover font-mono font-bold text-[11px] border border-light-teal/50">
+                                                        {proc.procedureCode}
+                                                    </span>
+                                                </td>
 
-                                            {/* Procedure Name (Inline Editable) */}
-                                            <td className="py-4 px-5">
-                                                <input 
-                                                    type="text"
-                                                    value={proc.procedureName}
-                                                    onChange={(e) => handleNameChange(proc.feeScheduleID, e.target.value)}
-                                                    className="w-full font-bold text-dark-slate bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-light-teal focus:border-primary-teal rounded-lg px-2 py-1 text-xs transition-colors"
-                                                />
-                                            </td>
-
-                                            {/* Category */}
-                                            <td className="py-4 px-5">
-                                                <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold">
-                                                    {proc.category}
-                                                </span>
-                                            </td>
-
-                                            {/* Duration */}
-                                            <td className="py-4 px-5">
-                                                <div className="flex items-center gap-1 text-muted-text">
-                                                    <Clock className="w-3 h-3 text-primary-teal shrink-0" />
+                                                {/* Procedure Name (Inline Editable) */}
+                                                <td className="py-4 px-5">
                                                     <input 
                                                         type="text"
-                                                        value={proc.estimatedDuration}
-                                                        onChange={(e) => handleDurationChange(proc.feeScheduleID, e.target.value)}
-                                                        className="w-20 font-medium text-dark-slate bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-light-teal focus:border-primary-teal rounded-lg px-1.5 py-0.5 text-xs transition-colors"
+                                                        value={proc.procedureName}
+                                                        onChange={(e) => handleNameChange(proc.feeScheduleID, e.target.value)}
+                                                        className="w-full font-bold text-dark-slate bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-light-teal focus:border-primary-teal rounded-lg px-2 py-1 text-xs transition-colors"
                                                     />
-                                                </div>
-                                            </td>
+                                                </td>
 
-                                            {/* Standard Fee (Inline Editable with Live Currency Prefix) */}
-                                            <td className="py-4 px-5">
-                                                <div className="flex items-center gap-1 font-mono font-black text-dark-slate bg-warm-cream px-2 py-1 rounded-xl border border-light-teal w-32 focus-within:ring-2 focus-within:ring-primary-teal/40">
-                                                    <span className="text-primary-teal text-xs">{currentCurrencySymbol}</span>
-                                                    <input 
-                                                        type="number"
-                                                        step="any"
-                                                        value={proc.standardFee}
-                                                        onChange={(e) => handleFeeChange(proc.feeScheduleID, e.target.value)}
-                                                        className="w-full bg-transparent text-xs font-mono font-black text-dark-slate focus:outline-none"
-                                                    />
-                                                </div>
-                                            </td>
+                                                {/* Category */}
+                                                <td className="py-4 px-5">
+                                                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badgeColor} whitespace-nowrap`}>
+                                                        {proc.category}
+                                                    </span>
+                                                </td>
 
-                                            {/* Description */}
-                                            <td className="py-4 px-5 text-muted-text text-[11px] max-w-xs truncate">
-                                                {proc.description || 'Standard clinic procedure'}
-                                            </td>
+                                                {/* Duration */}
+                                                <td className="py-4 px-5">
+                                                    <div className="flex items-center gap-1 text-muted-text">
+                                                        <Clock className="w-3 h-3 text-primary-teal shrink-0" />
+                                                        <input 
+                                                            type="text"
+                                                            value={proc.estimatedDuration}
+                                                            onChange={(e) => handleDurationChange(proc.feeScheduleID, e.target.value)}
+                                                            className="w-20 font-medium text-dark-slate bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-light-teal focus:border-primary-teal rounded-lg px-1.5 py-0.5 text-xs transition-colors"
+                                                        />
+                                                    </div>
+                                                </td>
 
-                                        </tr>
-                                    ))}
+                                                {/* Standard Fee (Inline Editable with Live Currency Prefix) */}
+                                                <td className="py-4 px-5">
+                                                    <div className="flex items-center gap-1 font-mono font-black text-dark-slate bg-warm-cream px-2 py-1 rounded-xl border border-light-teal w-32 focus-within:ring-2 focus-within:ring-primary-teal/40">
+                                                        <span className="text-primary-teal text-xs">{currentCurrencySymbol}</span>
+                                                        <input 
+                                                            type="number"
+                                                            step="any"
+                                                            value={proc.standardFee}
+                                                            onChange={(e) => handleFeeChange(proc.feeScheduleID, e.target.value)}
+                                                            className="w-full bg-transparent text-xs font-mono font-black text-dark-slate focus:outline-none"
+                                                        />
+                                                    </div>
+                                                </td>
+
+                                                {/* Description */}
+                                                <td className="py-4 px-5 text-muted-text text-[11px] max-w-xs truncate" title={proc.description}>
+                                                    {proc.description || 'Standard clinic procedure'}
+                                                </td>
+
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
@@ -440,13 +577,13 @@ export default function DoctorTreatmentPricing() {
                             <button 
                                 type="button" 
                                 onClick={() => setShowAddModal(false)}
-                                className="text-muted-text hover:text-dark-slate text-xs font-bold cursor-pointer"
+                                className="text-muted-text hover:text-dark-slate p-1 cursor-pointer"
                             >
                                 ✕
                             </button>
                         </div>
 
-                        <form onSubmit={handleAddProcedure} className="space-y-3.5">
+                        <form onSubmit={handleAddProcedure} className="space-y-4">
                             <div>
                                 <label className="block text-[11px] font-bold text-dark-slate uppercase mb-1">
                                     Procedure Name *
@@ -483,13 +620,11 @@ export default function DoctorTreatmentPricing() {
                                         onChange={(e) => setNewProc({ ...newProc, category: e.target.value })}
                                         className="w-full px-3 py-2 bg-warm-cream border border-light-teal rounded-xl text-xs font-bold text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 cursor-pointer"
                                     >
-                                        <option value="Preventative">Preventative</option>
-                                        <option value="Restorative">Restorative</option>
-                                        <option value="Orthodontic">Orthodontic</option>
-                                        <option value="Periodontal">Periodontal</option>
-                                        <option value="Cosmetic">Cosmetic</option>
-                                        <option value="Endodontic">Endodontic</option>
-                                        <option value="Oral Surgery">Oral Surgery</option>
+                                        {DENTAL_CATEGORIES.map((cat) => (
+                                            <option key={cat} value={cat}>
+                                                {cat}
+                                            </option>
+                                        ))}
                                     </select>
                                 </div>
                             </div>
