@@ -362,10 +362,11 @@ export default function PatientBookAppointment() {
             const fullReason = `${currentService.label} (${currentDoctor.name})${reason ? ` - Notes: ${reason.trim()}` : ''}`;
             const rawCard = cardNumber.replace(/\s+/g, '');
 
+            const chosenDocId = Number(currentDoctor.id || currentDoctor.doctorID || selectedDoctorId) || 2;
             const payload = {
                 preferredDate: combinedDateTime.toISOString(),
                 reason: fullReason,
-                doctorID: currentDoctor.id,
+                doctorID: chosenDocId,
                 paymentMethod: paymentMethod === 'Online_Card' ? 'Online_Card' : 'Cash',
                 consultationFee: currentService.fee,
                 cardLast4: paymentMethod === 'Online_Card' ? rawCard.slice(-4) : null,
@@ -390,6 +391,12 @@ export default function PatientBookAppointment() {
             const data = await res.json();
 
             if (res.ok) {
+                try {
+                    const curP = JSON.parse(localStorage.getItem('patient') || '{}');
+                    curP.doctorID = chosenDocId;
+                    localStorage.setItem('patient', JSON.stringify(curP));
+                } catch {}
+
                 setBookingSuccess({
                     appointmentId: data.appointmentId || Math.floor(1000 + Math.random() * 9000),
                     invoiceId: data.invoiceId,

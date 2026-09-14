@@ -1,9 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Sparkles, User, Mail, Phone, Calendar, Lock, ArrowRight, AlertCircle, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Sparkles, User, Mail, Phone, Calendar, Lock, ArrowRight, AlertCircle, ShieldCheck, CheckCircle2, Stethoscope } from 'lucide-react';
 import API_BASE_URL from '../../../config/apiConfig';
 
 export default function PatientRegister() {
+    const fallbackDoctors = [
+        { doctorID: 2, name: 'Dr. Jhangir Ahmed', title: 'Consultant Dental Surgeon' },
+        { doctorID: 4, name: 'Dr. Sarah Jenkins', title: 'Lead Cosmetic & Restorative Surgeon' },
+        { doctorID: 3, name: 'Dr. Ahmed Khan', title: 'Dental Surgeon & Orthodontist' },
+        { doctorID: 1, name: 'Dr. Sarah J. Lee', title: 'Senior Dental Surgeon' }
+    ];
+
+    const [doctors, setDoctors] = useState(fallbackDoctors);
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
@@ -13,12 +21,51 @@ export default function PatientRegister() {
         gender: 'Female',
         password: '',
         confirmPassword: '',
-        region: 'NZ'
+        region: 'NZ',
+        doctorID: 2
     });
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const navigate = useNavigate();
+
+    useEffect(() => {
+        const fetchDoctors = async () => {
+            try {
+                let res = null;
+                try {
+                    res = await fetch(`${API_BASE_URL}/api/patient-portal/doctors`);
+                } catch {
+                    res = null;
+                }
+                if (!res || !res.ok) {
+                    try {
+                        res = await fetch(`${API_BASE_URL}/api/auth/doctors`);
+                    } catch {
+                        res = null;
+                    }
+                }
+                if (!res || !res.ok) {
+                    res = await fetch('/api/auth/doctors');
+                }
+                if (res && res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data) && data.length > 0) {
+                        const mapped = data.map(d => ({
+                            doctorID: d.doctorID || d.id,
+                            name: d.fullName || `Dr. ${d.firstName} ${d.lastName}`.trim(),
+                            title: d.title || 'Dental Practitioner'
+                        }));
+                        setDoctors(mapped);
+                        setFormData(prev => ({ ...prev, doctorID: mapped[0].doctorID || 2 }));
+                    }
+                }
+            } catch (err) {
+                console.error('Error fetching doctors for registration:', err);
+            }
+        };
+        fetchDoctors();
+    }, []);
 
     const handleChange = (e) => {
         setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -50,7 +97,7 @@ export default function PatientRegister() {
                 gender: formData.gender,
                 password: formData.password,
                 region: formData.region,
-                doctorID: 1
+                doctorID: Number(formData.doctorID) || 2
             };
 
             let res;
@@ -164,6 +211,25 @@ export default function PatientRegister() {
                                 <option value="Other">Other</option>
                             </select>
                         </div>
+                    </div>
+
+                    <div className="space-y-1">
+                        <label className="text-xs font-bold text-dark-slate flex items-center gap-1">
+                            <Stethoscope className="w-3.5 h-3.5 text-primary-teal" />
+                            Primary Attending Dentist *
+                        </label>
+                        <select
+                            name="doctorID"
+                            value={formData.doctorID}
+                            onChange={handleChange}
+                            className="w-full px-4 py-2.5 rounded-xl bg-warm-cream/50 border border-slate-200 focus:border-primary-teal focus:ring-2 focus:ring-primary-teal/15 text-sm font-medium outline-none text-dark-slate"
+                        >
+                            {doctors.map(doc => (
+                                <option key={doc.doctorID} value={doc.doctorID}>
+                                    {doc.name} — {doc.title}
+                                </option>
+                            ))}
+                        </select>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

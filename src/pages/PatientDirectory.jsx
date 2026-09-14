@@ -576,49 +576,39 @@ export default function PatientDirectory() {
             if (!isCancelled) setIsSlowConnection(true);
         }, 7000);
 
-        const fetchPatients = fetchWithCache(
-            `doctor_${docInfo.doctorID}_patients`,
-            () => fetch(`/api/patients/doctor/${docInfo.doctorID}`).then(res => res.ok ? res.json() : [])
-        ).then(({ data, fromCache }) => {
-            if (isCancelled) return [];
-            setPatients(data || []);
-            if (data && data.length > 0) {
-                setSelectedPatient(prev => prev || data[0]);
-                // Speculatively prefetch top patient chart & prescriptions for instant click-through
-                const topP = data[0];
-                prefetchApi(`patient_${topP.patientID}`, () => fetch(`/api/patients/${topP.patientID}`).then(r => r.json()));
-                prefetchApi(`patient_${topP.patientID}_chart`, () => fetch(`/api/patients/${topP.patientID}/chart`).then(r => r.json()));
-                prefetchApi(`patient_${topP.patientID}_prescriptions`, () => fetch(`/api/patients/${topP.patientID}/prescriptions`).then(r => r.json()));
-            }
-            if (fromCache) {
-                setLoadProgress(prev => Math.max(prev, 85));
-            } else {
-                setLoadProgress(prev => Math.max(prev, 55));
-            }
-            setLoadStatusMessage('Patient profiles loaded. Retrieving clinic schedule...');
-            return data;
-        }).catch(err => {
-            console.error("Patients load error:", err);
-            return [];
-        });
+        const fetchPatients = fetch(`/api/patients/doctor/${docInfo.doctorID}`)
+            .then(res => res.ok ? res.json() : [])
+            .then((data) => {
+                if (isCancelled) return [];
+                setPatients(data || []);
+                if (data && data.length > 0) {
+                    setSelectedPatient(prev => prev || data[0]);
+                    // Speculatively prefetch top patient chart & prescriptions for instant click-through
+                    const topP = data[0];
+                    prefetchApi(`patient_${topP.patientID}`, () => fetch(`/api/patients/${topP.patientID}`).then(r => r.json()));
+                    prefetchApi(`patient_${topP.patientID}_chart`, () => fetch(`/api/patients/${topP.patientID}/chart`).then(r => r.json()));
+                    prefetchApi(`patient_${topP.patientID}_prescriptions`, () => fetch(`/api/patients/${topP.patientID}/prescriptions`).then(r => r.json()));
+                }
+                setLoadProgress(prev => Math.max(prev, 60));
+                setLoadStatusMessage('Patient profiles loaded. Retrieving clinic schedule...');
+                return data;
+            }).catch(err => {
+                console.error("Patients load error:", err);
+                return [];
+            });
 
-        const fetchAppts = fetchWithCache(
-            `doctor_${docInfo.doctorID}_appointments`,
-            () => fetch(`/api/appointments?doctorId=${docInfo.doctorID}`).then(res => res.ok ? res.json() : [])
-        ).then(({ data, fromCache }) => {
-            if (isCancelled) return [];
-            setAppointments(data || []);
-            if (fromCache) {
-                setLoadProgress(prev => Math.max(prev, 100));
-            } else {
-                setLoadProgress(prev => Math.max(prev, 80));
-            }
-            setLoadStatusMessage('Appointments synchronized. Finalizing clinic database...');
-            return data;
-        }).catch(err => {
-            console.error("Appointments load error:", err);
-            return [];
-        });
+        const fetchAppts = fetch(`/api/appointments?doctorId=${docInfo.doctorID}`)
+            .then(res => res.ok ? res.json() : [])
+            .then((data) => {
+                if (isCancelled) return [];
+                setAppointments(data || []);
+                setLoadProgress(prev => Math.max(prev, 85));
+                setLoadStatusMessage('Appointments synchronized. Finalizing clinic database...');
+                return data;
+            }).catch(err => {
+                console.error("Appointments load error:", err);
+                return [];
+            });
 
         Promise.allSettled([fetchPatients, fetchAppts]).then(([pRes, aRes]) => {
             if (isCancelled) return;
@@ -763,7 +753,7 @@ export default function PatientDirectory() {
         return appointments
             .filter(app => new Date(app.preferredDate) >= now && (app.status === 'Pending' || app.status === 'Confirmed'))
             .filter(matchesSearchAppt)
-            .sort((a, b) => new Date(b.preferredDate) - new Date(a.preferredDate) || b.appointmentID - a.appointmentID);
+            .sort((a, b) => new Date(a.preferredDate) - new Date(b.preferredDate) || a.appointmentID - b.appointmentID);
     }, [appointments, matchesSearchAppt]);
 
     const oldAppointments = useMemo(() => {
