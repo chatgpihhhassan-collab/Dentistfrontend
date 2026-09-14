@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { LogOut, Home, Users, Calendar, Stethoscope, Info, CalendarPlus, Phone, Clock, Mail, Star, UserCheck } from 'lucide-react';
+import { LogOut, Home, Users, Calendar, Stethoscope, Info, CalendarPlus, Phone, Clock, Mail, Star, UserCheck, DollarSign } from 'lucide-react';
 
 export default function Navigation() {
     const navigate = useNavigate();
@@ -78,6 +78,13 @@ export default function Navigation() {
                                 title="Appointments Schedule"
                             >
                                 <Calendar className="w-5 h-5" />
+                            </Link>
+                            <Link 
+                                to="/treatment-pricing" 
+                                className={getLinkClass(location.pathname === '/treatment-pricing' || location.pathname === '/doctor/pricing')}
+                                title="Fee Schedule & Pricing"
+                            >
+                                <DollarSign className="w-5 h-5" />
                             </Link>
                         </>
                     )}

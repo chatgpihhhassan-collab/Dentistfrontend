@@ -21,6 +21,7 @@ const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const AIDentalNotesPage = lazy(() => import('./modules/aiDentalNotes/pages/AIDentalNotesPage'));
 const AIDentalNoteDetailPage = lazy(() => import('./modules/aiDentalNotes/pages/AIDentalNoteDetailPage'));
 const ClinicalGuidePage = lazy(() => import('./pages/ClinicalGuidePage'));
+const DoctorTreatmentPricing = lazy(() => import('./pages/DoctorTreatmentPricing'));
 
 // 🌟 Patient Portal Lazy Loaded Modules
 const PatientPortalLayout = lazy(() => import('./modules/patientPortal/layouts/PatientPortalLayout'));
@@ -94,6 +95,16 @@ export default function App() {
             <Route path="/book" element={
                 <ProtectedRoute>
                     <BookAppointment />
+                </ProtectedRoute>
+            } />
+            <Route path="/treatment-pricing" element={
+                <ProtectedRoute>
+                    <DoctorTreatmentPricing />
+                </ProtectedRoute>
+            } />
+            <Route path="/doctor/pricing" element={
+                <ProtectedRoute>
+                    <DoctorTreatmentPricing />
                 </ProtectedRoute>
             } />
             
