@@ -75,6 +75,17 @@ export const getGoogleCalendarUrl = (appointment, clinicName = "DENTIA Dental Ca
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}&location=${location}`;
 };
 
+// Standard Clinical Appointment Reasons for Visit (1-7)
+export const APPOINTMENT_REASONS = [
+    'Consultation',
+    'Emergency Toothache',
+    'Orthodontic Adjustment',
+    'Root Canal Therapy',
+    'Prophylaxis / Cleaning',
+    'Crown Delivery',
+    'Surgery'
+];
+
 export default function AppointmentsList() {
     const navigate = useNavigate();
     const [appointments, setAppointments] = useState([]);
@@ -108,7 +119,7 @@ export default function AppointmentsList() {
             email: '',
             preferredDate: new Date().toISOString().slice(0, 16),
             doctorID: doc.doctorID || doc.DoctorID || '',
-            reason: 'General Consultation'
+            reason: 'Consultation'
         };
     });
     const [submittingNew, setSubmittingNew] = useState(false);
@@ -412,7 +423,7 @@ export default function AppointmentsList() {
                     email: '',
                     preferredDate: new Date().toISOString().slice(0, 16),
                     doctorID: defaultDocId,
-                    reason: 'General Consultation'
+                    reason: 'Consultation'
                 });
                 setModalErrors({});
                 setModalTouched({});
@@ -1995,13 +2006,20 @@ export default function AppointmentsList() {
 
                             <div>
                                 <label className="block text-xs font-bold text-slate-600 mb-1">Reason for Visit</label>
-                                <input
-                                    type="text"
-                                    value={newApptForm.reason}
-                                    onChange={(e) => setNewApptForm(prev => ({ ...prev, reason: e.target.value }))}
-                                    placeholder="e.g. Toothache, Scaling, Root Canal, Whitening"
-                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none"
-                                />
+                                <div className="relative">
+                                    <select
+                                        value={newApptForm.reason}
+                                        onChange={(e) => setNewApptForm(prev => ({ ...prev, reason: e.target.value }))}
+                                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#4A7CD2] cursor-pointer appearance-none transition pr-10"
+                                    >
+                                        {APPOINTMENT_REASONS.map((r) => (
+                                            <option key={r} value={r}>
+                                                {r}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                </div>
                             </div>
 
                             {error && (

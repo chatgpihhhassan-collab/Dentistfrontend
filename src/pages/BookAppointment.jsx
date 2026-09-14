@@ -7,7 +7,7 @@ import {
     ChevronRight, CalendarCheck, ExternalLink, ArrowRight, 
     Search, Check, Users, Sparkles, AlertCircle, Volume2, VolumeX
 } from 'lucide-react';
-import { downloadIcsFile, getGoogleCalendarUrl } from './AppointmentsList';
+import { downloadIcsFile, getGoogleCalendarUrl, APPOINTMENT_REASONS } from './AppointmentsList';
 import { getPatientAvatarUrl } from '../utils/avatarUtils';
 import aiVoice from '../utils/aiVoiceAssistant';
 
@@ -21,7 +21,7 @@ export default function BookAppointment() {
             email: '', 
             preferredDate: '', 
             doctorID: doc.doctorID || doc.DoctorID || '', 
-            reason: 'General Consultation' 
+            reason: 'Consultation' 
         };
     });
     const [doctors, setDoctors] = useState([]);
@@ -682,29 +682,29 @@ export default function BookAppointment() {
 
                                     {/* 5. Reason for Visit */}
                                     <div className="space-y-2">
-                                        <label className="text-xs font-bold text-slate-700 block">Reason for Consultation</label>
-                                        <input 
-                                            type="text" 
+                                        <label className="text-xs font-bold text-slate-700 block">Reason for Visit</label>
+                                        <select 
                                             value={formData.reason}
                                             onChange={(e) => setFormData({...formData, reason: e.target.value})}
-                                            placeholder="e.g. Toothache, Pulpotomy MTA & SSC, Space Maintainer, Cleaning" 
-                                            className="w-full px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl text-xs font-medium text-slate-800 focus:outline-none"
-                                        />
+                                            className="w-full px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#4A7CD2] cursor-pointer"
+                                        >
+                                            {APPOINTMENT_REASONS.map(chip => (
+                                                <option key={chip} value={chip}>
+                                                    {chip}
+                                                </option>
+                                            ))}
+                                        </select>
                                         <div className="flex flex-wrap gap-1.5 pt-0.5">
-                                            {[
-                                                'General Checkup',
-                                                '👶 Pediatric Consult',
-                                                '🟣 Pulpotomy & SSC',
-                                                '🟡 Space Maintainer',
-                                                '🛡️ Fluoride Varnish',
-                                                '✨ Teeth Cleaning',
-                                                '🩹 Toothache / Caries'
-                                            ].map(chip => (
+                                            {APPOINTMENT_REASONS.map(chip => (
                                                 <button
                                                     key={chip}
                                                     type="button"
-                                                    onClick={() => setFormData({ ...formData, reason: chip.replace(/^[^\w]+/, '').trim() })}
-                                                    className="text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-[#EAF0FC] hover:text-[#4A7CD2] border border-slate-200 transition-colors cursor-pointer"
+                                                    onClick={() => setFormData({ ...formData, reason: chip })}
+                                                    className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-colors cursor-pointer ${
+                                                        formData.reason === chip
+                                                            ? 'bg-[#4A7CD2] text-white border-[#4A7CD2]'
+                                                            : 'bg-slate-100 text-slate-700 hover:bg-[#EAF0FC] hover:text-[#4A7CD2] border-slate-200'
+                                                    }`}
                                                 >
                                                     {chip}
                                                 </button>
