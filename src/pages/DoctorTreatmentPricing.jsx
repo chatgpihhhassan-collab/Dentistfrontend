@@ -98,6 +98,12 @@ export default function DoctorTreatmentPricing() {
     // Toggle for inline custom procedure drawer right inside the workspace
     const [showInlineAdd, setShowInlineAdd] = useState(false);
 
+    // State for row-level editing
+    const [editingId, setEditingId] = useState(null); // FeeScheduleID or ProcedureCode of currently edited row
+    const [editFormData, setEditFormData] = useState({});
+    const [savingRowId, setSavingRowId] = useState(null);
+    const [justSavedId, setJustSavedId] = useState(null);
+
     // Filter states for Standard Library tab
     const [libraryCategory, setLibraryCategory] = useState('All');
     const [librarySearch, setLibrarySearch] = useState('');
@@ -190,13 +196,108 @@ export default function DoctorTreatmentPricing() {
     };
 
     // Remove procedure from schedule
-    const handleRemoveProcedure = (code) => {
+    const handleRemoveProcedure = (code, name) => {
+        if (!window.confirm(`Are you sure you want to remove '${name || code}' from your active fee schedule?`)) {
+            return;
+        }
         setProcedures(prev => prev.filter(p => p.procedureCode !== code));
         setHasUnsavedChanges(true);
         setFeedback({
             type: 'info',
             message: `Removed procedure [${code}]. Click "Save Fee Schedule" to commit changes.`
         });
+    };
+
+    // Row-level Edit: start editing a specific procedure
+    const handleStartEdit = (proc) => {
+        const key = proc.feeScheduleID || proc.procedureCode;
+        setEditingId(key);
+        setEditFormData({
+            feeScheduleID: proc.feeScheduleID || 0,
+            doctorID: proc.doctorID || doctorId,
+            currency: proc.currency || currency,
+            procedureCode: proc.procedureCode,
+            procedureName: proc.procedureName,
+            category: proc.category,
+            estimatedDuration: proc.estimatedDuration,
+            standardFee: proc.standardFee,
+            description: proc.description || '',
+            isActive: proc.isActive !== false
+        });
+    };
+
+    // Row-level Edit: cancel editing
+    const handleCancelEdit = () => {
+        setEditingId(null);
+        setEditFormData({});
+    };
+
+    // Row-level Edit: SAVE directly to Database
+    const handleSaveRowToDb = async () => {
+        if (!editFormData || !editFormData.procedureCode) return;
+        const rowKey = editFormData.feeScheduleID || editFormData.procedureCode;
+
+        try {
+            setSavingRowId(rowKey);
+            setFeedback({ type: '', message: '' });
+
+            const updatedFee = parseFloat(editFormData.standardFee) || 0;
+            const updatedItem = {
+                ...editFormData,
+                standardFee: updatedFee,
+                doctorID: doctorId,
+                currency
+            };
+
+            // Construct updated list
+            const updatedList = procedures.map(p => {
+                const isMatch = (p.feeScheduleID && p.feeScheduleID === editFormData.feeScheduleID) ||
+                                (p.procedureCode === editFormData.procedureCode);
+                return isMatch ? updatedItem : p;
+            });
+
+            const payload = {
+                currency,
+                procedures: updatedList
+            };
+
+            let res;
+            try {
+                res = await fetch(`${API_BASE_URL}/api/treatment-pricing/doctor/${doctorId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            } catch {
+                res = await fetch(`/api/treatment-pricing/doctor/${doctorId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            }
+
+            if (res.ok) {
+                setProcedures(updatedList);
+                setEditingId(null);
+                setEditFormData({});
+                setHasUnsavedChanges(false);
+                setJustSavedId(rowKey);
+                setTimeout(() => setJustSavedId(null), 3500);
+
+                setFeedback({
+                    type: 'success',
+                    message: `✓ Saved '${updatedItem.procedureName}' (${currentCurrencySymbol} ${updatedFee.toLocaleString()}) to database successfully!`
+                });
+            } else {
+                const err = await res.json();
+                setFeedback({ type: 'error', message: err.message || 'Failed to save changes to database.' });
+            }
+        } catch (err) {
+            console.error('Save row error:', err);
+            setFeedback({ type: 'error', message: 'Network error saving procedure to database.' });
+        } finally {
+            setSavingRowId(null);
+        }
     };
 
     // Save Fee Schedule to Backend
@@ -952,14 +1053,135 @@ export default function DoctorTreatmentPricing() {
                                                     <th className="py-3 px-4 w-28">Duration</th>
                                                     <th className="py-3 px-4 w-36">Standard Fee ({currentCurrencySymbol})</th>
                                                     <th className="py-3 px-4 hidden md:table-cell">Clinical Notes</th>
-                                                    <th className="py-3 px-3 text-center w-16">Action</th>
+                                                    <th className="py-3 px-3 text-center min-w-[140px]">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-light-teal/50">
                                                 {filteredScheduleProcedures.map((proc) => {
+                                                    const rowKey = proc.feeScheduleID || proc.procedureCode;
+                                                    const isEditing = editingId === rowKey;
+                                                    const isSaving = savingRowId === rowKey;
+                                                    const isJustSaved = justSavedId === rowKey;
                                                     const badgeColor = categoryBadgeColors[proc.category] || 'bg-slate-100 text-slate-700 border-slate-200';
+
+                                                    if (isEditing) {
+                                                        return (
+                                                            <tr key={rowKey} className="bg-sky-50/70 ring-2 ring-primary-teal/50 transition-all">
+                                                                {/* Code */}
+                                                                <td className="py-3 px-4 font-mono font-bold align-top pt-3.5">
+                                                                    <span className="px-2 py-0.5 rounded-lg bg-primary-teal text-white font-bold text-[11px] whitespace-nowrap shadow-xs">
+                                                                        {proc.procedureCode}
+                                                                    </span>
+                                                                </td>
+
+                                                                {/* Procedure Name & Inline Description Editor */}
+                                                                <td className="py-3 px-4 align-top">
+                                                                    <input 
+                                                                        type="text"
+                                                                        value={editFormData.procedureName || ''}
+                                                                        onChange={(e) => setEditFormData({ ...editFormData, procedureName: e.target.value })}
+                                                                        className="w-full font-bold text-dark-slate bg-white border border-primary-teal rounded-lg px-2.5 py-1 text-xs shadow-xs focus:outline-none focus:ring-2 focus:ring-primary-teal/30"
+                                                                        placeholder="Procedure name"
+                                                                    />
+                                                                    <div className="mt-1.5">
+                                                                        <textarea
+                                                                            rows="2"
+                                                                            value={editFormData.description || ''}
+                                                                            onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                                                                            placeholder="Clinical description / patient indications..."
+                                                                            className="w-full text-[11px] text-dark-slate bg-white border border-light-teal rounded-lg p-1.5 focus:outline-none focus:border-primary-teal resize-none"
+                                                                        />
+                                                                    </div>
+                                                                </td>
+
+                                                                {/* Specialty Category Selector */}
+                                                                <td className="py-3 px-4 hidden sm:table-cell align-top pt-3.5">
+                                                                    <select
+                                                                        value={editFormData.category || ''}
+                                                                        onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
+                                                                        className="px-2 py-1 bg-white border border-primary-teal/50 rounded-lg text-[11px] font-bold text-dark-slate cursor-pointer focus:outline-none focus:border-primary-teal"
+                                                                    >
+                                                                        {DENTAL_CATEGORIES.map(cat => (
+                                                                            <option key={cat} value={cat}>{cat}</option>
+                                                                        ))}
+                                                                    </select>
+                                                                </td>
+
+                                                                {/* Duration */}
+                                                                <td className="py-3 px-4 align-top pt-3.5">
+                                                                    <div className="flex items-center gap-1 text-muted-text">
+                                                                        <Clock className="w-3 h-3 text-primary-teal shrink-0" />
+                                                                        <input 
+                                                                            type="text"
+                                                                            value={editFormData.estimatedDuration || ''}
+                                                                            onChange={(e) => setEditFormData({ ...editFormData, estimatedDuration: e.target.value })}
+                                                                            className="w-22 font-medium text-dark-slate bg-white border border-primary-teal/50 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-primary-teal"
+                                                                            placeholder="45 mins"
+                                                                        />
+                                                                    </div>
+                                                                </td>
+
+                                                                {/* Standard Fee */}
+                                                                <td className="py-3 px-4 align-top pt-3.5">
+                                                                    <div className="flex items-center gap-1 font-mono font-black text-dark-slate bg-white px-2 py-1 rounded-xl border-2 border-primary-teal w-36 shadow-xs">
+                                                                        <span className="text-primary-teal text-xs shrink-0 font-bold">{currentCurrencySymbol}</span>
+                                                                        <input 
+                                                                            type="number"
+                                                                            step="any"
+                                                                            value={editFormData.standardFee ?? ''}
+                                                                            onChange={(e) => setEditFormData({ ...editFormData, standardFee: e.target.value })}
+                                                                            className="w-full bg-transparent text-xs font-mono font-black text-dark-slate focus:outline-none"
+                                                                            placeholder="0.00"
+                                                                        />
+                                                                    </div>
+                                                                </td>
+
+                                                                {/* Clinical Notes (Cell indicator) */}
+                                                                <td className="py-3 px-4 hidden md:table-cell align-top text-[11px] text-muted-text italic pt-3.5">
+                                                                    (Editing note below name)
+                                                                </td>
+
+                                                                {/* Action: SAVE TO DB / CANCEL */}
+                                                                <td className="py-3 px-3 align-top pt-3">
+                                                                    <div className="flex flex-col sm:flex-row items-center justify-center gap-1.5">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={handleSaveRowToDb}
+                                                                            disabled={isSaving}
+                                                                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                                                                            title="Save changes directly to database"
+                                                                        >
+                                                                            {isSaving ? (
+                                                                                <>
+                                                                                    <RotateCcw className="w-3.5 h-3.5 animate-spin" />
+                                                                                    <span>Saving...</span>
+                                                                                </>
+                                                                            ) : (
+                                                                                <>
+                                                                                    <Save className="w-3.5 h-3.5" />
+                                                                                    <span>Save to DB</span>
+                                                                                </>
+                                                                            )}
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={handleCancelEdit}
+                                                                            disabled={isSaving}
+                                                                            className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-dark-slate rounded-xl text-xs font-bold transition-all border border-light-teal flex items-center gap-1 cursor-pointer"
+                                                                            title="Cancel editing"
+                                                                        >
+                                                                            <X className="w-3.5 h-3.5" />
+                                                                            <span>Cancel</span>
+                                                                        </button>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    }
+
+                                                    // Default Viewing Row with explicit "Edit" and "Delete" buttons
                                                     return (
-                                                        <tr key={proc.feeScheduleID || proc.procedureCode} className="hover:bg-warm-cream/40 transition-colors">
+                                                        <tr key={rowKey} className="hover:bg-warm-cream/40 transition-colors group">
                                                             
                                                             {/* Code Badge */}
                                                             <td className="py-3 px-4 font-mono font-bold">
@@ -968,14 +1190,23 @@ export default function DoctorTreatmentPricing() {
                                                                 </span>
                                                             </td>
 
-                                                            {/* Procedure Name (Inline Editable) */}
+                                                            {/* Procedure Name */}
                                                             <td className="py-3 px-4">
-                                                                <input 
-                                                                    type="text"
-                                                                    value={proc.procedureName}
-                                                                    onChange={(e) => handleNameChange(proc.feeScheduleID, e.target.value)}
-                                                                    className="w-full font-bold text-dark-slate bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-light-teal focus:border-primary-teal rounded-lg px-2 py-1 text-xs transition-colors"
-                                                                />
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span 
+                                                                        onClick={() => handleStartEdit(proc)}
+                                                                        className="font-bold text-dark-slate text-xs hover:text-primary-teal cursor-pointer transition-colors"
+                                                                        title="Click to edit procedure"
+                                                                    >
+                                                                        {proc.procedureName}
+                                                                    </span>
+                                                                    {isJustSaved && (
+                                                                        <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold animate-pulse whitespace-nowrap">
+                                                                            <Check className="w-3 h-3" />
+                                                                            <span>Saved to DB</span>
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             </td>
 
                                                             {/* Specialty Category Badge */}
@@ -989,26 +1220,18 @@ export default function DoctorTreatmentPricing() {
                                                             <td className="py-3 px-4">
                                                                 <div className="flex items-center gap-1 text-muted-text">
                                                                     <Clock className="w-3 h-3 text-primary-teal shrink-0" />
-                                                                    <input 
-                                                                        type="text"
-                                                                        value={proc.estimatedDuration}
-                                                                        onChange={(e) => handleDurationChange(proc.feeScheduleID, e.target.value)}
-                                                                        className="w-20 font-medium text-dark-slate bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-light-teal focus:border-primary-teal rounded-lg px-1 py-0.5 text-xs transition-colors"
-                                                                    />
+                                                                    <span className="font-medium text-dark-slate text-xs">{proc.estimatedDuration}</span>
                                                                 </div>
                                                             </td>
 
-                                                            {/* Standard Fee (Inline Editable with Live Currency Prefix) */}
+                                                            {/* Standard Fee */}
                                                             <td className="py-3 px-4">
-                                                                <div className="flex items-center gap-1 font-mono font-black text-dark-slate bg-warm-cream px-2 py-1 rounded-xl border border-light-teal w-32 focus-within:ring-2 focus-within:ring-primary-teal/40">
-                                                                    <span className="text-primary-teal text-xs shrink-0">{currentCurrencySymbol}</span>
-                                                                    <input 
-                                                                        type="number"
-                                                                        step="any"
-                                                                        value={proc.standardFee}
-                                                                        onChange={(e) => handleFeeChange(proc.feeScheduleID, e.target.value)}
-                                                                        className="w-full bg-transparent text-xs font-mono font-black text-dark-slate focus:outline-none"
-                                                                    />
+                                                                <div 
+                                                                    onClick={() => handleStartEdit(proc)}
+                                                                    className="font-mono font-black text-xs text-dark-slate bg-warm-cream hover:bg-light-teal/60 px-2.5 py-1 rounded-xl border border-light-teal w-fit cursor-pointer transition-colors"
+                                                                    title="Click to edit fee"
+                                                                >
+                                                                    {currentCurrencySymbol} {Number(proc.standardFee).toLocaleString()}
                                                                 </div>
                                                             </td>
 
@@ -1017,16 +1240,28 @@ export default function DoctorTreatmentPricing() {
                                                                 {proc.description || 'Standard clinic procedure'}
                                                             </td>
 
-                                                            {/* Remove Action */}
+                                                            {/* Actions: EDIT & DELETE BUTTONS */}
                                                             <td className="py-3 px-3 text-center">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleRemoveProcedure(proc.procedureCode)}
-                                                                    className="p-1.5 text-muted-text hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                                                    title="Remove from schedule"
-                                                                >
-                                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                                </button>
+                                                                <div className="flex items-center justify-center gap-1.5">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleStartEdit(proc)}
+                                                                        className="px-2.5 py-1.5 rounded-xl bg-light-teal hover:bg-primary-teal text-primary-hover hover:text-white font-bold text-xs transition-all flex items-center gap-1 cursor-pointer shadow-2xs border border-light-teal-hover"
+                                                                        title="Edit procedure and save to database"
+                                                                    >
+                                                                        <Edit3 className="w-3.5 h-3.5" />
+                                                                        <span>Edit</span>
+                                                                    </button>
+
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleRemoveProcedure(proc.procedureCode, proc.procedureName)}
+                                                                        className="p-1.5 text-muted-text hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                                                        title="Remove from schedule"
+                                                                    >
+                                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                </div>
                                                             </td>
 
                                                         </tr>
