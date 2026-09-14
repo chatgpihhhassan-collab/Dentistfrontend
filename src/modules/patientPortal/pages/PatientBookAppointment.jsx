@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
     Calendar as CalendarIcon, 
@@ -21,84 +21,121 @@ import {
     Lock, 
     Check, 
     ChevronRight,
-    Users
+    Users,
+    Search,
+    RefreshCw,
+    Layers,
+    Tag,
+    Info
 } from 'lucide-react';
 import API_BASE_URL from '../../../config/apiConfig';
+
+// Color themes tailored for clinical dental procedure categories
+const categoryBadgeColors = {
+    'Examination & Diagnosis': 'bg-sky-50 text-sky-700 border-sky-200',
+    'Preventive Dentistry': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    'Fillings & Restorative Treatment': 'bg-teal-50 text-teal-700 border-teal-200',
+    'Crowns & Bridges': 'bg-amber-50 text-amber-700 border-amber-200',
+    'Root Canal Treatment': 'bg-purple-50 text-purple-700 border-purple-200',
+    'Extractions & Oral Surgery': 'bg-rose-50 text-rose-700 border-rose-200',
+    'Gum / Periodontal Treatment': 'bg-cyan-50 text-cyan-700 border-cyan-200',
+    'Dentures': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    'Dental Implants': 'bg-blue-50 text-blue-700 border-blue-200',
+    'Cosmetic Dentistry': 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
+    'Orthodontics': 'bg-violet-50 text-violet-700 border-violet-200',
+    'Pediatric Dentistry': 'bg-orange-50 text-orange-700 border-orange-200',
+    'Emergency Dental Treatment': 'bg-red-50 text-red-700 border-red-200',
+    'Prosthetic / Laboratory Procedures': 'bg-slate-100 text-slate-700 border-slate-300',
+    'Other Dental Services': 'bg-emerald-50/80 text-emerald-800 border-emerald-200'
+};
 
 export default function PatientBookAppointment() {
     const navigate = useNavigate();
 
-    // 1. Dental Services
-    const services = [
+    // Standard fallback services in case API connection is establishing
+    const fallbackServices = [
         { 
-            id: 'Routine Checkup & Prophylaxis Cleaning', 
-            label: 'Routine Checkup & Cleaning', 
-            duration: '45 mins', 
-            fee: 85.00,
-            desc: 'Comprehensive oral examination, ultrasonic scaling, plaque removal & polish.',
-            icon: Smile 
+            procedureCode: '011', 
+            procedureName: 'Comprehensive Oral Examination & Consultation', 
+            estimatedDuration: '45 mins', 
+            standardFee: 85.00,
+            category: 'Examination & Diagnosis',
+            description: 'Comprehensive dental examination, ultrasonic scaling, plaque removal & polish.'
         },
         { 
-            id: 'Toothache or Emergency Consultation', 
-            label: 'Emergency & Acute Pain', 
-            duration: '30 mins', 
-            fee: 120.00,
-            desc: 'Diagnostic triage for acute toothache, cracked enamel, trauma, or swelling.',
-            icon: AlertCircle 
+            procedureCode: '012', 
+            procedureName: 'Periodic Dental Checkup & Cleaning', 
+            estimatedDuration: '30 mins', 
+            standardFee: 65.00,
+            category: 'Preventive Dentistry',
+            description: 'Routine six-month clinical oral review, prophylaxis cleaning & fluoride therapy.'
         },
         { 
-            id: 'Restorative Crown or Cavity Filling', 
-            label: 'Cavity Filling & Restoration', 
-            duration: '60 mins', 
-            fee: 150.00,
-            desc: 'Composite resin filling, fractured cusp repair, or crown fitting review.',
-            icon: ShieldCheck 
+            procedureCode: '531', 
+            procedureName: 'Composite Filling & Tooth Restoration', 
+            estimatedDuration: '60 mins', 
+            standardFee: 150.00,
+            category: 'Fillings & Restorative Treatment',
+            description: 'Tooth-colored aesthetic resin restoration for cavities, fractured enamel or decay.'
         },
         { 
-            id: 'Orthodontic Alignment & Braces Review', 
-            label: 'Orthodontics & Clear Aligners', 
-            duration: '30 mins', 
-            fee: 180.00,
-            desc: 'Aligner tracking, digital intraoral scan, or retainer checkup.',
-            icon: Sparkles 
+            procedureCode: '311', 
+            procedureName: 'Tooth Extraction & Oral Surgery', 
+            estimatedDuration: '45 mins', 
+            standardFee: 160.00,
+            category: 'Extractions & Oral Surgery',
+            description: 'Gentle surgical or routine tooth removal with local anesthetic and care kit.'
         },
         { 
-            id: 'Periodontal Gum Health & Deep Scaling', 
-            label: 'Periodontal Care & Deep Scaling', 
-            duration: '60 mins', 
-            fee: 160.00,
-            desc: 'Subgingival root planing, pocket depth measurement, and gum therapy.',
-            icon: Stethoscope 
+            procedureCode: '411', 
+            procedureName: 'Root Canal Endodontic Therapy', 
+            estimatedDuration: '60 mins', 
+            standardFee: 350.00,
+            category: 'Root Canal Treatment',
+            description: 'Complete extirpation, pulp canal disinfection, and sterile root canal filling.'
         },
         { 
-            id: 'Cosmetic Teeth Whitening Evaluation', 
-            label: 'Cosmetic Teeth Whitening', 
-            duration: '45 mins', 
-            fee: 250.00,
-            desc: 'In-clinic laser bleaching consultation and custom-molded tray shade match.',
-            icon: Sparkles 
+            procedureCode: '119', 
+            procedureName: 'Cosmetic Teeth Whitening Consultation', 
+            estimatedDuration: '45 mins', 
+            standardFee: 250.00,
+            category: 'Cosmetic Dentistry',
+            description: 'Professional chairside power bleaching and custom-molded shade consultation.'
         }
     ];
 
-    // 2. Real Doctors State (Fetched dynamically from Database)
+    const patient = JSON.parse(localStorage.getItem('patient') || '{}');
+    const patientName = (patient.firstName && patient.lastName) 
+        ? `${patient.firstName} ${patient.lastName}` 
+        : (patient.firstName || 'Patient');
+
+    // 1. Doctors State (Fetched dynamically from Database)
     const [doctors, setDoctors] = useState([]);
     const [loadingDoctors, setLoadingDoctors] = useState(true);
+    const [selectedDoctorId, setSelectedDoctorId] = useState(patient.doctorID || patient.doctorId || null);
 
-    // 3. Time Slots Categorized (Single-line pills, no awkward wrapping)
+    // 2. Doctor Treatment Plans / Procedures State (Fetched dynamically based on selectedDoctorId)
+    const [doctorProcedures, setDoctorProcedures] = useState([]);
+    const [loadingProcedures, setLoadingProcedures] = useState(false);
+    const [doctorCurrency, setDoctorCurrency] = useState('NZD');
+    const [selectedServiceId, setSelectedServiceId] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('All');
+    const [procedureSearch, setProcedureSearch] = useState('');
+
+    // 3. Time Slots Categorized
     const morningSlots = ['09:00 AM', '09:45 AM', '10:30 AM', '11:15 AM', '12:00 PM'];
     const afternoonSlots = ['02:00 PM', '02:45 PM', '03:30 PM', '04:15 PM', '05:00 PM'];
-    const timeSlots = [...morningSlots, ...afternoonSlots];
 
     // Quick Reason / Symptom Chips
     const quickReasons = [
         'Routine Cleaning',
-        'Toothache / Pain',
+        'Toothache / Acute Pain',
         'Cavity Filling',
-        'Aligners Check',
-        'Bleeding Gums'
+        'Crown / Root Canal Review',
+        'Aligners Check'
     ];
 
-    // Tomorrow calculation
+    // Date calculations
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const minDateStr = tomorrow.toISOString().split('T')[0];
@@ -113,32 +150,32 @@ export default function PatientBookAppointment() {
         const dayNum = d.getDate();
         let badge = dayName;
         if (i === 0) badge = 'Tomorrow';
-        return {
-            iso,
-            dayName,
-            monthName,
-            dayNum,
-            badge
-        };
+        return { iso, dayName, monthName, dayNum, badge };
     });
 
-    const patient = JSON.parse(localStorage.getItem('patient') || '{}');
-    const patientName = (patient.firstName && patient.lastName) 
-        ? `${patient.firstName} ${patient.lastName}` 
-        : (patient.firstName || 'Patient');
-
-    // Stepper state (1: Service, 2: Doctor, 3: Date/Time, 4: Payment)
+    // Stepper state (1: Specialist, 2: Treatment, 3: Date/Time, 4: Payment)
     const [currentStep, setCurrentStep] = useState(1);
 
-    // Selections (Pre-selected to Tomorrow at 10:30 AM for instant seamless UX)
-    const [selectedServiceId, setSelectedServiceId] = useState(services[0].id);
-    const [selectedDoctorId, setSelectedDoctorId] = useState(patient.doctorID || patient.doctorId || null);
+    // Date & Time selections
     const [preferredDate, setPreferredDate] = useState(minDateStr);
     const [preferredTime, setPreferredTime] = useState('10:30 AM');
     const [reason, setReason] = useState('');
     const [showCustomCalendar, setShowCustomCalendar] = useState(false);
 
-    // Fetch live doctors from database
+    // Payment state ('Cash' | 'Online_Card')
+    const [paymentMethod, setPaymentMethod] = useState('Cash');
+    const [cardHolder, setCardHolder] = useState(patientName);
+    const [cardNumber, setCardNumber] = useState('');
+    const [cardExpiry, setCardExpiry] = useState('');
+    const [cardCvc, setCardCvc] = useState('');
+
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [bookingSuccess, setBookingSuccess] = useState(null);
+
+    // =========================================================================
+    // 1. FETCH LIVE DOCTORS FROM DATABASE
+    // =========================================================================
     useEffect(() => {
         let isMounted = true;
         const loadRealDoctors = async () => {
@@ -192,10 +229,13 @@ export default function PatientBookAppointment() {
                         });
 
                         setDoctors(mapped);
-                        // Auto-select assigned patient doctor or first real doctor
+
+                        // Auto-select assigned patient doctor or first doctor in list
                         const assignedId = patient.doctorID || patient.doctorId;
-                        const exists = mapped.some(m => m.id === assignedId);
-                        setSelectedDoctorId(exists ? assignedId : mapped[0].id);
+                        const targetDoc = mapped.find(m => m.id === assignedId) || mapped[0];
+                        if (targetDoc) {
+                            setSelectedDoctorId(targetDoc.id);
+                        }
                     }
                 }
             } catch (err) {
@@ -209,24 +249,119 @@ export default function PatientBookAppointment() {
         return () => { isMounted = false; };
     }, []);
 
-    // Payment state ('Cash' | 'Online_Card')
-    const [paymentMethod, setPaymentMethod] = useState('Cash');
-    const [cardHolder, setCardHolder] = useState(patientName);
-    const [cardNumber, setCardNumber] = useState('');
-    const [cardExpiry, setCardExpiry] = useState('');
-    const [cardCvc, setCardCvc] = useState('');
+    // =========================================================================
+    // 2. DYNAMICALLY LOAD TREATMENT PLANS & FEE SCHEDULE FOR SELECTED DOCTOR
+    // =========================================================================
+    useEffect(() => {
+        if (!selectedDoctorId) return;
+        let isMounted = true;
 
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [bookingSuccess, setBookingSuccess] = useState(null);
+        const loadDoctorFeeSchedule = async () => {
+            try {
+                setLoadingProcedures(true);
+                let res = null;
+                try {
+                    res = await fetch(`${API_BASE_URL}/api/treatment-pricing/doctor/${selectedDoctorId}`);
+                } catch {
+                    res = null;
+                }
 
-    const currentService = services.find(s => s.id === selectedServiceId) || services[0];
+                if (!res || !res.ok) {
+                    try {
+                        res = await fetch(`/api/treatment-pricing/doctor/${selectedDoctorId}`);
+                    } catch {
+                        res = null;
+                    }
+                }
+
+                if (res && res.ok) {
+                    const data = await res.json();
+                    if (isMounted) {
+                        const procs = (data.procedures || []).filter(p => p.isActive !== false);
+                        setDoctorProcedures(procs);
+                        const curr = data.currency || (data.region === 'PK' ? 'PKR' : 'NZD');
+                        setDoctorCurrency(curr);
+
+                        // If procedure list loaded, auto-select first or keep existing
+                        if (procs.length > 0) {
+                            const found = procs.find(p => (p.procedureCode || p.procedureName) === selectedServiceId);
+                            if (!found) {
+                                setSelectedServiceId(procs[0].procedureCode || procs[0].procedureName);
+                            }
+                        }
+                    }
+                } else {
+                    // Fallback to standard services
+                    if (isMounted) {
+                        setDoctorProcedures(fallbackServices);
+                        setSelectedServiceId(fallbackServices[0].procedureCode);
+                    }
+                }
+            } catch (err) {
+                console.error(`Failed to load treatments for doctor ${selectedDoctorId}:`, err);
+                if (isMounted) {
+                    setDoctorProcedures(fallbackServices);
+                    setSelectedServiceId(fallbackServices[0].procedureCode);
+                }
+            } finally {
+                if (isMounted) setLoadingProcedures(false);
+            }
+        };
+
+        loadDoctorFeeSchedule();
+        return () => { isMounted = false; };
+    }, [selectedDoctorId]);
+
+    // Active procedures list (Doctor's procedures or fallback)
+    const activeProcedures = doctorProcedures.length > 0 ? doctorProcedures : fallbackServices;
+
+    // Derived Categories
+    const categories = useMemo(() => {
+        const set = new Set(activeProcedures.map(p => p.category).filter(Boolean));
+        return ['All', ...Array.from(set)];
+    }, [activeProcedures]);
+
+    // Filtered Procedures based on category and search query
+    const filteredProcedures = useMemo(() => {
+        let list = activeProcedures;
+        if (selectedCategory !== 'All') {
+            list = list.filter(p => p.category === selectedCategory);
+        }
+        if (procedureSearch.trim()) {
+            const q = procedureSearch.toLowerCase().trim();
+            list = list.filter(p => 
+                (p.procedureName && p.procedureName.toLowerCase().includes(q)) ||
+                (p.procedureCode && p.procedureCode.toLowerCase().includes(q)) ||
+                (p.category && p.category.toLowerCase().includes(q)) ||
+                (p.description && p.description.toLowerCase().includes(q))
+            );
+        }
+        return list;
+    }, [activeProcedures, selectedCategory, procedureSearch]);
+
+    // Current selected doctor & procedure objects
     const currentDoctor = doctors.find(d => d.id === selectedDoctorId) || doctors[0] || { 
         id: selectedDoctorId || 2, 
-        name: 'Attending Specialist', 
-        title: 'Dental Surgeon' 
+        name: 'Dr. Jhangir Ahmed', 
+        title: 'Consultant Dental Surgeon' 
     };
 
+    const currentProcedure = activeProcedures.find(p => (p.procedureCode || p.procedureName) === selectedServiceId) 
+        || activeProcedures[0] 
+        || fallbackServices[0];
+
+    const procedureFee = Number(currentProcedure?.standardFee || currentProcedure?.fee || 85.00);
+    const procedureName = currentProcedure?.procedureName || currentProcedure?.label || 'Dental Consultation';
+    const procedureCode = currentProcedure?.procedureCode || '';
+
+    // Currency Formatter
+    const formatCurrency = (amount, curr) => {
+        const c = curr || doctorCurrency || 'NZD';
+        if (c === 'PKR') return `Rs ${Number(amount).toLocaleString()}`;
+        if (c === 'GBP') return `£${Number(amount).toFixed(2)}`;
+        if (c === 'EUR') return `€${Number(amount).toFixed(2)}`;
+        return `$${Number(amount).toFixed(2)} ${c}`;
+    };
 
     // Card formatters
     const handleCardNumberChange = (e) => {
@@ -256,6 +391,18 @@ export default function PatientBookAppointment() {
     // Step validation & progression
     const handleNext = () => {
         setError('');
+        if (currentStep === 1) {
+            if (!selectedDoctorId) {
+                setError('Please select an attending specialist to view treatments.');
+                return;
+            }
+        }
+        if (currentStep === 2) {
+            if (!selectedServiceId) {
+                setError('Please select a dental procedure or treatment plan.');
+                return;
+            }
+        }
         if (currentStep === 3) {
             if (!preferredDate) {
                 setError('Please select an appointment consultation date.');
@@ -276,7 +423,9 @@ export default function PatientBookAppointment() {
         setCurrentStep(prev => Math.max(1, prev - 1));
     };
 
-    // Final Submission
+    // =========================================================================
+    // 3. FINAL APPOINTMENT SUBMISSION & BOOKING CONFIRMATION
+    // =========================================================================
     const handleConfirmBooking = async (e) => {
         e.preventDefault();
         setError('');
@@ -317,19 +466,21 @@ export default function PatientBookAppointment() {
             const token = patient.token;
             const headers = {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
             };
 
-            const fullReason = `${currentService.label} (${currentDoctor.name})${reason ? ` - Notes: ${reason.trim()}` : ''}`;
+            const codeStr = procedureCode ? ` [Code: ${procedureCode}]` : '';
+            const fullReason = `${procedureName}${codeStr} (${currentDoctor.name})${reason ? ` - Notes: ${reason.trim()}` : ''}`;
             const rawCard = cardNumber.replace(/\s+/g, '');
-
             const chosenDocId = Number(currentDoctor.id || currentDoctor.doctorID || selectedDoctorId) || 2;
+
             const payload = {
                 preferredDate: combinedDateTime.toISOString(),
                 reason: fullReason,
                 doctorID: chosenDocId,
                 paymentMethod: paymentMethod === 'Online_Card' ? 'Online_Card' : 'Cash',
-                consultationFee: currentService.fee,
+                consultationFee: procedureFee,
+                currency: doctorCurrency || 'NZD',
                 cardLast4: paymentMethod === 'Online_Card' ? rawCard.slice(-4) : null,
                 cardHolderName: paymentMethod === 'Online_Card' ? cardHolder.trim() : null
             };
@@ -351,7 +502,13 @@ export default function PatientBookAppointment() {
 
             const data = await res.json();
 
-            if (res.ok) {
+            // Guard against handled warnings or missing appointmentId
+            if (res.ok && data.status !== 'handled_warning' && (data.appointmentId || data.AppointmentId)) {
+                const apptId = data.appointmentId || data.AppointmentId;
+                const invId = data.invoiceId || data.InvoiceId;
+                const invNum = data.invoiceNumber || data.InvoiceNumber || `INV-2026-${String(apptId).padStart(5, '0')}`;
+                const rcptVoucher = data.receiptOrVoucherNumber || (paymentMethod === 'Online_Card' ? `REC-2026-${String(apptId).padStart(5, '0')}` : `CSH-2026-${String(apptId).padStart(5, '0')}`);
+
                 try {
                     const curP = JSON.parse(localStorage.getItem('patient') || '{}');
                     curP.doctorID = chosenDocId;
@@ -359,24 +516,25 @@ export default function PatientBookAppointment() {
                 } catch {}
 
                 setBookingSuccess({
-                    appointmentId: data.appointmentId || Math.floor(1000 + Math.random() * 9000),
-                    invoiceId: data.invoiceId,
-                    invoiceNumber: data.invoiceNumber || `INV-2026-${data.appointmentId}`,
+                    appointmentId: apptId,
+                    invoiceId: invId,
+                    invoiceNumber: invNum,
                     paymentMethod: data.paymentMethod || paymentMethod,
-                    receiptOrVoucherNumber: data.receiptOrVoucherNumber || (paymentMethod === 'Online_Card' ? `REC-2026-${data.appointmentId}` : `CSH-2026-${data.appointmentId}`),
+                    receiptOrVoucherNumber: rcptVoucher,
                     invoiceStatus: data.invoiceStatus || (paymentMethod === 'Online_Card' ? 'Paid' : 'Pending Cash Settlement'),
-                    fee: currentService.fee,
+                    fee: procedureFee,
+                    currency: doctorCurrency,
                     dateTime: combinedDateTime,
-                    service: currentService.label,
+                    service: procedureName,
                     doctor: currentDoctor.name,
                     message: data.message || 'Appointment and payment entry recorded successfully.'
                 });
             } else {
-                setError(data.message || 'Unable to confirm appointment. That slot may already be reserved.');
+                setError(data.message || 'Unable to confirm appointment with clinic scheduling. Please try again.');
             }
         } catch (err) {
             console.error('Booking failed:', err);
-            setError('Network error while connecting to clinic scheduling system.');
+            setError('Network connection error while communicating with clinic booking server.');
         } finally {
             setLoading(false);
         }
@@ -394,7 +552,7 @@ export default function PatientBookAppointment() {
             'VERSION:2.0',
             'BEGIN:VEVENT',
             `SUMMARY:Dentia Dental Appointment - ${bookingSuccess.service}`,
-            `DESCRIPTION:${bookingSuccess.service} with ${bookingSuccess.doctor}. Payment: ${bookingSuccess.paymentMethod}`,
+            `DESCRIPTION:${bookingSuccess.service} with ${bookingSuccess.doctor}. Total Fee: ${formatCurrency(bookingSuccess.fee, bookingSuccess.currency)}. Payment: ${bookingSuccess.paymentMethod}`,
             `LOCATION:Dentia Dental Clinic, Auckland CBD`,
             `DTSTART:${formatIso(start)}`,
             `DTEND:${formatIso(end)}`,
@@ -413,7 +571,7 @@ export default function PatientBookAppointment() {
     };
 
     // =========================================================================
-    // CONFIRMATION VIEW (ZERO SCROLL, CLEAN COMPACT RESULT)
+    // CONFIRMATION VIEW (CLEAN COMPACT ZERO-SCROLL RECEIPT)
     // =========================================================================
     if (bookingSuccess) {
         const isCardPaid = bookingSuccess.paymentMethod === 'Online_Card';
@@ -449,10 +607,10 @@ export default function PatientBookAppointment() {
                                 <p className="text-[10px] font-bold text-muted-text uppercase">Service & Clinician</p>
                                 <p className="text-xs font-bold text-dark-slate">{bookingSuccess.service} · {bookingSuccess.doctor}</p>
                             </div>
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                                 isCardPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                             }`}>
-                                {isCardPaid ? 'Paid in Full' : 'Pending Cash'}
+                                {isCardPaid ? 'Paid in Full' : 'Pending Cash Settlement'}
                             </span>
                         </div>
 
@@ -480,9 +638,11 @@ export default function PatientBookAppointment() {
                         <div className="flex items-center justify-between text-[11px] text-muted-text pt-1">
                             <div className="flex items-center gap-1.5">
                                 <MapPin className="w-3.5 h-3.5 text-primary-teal" />
-                                <span>Dentia Clinic, Auckland CBD</span>
+                                <span>Dentia Clinic Auckland CBD / Partner Center</span>
                             </div>
-                            <span className="font-mono font-bold text-dark-slate">${bookingSuccess.fee.toFixed(2)} NZD</span>
+                            <span className="font-mono font-bold text-dark-slate text-sm">
+                                {formatCurrency(bookingSuccess.fee, bookingSuccess.currency)}
+                            </span>
                         </div>
                     </div>
 
@@ -518,11 +678,11 @@ export default function PatientBookAppointment() {
     }
 
     // =========================================================================
-    // STEPPER WORKSPACE (ZERO SCROLL, MODERN STEP-BY-STEP FLOW)
+    // STEPPER WORKSPACE (Specialist -> Treatment -> Date/Time -> Payment)
     // =========================================================================
     const stepTitles = [
-        { num: 1, title: 'Treatment' },
-        { num: 2, title: 'Specialist' },
+        { num: 1, title: 'Specialist' },
+        { num: 2, title: 'Treatment' },
         { num: 3, title: 'Date & Time' },
         { num: 4, title: 'Payment' }
     ];
@@ -601,84 +761,22 @@ export default function PatientBookAppointment() {
                 </div>
             )}
 
-            {/* Step Card (Only current step rendered to eliminate vertical scrolling!) */}
-            <div className="bg-white rounded-3xl p-5 sm:p-7 border border-light-teal shadow-[0_4px_24px_rgba(16,36,75,0.03)] min-h-[380px] flex flex-col justify-between">
+            {/* Step Card (Zero vertical scroll design) */}
+            <div className="bg-white rounded-3xl p-5 sm:p-7 border border-light-teal shadow-[0_4px_24px_rgba(16,36,75,0.03)] min-h-[420px] flex flex-col justify-between">
                 
                 {/* ------------------------------------------------------------- */}
-                {/* STEP 1: SELECT DENTAL SERVICE                                 */}
+                {/* STEP 1: SELECT ATTENDING SPECIALIST CLINICIAN                 */}
                 {/* ------------------------------------------------------------- */}
                 {currentStep === 1 && (
                     <div className="space-y-4 animate-in fade-in">
                         <div className="flex items-center justify-between">
                             <div>
                                 <h3 className="text-base font-serif font-black text-dark-slate">
-                                    1. Choose Your Dental Treatment
+                                    1. Select Attending Specialist
                                 </h3>
-                                <p className="text-xs text-muted-text">Select the primary service for your upcoming visit.</p>
-                            </div>
-                            <span className="text-[11px] font-bold text-primary-teal">Fixed Transparent Pricing</span>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            {services.map((svc) => {
-                                const Icon = svc.icon;
-                                const isSelected = selectedServiceId === svc.id;
-
-                                return (
-                                    <div
-                                        key={svc.id}
-                                        onClick={() => setSelectedServiceId(svc.id)}
-                                        className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between relative ${
-                                            isSelected 
-                                                ? 'border-primary-teal bg-light-teal/50 shadow-xs ring-1 ring-primary-teal/40' 
-                                                : 'border-light-teal/80 hover:border-primary-teal/40 bg-white hover:bg-warm-cream/50'
-                                        }`}
-                                    >
-                                        <div>
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                                                    isSelected ? 'bg-primary-teal text-white' : 'bg-light-teal text-primary-teal'
-                                                }`}>
-                                                    <Icon className="w-4 h-4" />
-                                                </div>
-                                                <span className="text-xs font-mono font-black text-primary-hover">
-                                                    ${svc.fee.toFixed(2)}
-                                                </span>
-                                            </div>
-                                            <h4 className="text-xs font-bold text-dark-slate leading-tight mb-1">
-                                                {svc.label}
-                                            </h4>
-                                            <p className="text-[11px] text-muted-text line-clamp-2 leading-relaxed">
-                                                {svc.desc}
-                                            </p>
-                                        </div>
-
-                                        <div className="mt-2.5 pt-2 border-t border-light-teal/80 flex items-center justify-between text-[10px] text-muted-text font-medium">
-                                            <span>Est. {svc.duration}</span>
-                                            {isSelected && (
-                                                <span className="font-bold text-primary-teal flex items-center gap-1">
-                                                    Selected <Check className="w-3 h-3" />
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-
-                {/* ------------------------------------------------------------- */}
-                {/* STEP 2: SELECT SPECIALIST CLINICIAN                           */}
-                {/* ------------------------------------------------------------- */}
-                {currentStep === 2 && (
-                    <div className="space-y-4 animate-in fade-in">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h3 className="text-base font-serif font-black text-dark-slate">
-                                    2. Select Attending Specialist
-                                </h3>
-                                <p className="text-xs text-muted-text">Choose your doctor from our verified clinic practitioners.</p>
+                                <p className="text-xs text-muted-text">
+                                    Choose your dentist to load their customized clinical treatment plans and pricing.
+                                </p>
                             </div>
                             <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -687,8 +785,8 @@ export default function PatientBookAppointment() {
                         </div>
 
                         {loadingDoctors ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                                {[1, 2, 3].map((i) => (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                                {[1, 2, 3, 4].map((i) => (
                                     <div key={i} className="p-4 rounded-2xl border-2 border-light-teal/50 bg-white text-center animate-pulse space-y-2.5">
                                         <div className="w-16 h-16 rounded-full bg-light-teal/60 mx-auto" />
                                         <div className="h-4 bg-light-teal/50 rounded w-28 mx-auto" />
@@ -699,45 +797,58 @@ export default function PatientBookAppointment() {
                             </div>
                         ) : doctors.length === 0 ? (
                             <div className="p-8 text-center bg-white rounded-2xl border border-light-teal/80 text-muted-text text-xs font-medium">
-                                No active clinicians found in the clinic directory. Please contact front desk.
+                                No active clinicians found in the clinic directory. Please contact reception.
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                                 {doctors.map((doc) => {
                                     const isSelected = selectedDoctorId === doc.id;
+                                    const isAssigned = (patient.doctorID === doc.id) || (patient.doctorId === doc.id);
 
                                     return (
                                         <div
                                             key={doc.id}
-                                            onClick={() => setSelectedDoctorId(doc.id)}
-                                            className={`p-4 rounded-2xl border-2 transition-all cursor-pointer text-center relative ${
+                                            onClick={() => {
+                                                setSelectedDoctorId(doc.id);
+                                                setError('');
+                                            }}
+                                            className={`p-4 rounded-2xl border-2 transition-all cursor-pointer text-center relative flex flex-col justify-between ${
                                                 isSelected 
-                                                    ? 'border-primary-teal bg-light-teal/50 shadow-xs ring-1 ring-primary-teal/40' 
+                                                    ? 'border-primary-teal bg-light-teal/40 shadow-sm ring-2 ring-primary-teal/40 scale-[1.01]' 
                                                     : 'border-light-teal/80 hover:border-primary-teal/40 bg-white hover:bg-warm-cream/50'
                                             }`}
                                         >
-                                            <div className="w-16 h-16 rounded-full overflow-hidden mx-auto mb-3 ring-2 ring-light-teal shadow-xs bg-slate-100">
-                                                <img 
-                                                    src={doc.avatar} 
-                                                    alt={doc.name} 
-                                                    className="w-full h-full object-cover"
-                                                    onError={(e) => {
-                                                        e.target.onerror = null;
-                                                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doc.name)}&background=008080&color=fff&bold=true`;
-                                                    }}
-                                                />
+                                            {isAssigned && (
+                                                <span className="absolute top-2.5 right-2.5 px-1.5 py-0.5 rounded-md bg-teal-100 text-teal-800 text-[9px] font-black uppercase tracking-wider">
+                                                    Assigned
+                                                </span>
+                                            )}
+
+                                            <div>
+                                                <div className="w-16 h-16 rounded-full overflow-hidden mx-auto mb-3 ring-2 ring-light-teal shadow-xs bg-slate-100">
+                                                    <img 
+                                                        src={doc.avatar} 
+                                                        alt={doc.name} 
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => {
+                                                            e.target.onerror = null;
+                                                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doc.name)}&background=008080&color=fff&bold=true`;
+                                                        }}
+                                                    />
+                                                </div>
+                                                <h4 className="text-xs font-black text-dark-slate">{doc.name}</h4>
+                                                <p className="text-[11px] text-muted-text mt-0.5 line-clamp-1">{doc.title}</p>
                                             </div>
-                                            <h4 className="text-xs font-black text-dark-slate">{doc.name}</h4>
-                                            <p className="text-[11px] text-muted-text mt-0.5 line-clamp-1">{doc.title}</p>
-                                            <div className="mt-3 flex items-center justify-center gap-2">
+
+                                            <div className="mt-3 pt-2.5 border-t border-light-teal/80 flex items-center justify-between">
                                                 <span className="px-2 py-0.5 rounded-md bg-white border border-light-teal text-[10px] font-bold text-primary-teal font-mono">
                                                     {doc.region ? `${doc.region} · ` : ''}{doc.exp}
                                                 </span>
-                                                {isSelected && (
-                                                    <span className="w-5 h-5 rounded-full bg-primary-teal text-white flex items-center justify-center">
-                                                        <Check className="w-3 h-3 stroke-[3]" />
-                                                    </span>
-                                                )}
+                                                <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-colors ${
+                                                    isSelected ? 'bg-primary-teal text-white' : 'border border-slate-300'
+                                                }`}>
+                                                    {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                                                </div>
                                             </div>
                                         </div>
                                     );
@@ -748,18 +859,187 @@ export default function PatientBookAppointment() {
                 )}
 
                 {/* ------------------------------------------------------------- */}
-                {/* STEP 3: SCHEDULE DATE & TIME (INTUITIVE & ZERO SCROLL)        */}
+                {/* STEP 2: CHOOSE DOCTOR'S TREATMENT PLANS & PROCEDURES           */}
+                {/* ------------------------------------------------------------- */}
+                {currentStep === 2 && (
+                    <div className="space-y-3.5 animate-in fade-in">
+                        
+                        {/* Selected Doctor Summary Header + Quick Switch */}
+                        <div className="p-3 bg-warm-cream rounded-2xl border border-light-teal flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-9 h-9 rounded-full overflow-hidden ring-1 ring-light-teal shrink-0 bg-slate-100">
+                                    <img 
+                                        src={currentDoctor.avatar} 
+                                        alt={currentDoctor.name} 
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                            e.target.onerror = null;
+                                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentDoctor.name)}&background=008080&color=fff&bold=true`;
+                                        }}
+                                    />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-xs font-black text-dark-slate">{currentDoctor.name}</h3>
+                                        <span className="px-1.5 py-0.2 rounded bg-light-teal text-primary-hover font-mono text-[10px] font-bold">
+                                            {doctorCurrency} Fee Schedule
+                                        </span>
+                                    </div>
+                                    <p className="text-[11px] text-muted-text">
+                                        {activeProcedures.length} clinical treatment procedures available
+                                    </p>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setCurrentStep(1)}
+                                className="px-2.5 py-1 text-[11px] font-bold text-primary-teal hover:text-primary-hover bg-white hover:bg-light-teal border border-light-teal rounded-lg transition-colors cursor-pointer"
+                            >
+                                Change Specialist
+                            </button>
+                        </div>
+
+                        {/* Search & Category Filter Strip */}
+                        <div className="space-y-2">
+                            <div className="relative">
+                                <Search className="w-3.5 h-3.5 text-muted-text absolute left-3 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    value={procedureSearch}
+                                    onChange={(e) => setProcedureSearch(e.target.value)}
+                                    placeholder="Search treatments or procedure code (e.g. Cleaning, Root Canal, Crown, 011)..."
+                                    className="w-full pl-8.5 pr-4 py-2 bg-warm-cream/50 border border-light-teal rounded-xl text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 placeholder:text-muted-text/60"
+                                />
+                                {procedureSearch && (
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setProcedureSearch('')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-text hover:text-dark-slate cursor-pointer"
+                                    >
+                                        ×
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Category Filter Pills */}
+                            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px]">
+                                {categories.map((cat) => {
+                                    const isCatSelected = selectedCategory === cat;
+                                    return (
+                                        <button
+                                            key={cat}
+                                            type="button"
+                                            onClick={() => setSelectedCategory(cat)}
+                                            className={`px-2.5 py-1 rounded-lg font-bold whitespace-nowrap transition-all cursor-pointer ${
+                                                isCatSelected
+                                                    ? 'bg-primary-teal text-white shadow-2xs'
+                                                    : 'bg-white hover:bg-light-teal text-dark-slate border border-light-teal/80'
+                                            }`}
+                                        >
+                                            {cat}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Procedures Grid (Scrollable container to maintain zero-page scroll) */}
+                        {loadingProcedures ? (
+                            <div className="p-8 text-center bg-warm-cream/30 rounded-2xl border border-light-teal/60 flex flex-col items-center justify-center gap-2">
+                                <RefreshCw className="w-5 h-5 text-primary-teal animate-spin" />
+                                <span className="text-xs text-muted-text font-medium">Loading {currentDoctor.name}'s treatment plans...</span>
+                            </div>
+                        ) : filteredProcedures.length === 0 ? (
+                            <div className="p-6 text-center bg-white rounded-2xl border border-light-teal text-muted-text text-xs">
+                                No procedures found matching "{procedureSearch}". Try clearing search or selecting "All".
+                            </div>
+                        ) : (
+                            <div className="max-h-[290px] overflow-y-auto pr-1 space-y-2 scrollbar-thin">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                    {filteredProcedures.map((proc) => {
+                                        const pId = proc.procedureCode || proc.procedureName;
+                                        const isSelected = selectedServiceId === pId;
+                                        const fee = Number(proc.standardFee || proc.fee || 85.00);
+                                        const badgeClass = categoryBadgeColors[proc.category] || 'bg-slate-100 text-slate-700 border-slate-300';
+
+                                        return (
+                                            <div
+                                                key={pId}
+                                                onClick={() => {
+                                                    setSelectedServiceId(pId);
+                                                    setError('');
+                                                }}
+                                                className={`p-3 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between text-left relative ${
+                                                    isSelected
+                                                        ? 'border-primary-teal bg-light-teal/40 shadow-xs ring-1 ring-primary-teal/40'
+                                                        : 'border-light-teal/80 hover:border-primary-teal/40 bg-white hover:bg-warm-cream/40'
+                                                }`}
+                                            >
+                                                <div>
+                                                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            {proc.procedureCode && (
+                                                                <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-dark-slate font-mono text-[10px] font-bold">
+                                                                    {proc.procedureCode}
+                                                                </span>
+                                                            )}
+                                                            <span className={`px-2 py-0.5 rounded-md border text-[9px] font-bold ${badgeClass}`}>
+                                                                {proc.category || 'General'}
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-xs font-mono font-black text-primary-hover whitespace-nowrap">
+                                                            {formatCurrency(fee, doctorCurrency)}
+                                                        </span>
+                                                    </div>
+
+                                                    <h4 className="text-xs font-bold text-dark-slate leading-snug">
+                                                        {proc.procedureName || proc.label}
+                                                    </h4>
+                                                    {proc.description && (
+                                                        <p className="text-[10px] text-muted-text line-clamp-1 mt-0.5 leading-relaxed">
+                                                            {proc.description}
+                                                        </p>
+                                                    )}
+                                                </div>
+
+                                                <div className="mt-2 pt-1.5 border-t border-light-teal/70 flex items-center justify-between text-[10px] text-muted-text font-medium">
+                                                    <span>Est. {proc.estimatedDuration || '45 mins'}</span>
+                                                    <div className="flex items-center gap-1">
+                                                        {isSelected ? (
+                                                            <span className="font-bold text-primary-teal flex items-center gap-1">
+                                                                Selected <Check className="w-3 h-3 stroke-[3]" />
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-slate-400 group-hover:text-dark-slate">Select</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                    </div>
+                )}
+
+                {/* ------------------------------------------------------------- */}
+                {/* STEP 3: SCHEDULE DATE & TIME                                  */}
                 {/* ------------------------------------------------------------- */}
                 {currentStep === 3 && (
                     <div className="space-y-4 animate-in fade-in">
                         
-                        {/* Section Header with Real-Time Reassurance Banner */}
+                        {/* Header with Slot Reassurance Banner */}
                         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-light-teal/80 pb-3">
                             <div>
                                 <h3 className="text-base font-serif font-black text-dark-slate">
                                     3. Select Date & Time
                                 </h3>
-                                <p className="text-xs text-muted-text">Choose your preferred day and time for your consultation.</p>
+                                <p className="text-xs text-muted-text">
+                                    Booking consultation with {currentDoctor.name}.
+                                </p>
                             </div>
                             {preferredDate && (
                                 <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-light-teal border border-light-teal-hover text-xs font-bold text-primary-hover shadow-2xs">
@@ -823,7 +1103,7 @@ export default function PatientBookAppointment() {
                                 })}
                             </div>
 
-                            {/* Optional Custom Date Picker (Expands if clicked) */}
+                            {/* Optional Custom Date Picker */}
                             {showCustomCalendar && (
                                 <div className="p-3 bg-warm-cream rounded-2xl border border-light-teal flex items-center gap-3 animate-in fade-in">
                                     <span className="text-xs font-bold text-dark-slate whitespace-nowrap">Specific Date:</span>
@@ -841,7 +1121,7 @@ export default function PatientBookAppointment() {
                             )}
                         </div>
 
-                        {/* 2. Categorized Morning & Afternoon Time Slots */}
+                        {/* 2. Morning & Afternoon Time Slots */}
                         <div className="space-y-2 pt-1">
                             <span className="text-[11px] font-bold text-dark-slate uppercase tracking-wider block">
                                 2. Select Time Slot
@@ -929,7 +1209,7 @@ export default function PatientBookAppointment() {
                                 type="text"
                                 value={reason}
                                 onChange={(e) => setReason(e.target.value)}
-                                placeholder="e.g. Sensitivity on upper molar or routine cleaning"
+                                placeholder="e.g. Tooth sensitivity on molar or scheduled checkup review"
                                 className="w-full px-3.5 py-2 bg-warm-cream/60 border border-light-teal rounded-xl text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 placeholder:text-muted-text/60"
                             />
                         </div>
@@ -946,14 +1226,14 @@ export default function PatientBookAppointment() {
                         {/* Summary Bar */}
                         <div className="p-3 bg-warm-cream rounded-2xl border border-light-teal flex flex-wrap items-center justify-between gap-2 text-xs">
                             <div className="flex items-center gap-2">
-                                <span className="font-bold text-dark-slate">{currentService.label}</span>
+                                <span className="font-bold text-dark-slate">{procedureName}</span>
                                 <span className="text-muted-text">with</span>
                                 <span className="font-bold text-primary-teal">{currentDoctor.name}</span>
                             </div>
                             <div className="flex items-center gap-2 font-mono">
                                 <span className="text-muted-text">{preferredDate} at {preferredTime}</span>
                                 <span className="px-2.5 py-0.5 rounded-full bg-light-teal text-primary-hover font-black">
-                                    ${currentService.fee.toFixed(2)} NZD
+                                    {formatCurrency(procedureFee, doctorCurrency)}
                                 </span>
                             </div>
                         </div>
@@ -987,7 +1267,7 @@ export default function PatientBookAppointment() {
                                     </div>
                                 </div>
                                 <p className="text-[11px] text-muted-text leading-relaxed">
-                                    Instant Cash Voucher issued. Pay in cash at clinic front desk on appointment day.
+                                    Instant Cash Voucher issued. Settle the fee in cash at clinic front desk upon arrival.
                                 </p>
                             </div>
 
@@ -1095,7 +1375,7 @@ export default function PatientBookAppointment() {
                                 <span>Back</span>
                             </button>
                         ) : (
-                            <span className="text-[11px] text-muted-text font-medium">Dentia Clinic · Auckland</span>
+                            <span className="text-[11px] text-muted-text font-medium">Dentia Clinic Workspace</span>
                         )}
                     </div>
 
@@ -1121,7 +1401,7 @@ export default function PatientBookAppointment() {
                                 ) : (
                                     <>
                                         <Sparkles className="w-4 h-4" />
-                                        <span>Confirm Booking (${currentService.fee.toFixed(2)})</span>
+                                        <span>Confirm Booking ({formatCurrency(procedureFee, doctorCurrency)})</span>
                                     </>
                                 )}
                             </button>
