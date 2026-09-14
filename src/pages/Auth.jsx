@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Activity, ShieldCheck, Lock, Mail, User, AlertCircle, Sparkles, Clock } from 'lucide-react';
 export default function Auth() {
     const [isLogin, setIsLogin] = useState(true);
@@ -229,6 +229,20 @@ export default function Auth() {
                     <div className="mt-8 flex items-center justify-center space-x-2 text-sm text-primary-teal font-bold bg-light-teal/40 border border-light-teal py-3 rounded-full">
                         <ShieldCheck className="w-5 h-5 text-primary-teal" />
                         <span>Encrypted session · HIPAA compliant</span>
+                    </div>
+
+                    {/* Patient Portal Direct Access */}
+                    <div className="mt-6 pt-5 border-t border-light-teal/80 text-center w-full">
+                        <p className="text-xs text-muted-text font-medium mb-2.5">
+                            Are you a patient looking to view your appointments, records, or bills?
+                        </p>
+                        <Link 
+                            to="/portal/login" 
+                            className="inline-flex items-center justify-center gap-2 w-full py-3 px-4 bg-sky-50 hover:bg-sky-100/90 text-sky-800 font-bold text-xs rounded-xl border border-sky-200/80 transition-all shadow-xs"
+                        >
+                            <User className="w-3.5 h-3.5 text-sky-600" />
+                            <span>Sign in to Patient Portal (with Ref #) →</span>
+                        </Link>
                     </div>
                 </div>
             </div>
