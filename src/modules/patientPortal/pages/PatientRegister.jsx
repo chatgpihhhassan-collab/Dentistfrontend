@@ -4,14 +4,8 @@ import { Sparkles, User, Mail, Phone, Calendar, Lock, ArrowRight, AlertCircle, S
 import API_BASE_URL from '../../../config/apiConfig';
 
 export default function PatientRegister() {
-    const fallbackDoctors = [
-        { doctorID: 2, name: 'Dr. Jhangir Ahmed', title: 'Consultant Dental Surgeon' },
-        { doctorID: 4, name: 'Dr. Sarah Jenkins', title: 'Lead Cosmetic & Restorative Surgeon' },
-        { doctorID: 3, name: 'Dr. Ahmed Khan', title: 'Dental Surgeon & Orthodontist' },
-        { doctorID: 1, name: 'Dr. Sarah J. Lee', title: 'Senior Dental Surgeon' }
-    ];
-
-    const [doctors, setDoctors] = useState(fallbackDoctors);
+    const [doctors, setDoctors] = useState([]);
+    const [loadingDoctors, setLoadingDoctors] = useState(true);
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
@@ -22,7 +16,7 @@ export default function PatientRegister() {
         password: '',
         confirmPassword: '',
         region: 'NZ',
-        doctorID: 2
+        doctorID: ''
     });
 
     const [loading, setLoading] = useState(false);
@@ -30,8 +24,10 @@ export default function PatientRegister() {
     const navigate = useNavigate();
 
     useEffect(() => {
+        let isMounted = true;
         const fetchDoctors = async () => {
             try {
+                setLoadingDoctors(true);
                 let res = null;
                 try {
                     res = await fetch(`${API_BASE_URL}/api/patient-portal/doctors`);
@@ -50,21 +46,27 @@ export default function PatientRegister() {
                 }
                 if (res && res.ok) {
                     const data = await res.json();
-                    if (Array.isArray(data) && data.length > 0) {
+                    if (Array.isArray(data) && data.length > 0 && isMounted) {
                         const mapped = data.map(d => ({
                             doctorID: d.doctorID || d.id,
                             name: d.fullName || `Dr. ${d.firstName} ${d.lastName}`.trim(),
-                            title: d.title || 'Dental Practitioner'
+                            title: d.title || (d.region === 'PK' ? 'Consultant Dental Surgeon' : 'Dental Surgeon & Specialist')
                         }));
                         setDoctors(mapped);
-                        setFormData(prev => ({ ...prev, doctorID: mapped[0].doctorID || 2 }));
+                        setFormData(prev => ({ 
+                            ...prev, 
+                            doctorID: prev.doctorID || mapped[0].doctorID 
+                        }));
                     }
                 }
             } catch (err) {
-                console.error('Error fetching doctors for registration:', err);
+                console.error('Error loading database doctors for registration:', err);
+            } finally {
+                if (isMounted) setLoadingDoctors(false);
             }
         };
         fetchDoctors();
+        return () => { isMounted = false; };
     }, []);
 
     const handleChange = (e) => {
@@ -222,13 +224,20 @@ export default function PatientRegister() {
                             name="doctorID"
                             value={formData.doctorID}
                             onChange={handleChange}
-                            className="w-full px-4 py-2.5 rounded-xl bg-warm-cream/50 border border-slate-200 focus:border-primary-teal focus:ring-2 focus:ring-primary-teal/15 text-sm font-medium outline-none text-dark-slate"
+                            disabled={loadingDoctors || doctors.length === 0}
+                            className="w-full px-4 py-2.5 rounded-xl bg-warm-cream/50 border border-slate-200 focus:border-primary-teal focus:ring-2 focus:ring-primary-teal/15 text-sm font-medium outline-none text-dark-slate disabled:opacity-60"
                         >
-                            {doctors.map(doc => (
-                                <option key={doc.doctorID} value={doc.doctorID}>
-                                    {doc.name} — {doc.title}
-                                </option>
-                            ))}
+                            {loadingDoctors ? (
+                                <option value="">Loading clinic doctors...</option>
+                            ) : doctors.length === 0 ? (
+                                <option value="">No doctors available</option>
+                            ) : (
+                                doctors.map(doc => (
+                                    <option key={doc.doctorID} value={doc.doctorID}>
+                                        {doc.name} — {doc.title}
+                                    </option>
+                                ))
+                            )}
                         </select>
                     </div>
 

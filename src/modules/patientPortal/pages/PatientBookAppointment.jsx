@@ -80,39 +80,8 @@ export default function PatientBookAppointment() {
         }
     ];
 
-    // Real database doctors fallback
-    const fallbackDoctors = [
-        { 
-            id: 2, 
-            doctorID: 2,
-            name: 'Dr. Jhangir Ahmed', 
-            title: 'Consultant Dental Surgeon', 
-            exp: '14 yrs exp', 
-            region: 'PK',
-            avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=200' 
-        },
-        { 
-            id: 3, 
-            doctorID: 3,
-            name: 'Dr. Ahmed Khan', 
-            title: 'Dental Surgeon & Orthodontist', 
-            exp: '11 yrs exp', 
-            region: 'NZ',
-            avatar: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&q=80&w=200' 
-        },
-        { 
-            id: 4, 
-            doctorID: 4,
-            name: 'Dr. Sarah Jenkins', 
-            title: 'Lead Cosmetic & Restorative Surgeon', 
-            exp: '9 yrs exp', 
-            region: 'NZ',
-            avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=200' 
-        }
-    ];
-
     // 2. Real Doctors State (Fetched dynamically from Database)
-    const [doctors, setDoctors] = useState(fallbackDoctors);
+    const [doctors, setDoctors] = useState([]);
     const [loadingDoctors, setLoadingDoctors] = useState(true);
 
     // 3. Time Slots Categorized (Single-line pills, no awkward wrapping)
@@ -163,7 +132,7 @@ export default function PatientBookAppointment() {
 
     // Selections (Pre-selected to Tomorrow at 10:30 AM for instant seamless UX)
     const [selectedServiceId, setSelectedServiceId] = useState(services[0].id);
-    const [selectedDoctorId, setSelectedDoctorId] = useState(2);
+    const [selectedDoctorId, setSelectedDoctorId] = useState(patient.doctorID || patient.doctorId || null);
     const [preferredDate, setPreferredDate] = useState(minDateStr);
     const [preferredTime, setPreferredTime] = useState('10:30 AM');
     const [reason, setReason] = useState('');
@@ -196,7 +165,7 @@ export default function PatientBookAppointment() {
 
                 if (res && res.ok) {
                     const data = await res.json();
-                    if (Array.isArray(data) && data.length > 0) {
+                    if (Array.isArray(data) && data.length > 0 && isMounted) {
                         const mapped = data.map(d => {
                             const docId = d.doctorID || d.id;
                             const fullName = d.fullName || `Dr. ${d.firstName} ${d.lastName}`.trim();
@@ -222,28 +191,17 @@ export default function PatientBookAppointment() {
                             };
                         });
 
-                        if (isMounted) {
-                            setDoctors(mapped);
-                            // Auto-select assigned patient doctor or first real doctor
-                            const assignedId = patient.doctorID || patient.doctorId;
-                            const exists = mapped.some(m => m.id === assignedId);
-                            setSelectedDoctorId(exists ? assignedId : mapped[0].id);
-                        }
-                        return;
+                        setDoctors(mapped);
+                        // Auto-select assigned patient doctor or first real doctor
+                        const assignedId = patient.doctorID || patient.doctorId;
+                        const exists = mapped.some(m => m.id === assignedId);
+                        setSelectedDoctorId(exists ? assignedId : mapped[0].id);
                     }
                 }
             } catch (err) {
-                console.error('Error loading live doctors:', err);
+                console.error('Error loading live database doctors:', err);
             } finally {
                 if (isMounted) setLoadingDoctors(false);
-            }
-
-            if (isMounted) {
-                setDoctors(fallbackDoctors);
-                const assignedId = patient.doctorID || patient.doctorId;
-                const exists = fallbackDoctors.some(m => m.id === assignedId);
-                setSelectedDoctorId(exists ? assignedId : fallbackDoctors[0].id);
-                setLoadingDoctors(false);
             }
         };
 
@@ -262,9 +220,12 @@ export default function PatientBookAppointment() {
     const [error, setError] = useState('');
     const [bookingSuccess, setBookingSuccess] = useState(null);
 
-    const activeDoctorList = doctors.length > 0 ? doctors : fallbackDoctors;
     const currentService = services.find(s => s.id === selectedServiceId) || services[0];
-    const currentDoctor = activeDoctorList.find(d => d.id === selectedDoctorId) || activeDoctorList[0];
+    const currentDoctor = doctors.find(d => d.id === selectedDoctorId) || doctors[0] || { 
+        id: selectedDoctorId || 2, 
+        name: 'Attending Specialist', 
+        title: 'Dental Surgeon' 
+    };
 
 
     // Card formatters
@@ -721,7 +682,7 @@ export default function PatientBookAppointment() {
                             </div>
                             <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                <span>Real Clinicians ({activeDoctorList.length})</span>
+                                <span>Clinic Clinicians ({doctors.length})</span>
                             </span>
                         </div>
 
@@ -736,9 +697,13 @@ export default function PatientBookAppointment() {
                                     </div>
                                 ))}
                             </div>
+                        ) : doctors.length === 0 ? (
+                            <div className="p-8 text-center bg-white rounded-2xl border border-light-teal/80 text-muted-text text-xs font-medium">
+                                No active clinicians found in the clinic directory. Please contact front desk.
+                            </div>
                         ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                                {activeDoctorList.map((doc) => {
+                                {doctors.map((doc) => {
                                     const isSelected = selectedDoctorId === doc.id;
 
                                     return (
