@@ -22,6 +22,17 @@ const AIDentalNotesPage = lazy(() => import('./modules/aiDentalNotes/pages/AIDen
 const AIDentalNoteDetailPage = lazy(() => import('./modules/aiDentalNotes/pages/AIDentalNoteDetailPage'));
 const ClinicalGuidePage = lazy(() => import('./pages/ClinicalGuidePage'));
 
+// 🌟 Patient Portal Lazy Loaded Modules
+const PatientPortalLayout = lazy(() => import('./modules/patientPortal/layouts/PatientPortalLayout'));
+const PatientLogin = lazy(() => import('./modules/patientPortal/pages/PatientLogin'));
+const PatientRegister = lazy(() => import('./modules/patientPortal/pages/PatientRegister'));
+const PatientActivate = lazy(() => import('./modules/patientPortal/pages/PatientActivate'));
+const PatientDashboard = lazy(() => import('./modules/patientPortal/pages/PatientDashboard'));
+const PatientAppointments = lazy(() => import('./modules/patientPortal/pages/PatientAppointments'));
+const PatientReports = lazy(() => import('./modules/patientPortal/pages/PatientReports'));
+const PatientBilling = lazy(() => import('./modules/patientPortal/pages/PatientBilling'));
+import PatientProtectedRoute from './modules/patientPortal/components/PatientProtectedRoute';
+
 import FullPageSkeletonLoader from './components/FullPageSkeletonLoader';
 
 const PageFallback = () => (
@@ -99,6 +110,24 @@ export default function App() {
             <Route path="/appointments" element={<BlockSuperAdmin><AppointmentsList /></BlockSuperAdmin>} />
             <Route path="/terms" element={<BlockSuperAdmin><TermsAndConditions /></BlockSuperAdmin>} />
             <Route path="/privacy" element={<BlockSuperAdmin><PrivacyPolicy /></BlockSuperAdmin>} />
+            
+            {/* 🌟 Patient Portal Public Authentication */}
+            <Route path="/portal/login" element={<PatientLogin />} />
+            <Route path="/portal/register" element={<PatientRegister />} />
+            <Route path="/portal/activate" element={<PatientActivate />} />
+
+            {/* 🌟 Patient Portal Protected Workspace */}
+            <Route path="/portal" element={
+                <PatientProtectedRoute>
+                    <PatientPortalLayout />
+                </PatientProtectedRoute>
+            }>
+                <Route index element={<Navigate to="/portal/dashboard" replace />} />
+                <Route path="dashboard" element={<PatientDashboard />} />
+                <Route path="appointments" element={<PatientAppointments />} />
+                <Route path="reports" element={<PatientReports />} />
+                <Route path="billing" element={<PatientBilling />} />
+            </Route>
             
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
