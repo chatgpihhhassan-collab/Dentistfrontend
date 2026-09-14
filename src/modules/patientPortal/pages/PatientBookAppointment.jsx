@@ -115,12 +115,43 @@ export default function PatientBookAppointment() {
     const [doctors, setDoctors] = useState(fallbackDoctors);
     const [loadingDoctors, setLoadingDoctors] = useState(true);
 
-    // 3. Time Slots
-    const timeSlots = [
-        '09:00 AM', '09:45 AM', '10:30 AM', '11:15 AM', 
-        '12:00 PM', '02:00 PM', '02:45 PM', '03:30 PM', 
-        '04:15 PM', '05:00 PM'
+    // 3. Time Slots Categorized (Single-line pills, no awkward wrapping)
+    const morningSlots = ['09:00 AM', '09:45 AM', '10:30 AM', '11:15 AM', '12:00 PM'];
+    const afternoonSlots = ['02:00 PM', '02:45 PM', '03:30 PM', '04:15 PM', '05:00 PM'];
+    const timeSlots = [...morningSlots, ...afternoonSlots];
+
+    // Quick Reason / Symptom Chips
+    const quickReasons = [
+        'Routine Cleaning',
+        'Toothache / Pain',
+        'Cavity Filling',
+        'Aligners Check',
+        'Bleeding Gums'
     ];
+
+    // Tomorrow calculation
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const minDateStr = tomorrow.toISOString().split('T')[0];
+
+    // Upcoming 7 Days Interactive Strip
+    const upcomingDays = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() + (i + 1));
+        const iso = d.toISOString().split('T')[0];
+        const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+        const monthName = d.toLocaleDateString('en-US', { month: 'short' });
+        const dayNum = d.getDate();
+        let badge = dayName;
+        if (i === 0) badge = 'Tomorrow';
+        return {
+            iso,
+            dayName,
+            monthName,
+            dayNum,
+            badge
+        };
+    });
 
     const patient = JSON.parse(localStorage.getItem('patient') || '{}');
     const patientName = (patient.firstName && patient.lastName) 
@@ -130,12 +161,13 @@ export default function PatientBookAppointment() {
     // Stepper state (1: Service, 2: Doctor, 3: Date/Time, 4: Payment)
     const [currentStep, setCurrentStep] = useState(1);
 
-    // Selections
+    // Selections (Pre-selected to Tomorrow at 10:30 AM for instant seamless UX)
     const [selectedServiceId, setSelectedServiceId] = useState(services[0].id);
     const [selectedDoctorId, setSelectedDoctorId] = useState(2);
-    const [preferredDate, setPreferredDate] = useState('');
-    const [preferredTime, setPreferredTime] = useState('10:00 AM');
+    const [preferredDate, setPreferredDate] = useState(minDateStr);
+    const [preferredTime, setPreferredTime] = useState('10:30 AM');
     const [reason, setReason] = useState('');
+    const [showCustomCalendar, setShowCustomCalendar] = useState(false);
 
     // Fetch live doctors from database
     useEffect(() => {
@@ -234,18 +266,6 @@ export default function PatientBookAppointment() {
     const currentService = services.find(s => s.id === selectedServiceId) || services[0];
     const currentDoctor = activeDoctorList.find(d => d.id === selectedDoctorId) || activeDoctorList[0];
 
-    // Date shortcuts
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const minDateStr = tomorrow.toISOString().split('T')[0];
-
-    const inTwoDays = new Date();
-    inTwoDays.setDate(inTwoDays.getDate() + 2);
-    const inTwoDaysStr = inTwoDays.toISOString().split('T')[0];
-
-    const nextWeek = new Date();
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    const nextWeekStr = nextWeek.toISOString().split('T')[0];
 
     // Card formatters
     const handleCardNumberChange = (e) => {
@@ -756,108 +776,192 @@ export default function PatientBookAppointment() {
                 )}
 
                 {/* ------------------------------------------------------------- */}
-                {/* STEP 3: SCHEDULE DATE & TIME                                  */}
+                {/* STEP 3: SCHEDULE DATE & TIME (INTUITIVE & ZERO SCROLL)        */}
                 {/* ------------------------------------------------------------- */}
                 {currentStep === 3 && (
                     <div className="space-y-4 animate-in fade-in">
-                        <div>
-                            <h3 className="text-base font-serif font-black text-dark-slate">
-                                3. Choose Date & Time Slot
-                            </h3>
-                            <p className="text-xs text-muted-text">Select your preferred day and available appointment time.</p>
+                        
+                        {/* Section Header with Real-Time Reassurance Banner */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-light-teal/80 pb-3">
+                            <div>
+                                <h3 className="text-base font-serif font-black text-dark-slate">
+                                    3. Select Date & Time
+                                </h3>
+                                <p className="text-xs text-muted-text">Choose your preferred day and time for your consultation.</p>
+                            </div>
+                            {preferredDate && (
+                                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-light-teal border border-light-teal-hover text-xs font-bold text-primary-hover shadow-2xs">
+                                    <CalendarIcon className="w-3.5 h-3.5 text-primary-teal" />
+                                    <span>
+                                        {new Date(preferredDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · {preferredTime}
+                                    </span>
+                                </div>
+                            )}
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
-                            {/* Left: Date Picker + Quick Shortcuts (5 cols) */}
-                            <div className="md:col-span-5 space-y-3">
-                                <div>
-                                    <label className="block text-xs font-bold text-dark-slate mb-1.5">
-                                        Appointment Date
-                                    </label>
-                                    <div className="relative">
-                                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-primary-teal">
-                                            <CalendarIcon className="w-4 h-4" />
-                                        </div>
-                                        <input
-                                            type="date"
-                                            min={minDateStr}
-                                            value={preferredDate}
-                                            onChange={(e) => setPreferredDate(e.target.value)}
-                                            className="w-full pl-10 pr-3 py-2.5 bg-warm-cream border border-light-teal rounded-xl text-xs font-bold text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 cursor-pointer"
-                                        />
-                                    </div>
-                                </div>
+                        {/* 1. Interactive 7-Day Visual Strip */}
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold text-dark-slate uppercase tracking-wider">
+                                    1. Choose Appointment Day
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCustomCalendar(prev => !prev)}
+                                    className="text-[11px] font-bold text-primary-teal hover:text-primary-hover flex items-center gap-1 cursor-pointer transition-colors"
+                                >
+                                    <CalendarIcon className="w-3 h-3" />
+                                    <span>{showCustomCalendar ? 'Hide Calendar' : 'Choose Other Date...'}</span>
+                                </button>
+                            </div>
 
-                                {/* Quick Date Shortcut Chips */}
-                                <div>
-                                    <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider mb-1.5">Quick Shortcuts</p>
-                                    <div className="flex flex-wrap gap-1.5">
+                            {/* 7 Days Strip */}
+                            <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                                {upcomingDays.map((d) => {
+                                    const isSelected = preferredDate === d.iso;
+                                    return (
                                         <button
+                                            key={d.iso}
                                             type="button"
-                                            onClick={() => setPreferredDate(minDateStr)}
-                                            className="px-2.5 py-1 bg-warm-cream hover:bg-light-teal border border-light-teal rounded-lg text-[11px] font-bold text-dark-slate cursor-pointer"
+                                            onClick={() => {
+                                                setPreferredDate(d.iso);
+                                                setError('');
+                                            }}
+                                            className={`p-2 sm:p-2.5 rounded-2xl border-2 transition-all cursor-pointer text-center flex flex-col items-center justify-between ${
+                                                isSelected
+                                                    ? 'border-primary-teal bg-primary-teal text-white shadow-md shadow-primary-teal/25 ring-2 ring-primary-teal/30 scale-[1.02]'
+                                                    : 'border-light-teal/80 bg-white hover:border-primary-teal/50 hover:bg-warm-cream/60 text-dark-slate'
+                                            }`}
                                         >
-                                            Tomorrow
+                                            <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                                                isSelected ? 'text-teal-100' : 'text-muted-text'
+                                            }`}>
+                                                {d.badge}
+                                            </span>
+                                            <span className="text-base sm:text-lg font-black leading-tight my-0.5 font-mono">
+                                                {d.dayNum}
+                                            </span>
+                                            <span className={`text-[10px] font-bold ${
+                                                isSelected ? 'text-teal-200' : 'text-muted-text'
+                                            }`}>
+                                                {d.monthName}
+                                            </span>
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setPreferredDate(inTwoDaysStr)}
-                                            className="px-2.5 py-1 bg-warm-cream hover:bg-light-teal border border-light-teal rounded-lg text-[11px] font-bold text-dark-slate cursor-pointer"
-                                        >
-                                            In 2 Days
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setPreferredDate(nextWeekStr)}
-                                            className="px-2.5 py-1 bg-warm-cream hover:bg-light-teal border border-light-teal rounded-lg text-[11px] font-bold text-dark-slate cursor-pointer"
-                                        >
-                                            Next Week
-                                        </button>
-                                    </div>
-                                </div>
+                                    );
+                                })}
+                            </div>
 
-                                {/* Notes */}
-                                <div>
-                                    <label className="block text-[11px] font-bold text-muted-text mb-1">
-                                        Symptoms or Notes (Optional)
-                                    </label>
+                            {/* Optional Custom Date Picker (Expands if clicked) */}
+                            {showCustomCalendar && (
+                                <div className="p-3 bg-warm-cream rounded-2xl border border-light-teal flex items-center gap-3 animate-in fade-in">
+                                    <span className="text-xs font-bold text-dark-slate whitespace-nowrap">Specific Date:</span>
                                     <input
-                                        type="text"
-                                        value={reason}
-                                        onChange={(e) => setReason(e.target.value)}
-                                        placeholder="e.g. Sensitivity on upper molar"
-                                        className="w-full px-3 py-2 bg-warm-cream border border-light-teal rounded-xl text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 placeholder:text-muted-text/60"
+                                        type="date"
+                                        min={minDateStr}
+                                        value={preferredDate}
+                                        onChange={(e) => {
+                                            setPreferredDate(e.target.value);
+                                            setError('');
+                                        }}
+                                        className="px-3 py-1.5 bg-white border border-light-teal rounded-xl text-xs font-bold text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 cursor-pointer"
                                     />
                                 </div>
-                            </div>
+                            )}
+                        </div>
 
-                            {/* Right: Time Slots Grid (7 cols) */}
-                            <div className="md:col-span-7">
-                                <label className="block text-xs font-bold text-dark-slate mb-1.5">
-                                    Select Time Slot
-                                </label>
-                                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                                    {timeSlots.map((slot) => {
-                                        const isSelected = preferredTime === slot;
-                                        return (
-                                            <button
-                                                key={slot}
-                                                type="button"
-                                                onClick={() => setPreferredTime(slot)}
-                                                className={`py-2 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                                                    isSelected 
-                                                        ? 'bg-primary-teal text-white shadow-xs' 
-                                                        : 'bg-warm-cream text-dark-slate hover:bg-light-teal border border-light-teal/80'
-                                                }`}
-                                            >
-                                                <Clock className="w-3 h-3 opacity-60" />
-                                                <span>{slot}</span>
-                                            </button>
-                                        );
-                                    })}
+                        {/* 2. Categorized Morning & Afternoon Time Slots */}
+                        <div className="space-y-2 pt-1">
+                            <span className="text-[11px] font-bold text-dark-slate uppercase tracking-wider block">
+                                2. Select Time Slot
+                            </span>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {/* Morning Slots */}
+                                <div className="p-3 bg-warm-cream/50 rounded-2xl border border-light-teal/80 space-y-2">
+                                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-muted-text uppercase">
+                                        <Clock className="w-3.5 h-3.5 text-amber-600" />
+                                        <span>Morning Slots (09:00 AM – 12:00 PM)</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {morningSlots.map((slot) => {
+                                            const isSelected = preferredTime === slot;
+                                            return (
+                                                <button
+                                                    key={slot}
+                                                    type="button"
+                                                    onClick={() => setPreferredTime(slot)}
+                                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                                                        isSelected
+                                                            ? 'bg-primary-teal text-white shadow-xs'
+                                                            : 'bg-white text-dark-slate hover:bg-light-teal border border-light-teal/80'
+                                                    }`}
+                                                >
+                                                    {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                                                    <span>{slot}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Afternoon Slots */}
+                                <div className="p-3 bg-warm-cream/50 rounded-2xl border border-light-teal/80 space-y-2">
+                                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-muted-text uppercase">
+                                        <Clock className="w-3.5 h-3.5 text-primary-teal" />
+                                        <span>Afternoon Slots (02:00 PM – 05:00 PM)</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {afternoonSlots.map((slot) => {
+                                            const isSelected = preferredTime === slot;
+                                            return (
+                                                <button
+                                                    key={slot}
+                                                    type="button"
+                                                    onClick={() => setPreferredTime(slot)}
+                                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                                                        isSelected
+                                                            ? 'bg-primary-teal text-white shadow-xs'
+                                                            : 'bg-white text-dark-slate hover:bg-light-teal border border-light-teal/80'
+                                                    }`}
+                                                >
+                                                    {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                                                    <span>{slot}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             </div>
                         </div>
+
+                        {/* 3. Reason or Symptoms with One-Touch Tags */}
+                        <div className="space-y-1.5 pt-1">
+                            <div className="flex items-center justify-between">
+                                <label className="block text-[11px] font-bold text-muted-text uppercase tracking-wider">
+                                    3. Reason or Symptoms (Optional)
+                                </label>
+                                <div className="hidden sm:flex items-center gap-1">
+                                    {quickReasons.map((qr) => (
+                                        <button
+                                            key={qr}
+                                            type="button"
+                                            onClick={() => setReason(qr)}
+                                            className="px-2 py-0.5 rounded-md bg-warm-cream hover:bg-light-teal border border-light-teal text-[10px] font-semibold text-dark-slate cursor-pointer transition-colors"
+                                        >
+                                            + {qr}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <input
+                                type="text"
+                                value={reason}
+                                onChange={(e) => setReason(e.target.value)}
+                                placeholder="e.g. Sensitivity on upper molar or routine cleaning"
+                                className="w-full px-3.5 py-2 bg-warm-cream/60 border border-light-teal rounded-xl text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 placeholder:text-muted-text/60"
+                            />
+                        </div>
+
                     </div>
                 )}
 
