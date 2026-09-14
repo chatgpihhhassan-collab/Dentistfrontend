@@ -260,9 +260,10 @@ export default function DoctorTreatmentPricing() {
                 return isMatch ? updatedItem : p;
             });
 
+            // Send targeted single-procedure payload for instant, safe database persistence
             const payload = {
                 currency,
-                procedures: updatedList
+                procedures: [updatedItem]
             };
 
             const headers = {
