@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { LogOut, Home, Users, Calendar, Stethoscope, Info, CalendarPlus, Phone, Clock, Mail, Star, UserCheck, DollarSign } from 'lucide-react';
+import { HardwareDeviceSyncBadge } from './HardwareDeviceSyncBadge';
 
 export default function Navigation() {
     const navigate = useNavigate();
@@ -74,14 +75,14 @@ export default function Navigation() {
                             <Link 
                                 to="/appointments" 
                                 className={getLinkClass(location.pathname === '/appointments')}
-                                title="Appointments Schedule"
+                                title="Appointments Hub"
                             >
                                 <Calendar className="w-5 h-5" />
                             </Link>
                             <Link 
-                                to="/treatment-pricing" 
-                                className={getLinkClass(location.pathname === '/treatment-pricing' || location.pathname === '/doctor/pricing')}
-                                title="Fee Schedule & Pricing"
+                                to="/doctor/pricing" 
+                                className={getLinkClass(location.pathname === '/doctor/pricing' || location.pathname === '/treatment-pricing')}
+                                title="Doctor Fee Schedules & Treatment Pricing"
                             >
                                 <DollarSign className="w-5 h-5" />
                             </Link>
@@ -118,9 +119,18 @@ export default function Navigation() {
                     </a>
                 </nav>
 
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-3">
+                    {/* Chairside Hardware Connection Badge */}
+                    <HardwareDeviceSyncBadge onOpenCapturePanel={() => {
+                        if (location.pathname.startsWith('/chart')) {
+                            // If on chart page, trigger capture panel modal
+                        } else {
+                            navigate('/directory');
+                        }
+                    }} />
+
                     {doctor ? (
-                        <div className="flex items-center space-x-4">
+                        <div className="flex items-center space-x-3">
                             <div className="flex items-center space-x-2 bg-white pr-4 pl-1.5 py-1.5 rounded-full border border-light-teal shadow-sm whitespace-nowrap">
                                 <div className="w-8 h-8 rounded-full bg-light-teal/50 flex items-center justify-center overflow-hidden flex-shrink-0">
                                     <img src={`https://ui-avatars.com/api/?name=${doctor.firstName}+${doctor.lastName}&background=EAF0FC&color=4A7CD2`} alt="Doctor" />
@@ -138,18 +148,16 @@ export default function Navigation() {
                                 className="bg-light-teal text-dark-slate hover:bg-dark-slate hover:text-white border border-light-teal-hover transition-all duration-300 py-2.5 px-4 rounded-full text-xs font-bold shadow-sm flex items-center space-x-1.5 cursor-pointer" 
                                 title="Log Out"
                              >
-                                <LogOut className="w-3.5 h-3.5 text-accent-gold" />
-                                <span className="hidden md:inline">Log Out</span>
+                                <LogOut className="w-4 h-4" />
                              </button>
                         </div>
                     ) : (
-                        <button 
-                            onClick={() => navigate('/book')}
-                            className="bg-primary-teal hover:bg-primary-hover text-white font-bold py-2.5 px-6 rounded-full transition-all shadow-md shadow-primary-teal/20 hover:shadow-lg hover:scale-102 cursor-pointer flex items-center gap-2 text-sm"
-                        >
-                            <CalendarPlus className="w-4 h-4" />
-                            Book Appointment
-                        </button>
+                        <div className="flex items-center space-x-3">
+                            <Link to="/auth" className="bg-primary-teal hover:bg-primary-hover text-white font-bold py-2.5 px-6 rounded-full text-sm transition-all shadow-md hover:shadow-lg flex items-center gap-2">
+                                <CalendarPlus className="w-4 h-4" />
+                                Book Visit
+                            </Link>
+                        </div>
                     )}
                 </div>
             </header>
