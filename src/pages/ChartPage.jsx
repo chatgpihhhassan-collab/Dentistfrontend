@@ -3417,7 +3417,9 @@ export default function ChartPage() {
         FullName: `${pData.firstName} ${pData.lastName}`,
         Phone: pData.phone || 'N/A',
         PreferredDate: `${data.date}T${data.time}:00`,
-        DoctorID: docId
+        DoctorID: docId,
+        Reason: data.reason || 'Consultation',
+        Status: 'Confirmed'
       };
       
       const res = await fetch('/api/appointments', {
@@ -3428,7 +3430,15 @@ export default function ChartPage() {
       
       if (res.ok) {
         const result = await res.json();
-        return { success: true, bookingId: result.appointmentId || result.id || Math.floor(Math.random() * 9000), date: data.date, time: data.time };
+        const newId = result.appointment?.appointmentID || result.appointmentId || result.id;
+        if (newId && payload.Reason) {
+          await fetch(`/api/appointments/${newId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'Confirmed', reason: payload.Reason })
+          }).catch(() => {});
+        }
+        return { success: true, bookingId: newId || Math.floor(Math.random() * 9000), date: data.date, time: data.time };
       }
       return { success: false };
     } catch (err) {

@@ -397,7 +397,7 @@ export default function AppointmentsList() {
                 email: (newApptForm.email || '').trim() || null,
                 preferredDate: newApptForm.preferredDate,
                 doctorID: newApptForm.doctorID ? parseInt(newApptForm.doctorID, 10) : null,
-                reason: newApptForm.reason || 'General Consultation',
+                reason: newApptForm.reason || 'Consultation',
                 status: 'Confirmed'
             };
 
@@ -408,6 +408,22 @@ export default function AppointmentsList() {
             });
 
             if (res.ok) {
+                const data = await res.json().catch(() => ({}));
+                const newId = data?.appointment?.appointmentID || data?.appointment?.AppointmentID || data?.appointmentId || data?.id;
+
+                // Double guarantee: if remote API server has an older build where POST omitted Reason column,
+                // immediate PUT ensures Reason is directly saved to SQL database
+                if (newId && payload.reason) {
+                    await fetch(`/api/appointments/${newId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            status: payload.status || 'Confirmed',
+                            reason: payload.reason
+                        })
+                    }).catch(err => console.warn("PUT backup reason update failed:", err));
+                }
+
                 setShowNewModal(false);
                 setToastMessage('New Appointment Scheduled & Confirmed!');
                 try {
@@ -1345,7 +1361,7 @@ export default function AppointmentsList() {
                                                         <div className="w-2 h-2 rounded-full bg-blue-500"></div>
                                                         <div>
                                                             <span className="text-xs font-bold text-slate-900 block">{apt.fullName}</span>
-                                                            <span className="text-[10px] text-slate-500 block">{apt.reason || 'General Consultation'}</span>
+                                                            <span className="text-[10px] text-slate-500 block">{apt.reason || apt.Reason || 'Consultation'}</span>
                                                         </div>
                                                         {getStatusBadge(apt.status)}
                                                     </div>
@@ -1407,7 +1423,7 @@ export default function AppointmentsList() {
                                                     {formatDate(apt.preferredDate)}
                                                 </td>
                                                 <td className="py-4 px-6 text-slate-600">
-                                                    {apt.reason || 'General Consultation'}
+                                                    {apt.reason || apt.Reason || 'Consultation'}
                                                 </td>
                                                 <td className="py-4 px-6">
                                                     {getStatusBadge(apt.status)}
@@ -1492,7 +1508,7 @@ export default function AppointmentsList() {
                                                     <Clock className="w-3.5 h-3.5" />
                                                     {formatDate(apt.preferredDate)}
                                                 </div>
-                                                <p className="text-xs text-slate-500">Reason: {apt.reason || 'General Dental Consultation'}</p>
+                                                <p className="text-xs text-slate-500">Reason: {apt.reason || apt.Reason || 'Consultation'}</p>
                                             </div>
 
                                             <div className="flex items-center gap-2">
@@ -1562,7 +1578,7 @@ export default function AppointmentsList() {
                             </div>
                             <div className="flex justify-between py-2 border-b border-slate-100">
                                 <span className="text-slate-500">Clinical Reason</span>
-                                <span className="font-bold text-slate-800 max-w-[250px] text-right">{selectedAppointment.reason || 'General Checkup'}</span>
+                                <span className="font-bold text-slate-800 max-w-[250px] text-right">{selectedAppointment.reason || selectedAppointment.Reason || 'Consultation'}</span>
                             </div>
                         </div>
 

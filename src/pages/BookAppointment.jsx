@@ -259,7 +259,7 @@ export default function BookAppointment() {
                 email: (formData.email || '').trim() || null,
                 preferredDate: formData.preferredDate,
                 doctorID: formData.doctorID ? parseInt(formData.doctorID, 10) : null,
-                reason: formData.reason || 'General Consultation',
+                reason: formData.reason || 'Consultation',
                 status: 'Confirmed'
             };
 
@@ -270,8 +270,22 @@ export default function BookAppointment() {
             });
             if (response.ok) {
                 const data = await response.json().catch(() => ({}));
+                const newId = data?.appointment?.appointmentID || data?.appointment?.AppointmentID || data?.appointmentId || data?.id;
+
+                // Double guarantee: ensure Reason is directly saved to SQL database even on older deployed backend DLLs
+                if (newId && payload.reason) {
+                    await fetch(`/api/appointments/${newId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            status: payload.status || 'Confirmed',
+                            reason: payload.reason
+                        })
+                    }).catch(err => console.warn("PUT backup reason update failed:", err));
+                }
+
                 setSubmitted(true);
-                setLastBookedAppointment({ ...formData, appointmentID: data.appointmentID || Date.now(), status: 'Confirmed' });
+                setLastBookedAppointment({ ...formData, appointmentID: newId || Date.now(), status: 'Confirmed' });
                 setEmailStatus({ sent: data.emailSent, error: data.emailError });
                 setError('');
                 setErrors({});
