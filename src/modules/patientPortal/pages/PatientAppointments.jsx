@@ -7,6 +7,48 @@ import {
 } from 'lucide-react';
 import API_BASE_URL from '../../../config/apiConfig';
 
+// Helper to extract clean doctor name, clean procedure title, and clean notes from composite reason string
+export const parseAppointmentReason = (rawReason = '') => {
+    if (!rawReason || typeof rawReason !== 'string') {
+        return {
+            procedureTitle: 'General Dental Consultation',
+            doctorAttribution: '',
+            cleanNote: ''
+        };
+    }
+
+    let note = '';
+    let textWithoutNote = rawReason;
+
+    // 1. Extract Note suffix: matches "- Notes: ...", "- Note: ...", or stacked notes
+    const noteMatch = rawReason.match(/(?:-\s*Notes?:\s*)([\s\S]*)$/i);
+    if (noteMatch) {
+        // Strip duplicate stacked "- Note:" from legacy data
+        note = noteMatch[1].replace(/(?:-\s*Notes?:\s*)+/gi, ' | ').trim();
+        const noteIndex = rawReason.search(/-\s*Notes?:\s*/i);
+        if (noteIndex !== -1) {
+            textWithoutNote = rawReason.substring(0, noteIndex).trim();
+        }
+    }
+
+    // 2. Extract Doctor Attribution: (Dr. ...)
+    let doctorAttribution = '';
+    const docMatch = textWithoutNote.match(/\((Dr\.?[^)]+)\)/i);
+    if (docMatch) {
+        doctorAttribution = docMatch[1].trim();
+        textWithoutNote = textWithoutNote.replace(/\((Dr\.?[^)]+)\)/i, '').trim();
+    }
+
+    // 3. Clean procedure title
+    const procedureTitle = textWithoutNote.replace(/,\s*$/, '').trim() || 'General Dental Consultation';
+
+    return {
+        procedureTitle,
+        doctorAttribution,
+        cleanNote: note
+    };
+};
+
 export default function PatientAppointments() {
     const navigate = useNavigate();
     const [appointments, setAppointments] = useState([]);
@@ -126,7 +168,9 @@ export default function PatientAppointments() {
         setPlanError('');
         setProcedureSearch('');
         setSelectedCategory('All');
-        setEditingNotes(appt.reason || '');
+        
+        const { cleanNote, procedureTitle } = parseAppointmentReason(appt.reason);
+        setEditingNotes(cleanNote || '');
 
         // Map existing items
         if (appt.items && appt.items.length > 0) {
@@ -140,7 +184,7 @@ export default function PatientAppointments() {
             setEditingProcedures([
                 {
                     procedureCode: 'D0120',
-                    procedureName: appt.reason || 'General Dental Examination',
+                    procedureName: procedureTitle || 'General Dental Examination',
                     price: appt.totalAmount || 50
                 }
             ]);
@@ -393,6 +437,7 @@ export default function PatientAppointments() {
                         const doctorName = getDoctorName(appt.doctorID);
                         const currency = appt.currency || (appt.doctorID === 2 ? 'PKR' : 'NZD');
                         const hasItems = appt.items && appt.items.length > 0;
+                        const { procedureTitle, cleanNote } = parseAppointmentReason(appt.reason);
 
                         return (
                             <div
@@ -417,7 +462,7 @@ export default function PatientAppointments() {
                                         <div className="space-y-1">
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <h4 className="text-base font-bold text-dark-slate">
-                                                    {appt.reason || 'General Dental Consultation'}
+                                                    {procedureTitle}
                                                 </h4>
                                                 <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
                                                     appt.status === 'Confirmed'
@@ -524,7 +569,7 @@ export default function PatientAppointments() {
                                                 <span className="px-1.5 py-0.5 rounded bg-light-teal text-primary-teal font-mono font-bold text-[10px]">
                                                     D0120
                                                 </span>
-                                                <span className="font-semibold">{appt.reason || 'General Dental Examination'}</span>
+                                                <span className="font-semibold">{procedureTitle || 'General Dental Examination'}</span>
                                                 {appt.totalAmount != null && (
                                                     <span className="font-mono font-bold text-slate-700">
                                                         {formatPrice(appt.totalAmount, currency)}
@@ -533,6 +578,19 @@ export default function PatientAppointments() {
                                             </div>
                                         )}
                                     </div>
+
+                                    {/* Patient Consultation Notes / Special Requests Display */}
+                                    {cleanNote && (
+                                        <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/80 flex items-start gap-2.5 text-xs text-dark-slate shadow-2xs">
+                                            <span className="text-amber-700 font-bold shrink-0 flex items-center gap-1">
+                                                <span>📝</span>
+                                                <span>Patient Notes / Special Requests:</span>
+                                            </span>
+                                            <span className="italic text-slate-700 leading-relaxed font-medium">
+                                                "{cleanNote}"
+                                            </span>
+                                        </div>
+                                    )}
 
                                     {/* Financial / Invoice Bar */}
                                     {(appt.invoiceNumber || appt.totalAmount != null) && (
@@ -769,15 +827,21 @@ export default function PatientAppointments() {
 
                         {/* Section 3: Notes / Reason */}
                         <div className="space-y-1.5 pt-2">
-                            <label className="text-xs font-bold text-dark-slate">
-                                Patient Consultation Notes / Special Requests
-                            </label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-dark-slate flex items-center gap-1.5">
+                                    <span>📝</span>
+                                    <span>Patient Consultation Notes / Special Requests</span>
+                                </label>
+                                <span className="text-[11px] text-muted-text">
+                                    Saved directly to your clinical appointment record
+                                </span>
+                            </div>
                             <textarea
-                                rows={2}
+                                rows={3}
                                 value={editingNotes}
                                 onChange={(e) => setEditingNotes(e.target.value)}
-                                placeholder="Describe any acute symptoms, sensitivity, or preferences..."
-                                className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-dark-slate focus:outline-none focus:border-primary-teal"
+                                placeholder="Describe any acute symptoms, tooth sensitivity, allergies, or special clinical requests for your doctor..."
+                                className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-dark-slate focus:outline-none focus:border-primary-teal focus:bg-white transition-colors"
                             />
                         </div>
 
