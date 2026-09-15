@@ -20,6 +20,9 @@ import { parseDoctorConversationalIntent, normalizeClinicalSpeech, DENTAL_VOCABU
 import { preloadJawImages, preloadPatientJawTemplates } from '../utils/jawImagePreloader';
 import { fetchWithCache, invalidateCache, setCachedData } from '../utils/apiCache';
 import FullPageSkeletonLoader from '../components/FullPageSkeletonLoader';
+import nanoPixService from '../services/nanoPixDeviceService';
+import NanoPixCaptureModal from '../components/NanoPixCaptureModal';
+import NanoPixPatientPromptModal from '../components/NanoPixPatientPromptModal';
 
 // Real Anatomical Maxilla (Upper Jaw) Coordinate & Rotation Mapping for Empty Jaw Template (Exact 16 Sockets)
 export const MAXILLA_COORDS = {
@@ -660,6 +663,12 @@ export default function ChartPage() {
   const [selectedJawView, setSelectedJawView] = useState('both'); // 'both' | 'maxilla' | 'mandible'
   const [showOrthoTmjModal, setShowOrthoTmjModal] = useState(false);
   const [liveOrthoAssessment, setLiveOrthoAssessment] = useState(null);
+  
+  // Eighteeth Nano-Pix Intraoral RVG Sensor Hardware Integration States
+  const [showNanoPixModal, setShowNanoPixModal] = useState(false);
+  const [showNanoPixPromptModal, setShowNanoPixPromptModal] = useState(false);
+  const [nanoPixStatus, setNanoPixStatus] = useState(() => nanoPixService.getStatus());
+  const [nanoPixActiveTooth, setNanoPixActiveTooth] = useState('19');
   
   // 🌟 100% Coordinated Full-Page Loading & Synchronization States
   const [isChartLoading, setIsChartLoading] = useState(true);
@@ -1665,6 +1674,203 @@ export default function ChartPage() {
       clearTimeout(slowTimer);
     };
   }, [patientId, navigate]);
+
+  // Eighteeth Nano-Pix Hardware Event Listener & Auto-Prompt Handler
+  useEffect(() => {
+    // 1. Check if user navigated with ?nanopix=open
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      if (searchParams.get('nanopix') === 'open') {
+        setShowNanoPixModal(true);
+      }
+    } catch (e) {}
+
+    // 2. Hardware connection listener
+    const unsubConnect = nanoPixService.subscribe('connected', (device) => {
+      setNanoPixStatus({ isConnected: true, deviceInfo: device });
+      console.log('⚡ [ChartPage] Eighteeth Nano-Pix Intraoral Sensor connected for patient:', patientId);
+    });
+
+    const unsubDisconnect = nanoPixService.subscribe('disconnected', () => {
+      setNanoPixStatus({ isConnected: false, deviceInfo: null });
+      console.log('🔌 [ChartPage] Eighteeth Nano-Pix Intraoral Sensor disconnected');
+    });
+
+    return () => {
+      unsubConnect();
+      unsubDisconnect();
+    };
+  }, [patientId]);
+
+  // Handle Nano-Pix Accepted Radiograph Finding -> Update Odontogram & Database in Real-Time
+  const handleNanoPixFindingAccepted = async (finding) => {
+    if (!finding || !finding.toothNumber) return;
+    const tNum = parseInt(finding.toothNumber, 10);
+    const conditionLabel = finding.condition || 'Radiolucency';
+    const conditionColor = finding.conditionColor || '#EF4444';
+    const comments = `[Eighteeth Nano-Pix RVG] ${conditionLabel} (${finding.confidence || 95}% confidence). Recommendation: ${finding.recommendation || ''}`;
+
+    // Select this tooth so clinician sees it spotlighted in the detail panel
+    setDetailedTooth(tNum);
+
+    // 1. Update odontogram state immediately
+    setTeethState(prev => {
+      const nextList = [...prev];
+      const idx = nextList.findIndex(t => (t.toothNumber ?? t.tooth_number) === tNum);
+      const updatedTooth = {
+        ...(idx >= 0 ? nextList[idx] : {}),
+        toothNumber: tNum,
+        tooth_number: tNum,
+        status: conditionLabel,
+        conditionStatus: conditionLabel,
+        condition: conditionLabel,
+        color: conditionColor,
+        conditionColor: conditionColor,
+        comments: comments,
+        comment: comments,
+        updatedAt: new Date().toISOString()
+      };
+      if (idx >= 0) {
+        nextList[idx] = updatedTooth;
+      } else {
+        nextList.push(updatedTooth);
+      }
+      return nextList;
+    });
+
+    // 2. Persist bulk tooth condition to database
+    try {
+      const pid = parseInt(patientId, 10);
+      if (pid) {
+        await fetch('/api/patients/teeth/update-bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            patientId: pid,
+            updates: [{
+              toothNumber: tNum,
+              conditionStatus: conditionLabel,
+              color: conditionColor,
+              comment: comments,
+              comments: comments
+            }]
+          })
+        });
+        console.log(`✅ [Nano-Pix RVG] Tooth #${tNum} updated with ${conditionLabel} for patient #${pid}`);
+      }
+    } catch (err) {
+      console.warn('Failed to persist Nano-Pix RVG finding to DB:', err);
+    }
+  };
+
+  // Apply full Nano-Pix AI Vision findings across Chart, AI Notes, Odontogram & Database
+  const handleApplyNanoPixCompleteReport = async ({ radiographRecord, teethUpdates, soapNotes, rawReport, primaryTooth }) => {
+    // 1. Update odontogram state for all affected teeth
+    if (teethUpdates && teethUpdates.length > 0) {
+      setTeethState(prev => {
+        const nextList = [...prev];
+        teethUpdates.forEach(u => {
+          const tNum = parseInt(u.toothNumber, 10);
+          const idx = nextList.findIndex(t => (t.toothNumber ?? t.tooth_number) === tNum);
+          const updatedTooth = {
+            ...(idx >= 0 ? nextList[idx] : {}),
+            toothNumber: tNum,
+            tooth_number: tNum,
+            status: u.conditionStatus || u.condition || 'Radiolucency',
+            conditionStatus: u.conditionStatus || u.condition || 'Radiolucency',
+            condition: u.conditionStatus || u.condition || 'Radiolucency',
+            color: u.color || '#EF4444',
+            conditionColor: u.color || '#EF4444',
+            comments: u.comment || u.comments || `[Nano-Pix RVG] ${u.condition}`,
+            comment: u.comment || u.comments || `[Nano-Pix RVG] ${u.condition}`,
+            updatedAt: new Date().toISOString()
+          };
+          if (idx >= 0) nextList[idx] = updatedTooth;
+          else nextList.push(updatedTooth);
+        });
+        return nextList;
+      });
+
+      // Persist bulk update to database
+      try {
+        const pid = parseInt(patientId, 10);
+        if (pid) {
+          await fetch('/api/patients/teeth/update-bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              patientId: pid,
+              updates: teethUpdates.map(u => ({
+                toothNumber: parseInt(u.toothNumber, 10),
+                conditionStatus: u.conditionStatus || u.condition,
+                color: u.color || '#EF4444',
+                comment: u.comment || u.comments,
+                comments: u.comment || u.comments
+              }))
+            })
+          });
+          console.log(`✅ [Nano-Pix Bulk] Updated ${teethUpdates.length} teeth in DB for patient #${pid}`);
+        }
+      } catch (err) {
+        console.error('Failed to save teeth updates from Nano-Pix report:', err);
+      }
+    }
+
+    // 2. Spotlight primary tooth on Odontogram
+    if (primaryTooth) {
+      setDetailedTooth(parseInt(primaryTooth, 10));
+    }
+
+    // 3. Save full SOAP notes to patient clinical logs & AI Notes tab
+    try {
+      const storedDoc = localStorage.getItem('doctor');
+      const docObj = storedDoc ? JSON.parse(storedDoc) : {};
+      const docId = docObj.doctorID || docObj.DoctorID || 2;
+      const pid = parseInt(patientId, 10);
+
+      const logMsg = typeof soapNotes === 'string' 
+        ? soapNotes 
+        : `Subjective: ${soapNotes?.subjective || 'Radiographic evaluation'}\nObjective: ${soapNotes?.objective || 'Nano-Pix intraoral radiograph acquired.'}\nAssessment: ${soapNotes?.assessment || 'Radiographic pathology identified.'}\nPlan: ${soapNotes?.plan || 'Treatment indicated.'}`;
+
+      await fetch(`/api/patients/${pid}/clinical-logs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          doctorID: docId,
+          message: `[Eighteeth Nano-Pix RVG AI Report]\n${logMsg}\n\nFindings Summary:\n${rawReport || ''}`,
+          logType: 'AI Radiograph Note (Nano-Pix)'
+        })
+      });
+
+      // Append to notesHistory so AI Notes tab shows it immediately
+      setNotesHistory(prev => [
+        {
+          id: Date.now(),
+          createdAt: new Date().toISOString(),
+          title: `Nano-Pix Radiograph Report — Tooth #${primaryTooth || 'Scan'}`,
+          transcript: `Intraoral Radiograph captured via Eighteeth Nano-Pix sensor for Patient #${pid}.`,
+          soap: {
+            subjective: soapNotes?.subjective || 'Clinical radiograph acquired.',
+            objective: soapNotes?.objective || 'Detailed radiographic examination.',
+            assessment: soapNotes?.assessment || 'Radiographic evaluation completed.',
+            plan: soapNotes?.plan || 'Recommended therapy.'
+          },
+          checklist: { imaging: true, caries: true, mobility: false, complaint: true }
+        },
+        ...prev
+      ]);
+    } catch (err) {
+      console.warn('Failed to add clinical log for Nano-Pix note:', err);
+    }
+
+    // 4. Append to chart radiographs list if available
+    if (radiographRecord) {
+      setRadiographs(prev => [radiographRecord, ...prev]);
+    }
+
+    setToast({ visible: true, message: '✨ Nano-Pix report successfully applied to Chart, AI Notes, and Imaging Records!' });
+    setTimeout(() => setToast({ visible: false, message: '' }), 4000);
+  };
 
   useEffect(() => {
     const storedDoc = localStorage.getItem('doctor');
@@ -6311,6 +6517,36 @@ export default function ChartPage() {
                     <ChevronDown className="w-3 h-3 text-emerald-600 group-hover:translate-y-0.5 transition-transform" />
                   </div>
 
+                  {/* Eighteeth Nano-Pix RVG Chairside Capture Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (detailedTooth) {
+                        setNanoPixActiveTooth(String(detailedTooth));
+                      }
+                      setShowNanoPixModal(true);
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black shadow-2xs transition-all cursor-pointer border ${
+                      nanoPixStatus?.isConnected
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white border-emerald-400 shadow-emerald-500/20'
+                        : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-300 hover:border-slate-400'
+                    }`}
+                    title={nanoPixStatus?.isConnected ? `Eighteeth Nano-Pix Sensor Online (USB) • Click to Acquire RVG` : 'Eighteeth Nano-Pix RVG Sensor (USB) • Click to Open Chairside Studio'}
+                    aria-label="Eighteeth Nano-Pix RVG Sensor"
+                  >
+                    <span className="text-xs">📸</span>
+                    <span>Nano-Pix RVG</span>
+                    {nanoPixStatus?.isConnected ? (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[8px] font-black bg-emerald-300 text-emerald-950 animate-pulse">
+                        ONLINE
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-slate-100 text-slate-500">
+                        USB
+                      </span>
+                    )}
+                  </button>
+
                   {/* Print & PDF Patient Odontogram Report Icon-only Button */}
                   <button
                     type="button"
@@ -10322,6 +10558,32 @@ export default function ChartPage() {
           </div>
         </div>
       )}
+
+      {/* Eighteeth Nano-Pix RVG Digital Intraoral X-Ray Studio */}
+      <NanoPixCaptureModal
+        isOpen={showNanoPixModal}
+        onClose={() => setShowNanoPixModal(false)}
+        patient={patient || { patientID: patientId, id: patientId, firstName: 'Current', lastName: 'Patient' }}
+        initialToothKey={nanoPixActiveTooth || (detailedTooth ? String(detailedTooth) : '19')}
+        onFindingAccepted={handleNanoPixFindingAccepted}
+        onApplyAllFindings={handleApplyNanoPixCompleteReport}
+        onXRaySaved={(savedScan) => {
+          console.log('✅ Nano-Pix RVG scan saved successfully:', savedScan);
+        }}
+      />
+
+      {/* Global Nano-Pix Patient Association Modal (when device connected outside chart) */}
+      <NanoPixPatientPromptModal
+        isOpen={showNanoPixPromptModal}
+        onClose={() => setShowNanoPixPromptModal(false)}
+        onSelectPatient={(p) => {
+          setShowNanoPixPromptModal(false);
+          const pid = p.patientID || p.id;
+          if (pid) {
+            navigate(`/chart/${pid}?nanopix=open`);
+          }
+        }}
+      />
 
       <Footer />
     </div>

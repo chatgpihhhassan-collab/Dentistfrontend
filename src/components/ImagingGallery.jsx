@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Eye, Filter, Calendar, Sparkles, HardDrive, Plus, X } from 'lucide-react';
 import { CameraCapturePanel } from './CameraCapturePanel';
+import NanoPixCaptureModal from './NanoPixCaptureModal';
+import nanoPixService from '../services/nanoPixDeviceService';
 
 export const ImagingGallery = ({ patientId, onSelectFindingForReview }) => {
   const [radiographs, setRadiographs] = useState([]);
@@ -8,6 +10,8 @@ export const ImagingGallery = ({ patientId, onSelectFindingForReview }) => {
   const [activeBrand, setActiveBrand] = useState('all');
   const [selectedItem, setSelectedItem] = useState(null);
   const [showCaptureModal, setShowCaptureModal] = useState(false);
+  const [showNanoPixModal, setShowNanoPixModal] = useState(false);
+  const [nanoPixStatus, setNanoPixStatus] = useState(() => nanoPixService.getStatus());
   const [loading, setLoading] = useState(true);
 
   const fetchImages = async () => {
@@ -29,6 +33,20 @@ export const ImagingGallery = ({ patientId, onSelectFindingForReview }) => {
   useEffect(() => {
     fetchImages();
   }, [patientId]);
+
+  // Listen to Eighteeth Nano-Pix Hardware Events
+  useEffect(() => {
+    const unsub1 = nanoPixService.subscribe('connected', (device) => {
+      setNanoPixStatus({ isConnected: true, deviceInfo: device });
+    });
+    const unsub2 = nanoPixService.subscribe('disconnected', () => {
+      setNanoPixStatus({ isConnected: false, deviceInfo: null });
+    });
+    return () => {
+      unsub1();
+      unsub2();
+    };
+  }, []);
 
   const filtered = radiographs.filter((r) => {
     if (activeModality !== 'all' && r.modality !== activeModality) return false;
@@ -58,6 +76,25 @@ export const ImagingGallery = ({ patientId, onSelectFindingForReview }) => {
             <option value="panoramic">Panoramic (OPG)</option>
             <option value="intraoral_photo">Intraoral Photo</option>
           </select>
+
+          {/* Eighteeth Nano-Pix RVG Capture Button */}
+          <button
+            onClick={() => setShowNanoPixModal(true)}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer ${
+              nanoPixStatus?.isConnected
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white animate-pulse'
+                : 'bg-[#E6F4F1] hover:bg-[#d5eee8] text-[#0B4F4A] border border-[#BCE3DB]'
+            }`}
+            title="Acquire intraoral X-ray via Eighteeth Nano-Pix USB Sensor"
+          >
+            <span className="text-sm">📸</span>
+            <span>Nano-Pix RVG</span>
+            {nanoPixStatus?.isConnected && (
+              <span className="px-1 py-0.2 bg-emerald-300 text-emerald-950 rounded text-[9px] font-extrabold">
+                ONLINE
+              </span>
+            )}
+          </button>
 
           <button
             onClick={() => setShowCaptureModal(true)}
@@ -163,6 +200,17 @@ export const ImagingGallery = ({ patientId, onSelectFindingForReview }) => {
           />
         </div>
       )}
+
+      {/* Eighteeth Nano-Pix RVG Acquisition Modal */}
+      <NanoPixCaptureModal
+        isOpen={showNanoPixModal}
+        onClose={() => setShowNanoPixModal(false)}
+        patient={{ patientID: patientId, id: patientId }}
+        initialToothKey="19"
+        onXRaySaved={() => {
+          fetchImages();
+        }}
+      />
     </div>
   );
 };
