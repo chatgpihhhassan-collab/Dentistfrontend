@@ -230,10 +230,18 @@ class NanoPixDeviceService {
     return () => this.off(event, callback);
   }
 
+  subscribe(event, callback) {
+    return this.on(event, callback);
+  }
+
   off(event, callback) {
     if (this.listeners.has(event)) {
       this.listeners.get(event).delete(callback);
     }
+  }
+
+  unsubscribe(event, callback) {
+    this.off(event, callback);
   }
 
   emit(event, data) {

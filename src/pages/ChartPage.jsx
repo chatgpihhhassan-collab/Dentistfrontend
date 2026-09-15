@@ -1686,19 +1686,31 @@ export default function ChartPage() {
     } catch (e) {}
 
     // 2. Hardware connection listener
-    const unsubConnect = nanoPixService.subscribe('connected', (device) => {
+    const connectHandler = (device) => {
       setNanoPixStatus({ isConnected: true, deviceInfo: device });
       console.log('⚡ [ChartPage] Eighteeth Nano-Pix Intraoral Sensor connected for patient:', patientId);
-    });
+    };
 
-    const unsubDisconnect = nanoPixService.subscribe('disconnected', () => {
+    const disconnectHandler = () => {
       setNanoPixStatus({ isConnected: false, deviceInfo: null });
       console.log('🔌 [ChartPage] Eighteeth Nano-Pix Intraoral Sensor disconnected');
-    });
+    };
+
+    const unsubConnect = typeof nanoPixService?.subscribe === 'function'
+      ? nanoPixService.subscribe('connected', connectHandler)
+      : typeof nanoPixService?.on === 'function'
+      ? nanoPixService.on('connected', connectHandler)
+      : () => {};
+
+    const unsubDisconnect = typeof nanoPixService?.subscribe === 'function'
+      ? nanoPixService.subscribe('disconnected', disconnectHandler)
+      : typeof nanoPixService?.on === 'function'
+      ? nanoPixService.on('disconnected', disconnectHandler)
+      : () => {};
 
     return () => {
-      unsubConnect();
-      unsubDisconnect();
+      if (typeof unsubConnect === 'function') unsubConnect();
+      if (typeof unsubDisconnect === 'function') unsubDisconnect();
     };
   }, [patientId]);
 

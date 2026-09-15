@@ -36,15 +36,28 @@ export const ImagingGallery = ({ patientId, onSelectFindingForReview }) => {
 
   // Listen to Eighteeth Nano-Pix Hardware Events
   useEffect(() => {
-    const unsub1 = nanoPixService.subscribe('connected', (device) => {
+    const connectHandler = (device) => {
       setNanoPixStatus({ isConnected: true, deviceInfo: device });
-    });
-    const unsub2 = nanoPixService.subscribe('disconnected', () => {
+    };
+    const disconnectHandler = () => {
       setNanoPixStatus({ isConnected: false, deviceInfo: null });
-    });
+    };
+
+    const unsub1 = typeof nanoPixService?.subscribe === 'function'
+      ? nanoPixService.subscribe('connected', connectHandler)
+      : typeof nanoPixService?.on === 'function'
+      ? nanoPixService.on('connected', connectHandler)
+      : () => {};
+
+    const unsub2 = typeof nanoPixService?.subscribe === 'function'
+      ? nanoPixService.subscribe('disconnected', disconnectHandler)
+      : typeof nanoPixService?.on === 'function'
+      ? nanoPixService.on('disconnected', disconnectHandler)
+      : () => {};
+
     return () => {
-      unsub1();
-      unsub2();
+      if (typeof unsub1 === 'function') unsub1();
+      if (typeof unsub2 === 'function') unsub2();
     };
   }, []);
 
