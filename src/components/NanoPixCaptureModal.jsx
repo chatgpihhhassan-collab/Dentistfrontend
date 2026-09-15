@@ -573,668 +573,482 @@ export const NanoPixCaptureModal = ({
   const capturedCount = ['front', 'left', 'right'].filter(k => !!seriesData[k].dataUrl).length;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh]">
-        
-        {/* HEADER */}
-        <div className="px-6 py-4 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400">
-              <Camera className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-extrabold text-white tracking-wide">
-                  Eighteeth Nano-Pix RVG Acquisition Studio
-                </h2>
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-teal-500/20 text-teal-300 border border-teal-500/40">
-                  Tri-Projection Survey (Front • Left • Right)
-                </span>
-              </div>
-              <p className="text-xs text-slate-400">
-                Eighteeth Nano-Pix 2 (25 lp/mm HD CMOS) • Multi-Angle Dental Darkroom
-              </p>
-            </div>
-          </div>
+    <div className="fixed inset-0 z-50 overflow-hidden">
+      {/* Translucent Backdrop over Chart */}
+      <div 
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300"
+        onClick={onClose}
+      />
 
-          {/* 🌟 LIVE HARDWARE CONNECTION HUD & 1-CLICK PAIRING 🌟 */}
-          <div className="flex items-center gap-2">
-            {sensorStatus.isConnected ? (
-              <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 shadow-md">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
-                </span>
-                <div className="text-left leading-tight">
-                  <div className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="text-white">Eighteeth Nano-Pix Online</span>
-                    <span className="text-[9px] px-1.5 py-0.2 bg-emerald-500/30 text-emerald-200 rounded font-mono font-bold">25 lp/mm</span>
+      {/* Slide-over Operatory Drawer (Right Edge) */}
+      <div className="fixed inset-y-0 right-0 max-w-full flex pl-6 sm:pl-10 z-50 pointer-events-none">
+        <div className="w-screen max-w-4xl lg:max-w-5xl bg-[#F8FAFC] border-l border-slate-200 shadow-2xl flex flex-col h-screen max-h-screen overflow-hidden pointer-events-auto animate-in slide-in-from-right duration-300">
+          
+          {/* DENTIA BRANDED OPERATORY HEADER */}
+          <div className="bg-gradient-to-r from-[#0B4F4A] via-[#105E57] to-[#136A63] text-white px-5 py-3 flex items-center justify-between border-b border-teal-800 shadow-xs shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-white/15 border border-white/25 flex items-center justify-center text-white">
+                <Camera className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-white tracking-tight">
+                    Eighteeth Nano-Pix RVG Operatory Studio
+                  </h2>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-teal-400/20 text-teal-200 border border-teal-400/30">
+                    Tri-Projection Survey
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-[11px] text-teal-100/90 font-medium">
+                  <span>Patient: <strong className="text-white">{patientName}</strong> (ID: #{patientId})</span>
+                </div>
+              </div>
+            </div>
+
+            {/* LIVE HARDWARE USB STATUS & CLOSE BUTTON */}
+            <div className="flex items-center gap-3">
+              {sensorStatus.isConnected ? (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-200">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
+                  </span>
+                  <div className="text-left">
+                    <div className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                      <span>Nano-Pix Online</span>
+                      <span className="text-[8.5px] px-1 py-0.2 bg-emerald-400/30 rounded font-mono font-bold">25 lp/mm</span>
+                    </div>
                   </div>
-                  <div className="text-[9px] text-emerald-400/80 font-medium">Sensor Armed • Ready for Exposure</div>
+                  <button
+                    onClick={() => nanoPixService.simulateDisconnect()}
+                    className="text-[9.5px] text-emerald-300 hover:text-white underline cursor-pointer ml-1"
+                    title="Disconnect Sensor"
+                  >
+                    Disconnect
+                  </button>
                 </div>
-                <button
-                  onClick={() => nanoPixService.simulateDisconnect()}
-                  className="ml-1 text-[10px] text-emerald-400/70 hover:text-emerald-200 underline cursor-pointer"
-                  title="Disconnect Sensor"
-                >
-                  Disconnect
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-300">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
-                <div className="text-left leading-tight">
-                  <div className="text-[10px] font-black uppercase tracking-wider text-amber-200">Nano-Pix USB Standby</div>
-                  <div className="text-[9px] text-amber-400/80">Connect USB or click to pair</div>
+              ) : (
+                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-amber-500/20 border border-amber-400/40 text-amber-200">
+                  <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                  <span className="text-[10px] font-bold">USB Standby</span>
+                  <button
+                    onClick={handleConnectSensor}
+                    className="ml-1 px-2 py-0.5 bg-amber-400 hover:bg-amber-300 text-slate-950 text-[10px] font-black rounded-lg cursor-pointer transition shadow-xs"
+                  >
+                    Connect
+                  </button>
                 </div>
-                <button
-                  onClick={handleConnectSensor}
-                  className="ml-1 px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-black rounded-lg cursor-pointer transition shadow"
-                  title="Pair Eighteeth USB Sensor"
-                >
-                  🔌 Connect USB
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* ACTIVE PATIENT SAFETY LOCK BADGE */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-3.5 py-1.5 bg-teal-950/60 border border-teal-600/40 rounded-xl">
-              <User className="w-4 h-4 text-teal-400" />
-              <div className="text-left">
-                <div className="text-[10px] uppercase font-bold text-teal-300">Active Patient Lock</div>
-                <div className="text-xs font-black text-white">{patientName} (ID: #{patientId})</div>
-              </div>
-            </div>
-
-            <button
-              onClick={onClose}
-              className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* 🌟 3-PROJECTION SELECTOR STRIP (FRONT, LEFT, RIGHT) 🌟 */}
-        <div className="px-6 py-2.5 bg-slate-950/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 mr-1">
-              Select Projection:
-            </span>
-
-            {/* 1. FRONT */}
-            <button
-              onClick={() => setActiveSlotKey('front')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 border cursor-pointer ${
-                activeSlotKey === 'front'
-                  ? 'bg-teal-500/20 border-teal-400 text-teal-300 shadow-md shadow-teal-950'
-                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-              }`}
-            >
-              <span className="w-2 h-2 rounded-full bg-teal-400" />
-              <span>1. Front (Anterior)</span>
-              {seriesData.front.dataUrl ? (
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-              ) : (
-                <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-500 font-mono">Empty</span>
               )}
-            </button>
 
-            {/* 2. LEFT */}
-            <button
-              onClick={() => setActiveSlotKey('left')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 border cursor-pointer ${
-                activeSlotKey === 'left'
-                  ? 'bg-teal-500/20 border-teal-400 text-teal-300 shadow-md shadow-teal-950'
-                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-              }`}
-            >
-              <span className="w-2 h-2 rounded-full bg-blue-400" />
-              <span>2. Left (Posterior)</span>
-              {seriesData.left.dataUrl ? (
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-              ) : (
-                <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-500 font-mono">Empty</span>
-              )}
-            </button>
-
-            {/* 3. RIGHT */}
-            <button
-              onClick={() => setActiveSlotKey('right')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 border cursor-pointer ${
-                activeSlotKey === 'right'
-                  ? 'bg-teal-500/20 border-teal-400 text-teal-300 shadow-md shadow-teal-950'
-                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-              }`}
-            >
-              <span className="w-2 h-2 rounded-full bg-indigo-400" />
-              <span>3. Right (Posterior)</span>
-              {seriesData.right.dataUrl ? (
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-              ) : (
-                <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-500 font-mono">Empty</span>
-              )}
-            </button>
-          </div>
-
-          {/* Quick Stats & Tools */}
-          <div className="flex items-center gap-2">
-            {/* 🧭 CAMERA TUBE HEAD ANGLE GUIDE TOGGLE BUTTON */}
-            <button
-              onClick={() => setShowAlignmentGuide(prev => !prev)}
-              className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border transition flex items-center gap-1.5 cursor-pointer ${
-                showAlignmentGuide
-                  ? 'bg-teal-500 text-slate-950 border-teal-400 shadow-md shadow-teal-950 font-black'
-                  : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-teal-300'
-              }`}
-              title="Show X-Ray Tube Head Direction & Sensor Placement Compass"
-            >
-              <Compass className="w-3.5 h-3.5" />
-              <span>{showAlignmentGuide ? 'Hide Camera Guide' : '🧭 Camera Angle Guide'}</span>
-            </button>
-
-            <span className="text-[11px] font-bold text-slate-400 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800">
-              Captured: <strong className="text-white">{capturedCount} / 3 Views</strong>
-            </span>
-
-            <button
-              onClick={handleSelectHotFolder}
-              className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border transition flex items-center gap-1.5 cursor-pointer ${
-                hotFolderActive
-                  ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300'
-                  : 'bg-slate-800 hover:bg-slate-750 border-slate-700 text-slate-300'
-              }`}
-              title="Auto-load exposure from Eighteeth Nano-Pix directory"
-            >
-              <FolderOpen className="w-3.5 h-3.5 text-teal-400" />
-              <span>{hotFolderActive ? `Watching: ${hotFolderName}` : 'Hot-Folder'}</span>
-            </button>
-
-            <div className="text-[10px] text-slate-400 border border-slate-800 bg-slate-900 px-2 py-1 rounded-lg flex items-center gap-1">
-              <Clipboard className="w-3 h-3 text-slate-500" />
-              <span>Ctrl+V</span>
+              <button
+                onClick={onClose}
+                className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-white/20"
+                title="Close Operatory Drawer and Return to Patient Chart"
+              >
+                <span>Close</span>
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </div>
-        </div>
 
-        {/* BODY CONTENT */}
-        <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* 3-PROJECTION SELECTOR STRIP (Zero Scroll, Clean Dentia UI) */}
+          <div className="px-5 py-2 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">
+                Projection:
+              </span>
 
-          {/* LEFT 7 COLUMNS: DARKROOM RADIOGRAPH VIEWPORT */}
-          <div className="lg:col-span-7 flex flex-col gap-4">
-            
-            {/* Optional Collapsible Camera Angle Guide Banner when an image is loaded */}
-            {currentDataUrl && showAlignmentGuide && (
-              <div className="mb-1">
-                <XRayAlignmentCompass 
-                  activeSlotKey={activeSlotKey} 
-                  selectedTooth={currentSlot.selectedTooth} 
-                  compact={false} 
-                />
-              </div>
-            )}
+              {/* 1. FRONT */}
+              <button
+                onClick={() => setActiveSlotKey('front')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
+                  activeSlotKey === 'front'
+                    ? 'bg-teal-50 text-[#0B4F4A] border-teal-500 shadow-xs ring-1 ring-teal-500/20'
+                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-teal-500" />
+                <span>1. Front (Anterior)</span>
+                {seriesData.front.dataUrl ? (
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                ) : (
+                  <span className="text-[9px] px-1 py-0.2 rounded bg-slate-200 text-slate-500 font-mono">Empty</span>
+                )}
+              </button>
 
-            {/* Viewport Frame */}
-            <div 
-              ref={dropZoneRef}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                const file = e.dataTransfer?.files[0];
-                if (file) processImageForActiveSlot(file);
-              }}
-              className={`relative bg-black rounded-2xl border-2 border-slate-800 overflow-hidden flex items-center justify-center group select-none ${
-                currentDataUrl ? 'aspect-4/3' : 'min-h-[460px] p-4 flex-col'
-              }`}
-            >
-              {currentDataUrl ? (
-                <div className="w-full h-full flex items-center justify-center overflow-hidden">
-                  <img
-                    src={currentDataUrl}
-                    alt={`Eighteeth Nano-Pix ${currentSlot.label}`}
-                    className="max-w-full max-h-full object-contain transition-transform duration-200"
-                    style={{
-                      transform: `scale(${zoomLevel})`,
-                      filter: `
-                        ${imageFilters.invert ? 'invert(1)' : 'none'} 
-                        contrast(${imageFilters.contrast}%) 
-                        brightness(${imageFilters.brightness}%)
-                        ${imageFilters.boneFilter ? 'contrast(160%) brightness(110%) grayscale(1)' : ''}
-                      `
-                    }}
-                  />
-                </div>
-              ) : (
-                /* Empty / Waiting for Exposure State with FULL Alignment Compass & Live Sensor Status */
-                <div className="w-full flex flex-col gap-3">
-                  
-                  {/* 1. Live Sensor Hardware Alert */}
-                  {sensorStatus.isConnected ? (
-                    <div className="bg-emerald-950/80 border border-emerald-500/50 rounded-xl p-3 flex items-center justify-between gap-3 text-emerald-300 shadow-md">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
-                          <span className="relative flex h-3 w-3">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-400"></span>
-                          </span>
-                        </div>
-                        <div>
-                          <div className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-2">
-                            <span>Eighteeth Nano-Pix Armed & Listening</span>
-                            <span className="px-1.5 py-0.2 rounded bg-emerald-500/30 text-emerald-200 text-[9px] font-mono">25 lp/mm HD</span>
-                          </div>
-                          <p className="text-[11px] text-emerald-300/90 leading-tight mt-0.5">
-                            Sensor is powered via USB. Position tube head as guided below and trigger your X-Ray machine switch.
-                          </p>
-                        </div>
-                      </div>
-                      <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/40 whitespace-nowrap">
-                        READY TO EXPOSE
+              {/* 2. LEFT */}
+              <button
+                onClick={() => setActiveSlotKey('left')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
+                  activeSlotKey === 'left'
+                    ? 'bg-teal-50 text-[#0B4F4A] border-teal-500 shadow-xs ring-1 ring-teal-500/20'
+                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-blue-500" />
+                <span>2. Left (Posterior)</span>
+                {seriesData.left.dataUrl ? (
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                ) : (
+                  <span className="text-[9px] px-1 py-0.2 rounded bg-slate-200 text-slate-500 font-mono">Empty</span>
+                )}
+              </button>
+
+              {/* 3. RIGHT */}
+              <button
+                onClick={() => setActiveSlotKey('right')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
+                  activeSlotKey === 'right'
+                    ? 'bg-teal-50 text-[#0B4F4A] border-teal-500 shadow-xs ring-1 ring-teal-500/20'
+                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                <span>3. Right (Posterior)</span>
+                {seriesData.right.dataUrl ? (
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                ) : (
+                  <span className="text-[9px] px-1 py-0.2 rounded bg-slate-200 text-slate-500 font-mono">Empty</span>
+                )}
+              </button>
+            </div>
+
+            {/* Quick Tools & Counter */}
+            <div className="flex items-center gap-2 text-xs">
+              <span className="font-semibold text-slate-600 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-[11px]">
+                Captured: <strong className="text-slate-900">{capturedCount} / 3 Views</strong>
+              </span>
+
+              <button
+                onClick={handleSelectHotFolder}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition flex items-center gap-1 cursor-pointer ${
+                  hotFolderActive
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                    : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+                }`}
+                title="Auto-load exposure from Eighteeth Nano-Pix directory"
+              >
+                <FolderOpen className="w-3.5 h-3.5 text-teal-600" />
+                <span>{hotFolderActive ? `Hot: ${hotFolderName}` : 'Hot-Folder'}</span>
+              </button>
+
+              <span className="text-[10px] text-slate-400 font-mono bg-slate-100 px-2 py-1 rounded border border-slate-200">
+                Ctrl+V
+              </span>
+            </div>
+          </div>
+
+          {/* MAIN OPERATORY WORKSPACE (Strict Zero-Scroll Flexbox) */}
+          <div className="flex-1 min-h-0 p-4 grid grid-cols-12 gap-4 overflow-hidden">
+
+            {/* LEFT 7 COLUMNS: RADIOGRAPH DARKROOM & ALIGNMENT */}
+            <div className="col-span-7 h-full flex flex-col justify-between overflow-hidden gap-3">
+              
+              {/* Radiograph Viewport */}
+              <div
+                ref={dropZoneRef}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer?.files[0];
+                  if (file) processImageForActiveSlot(file);
+                }}
+                className="flex-1 min-h-0 bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden relative flex items-center justify-center p-3 select-none"
+              >
+                {currentDataUrl ? (
+                  <div className="w-full h-full flex items-center justify-center overflow-hidden relative">
+                    <img
+                      src={currentDataUrl}
+                      alt={`Eighteeth Nano-Pix ${currentSlot.label}`}
+                      className="max-w-full max-h-full object-contain transition-transform duration-200"
+                      style={{
+                        transform: `scale(${zoomLevel})`,
+                        filter: `
+                          ${imageFilters.invert ? 'invert(1)' : 'none'} 
+                          contrast(${imageFilters.contrast}%) 
+                          brightness(${imageFilters.brightness}%)
+                          ${imageFilters.boneFilter ? 'contrast(160%) brightness(110%) grayscale(1)' : ''}
+                        `
+                      }}
+                    />
+
+                    {/* Viewport Overlay Tag */}
+                    <div className="absolute top-2.5 left-2.5 flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-md border border-slate-700 text-[10px] font-mono font-bold text-teal-300">
+                        {currentSlot.label.toUpperCase()} • #{currentSlot.selectedTooth}
                       </span>
                     </div>
-                  ) : (
-                    <div className="bg-slate-900/90 border border-amber-500/40 rounded-xl p-3 flex items-center justify-between gap-3 text-amber-300">
-                      <div className="flex items-center gap-2.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
-                        <div>
-                          <div className="text-xs font-black uppercase tracking-wider text-white">
-                            Eighteeth Nano-Pix in Standby
-                          </div>
-                          <p className="text-[11px] text-slate-400 leading-tight mt-0.5">
-                            Connect the USB cable to arm the sensor, or load/paste an existing X-Ray scan file.
-                          </p>
-                        </div>
-                      </div>
+
+                    {/* Zoom & Reset Tools */}
+                    <div className="absolute top-2.5 right-2.5 flex items-center gap-1 bg-black/70 backdrop-blur-md border border-slate-700 p-0.5 rounded-lg">
                       <button
-                        onClick={handleConnectSensor}
-                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl transition cursor-pointer shrink-0 shadow"
+                        onClick={() => setZoomLevel(prev => Math.min(prev + 0.25, 3))}
+                        className="p-1 text-slate-300 hover:text-white hover:bg-slate-800 rounded transition"
                       >
-                        🔌 Connect USB Sensor
+                        <ZoomIn className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="text-[10px] font-mono text-slate-400 px-1">{zoomLevel.toFixed(1)}x</span>
+                      <button
+                        onClick={() => setZoomLevel(prev => Math.max(prev - 0.25, 1))}
+                        className="p-1 text-slate-300 hover:text-white hover:bg-slate-800 rounded transition"
+                      >
+                        <ZoomOut className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setZoomLevel(1)}
+                        className="p-1 text-slate-300 hover:text-white hover:bg-slate-800 rounded transition"
+                      >
+                        <RotateCcw className="w-3 h-3" />
                       </button>
                     </div>
-                  )}
-
-                  {/* 2. Full X-Ray Tube Head & Beam Direction Compass */}
-                  <XRayAlignmentCompass 
-                    activeSlotKey={activeSlotKey} 
-                    selectedTooth={currentSlot.selectedTooth} 
-                    compact={false} 
-                  />
-
-                  {/* 3. Image Trigger / Upload bar */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-950/80 border border-slate-800 rounded-xl">
-                    <div className="text-[11px] text-slate-400">
-                      Take exposure with sensor, drop scan file here, or paste with <kbd className="px-1.5 py-0.5 bg-slate-800 rounded text-slate-300 font-mono text-[10px]">Ctrl+V</kbd>
-                    </div>
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-3.5 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-teal-900/30 cursor-pointer"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>Select {currentSlot.label} Scan</span>
-                    </button>
                   </div>
-
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*,.dcm,.tif,.tiff,.bmp"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        processImageForActiveSlot(e.target.files[0]);
-                      }
-                    }}
-                    className="hidden"
-                  />
-
-                </div>
-              )}
-
-              {/* Viewport Overlay Badges */}
-              {currentDataUrl && (
-                <>
-                  <div className="absolute top-3 left-3 flex items-center gap-2">
-                    <span className="px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur-md border border-slate-700/80 text-[10px] font-mono font-bold text-teal-300">
-                      {currentSlot.label.toUpperCase()} • TOOTH #{currentSlot.selectedTooth}
-                    </span>
-                  </div>
-
-                  <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/70 backdrop-blur-md border border-slate-700/80 p-1 rounded-xl">
-                    <button
-                      onClick={() => setZoomLevel(prev => Math.min(prev + 0.25, 3))}
-                      className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition"
-                      title="Zoom In"
-                    >
-                      <ZoomIn className="w-4 h-4" />
-                    </button>
-                    <span className="text-[10px] font-mono text-slate-400 px-1">{zoomLevel.toFixed(1)}x</span>
-                    <button
-                      onClick={() => setZoomLevel(prev => Math.max(prev - 0.25, 1))}
-                      className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition"
-                      title="Zoom Out"
-                    >
-                      <ZoomOut className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setZoomLevel(1)}
-                      className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition"
-                      title="Reset Zoom"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* 3-THUMBNAIL COMPARISON STRIP */}
-            <div className="grid grid-cols-3 gap-3">
-              {['front', 'left', 'right'].map((key) => {
-                const slot = seriesData[key];
-                const isActive = activeSlotKey === key;
-                return (
-                  <div
-                    key={key}
-                    onClick={() => setActiveSlotKey(key)}
-                    className={`p-2.5 rounded-2xl border transition cursor-pointer flex items-center gap-3 ${
-                      isActive 
-                        ? 'bg-slate-900 border-teal-500 shadow-md shadow-teal-950/60'
-                        : 'bg-slate-950/70 border-slate-800 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-black border border-slate-800 overflow-hidden flex items-center justify-center shrink-0">
-                      {slot.dataUrl ? (
-                        <img 
-                          src={slot.dataUrl} 
-                          alt={slot.label} 
-                          className="w-full h-full object-cover invert" 
-                        />
-                      ) : (
-                        <Camera className="w-4 h-4 text-slate-600" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-bold text-white truncate flex items-center gap-1.5">
-                        <span>{slot.label}</span>
-                        {slot.dataUrl && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                ) : (
+                  /* Waiting for Exposure State (Zero-scroll, Compact Alignment Compass) */
+                  <div className="w-full h-full flex flex-col justify-between max-w-lg mx-auto py-1">
+                    
+                    {/* Live Sensor Readiness */}
+                    {sensorStatus.isConnected ? (
+                      <div className="bg-emerald-950/70 border border-emerald-500/40 rounded-xl px-3 py-2 flex items-center justify-between text-emerald-300">
+                        <div className="flex items-center gap-2">
+                          <span className="relative flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
+                          </span>
+                          <span className="text-xs font-bold">Eighteeth Nano-Pix Armed & Ready</span>
+                        </div>
+                        <span className="text-[10px] text-emerald-400 font-mono">Press X-Ray Switch</span>
                       </div>
-                      <div className="text-[10px] text-slate-400 truncate">
-                        {slot.dataUrl ? `${slot.findings.length} findings` : 'Pending'}
+                    ) : (
+                      <div className="bg-slate-900 border border-amber-500/30 rounded-xl px-3 py-2 flex items-center justify-between text-amber-300">
+                        <div className="flex items-center gap-2 text-xs font-bold">
+                          <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                          <span>Sensor in Standby</span>
+                        </div>
+                        <button
+                          onClick={handleConnectSensor}
+                          className="px-2.5 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-bold rounded cursor-pointer transition shadow-xs"
+                        >
+                          🔌 Connect USB
+                        </button>
                       </div>
+                    )}
+
+                    {/* Compact Visual X-Ray Tube Head Compass (No Paragraphs) */}
+                    <XRayAlignmentCompass 
+                      activeSlotKey={activeSlotKey} 
+                      selectedTooth={currentSlot.selectedTooth} 
+                    />
+
+                    {/* Trigger / File Input */}
+                    <div className="flex items-center justify-between bg-slate-900/80 border border-slate-800 rounded-xl px-3 py-2 text-xs">
+                      <span className="text-slate-400 text-[11px]">
+                        Drop scan file here or paste with <kbd className="px-1 py-0.2 bg-slate-800 rounded text-slate-300 font-mono text-[9.5px]">Ctrl+V</kbd>
+                      </span>
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-lg transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Select Scan</span>
+                      </button>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
 
-            {/* Darkroom Image Controls */}
-            {currentDataUrl && (
-              <div className="bg-slate-950 border border-slate-800 p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setImageFilters(prev => ({ ...prev, invert: !prev.invert }))}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border cursor-pointer ${
-                      imageFilters.invert
-                        ? 'bg-teal-500/20 border-teal-500/50 text-teal-300'
-                        : 'bg-slate-800 border-slate-700 text-slate-300'
-                    }`}
-                  >
-                    Negative Invert
-                  </button>
-
-                  <button
-                    onClick={() => setImageFilters(prev => ({ ...prev, boneFilter: !prev.boneFilter }))}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border cursor-pointer ${
-                      imageFilters.boneFilter
-                        ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
-                        : 'bg-slate-800 border-slate-700 text-slate-300'
-                    }`}
-                  >
-                    Bone Sharpening
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-3 text-xs text-slate-400">
-                  <div className="flex items-center gap-1.5">
-                    <span>Contrast</span>
                     <input
-                      type="range"
-                      min="80"
-                      max="200"
-                      value={imageFilters.contrast}
-                      onChange={(e) => setImageFilters(prev => ({ ...prev, contrast: Number(e.target.value) }))}
-                      className="w-16 accent-teal-500 cursor-pointer"
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*,.dcm,.tif,.tiff,.bmp"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          processImageForActiveSlot(e.target.files[0]);
+                        }
+                      }}
+                      className="hidden"
                     />
+
                   </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <span>Brightness</span>
-                    <input
-                      type="range"
-                      min="70"
-                      max="150"
-                      value={imageFilters.brightness}
-                      onChange={(e) => setImageFilters(prev => ({ ...prev, brightness: Number(e.target.value) }))}
-                      className="w-16 accent-teal-500 cursor-pointer"
-                    />
-                  </div>
-
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="ml-2 text-xs text-teal-400 hover:text-teal-300 font-bold flex items-center gap-1 cursor-pointer"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    <span>Replace</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-          </div>
-
-          {/* RIGHT 5 COLUMNS: CLINICAL SELECTIONS & AI VISION FINDINGS */}
-          <div className="lg:col-span-5 flex flex-col gap-4">
-
-            {/* TOOTH SELECTOR PANEL FOR CURRENT PROJECTION */}
-            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                  {currentSlot.label} Focus Tooth
-                </span>
-                <span className="text-[10px] text-teal-400 font-mono">
-                  Primary: #{currentSlot.selectedTooth}
-                </span>
+                )}
               </div>
 
-              {/* Mini Tube Head Guidance Pill */}
-              <div className="flex items-center justify-between text-[10px] font-mono bg-slate-900 px-2.5 py-1.5 rounded-lg border border-slate-800 mb-2.5">
-                <span className="text-amber-400 font-bold truncate">
-                  🧭 Aim: {PROJECTION_ALIGNMENT_SPECS[activeSlotKey]?.beamDirection.split('(')[0].trim()}
-                </span>
-                <span className="text-teal-400 font-bold truncate">
-                  📐 Tilt: {PROJECTION_ALIGNMENT_SPECS[activeSlotKey]?.verticalAngle.split('•')[0].trim()}
-                </span>
-              </div>
-
-              {/* Tooth Picker (Grid) */}
-              <div className="grid grid-cols-8 gap-1 mb-2">
-                {Array.from({ length: 32 }, (_, i) => String(i + 1)).map(tNum => {
-                  const isSuggested = currentSlot.targetTeeth.includes(tNum);
-                  const isSelected = currentSlot.selectedTooth === tNum;
+              {/* 3-Thumbnail Strip (Clean White Cards) */}
+              <div className="grid grid-cols-3 gap-2 shrink-0">
+                {['front', 'left', 'right'].map((key) => {
+                  const slot = seriesData[key];
+                  const isActive = activeSlotKey === key;
                   return (
-                    <button
-                      key={tNum}
-                      onClick={() => updateCurrentSlot({ selectedTooth: tNum })}
-                      className={`h-7 rounded-lg text-[11px] font-black transition cursor-pointer ${
-                        isSelected
-                          ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20 scale-105'
-                          : isSuggested
-                          ? 'bg-slate-800 hover:bg-slate-700 text-teal-300 border border-teal-500/30'
-                          : 'bg-slate-900 hover:bg-slate-800 text-slate-500 hover:text-slate-300 border border-slate-800/60'
+                    <div
+                      key={key}
+                      onClick={() => setActiveSlotKey(key)}
+                      className={`p-2 rounded-xl border transition cursor-pointer flex items-center gap-2.5 ${
+                        isActive 
+                          ? 'bg-white border-teal-500 ring-2 ring-teal-500/20 shadow-xs'
+                          : 'bg-white/80 border-slate-200 hover:border-slate-300'
                       }`}
-                      title={`Tooth #${tNum} (${isSuggested ? `Suggested for ${currentSlot.label}` : 'Other sector'})`}
                     >
-                      {tNum}
-                    </button>
+                      <div className="w-10 h-10 rounded-lg bg-black border border-slate-800 overflow-hidden flex items-center justify-center shrink-0">
+                        {slot.dataUrl ? (
+                          <img src={slot.dataUrl} alt={slot.label} className="w-full h-full object-cover invert" />
+                        ) : (
+                          <Camera className="w-3.5 h-3.5 text-slate-600" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold text-slate-800 truncate flex items-center gap-1">
+                          <span>{slot.label}</span>
+                          {slot.dataUrl && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
+                        </div>
+                        <div className="text-[10px] text-slate-500 truncate">
+                          {slot.dataUrl ? `${slot.findings.length} findings` : 'Pending'}
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
 
-              <p className="text-[10px] text-slate-400">
-                Teeth highlighted in teal correspond to {currentSlot.sublabel}.
-              </p>
             </div>
 
-            {/* AI DIAGNOSTIC FINDINGS PANEL */}
-            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex-1 flex flex-col">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800/80 mb-3">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-teal-400" />
-                  <h4 className="text-xs font-black text-white uppercase tracking-wider">
-                    {currentSlot.label} AI Diagnosis
-                  </h4>
-                </div>
-                {currentSlot.isAnalyzing && (
-                  <span className="flex items-center gap-1.5 text-[10px] font-bold text-teal-400 animate-pulse">
-                    <RefreshCw className="w-3 h-3 animate-spin" />
-                    Analyzing with Gemini Vision...
+            {/* RIGHT 5 COLUMNS: FOCUS TOOTH & AI FINDINGS (Dentia Clean Medical Card) */}
+            <div className="col-span-5 h-full flex flex-col justify-between overflow-hidden bg-white border border-slate-200 rounded-2xl p-3.5 shadow-xs">
+              
+              {/* Top: Focus Tooth Grid */}
+              <div className="shrink-0 pb-2.5 border-b border-slate-100">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    {currentSlot.label} Focus Tooth
                   </span>
-                )}
+                  <span className="text-[10px] text-[#0B4F4A] font-bold bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
+                    Target: #{currentSlot.selectedTooth}
+                  </span>
+                </div>
+
+                {/* 32-Tooth Grid */}
+                <div className="grid grid-cols-8 gap-1">
+                  {Array.from({ length: 32 }, (_, i) => String(i + 1)).map(tNum => {
+                    const isSuggested = currentSlot.targetTeeth.includes(tNum);
+                    const isSelected = currentSlot.selectedTooth === tNum;
+                    return (
+                      <button
+                        key={tNum}
+                        onClick={() => updateCurrentSlot({ selectedTooth: tNum })}
+                        className={`h-6 rounded text-[10.5px] font-bold transition cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#0B4F4A] text-white shadow-xs font-black'
+                            : isSuggested
+                            ? 'bg-teal-50 hover:bg-teal-100 text-[#0B4F4A] border border-teal-200 font-semibold'
+                            : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border border-slate-100'
+                        }`}
+                        title={`Tooth #${tNum}`}
+                      >
+                        {tNum}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Content Area */}
-              {currentSlot.isAnalyzing ? (
-                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-3">
-                  <div className="w-12 h-12 rounded-2xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400 animate-spin">
-                    <Sparkles className="w-6 h-6" />
+              {/* Middle: AI Findings List (Internal Scroll Only) */}
+              <div className="flex-1 min-h-0 overflow-y-auto py-2 pr-1 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                    <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+                    <span>{currentSlot.label} AI Diagnosis</span>
                   </div>
-                  <p className="text-xs font-extrabold text-white">Running Gemini Vision AI Analysis...</p>
-                  <p className="text-[11px] text-slate-400 max-w-xs leading-relaxed">
-                    Analyzing intraoral bone structure and root pathology for {currentSlot.label} (Tooth #{currentSlot.selectedTooth}).
-                  </p>
+                  {currentSlot.isAnalyzing && (
+                    <span className="text-[10px] font-bold text-teal-600 animate-pulse flex items-center gap-1">
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                      Analyzing...
+                    </span>
+                  )}
                 </div>
-              ) : currentSlot.findings.length > 0 ? (
-                <div className="space-y-3 flex-1 flex flex-col justify-between overflow-y-auto pr-1">
-                  
-                  {/* Findings List */}
-                  <div className="space-y-2.5">
+
+                {currentSlot.isAnalyzing ? (
+                  <div className="p-6 text-center text-slate-500 space-y-2">
+                    <div className="w-8 h-8 rounded-full bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-700 mx-auto animate-spin">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <p className="text-xs font-bold text-slate-700">Evaluating bone & root pathology...</p>
+                  </div>
+                ) : currentSlot.findings.length > 0 ? (
+                  <div className="space-y-1.5">
                     {currentSlot.findings.map((f, idx) => (
-                      <div 
-                        key={idx}
-                        className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex flex-col gap-1.5"
-                      >
+                      <div key={idx} className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs flex flex-col gap-1">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span 
-                              className="w-3 h-3 rounded-full shrink-0" 
-                              style={{ backgroundColor: f.color || '#EF4444' }}
-                            />
-                            <span className="text-xs font-black text-white">
-                              Tooth #{f.toothNumber}: {f.condition}
-                            </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: f.color || '#EF4444' }} />
+                            <strong className="text-slate-900">Tooth #{f.toothNumber}: {f.condition}</strong>
                           </div>
-                          <span className="px-2 py-0.5 rounded-md bg-teal-500/10 border border-teal-500/30 text-[10px] font-mono font-bold text-teal-300">
-                            {f.confidence || 94}% Confidence
+                          <span className="text-[9.5px] font-mono text-teal-700 bg-teal-50 px-1.5 py-0.2 rounded border border-teal-200 font-bold">
+                            {f.confidence || 94}%
                           </span>
                         </div>
-
-                        <div className="text-[11px] text-slate-300 leading-relaxed pl-5">
-                          {f.severity && <p className="text-slate-400">Severity: <span className="text-slate-200">{f.severity}</span></p>}
-                          {f.procedure && (
-                            <p className="text-teal-400/90 font-bold mt-0.5">
-                              Recommended: {f.procedure}
-                            </p>
-                          )}
-                        </div>
+                        {f.procedure && (
+                          <div className="text-[10.5px] text-[#0B4F4A] font-medium pl-4">
+                            Indications: {f.procedure}
+                          </div>
+                        )}
                       </div>
                     ))}
 
-                    {/* SOAP Notes Preview */}
+                    {/* SOAP Note snippet */}
                     {currentSlot.soapNotes && (
-                      <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] space-y-1">
-                        <div className="font-bold text-slate-300 uppercase tracking-wider text-[10px] flex items-center gap-1 mb-1">
-                          <FileText className="w-3 h-3 text-teal-400" />
-                          <span>{currentSlot.label} SOAP Note</span>
-                        </div>
-                        <p className="text-slate-400"><strong className="text-slate-300">A (Assessment):</strong> {currentSlot.soapNotes.assessment}</p>
-                        <p className="text-slate-400"><strong className="text-slate-300">P (Plan):</strong> {currentSlot.soapNotes.plan}</p>
+                      <div className="p-2.5 rounded-xl bg-teal-50/50 border border-teal-200/60 text-[10.5px] text-slate-600 space-y-0.5">
+                        <p><strong className="text-slate-800">Assessment:</strong> {currentSlot.soapNotes.assessment}</p>
+                        <p><strong className="text-slate-800">Plan:</strong> {currentSlot.soapNotes.plan}</p>
                       </div>
                     )}
                   </div>
-
-                  {/* MASTER ACTION BUTTON: APPLY ALL 3 PROJECTIONS TO CHART */}
-                  <div className="pt-3 border-t border-slate-800 flex flex-col gap-2">
-                    <button
-                      disabled={isApplying || appliedSuccess}
-                      onClick={handleApplyAllSeriesToPatient}
-                      className={`w-full py-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-lg cursor-pointer ${
-                        appliedSuccess
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-slate-950 shadow-teal-900/30'
-                      }`}
-                    >
-                      {isApplying ? (
-                        <>
-                          <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
-                          <span>Synchronizing All 3 Projections to Chart & Notes...</span>
-                        </>
-                      ) : appliedSuccess ? (
-                        <>
-                          <Check className="w-4 h-4 text-white" />
-                          <span>Tri-Projection Survey Applied to Chart & Notes!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-4 h-4 text-slate-950" />
-                          <span>Apply All 3 Projections to Chart & Records</span>
-                        </>
-                      )}
-                    </button>
-
-                    <button
-                      onClick={handleDownloadPdf}
-                      className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Download Tri-Projection PDF Report</span>
-                    </button>
+                ) : (
+                  <div className="p-6 text-center text-slate-400 space-y-1">
+                    <Sparkles className="w-6 h-6 mx-auto text-slate-300" />
+                    <p className="text-xs font-semibold text-slate-500">No {currentSlot.label} Scan Loaded</p>
+                    <p className="text-[10.5px] text-slate-400">Capture an intraoral radiograph to generate AI diagnosis.</p>
                   </div>
+                )}
+              </div>
 
-                </div>
-              ) : (
-                /* Empty state when this slot has no exposure yet */
-                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-slate-500 space-y-2">
-                  <Sparkles className="w-8 h-8 text-slate-600" />
-                  <p className="text-xs font-bold text-slate-400">No {currentSlot.label} Scan Loaded</p>
-                  <p className="text-[11px] max-w-xs leading-relaxed">
-                    Take an intraoral exposure for {currentSlot.label} or paste an image (Ctrl+V) to trigger automated AI diagnostic analysis.
-                  </p>
-                </div>
-              )}
+              {/* Bottom: Action Buttons (Dentia Theme) */}
+              <div className="shrink-0 pt-2 border-t border-slate-100 flex flex-col gap-2">
+                <button
+                  disabled={isApplying || appliedSuccess}
+                  onClick={handleApplyAllSeriesToPatient}
+                  className={`w-full py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer ${
+                    appliedSuccess
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-gradient-to-r from-[#0B4F4A] via-[#105E57] to-[#136A63] hover:from-[#083c38] hover:to-[#0f544e] text-white shadow-teal-900/10'
+                  }`}
+                >
+                  {isApplying ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Synchronizing to Chart & Notes...</span>
+                    </>
+                  ) : appliedSuccess ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-white" />
+                      <span>Survey Applied to Chart & Notes!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Apply Tri-Projection Survey to Chart</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={handleDownloadPdf}
+                  className="w-full py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-semibold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Tri-Projection PDF Report</span>
+                </button>
+              </div>
 
             </div>
 
           </div>
 
         </div>
-
-        {/* FOOTER */}
-        <div className="px-6 py-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-            <span>Eighteeth Nano-Pix 2 • Tri-Projection Survey Enabled (Front • Left • Right)</span>
-          </div>
-
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition cursor-pointer"
-          >
-            Close Studio
-          </button>
-        </div>
-
       </div>
     </div>
   );
