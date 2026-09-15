@@ -227,6 +227,7 @@ export default function PatientAppointments() {
                 procedures: editingProcedures.map(p => ({
                     procedureCode: p.procedureCode,
                     procedureName: p.procedureName,
+                    fee: Number(p.price) || 0,
                     price: Number(p.price) || 0
                 })),
                 notes: editingNotes
