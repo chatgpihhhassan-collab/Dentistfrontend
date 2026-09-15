@@ -30,6 +30,8 @@ export default function PatientPortalLayout() {
     const [userDropdownOpen, setUserDropdownOpen] = useState(false);
     const [notificationsOpen, setNotificationsOpen] = useState(false);
 
+    const isOdontogram = location.pathname.startsWith('/portal/odontogram');
+
     const patient = JSON.parse(localStorage.getItem('patient') || '{}');
     const patientName = (patient.firstName && patient.lastName) 
         ? `${patient.firstName} ${patient.lastName}` 
@@ -233,135 +235,146 @@ export default function PatientPortalLayout() {
             {/* Main Application Shell Area */}
             <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
                 {/* Top Header matching Dentia theme */}
-                <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md px-6 sm:px-10 py-5 flex items-center justify-between border-b border-light-teal shadow-xs">
-                    <div className="flex items-center gap-4">
-                        {/* Mobile Toggle */}
-                        <button
-                            onClick={() => setMobileMenuOpen(true)}
-                            className="lg:hidden p-2 rounded-xl bg-white border border-light-teal text-dark-slate shadow-xs"
-                        >
-                            <Menu className="w-5 h-5" />
-                        </button>
-
-                        {/* Greeting Text */}
-                        <div>
-                            <h1 className="text-xl sm:text-2xl font-serif font-black text-dark-slate tracking-tight">
-                                {getGreeting()}, {patientName}!
-                            </h1>
-                            <p className="text-xs text-muted-text font-medium">
-                                Welcome to your personal Dentia dental workspace and clinical records.
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Right Header Controls: Notification Bell, Mail, Profile */}
-                    <div className="flex items-center gap-3 sm:gap-4">
-                        {/* Notification Bell */}
-                        <div className="relative">
+                {!isOdontogram ? (
+                    <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md px-6 sm:px-10 py-5 flex items-center justify-between border-b border-light-teal shadow-xs">
+                        <div className="flex items-center gap-4">
+                            {/* Mobile Toggle */}
                             <button
-                                onClick={() => setNotificationsOpen(!notificationsOpen)}
-                                className="w-10 h-10 rounded-2xl bg-white border border-light-teal flex items-center justify-center text-muted-text hover:text-dark-slate hover:shadow-sm transition-all shadow-xs relative cursor-pointer"
+                                onClick={() => setMobileMenuOpen(true)}
+                                className="lg:hidden p-2 rounded-xl bg-white border border-light-teal text-dark-slate shadow-xs"
                             >
-                                <Bell className="w-4 h-4 text-muted-text" />
-                                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary-teal ring-2 ring-white" />
+                                <Menu className="w-5 h-5" />
                             </button>
 
-                            {/* Notifications Dropdown */}
-                            {notificationsOpen && (
-                                <div className="absolute right-0 mt-3 w-80 bg-white rounded-3xl p-4 shadow-xl border border-light-teal z-50 animate-in fade-in zoom-in-95">
-                                    <div className="flex items-center justify-between pb-3 border-b border-light-teal">
-                                        <h4 className="text-xs font-black text-dark-slate">Clinical Alerts</h4>
-                                        <span className="text-[10px] font-bold text-primary-teal">Active</span>
-                                    </div>
-                                    <div className="mt-3 space-y-2">
-                                        <div className="p-3 bg-light-teal/60 rounded-2xl flex items-start gap-2.5">
-                                            <Clock className="w-4 h-4 text-primary-teal shrink-0 mt-0.5" />
-                                            <div>
-                                                <p className="text-xs font-bold text-dark-slate">Patient Portal Active</p>
-                                                <p className="text-[11px] text-muted-text mt-0.5">Ref #{patient.referenceNumber || 'DEN-2026-00001'} verified with clinic database.</p>
+                            {/* Greeting Text */}
+                            <div>
+                                <h1 className="text-xl sm:text-2xl font-serif font-black text-dark-slate tracking-tight">
+                                    {getGreeting()}, {patientName}!
+                                </h1>
+                                <p className="text-xs text-muted-text font-medium">
+                                    Welcome to your personal Dentia dental workspace and clinical records.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Right Header Controls: Notification Bell, Mail, Profile */}
+                        <div className="flex items-center gap-3 sm:gap-4">
+                            {/* Notification Bell */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setNotificationsOpen(!notificationsOpen)}
+                                    className="w-10 h-10 rounded-2xl bg-white border border-light-teal flex items-center justify-center text-muted-text hover:text-dark-slate hover:shadow-sm transition-all shadow-xs relative cursor-pointer"
+                                >
+                                    <Bell className="w-4 h-4 text-muted-text" />
+                                    <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary-teal ring-2 ring-white" />
+                                </button>
+
+                                {/* Notifications Dropdown */}
+                                {notificationsOpen && (
+                                    <div className="absolute right-0 mt-3 w-80 bg-white rounded-3xl p-4 shadow-xl border border-light-teal z-50 animate-in fade-in zoom-in-95">
+                                        <div className="flex items-center justify-between pb-3 border-b border-light-teal">
+                                            <h4 className="text-xs font-black text-dark-slate">Clinical Alerts</h4>
+                                            <span className="text-[10px] font-bold text-primary-teal">Active</span>
+                                        </div>
+                                        <div className="mt-3 space-y-2">
+                                            <div className="p-3 bg-light-teal/60 rounded-2xl flex items-start gap-2.5">
+                                                <Clock className="w-4 h-4 text-primary-teal shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="text-xs font-bold text-dark-slate">Patient Portal Active</p>
+                                                    <p className="text-[11px] text-muted-text mt-0.5">Ref #{patient.referenceNumber || 'DEN-2026-00001'} verified with clinic database.</p>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            )}
-                        </div>
+                                )}
+                            </div>
 
-                        {/* Reports / Messages Icon */}
-                        <Link
-                            to="/portal/reports"
-                            className="w-10 h-10 rounded-2xl bg-white border border-light-teal flex items-center justify-center text-muted-text hover:text-dark-slate hover:shadow-sm transition-all shadow-xs"
-                            title="Clinical Reports & Prescriptions"
-                        >
-                            <Mail className="w-4 h-4" />
-                        </Link>
-
-                        {/* Profile Pill Dropdown */}
-                        <div className="relative">
-                            <button
-                                onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                                className="flex items-center gap-3 p-1.5 pr-3.5 bg-white border border-light-teal rounded-2xl shadow-xs hover:shadow-sm transition-all cursor-pointer"
+                            {/* Reports / Messages Icon */}
+                            <Link
+                                to="/portal/reports"
+                                className="w-10 h-10 rounded-2xl bg-white border border-light-teal flex items-center justify-center text-muted-text hover:text-dark-slate hover:shadow-sm transition-all shadow-xs"
+                                title="Clinical Reports & Prescriptions"
                             >
-                                {avatarUrl ? (
-                                    <img
-                                        src={avatarUrl}
-                                        alt={patientName}
-                                        className="w-8 h-8 rounded-full object-cover ring-2 ring-primary-teal/30"
-                                    />
-                                ) : (
-                                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary-teal to-dark-slate flex items-center justify-center text-white font-serif font-black text-xs shadow-xs">
-                                        {patient.firstName ? patient.firstName[0].toUpperCase() : 'P'}
+                                <Mail className="w-4 h-4" />
+                            </Link>
+
+                            {/* Profile Pill Dropdown */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                                    className="flex items-center gap-2.5 p-1.5 sm:px-3 sm:py-2 bg-white hover:bg-light-teal/40 rounded-2xl border border-light-teal shadow-xs transition-all cursor-pointer"
+                                >
+                                    {avatarUrl ? (
+                                        <img
+                                            src={avatarUrl}
+                                            alt={patientName}
+                                            className="w-8 h-8 rounded-xl object-cover ring-2 ring-primary-teal/20"
+                                        />
+                                    ) : (
+                                        <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-primary-teal to-primary-hover flex items-center justify-center text-white font-bold text-xs shadow-xs">
+                                            {patientName.charAt(0)}
+                                        </div>
+                                    )}
+                                    <div className="hidden sm:block text-left">
+                                        <p className="text-xs font-bold text-dark-slate leading-tight">{patientName}</p>
+                                        <p className="text-[10px] text-muted-text font-medium">Patient</p>
+                                    </div>
+                                    <ChevronDown className="w-3.5 h-3.5 text-muted-text hidden sm:block ml-1" />
+                                </button>
+
+                                {userDropdownOpen && (
+                                    <div className="absolute right-0 mt-3 w-56 bg-white rounded-2xl p-2 shadow-xl border border-light-teal z-50 animate-in fade-in zoom-in-95">
+                                        <Link
+                                            to="/portal/dashboard"
+                                            onClick={() => setUserDropdownOpen(false)}
+                                            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-muted-text hover:text-dark-slate hover:bg-light-teal/60"
+                                        >
+                                            <Home className="w-3.5 h-3.5 text-primary-teal" />
+                                            <span>Dashboard</span>
+                                        </Link>
+                                        <Link
+                                            to="/portal/appointments"
+                                            onClick={() => setUserDropdownOpen(false)}
+                                            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-muted-text hover:text-dark-slate hover:bg-light-teal/60"
+                                        >
+                                            <Calendar className="w-3.5 h-3.5 text-primary-teal" />
+                                            <span>My Appointments</span>
+                                        </Link>
+                                        <div className="my-1 border-t border-light-teal" />
+                                        <button
+                                            onClick={handleLogout}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
+                                        >
+                                            <LogOut className="w-3.5 h-3.5" />
+                                            <span>Log Out</span>
+                                        </button>
                                     </div>
                                 )}
-                                <div className="hidden sm:block text-left">
-                                    <span className="block text-xs font-extrabold text-dark-slate leading-tight">
-                                        {patientName}
-                                    </span>
-                                    <span className="block text-[10px] font-mono text-primary-teal font-bold leading-none">
-                                        {patient.referenceNumber || 'DEN-PATIENT'}
-                                    </span>
-                                </div>
-                                <ChevronDown className="w-3.5 h-3.5 text-muted-text" />
-                            </button>
-
-                            {/* User Menu Dropdown */}
-                            {userDropdownOpen && (
-                                <div className="absolute right-0 mt-3 w-56 bg-white rounded-3xl p-3 shadow-xl border border-light-teal z-50 animate-in fade-in zoom-in-95">
-                                    <div className="px-3 py-2 border-b border-light-teal mb-2">
-                                        <p className="text-xs font-extrabold text-dark-slate truncate">{patientName}</p>
-                                        <p className="text-[10px] font-mono text-muted-text">{patient.referenceNumber || 'DEN-2026-00001'}</p>
-                                    </div>
-                                    <Link
-                                        to="/portal/billing"
-                                        onClick={() => setUserDropdownOpen(false)}
-                                        className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-muted-text hover:text-dark-slate hover:bg-light-teal/60"
-                                    >
-                                        <CreditCard className="w-3.5 h-3.5 text-primary-teal" />
-                                        <span>My Invoices</span>
-                                    </Link>
-                                    <Link
-                                        to="/portal/appointments"
-                                        onClick={() => setUserDropdownOpen(false)}
-                                        className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-muted-text hover:text-dark-slate hover:bg-light-teal/60"
-                                    >
-                                        <Calendar className="w-3.5 h-3.5 text-primary-teal" />
-                                        <span>My Appointments</span>
-                                    </Link>
-                                    <div className="my-1 border-t border-light-teal" />
-                                    <button
-                                        onClick={handleLogout}
-                                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
-                                    >
-                                        <LogOut className="w-3.5 h-3.5" />
-                                        <span>Log Out</span>
-                                    </button>
-                                </div>
-                            )}
+                            </div>
                         </div>
+                    </header>
+                ) : (
+                    /* Minimal Mobile-Only Bar for Odontogram page */
+                    <div className="lg:hidden sticky top-0 z-20 bg-white/95 backdrop-blur-md px-4 py-2.5 flex items-center justify-between border-b border-light-teal shadow-xs">
+                        <button
+                            onClick={() => setMobileMenuOpen(true)}
+                            className="p-1.5 rounded-xl bg-white border border-light-teal text-dark-slate shadow-xs"
+                        >
+                            <Menu className="w-4 h-4" />
+                        </button>
+                        <span className="text-xs font-serif font-black text-dark-slate">DENTIA PORTAL</span>
+                        <button
+                            onClick={handleLogout}
+                            className="p-1.5 rounded-xl text-rose-600 hover:bg-rose-50"
+                            title="Sign Out"
+                        >
+                            <LogOut className="w-3.5 h-3.5" />
+                        </button>
                     </div>
-                </header>
+                )}
 
                 {/* Main Dynamic View Content */}
-                <main className="flex-1 p-5 sm:p-8 lg:p-10 max-w-[1700px] w-full mx-auto">
+                <main className={isOdontogram ? "flex-1 p-2 sm:p-3 lg:p-3.5 max-w-[1700px] w-full mx-auto" : "flex-1 p-5 sm:p-8 lg:p-10 max-w-[1700px] w-full mx-auto"}>
                     <Outlet />
                 </main>
             </div>
