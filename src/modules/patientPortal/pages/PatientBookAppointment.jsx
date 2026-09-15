@@ -118,7 +118,7 @@ export default function PatientBookAppointment() {
     const [doctorProcedures, setDoctorProcedures] = useState([]);
     const [loadingProcedures, setLoadingProcedures] = useState(false);
     const [doctorCurrency, setDoctorCurrency] = useState('NZD');
-    const [selectedServiceId, setSelectedServiceId] = useState('');
+    const [selectedProcedureKeys, setSelectedProcedureKeys] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [procedureSearch, setProcedureSearch] = useState('');
 
@@ -288,10 +288,13 @@ export default function PatientBookAppointment() {
 
                         // If procedure list loaded, auto-select first or keep existing
                         if (procs.length > 0) {
-                            const found = procs.find(p => (p.procedureCode || p.procedureName) === selectedServiceId);
-                            if (!found) {
-                                setSelectedServiceId(procs[0].procedureCode || procs[0].procedureName);
-                            }
+                            setSelectedProcedureKeys(prev => {
+                                if (prev.length > 0) {
+                                    const valid = prev.filter(k => procs.some(p => (p.procedureCode || p.procedureName) === k));
+                                    return valid.length > 0 ? valid : [procs[0].procedureCode || procs[0].procedureName];
+                                }
+                                return [procs[0].procedureCode || procs[0].procedureName];
+                            });
                         }
                     }
                 } else {
@@ -299,7 +302,7 @@ export default function PatientBookAppointment() {
                     if (isMounted) {
                         setDoctorCurrency(isPk ? 'PKR' : 'NZD');
                         setDoctorProcedures(fallbackServices);
-                        setSelectedServiceId(fallbackServices[0].procedureCode);
+                        setSelectedProcedureKeys([fallbackServices[0].procedureCode]);
                     }
                 }
             } catch (err) {
@@ -307,7 +310,7 @@ export default function PatientBookAppointment() {
                 if (isMounted) {
                     setDoctorCurrency(isPk ? 'PKR' : 'NZD');
                     setDoctorProcedures(fallbackServices);
-                    setSelectedServiceId(fallbackServices[0].procedureCode);
+                    setSelectedProcedureKeys([fallbackServices[0].procedureCode]);
                 }
             } finally {
                 if (isMounted) setLoadingProcedures(false);
@@ -345,6 +348,35 @@ export default function PatientBookAppointment() {
         return list;
     }, [activeProcedures, selectedCategory, procedureSearch]);
 
+    // Toggle a procedure in the multi-select set
+    const toggleProcedure = (proc) => {
+        const key = proc.procedureCode || proc.procedureName;
+        setSelectedProcedureKeys(prev => {
+            if (prev.includes(key)) {
+                return prev.filter(k => k !== key);
+            } else {
+                return [...prev, key];
+            }
+        });
+        setError('');
+    };
+
+    // Derived selected procedures list
+    const selectedProceduresList = useMemo(() => {
+        return activeProcedures.filter(p => selectedProcedureKeys.includes(p.procedureCode || p.procedureName));
+    }, [activeProcedures, selectedProcedureKeys]);
+
+    // Aggregated Fee & Summary names
+    const totalConsultationFee = useMemo(() => {
+        if (selectedProceduresList.length === 0) return 0;
+        return selectedProceduresList.reduce((sum, p) => sum + Number(p.standardFee || p.fee || 85.00), 0);
+    }, [selectedProceduresList]);
+
+    const combinedProceduresName = useMemo(() => {
+        if (selectedProceduresList.length === 0) return 'Dental Consultation';
+        return selectedProceduresList.map(p => p.procedureName || p.label).join(', ');
+    }, [selectedProceduresList]);
+
     // Current selected doctor & procedure objects
     const currentDoctor = doctors.find(d => d.id === selectedDoctorId) || doctors[0] || { 
         id: selectedDoctorId || 2, 
@@ -352,13 +384,10 @@ export default function PatientBookAppointment() {
         title: 'Consultant Dental Surgeon' 
     };
 
-    const currentProcedure = activeProcedures.find(p => (p.procedureCode || p.procedureName) === selectedServiceId) 
-        || activeProcedures[0] 
-        || fallbackServices[0];
-
-    const procedureFee = Number(currentProcedure?.standardFee || currentProcedure?.fee || 85.00);
-    const procedureName = currentProcedure?.procedureName || currentProcedure?.label || 'Dental Consultation';
-    const procedureCode = currentProcedure?.procedureCode || '';
+    const currentProcedure = selectedProceduresList[0] || activeProcedures[0] || fallbackServices[0];
+    const procedureFee = totalConsultationFee > 0 ? totalConsultationFee : Number(currentProcedure?.standardFee || currentProcedure?.fee || 85.00);
+    const procedureName = combinedProceduresName;
+    const procedureCode = selectedProceduresList.map(p => p.procedureCode).filter(Boolean).join(', ');
 
     // Currency Formatter
     const formatCurrency = (amount, curr) => {
@@ -404,8 +433,8 @@ export default function PatientBookAppointment() {
             }
         }
         if (currentStep === 2) {
-            if (!selectedServiceId) {
-                setError('Please select a dental procedure or treatment plan.');
+            if (selectedProceduresList.length === 0) {
+                setError('Please select at least one dental treatment procedure.');
                 return;
             }
         }
@@ -489,7 +518,14 @@ export default function PatientBookAppointment() {
                 consultationFee: procedureFee,
                 currency: chosenCurrency,
                 cardLast4: paymentMethod === 'Online_Card' ? rawCard.slice(-4) : null,
-                cardHolderName: paymentMethod === 'Online_Card' ? cardHolder.trim() : null
+                cardHolderName: paymentMethod === 'Online_Card' ? cardHolder.trim() : null,
+                procedures: selectedProceduresList.map(p => ({
+                    procedureCode: p.procedureCode || '',
+                    procedureName: p.procedureName || p.label || 'Dental Treatment',
+                    fee: Number(p.standardFee || p.fee || 85.00),
+                    category: p.category || 'General',
+                    quantity: 1
+                }))
             };
 
             let res;
@@ -533,6 +569,7 @@ export default function PatientBookAppointment() {
                     currency: data.currency || chosenCurrency || doctorCurrency,
                     dateTime: combinedDateTime,
                     service: procedureName,
+                    procedures: selectedProceduresList,
                     doctor: currentDoctor.name,
                     message: data.message || 'Appointment and payment entry recorded successfully.'
                 });
@@ -641,6 +678,33 @@ export default function PatientBookAppointment() {
                                 </p>
                             </div>
                         </div>
+
+                        {/* Booked Procedures Itemized List */}
+                        {bookingSuccess.procedures && bookingSuccess.procedures.length > 0 && (
+                            <div className="p-3 bg-white rounded-xl border border-light-teal space-y-1.5">
+                                <div className="flex items-center justify-between border-b border-light-teal/60 pb-1 text-[10px] font-bold text-muted-text uppercase tracking-wider">
+                                    <span>Selected Procedures ({bookingSuccess.procedures.length})</span>
+                                    <span>Fee</span>
+                                </div>
+                                <div className="space-y-1">
+                                    {bookingSuccess.procedures.map((p, i) => (
+                                        <div key={i} className="flex items-center justify-between text-xs py-0.5">
+                                            <span className="font-medium text-dark-slate flex items-center gap-1.5">
+                                                {p.procedureCode && (
+                                                    <span className="font-mono text-[9px] font-bold text-primary-teal bg-teal-50 px-1 py-0.2 rounded border border-teal-200">
+                                                        {p.procedureCode}
+                                                    </span>
+                                                )}
+                                                <span>{p.procedureName || p.label}</span>
+                                            </span>
+                                            <span className="font-mono font-bold text-dark-slate">
+                                                {formatCurrency(p.fee || p.standardFee || 85, bookingSuccess.currency)}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         <div className="flex items-center justify-between text-[11px] text-muted-text pt-1">
                             <div className="flex items-center gap-1.5">
@@ -951,6 +1015,64 @@ export default function PatientBookAppointment() {
                             </div>
                         </div>
 
+                        {/* Selected Treatments Summary Tray (Multi-treatment indicator) */}
+                        {selectedProceduresList.length > 0 && (
+                            <div className="p-3 bg-teal-50/70 border border-teal-200 rounded-2xl space-y-2 animate-in fade-in">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-primary-teal animate-pulse" />
+                                        <span className="text-xs font-bold text-dark-slate">
+                                            Selected Treatments ({selectedProceduresList.length})
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-mono font-black text-primary-hover">
+                                            Total: {formatCurrency(totalConsultationFee, doctorCurrency)}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedProcedureKeys([])}
+                                            className="text-[10px] font-bold text-rose-500 hover:text-rose-700 cursor-pointer ml-1"
+                                        >
+                                            Clear All
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto scrollbar-thin">
+                                    {selectedProceduresList.map((proc) => {
+                                        const key = proc.procedureCode || proc.procedureName;
+                                        return (
+                                            <span
+                                                key={key}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-teal-200/80 rounded-xl text-[11px] font-bold text-dark-slate shadow-2xs"
+                                            >
+                                                {proc.procedureCode && (
+                                                    <span className="px-1 py-0.2 bg-teal-50 text-primary-teal font-mono text-[9px] rounded">
+                                                        {proc.procedureCode}
+                                                    </span>
+                                                )}
+                                                <span className="truncate max-w-[170px]">{proc.procedureName || proc.label}</span>
+                                                <span className="font-mono text-primary-teal font-bold">
+                                                    {formatCurrency(Number(proc.standardFee || proc.fee || 85), doctorCurrency)}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        toggleProcedure(proc);
+                                                    }}
+                                                    className="text-slate-400 hover:text-rose-600 ml-0.5 cursor-pointer font-bold text-xs"
+                                                    title="Remove treatment"
+                                                >
+                                                    ×
+                                                </button>
+                                            </span>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Procedures Grid (Scrollable container to maintain zero-page scroll) */}
                         {loadingProcedures ? (
                             <div className="p-8 text-center bg-warm-cream/30 rounded-2xl border border-light-teal/60 flex flex-col items-center justify-center gap-2">
@@ -966,20 +1088,17 @@ export default function PatientBookAppointment() {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                     {filteredProcedures.map((proc) => {
                                         const pId = proc.procedureCode || proc.procedureName;
-                                        const isSelected = selectedServiceId === pId;
+                                        const isSelected = selectedProcedureKeys.includes(pId);
                                         const fee = Number(proc.standardFee || proc.fee || 85.00);
                                         const badgeClass = categoryBadgeColors[proc.category] || 'bg-slate-100 text-slate-700 border-slate-300';
 
                                         return (
                                             <div
                                                 key={pId}
-                                                onClick={() => {
-                                                    setSelectedServiceId(pId);
-                                                    setError('');
-                                                }}
+                                                onClick={() => toggleProcedure(proc)}
                                                 className={`p-3 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between text-left relative ${
                                                     isSelected
-                                                        ? 'border-primary-teal bg-light-teal/40 shadow-xs ring-1 ring-primary-teal/40'
+                                                        ? 'border-primary-teal bg-teal-50/50 shadow-xs ring-2 ring-primary-teal/30 scale-[1.008]'
                                                         : 'border-light-teal/80 hover:border-primary-teal/40 bg-white hover:bg-warm-cream/40'
                                                 }`}
                                             >
@@ -1014,11 +1133,13 @@ export default function PatientBookAppointment() {
                                                     <span>Est. {proc.estimatedDuration || '45 mins'}</span>
                                                     <div className="flex items-center gap-1">
                                                         {isSelected ? (
-                                                            <span className="font-bold text-primary-teal flex items-center gap-1">
-                                                                Selected <Check className="w-3 h-3 stroke-[3]" />
+                                                            <span className="font-bold text-primary-teal flex items-center gap-1 bg-white px-2 py-0.5 rounded-md border border-primary-teal/30 shadow-2xs">
+                                                                <Check className="w-3 h-3 stroke-[3]" /> Added to Plan
                                                             </span>
                                                         ) : (
-                                                            <span className="text-slate-400 group-hover:text-dark-slate">Select</span>
+                                                            <span className="text-slate-400 hover:text-dark-slate flex items-center gap-0.5">
+                                                                + Add Treatment
+                                                            </span>
                                                         )}
                                                     </div>
                                                 </div>
@@ -1230,18 +1351,50 @@ export default function PatientBookAppointment() {
                 {currentStep === 4 && (
                     <div className="space-y-4 animate-in fade-in">
                         
-                        {/* Summary Bar */}
-                        <div className="p-3 bg-warm-cream rounded-2xl border border-light-teal flex flex-wrap items-center justify-between gap-2 text-xs">
+                        {/* Summary Header */}
+                        <div className="p-3.5 bg-warm-cream rounded-2xl border border-light-teal flex flex-wrap items-center justify-between gap-2 text-xs">
                             <div className="flex items-center gap-2">
-                                <span className="font-bold text-dark-slate">{procedureName}</span>
-                                <span className="text-muted-text">with</span>
-                                <span className="font-bold text-primary-teal">{currentDoctor.name}</span>
+                                <span className="font-bold text-dark-slate">{currentDoctor.name}</span>
+                                <span className="text-muted-text">({currentDoctor.title})</span>
                             </div>
                             <div className="flex items-center gap-2 font-mono">
                                 <span className="text-muted-text">{preferredDate} at {preferredTime}</span>
-                                <span className="px-2.5 py-0.5 rounded-full bg-light-teal text-primary-hover font-black">
-                                    {formatCurrency(procedureFee, doctorCurrency)}
+                            </div>
+                        </div>
+
+                        {/* Itemized Treatment Plan Breakdown */}
+                        <div className="bg-white rounded-2xl border border-light-teal p-3.5 space-y-2.5">
+                            <div className="flex items-center justify-between border-b border-light-teal pb-2">
+                                <div className="flex items-center gap-1.5">
+                                    <Sparkles className="w-3.5 h-3.5 text-primary-teal" />
+                                    <span className="text-[11px] font-bold text-dark-slate uppercase tracking-wider">
+                                        Selected Treatments ({selectedProceduresList.length})
+                                    </span>
+                                </div>
+                                <span className="text-[11px] font-mono font-bold text-primary-teal">
+                                    {doctorCurrency} Fee Schedule
                                 </span>
+                            </div>
+                            <div className="space-y-2 max-h-36 overflow-y-auto pr-1 scrollbar-thin">
+                                {selectedProceduresList.map((proc, idx) => (
+                                    <div key={idx} className="flex items-center justify-between text-xs py-1 border-b border-dashed border-light-teal/60 last:border-0">
+                                        <div className="flex items-center gap-2">
+                                            {proc.procedureCode && (
+                                                <span className="px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-mono font-bold text-dark-slate">
+                                                    {proc.procedureCode}
+                                                </span>
+                                            )}
+                                            <span className="font-semibold text-dark-slate">{proc.procedureName || proc.label}</span>
+                                        </div>
+                                        <span className="font-mono font-bold text-dark-slate">
+                                            {formatCurrency(Number(proc.standardFee || proc.fee || 85), doctorCurrency)}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="pt-2 border-t border-light-teal flex items-center justify-between text-xs font-black">
+                                <span className="text-dark-slate">Total Consultation Fee</span>
+                                <span className="text-base font-mono text-primary-hover">{formatCurrency(totalConsultationFee, doctorCurrency)}</span>
                             </div>
                         </div>
 

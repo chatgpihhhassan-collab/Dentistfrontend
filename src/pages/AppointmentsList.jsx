@@ -86,6 +86,15 @@ export const APPOINTMENT_REASONS = [
     'Surgery'
 ];
 
+// Helper: Format Regional Clinic Currency
+const formatPrice = (amount, currency = 'NZD') => {
+    const num = Number(amount) || 0;
+    if (currency === 'PKR') {
+        return `Rs ${num.toLocaleString('en-PK')}`;
+    }
+    return `$${num.toFixed(2)}`;
+};
+
 export default function AppointmentsList() {
     const navigate = useNavigate();
     const [appointments, setAppointments] = useState([]);
@@ -1291,6 +1300,26 @@ export default function AppointmentsList() {
                                                             </p>
                                                         )}
 
+                                                        {/* Itemized Treatments / Fee Breakdown */}
+                                                        {apt.items && apt.items.length > 0 && (
+                                                            <div className="flex flex-wrap gap-1 mt-1.5">
+                                                                {apt.items.map((item, idx) => (
+                                                                    <span key={idx} className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-blue-50 text-[#4A7CD2] font-mono text-[9.5px]">
+                                                                        {item.procedureCode}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+
+                                                        {apt.totalAmount != null && (
+                                                            <div className="flex items-center justify-between mt-1 text-[10.5px]">
+                                                                <span className="text-slate-400 font-medium">Fee Balance:</span>
+                                                                <span className="font-mono font-bold text-[#4A7CD2]">
+                                                                    {formatPrice(apt.totalAmount, apt.currency || (apt.doctorID === 2 ? 'PKR' : 'NZD'))}
+                                                                </span>
+                                                            </div>
+                                                        )}
+
                                                         <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-[11px]">
                                                             <span className="text-slate-500 font-medium truncate max-w-[130px]">{apt.phone || apt.email || 'No phone'}</span>
                                                             
@@ -1362,6 +1391,11 @@ export default function AppointmentsList() {
                                                         <div>
                                                             <span className="text-xs font-bold text-slate-900 block">{apt.fullName}</span>
                                                             <span className="text-[10px] text-slate-500 block">{apt.reason || apt.Reason || 'Consultation'}</span>
+                                                            {apt.totalAmount != null && (
+                                                                <span className="text-[10px] font-mono font-bold text-[#4A7CD2] block">
+                                                                    {formatPrice(apt.totalAmount, apt.currency || (apt.doctorID === 2 ? 'PKR' : 'NZD'))}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         {getStatusBadge(apt.status)}
                                                     </div>
@@ -1423,7 +1457,24 @@ export default function AppointmentsList() {
                                                     {formatDate(apt.preferredDate)}
                                                 </td>
                                                 <td className="py-4 px-6 text-slate-600">
-                                                    {apt.reason || apt.Reason || 'Consultation'}
+                                                    <div>{apt.reason || apt.Reason || 'Consultation'}</div>
+                                                    {apt.items && apt.items.length > 0 && (
+                                                        <div className="flex flex-wrap gap-1 mt-1">
+                                                            {apt.items.slice(0, 3).map((item, idx) => (
+                                                                <span key={idx} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-blue-50 text-[#4A7CD2] font-mono">
+                                                                    {item.procedureCode}: {formatPrice(item.unitPrice, apt.currency || (apt.doctorID === 2 ? 'PKR' : 'NZD'))}
+                                                                </span>
+                                                            ))}
+                                                            {apt.items.length > 3 && (
+                                                                <span className="text-[10px] text-slate-400 font-bold">+{apt.items.length - 3} more</span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    {apt.totalAmount != null && (
+                                                        <div className="text-[11px] font-mono font-bold text-slate-700 mt-0.5">
+                                                            Total: {formatPrice(apt.totalAmount, apt.currency || (apt.doctorID === 2 ? 'PKR' : 'NZD'))}
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td className="py-4 px-6">
                                                     {getStatusBadge(apt.status)}
@@ -1577,9 +1628,72 @@ export default function AppointmentsList() {
                                 <span>{getStatusBadge(selectedAppointment.status)}</span>
                             </div>
                             <div className="flex justify-between py-2 border-b border-slate-100">
-                                <span className="text-slate-500">Clinical Reason</span>
+                                <span className="text-slate-500">Clinical Reason / Notes</span>
                                 <span className="font-bold text-slate-800 max-w-[250px] text-right">{selectedAppointment.reason || selectedAppointment.Reason || 'Consultation'}</span>
                             </div>
+                        </div>
+
+                        {/* Selected Clinical Treatments & Fee Schedule */}
+                        <div className="space-y-2 pt-2 border-t border-slate-100">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                    <Stethoscope className="w-3.5 h-3.5 text-[#4A7CD2]" />
+                                    Selected Treatments ({selectedAppointment.items?.length || (selectedAppointment.totalAmount ? 1 : 0)})
+                                </span>
+                                {selectedAppointment.totalAmount != null && (
+                                    <span className="text-xs font-mono font-bold text-[#4A7CD2]">
+                                        Total: {formatPrice(selectedAppointment.totalAmount, selectedAppointment.currency || (selectedAppointment.doctorID === 2 ? 'PKR' : 'NZD'))}
+                                    </span>
+                                )}
+                            </div>
+
+                            {selectedAppointment.items && selectedAppointment.items.length > 0 ? (
+                                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                                    {selectedAppointment.items.map((item, idx) => (
+                                        <div key={idx} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+                                            <div className="flex items-center gap-2 overflow-hidden">
+                                                <span className="px-1.5 py-0.5 rounded bg-blue-100 text-[#4A7CD2] font-mono font-bold text-[10px] shrink-0">
+                                                    {item.procedureCode || 'PRC'}
+                                                </span>
+                                                <span className="font-semibold text-slate-800 truncate">{item.description}</span>
+                                            </div>
+                                            <span className="font-mono font-bold text-slate-700 shrink-0 ml-2">
+                                                {formatPrice(item.unitPrice, selectedAppointment.currency || (selectedAppointment.doctorID === 2 ? 'PKR' : 'NZD'))}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-600 flex justify-between items-center">
+                                    <span>{selectedAppointment.reason || 'General Consultation'}</span>
+                                    {selectedAppointment.totalAmount != null && (
+                                        <span className="font-mono font-bold text-slate-700">
+                                            {formatPrice(selectedAppointment.totalAmount, selectedAppointment.currency || (selectedAppointment.doctorID === 2 ? 'PKR' : 'NZD'))}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Invoice Details if available */}
+                            {(selectedAppointment.invoiceNumber || selectedAppointment.invoiceStatus) && (
+                                <div className="flex items-center justify-between pt-1 text-[11px] text-slate-500">
+                                    {selectedAppointment.invoiceNumber && (
+                                        <span>Invoice: <strong className="font-mono text-slate-700">#{selectedAppointment.invoiceNumber}</strong></span>
+                                    )}
+                                    {selectedAppointment.invoiceStatus && (
+                                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                                            selectedAppointment.invoiceStatus === 'Paid' 
+                                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                                                : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                        }`}>
+                                            Invoice: {selectedAppointment.invoiceStatus}
+                                        </span>
+                                    )}
+                                    {selectedAppointment.paymentMethod && (
+                                        <span>Method: <strong className="text-slate-700">{selectedAppointment.paymentMethod}</strong></span>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {/* Action Buttons */}
