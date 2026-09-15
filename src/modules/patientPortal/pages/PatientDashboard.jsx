@@ -201,6 +201,20 @@ export default function PatientDashboard() {
     const activeRxCount = dashboardData?.healthSummary?.activePrescriptionsCount ?? 0;
     const totalBalance = dashboardData?.billing?.totalBalance ?? (invoicesList.filter(i => i.status !== 'Paid' && i.status !== 'Cancelled').reduce((acc, i) => acc + (i.balanceAmount || 0), 0));
 
+    // Dynamic multi-currency detection and formatter
+    const activeCurrency = invoicesList[0]?.currency || dashboardData?.billing?.currency || (appointmentsList[0]?.doctorID === 2 ? 'PKR' : 'NZD');
+    const formatCurrency = (amount, currency = activeCurrency) => {
+        const curr = (currency || activeCurrency || 'NZD').toUpperCase();
+        const val = Number(amount || 0);
+        if (curr === 'PKR') {
+            return `Rs ${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        }
+        if (curr === 'GBP') return `£${val.toFixed(2)}`;
+        if (curr === 'EUR') return `€${val.toFixed(2)}`;
+        if (curr === 'USD') return `$${val.toFixed(2)} USD`;
+        return `$${val.toFixed(2)} ${curr}`;
+    };
+
     // Dynamic oral indices based on live anatomy
     const periodontalScore = Math.min(100, Math.max(75, Math.round((healthyCount / 32) * 20 + 78)));
     const oralHealthIndex = Math.min(100, Math.max(70, Math.round(96 - (plannedCount * 4))));
@@ -710,7 +724,7 @@ export default function PatientDashboard() {
                                 <div>
                                     <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Outstanding Balance</p>
                                     <p className="text-2xl font-serif font-black text-dark-slate mt-0.5">
-                                        ${Number(totalBalance || 0).toFixed(2)} <span className="text-xs font-sans text-muted-text font-bold">NZD</span>
+                                        {formatCurrency(totalBalance, activeCurrency)}
                                     </p>
                                 </div>
                                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${

@@ -28,6 +28,20 @@ export default function DualPaymentModal({ isOpen, invoice, onClose, onPaymentSu
     if (!isOpen || !invoice) return null;
 
     const patient = JSON.parse(localStorage.getItem('patient') || '{}');
+    const curr = (invoice.currency || 'NZD').toUpperCase();
+    const currSymbol = curr === 'PKR' ? 'Rs' : (curr === 'GBP' ? '£' : (curr === 'EUR' ? '€' : '$'));
+
+    const formatCurrency = (val, currency = curr) => {
+        const c = (currency || curr || 'NZD').toUpperCase();
+        const num = Number(val || 0);
+        if (c === 'PKR') {
+            return `Rs ${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        }
+        if (c === 'GBP') return `£${num.toFixed(2)}`;
+        if (c === 'EUR') return `€${num.toFixed(2)}`;
+        if (c === 'USD') return `$${num.toFixed(2)} USD`;
+        return `$${num.toFixed(2)} ${c}`;
+    };
 
     const handleProcessPayment = async (e) => {
         e.preventDefault();
@@ -138,12 +152,12 @@ export default function DualPaymentModal({ isOpen, invoice, onClose, onPaymentSu
                         </div>
                         <div>
                             <h3 className="text-lg font-serif font-black text-dark-slate">Settle Dental Invoice</h3>
-                            <p className="text-xs text-muted-text">Invoice #{invoice.invoiceNumber} • Balance Due: ${(invoice.balanceAmount || invoice.totalAmount).toFixed(2)} NZD</p>
+                            <p className="text-xs text-muted-text">Invoice #{invoice.invoiceNumber} • Balance Due: {formatCurrency(invoice.balanceAmount || invoice.totalAmount, curr)}</p>
                         </div>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2 rounded-xl text-muted-text hover:text-dark-slate hover:bg-slate-100 transition-colors"
+                        className="p-2 rounded-xl text-muted-text hover:text-dark-slate hover:bg-slate-100 transition-colors cursor-pointer"
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -160,7 +174,7 @@ export default function DualPaymentModal({ isOpen, invoice, onClose, onPaymentSu
                             <div className="space-y-2">
                                 <h4 className="text-2xl font-serif font-black text-dark-slate">Payment Successful!</h4>
                                 <p className="text-xs text-muted-text max-w-sm mx-auto">
-                                    Your dental treatment balance of <span className="font-bold text-dark-slate">${paymentResult.amount.toFixed(2)} NZD</span> has been settled online.
+                                    Your dental treatment balance of <span className="font-bold text-dark-slate">{formatCurrency(paymentResult.amount, curr)}</span> has been settled online.
                                 </p>
 
                                 <div className="p-4 rounded-2xl bg-warm-cream/70 border border-light-teal text-xs text-left font-mono space-y-1.5 mt-4">
@@ -196,7 +210,7 @@ export default function DualPaymentModal({ isOpen, invoice, onClose, onPaymentSu
                                     </p>
                                     <div className="flex items-center justify-center gap-2 text-xs text-amber-900">
                                         <span>Amount Due at Desk:</span>
-                                        <span className="font-bold text-base">${paymentResult.amount.toFixed(2)} NZD</span>
+                                        <span className="font-bold text-base">{formatCurrency(paymentResult.amount, curr)}</span>
                                     </div>
                                     <p className="text-[11px] text-amber-800 leading-relaxed border-t border-amber-200/80 pt-2">
                                         Your invoice status is marked as <span className="font-bold">Pending Cash Settlement</span> and will automatically update to Paid once received by the receptionist.
@@ -208,14 +222,14 @@ export default function DualPaymentModal({ isOpen, invoice, onClose, onPaymentSu
                         <div className="pt-2 flex items-center justify-center gap-3">
                             <button
                                 onClick={() => window.print()}
-                                className="px-4 py-2.5 rounded-xl border border-light-teal text-xs font-bold text-dark-slate hover:bg-light-teal/50 transition-colors flex items-center gap-1.5"
+                                className="px-4 py-2.5 rounded-xl border border-light-teal text-xs font-bold text-dark-slate hover:bg-light-teal/50 transition-colors flex items-center gap-1.5 cursor-pointer"
                             >
                                 <Printer className="w-4 h-4 text-primary-teal" />
                                 <span>Print Slip</span>
                             </button>
                             <button
                                 onClick={onClose}
-                                className="px-6 py-2.5 rounded-xl bg-primary-teal text-white text-xs font-bold hover:bg-primary-hover transition-colors shadow-sm"
+                                className="px-6 py-2.5 rounded-xl bg-primary-teal text-white text-xs font-bold hover:bg-primary-hover transition-colors shadow-sm cursor-pointer"
                             >
                                 Done
                             </button>
@@ -237,7 +251,7 @@ export default function DualPaymentModal({ isOpen, invoice, onClose, onPaymentSu
                             <button
                                 type="button"
                                 onClick={() => setPaymentMethod('card')}
-                                className={`py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                                className={`py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                                     paymentMethod === 'card'
                                         ? 'bg-white text-dark-slate shadow-sm'
                                         : 'text-muted-text hover:text-dark-slate'
@@ -250,7 +264,7 @@ export default function DualPaymentModal({ isOpen, invoice, onClose, onPaymentSu
                             <button
                                 type="button"
                                 onClick={() => setPaymentMethod('cash')}
-                                className={`py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                                className={`py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                                     paymentMethod === 'cash'
                                         ? 'bg-white text-dark-slate shadow-sm'
                                         : 'text-muted-text hover:text-dark-slate'
@@ -263,9 +277,9 @@ export default function DualPaymentModal({ isOpen, invoice, onClose, onPaymentSu
 
                         {/* Amount */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-dark-slate">Payment Amount (NZD)</label>
+                            <label className="text-xs font-bold text-dark-slate">Payment Amount ({curr})</label>
                             <div className="relative">
-                                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-muted-text font-bold">$</span>
+                                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-muted-text font-bold text-xs">{currSymbol}</span>
                                 <input
                                     type="number"
                                     step="0.01"

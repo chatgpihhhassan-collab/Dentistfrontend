@@ -256,6 +256,10 @@ export default function PatientBookAppointment() {
         if (!selectedDoctorId) return;
         let isMounted = true;
 
+        const targetDoc = doctors.find(d => d.id === selectedDoctorId);
+        const isPk = selectedDoctorId === 2 || targetDoc?.region === 'PK';
+        setDoctorCurrency(isPk ? 'PKR' : 'NZD');
+
         const loadDoctorFeeSchedule = async () => {
             try {
                 setLoadingProcedures(true);
@@ -279,7 +283,7 @@ export default function PatientBookAppointment() {
                     if (isMounted) {
                         const procs = (data.procedures || []).filter(p => p.isActive !== false);
                         setDoctorProcedures(procs);
-                        const curr = data.currency || (data.region === 'PK' ? 'PKR' : 'NZD');
+                        const curr = data.currency || (data.region === 'PK' || isPk ? 'PKR' : 'NZD');
                         setDoctorCurrency(curr);
 
                         // If procedure list loaded, auto-select first or keep existing
@@ -293,6 +297,7 @@ export default function PatientBookAppointment() {
                 } else {
                     // Fallback to standard services
                     if (isMounted) {
+                        setDoctorCurrency(isPk ? 'PKR' : 'NZD');
                         setDoctorProcedures(fallbackServices);
                         setSelectedServiceId(fallbackServices[0].procedureCode);
                     }
@@ -300,6 +305,7 @@ export default function PatientBookAppointment() {
             } catch (err) {
                 console.error(`Failed to load treatments for doctor ${selectedDoctorId}:`, err);
                 if (isMounted) {
+                    setDoctorCurrency(isPk ? 'PKR' : 'NZD');
                     setDoctorProcedures(fallbackServices);
                     setSelectedServiceId(fallbackServices[0].procedureCode);
                 }
@@ -473,6 +479,7 @@ export default function PatientBookAppointment() {
             const fullReason = `${procedureName}${codeStr} (${currentDoctor.name})${reason ? ` - Notes: ${reason.trim()}` : ''}`;
             const rawCard = cardNumber.replace(/\s+/g, '');
             const chosenDocId = Number(currentDoctor.id || currentDoctor.doctorID || selectedDoctorId) || 2;
+            const chosenCurrency = (chosenDocId === 2 || currentDoctor?.region === 'PK') ? 'PKR' : (doctorCurrency || 'NZD');
 
             const payload = {
                 preferredDate: combinedDateTime.toISOString(),
@@ -480,7 +487,7 @@ export default function PatientBookAppointment() {
                 doctorID: chosenDocId,
                 paymentMethod: paymentMethod === 'Online_Card' ? 'Online_Card' : 'Cash',
                 consultationFee: procedureFee,
-                currency: doctorCurrency || 'NZD',
+                currency: chosenCurrency,
                 cardLast4: paymentMethod === 'Online_Card' ? rawCard.slice(-4) : null,
                 cardHolderName: paymentMethod === 'Online_Card' ? cardHolder.trim() : null
             };
@@ -523,7 +530,7 @@ export default function PatientBookAppointment() {
                     receiptOrVoucherNumber: rcptVoucher,
                     invoiceStatus: data.invoiceStatus || (paymentMethod === 'Online_Card' ? 'Paid' : 'Pending Cash Settlement'),
                     fee: procedureFee,
-                    currency: doctorCurrency,
+                    currency: data.currency || chosenCurrency || doctorCurrency,
                     dateTime: combinedDateTime,
                     service: procedureName,
                     doctor: currentDoctor.name,

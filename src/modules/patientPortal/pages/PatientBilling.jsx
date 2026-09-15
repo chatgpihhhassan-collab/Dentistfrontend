@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
     CreditCard, 
     DollarSign, 
@@ -11,7 +11,8 @@ import {
     ArrowRight, 
     QrCode, 
     ChevronDown, 
-    ChevronUp 
+    ChevronUp,
+    RefreshCw
 } from 'lucide-react';
 import API_BASE_URL from '../../../config/apiConfig';
 import DualPaymentModal from '../components/DualPaymentModal';
@@ -26,10 +27,25 @@ export default function PatientBilling() {
 
     const patient = JSON.parse(localStorage.getItem('patient') || '{}');
 
+    // Robust currency formatter tailored for multi-currency clinic operations
+    const formatCurrency = (amount, currency = 'NZD') => {
+        const curr = (currency || 'NZD').toUpperCase();
+        const val = Number(amount || 0);
+        if (curr === 'PKR') {
+            return `Rs ${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        }
+        if (curr === 'GBP') return `£${val.toFixed(2)}`;
+        if (curr === 'EUR') return `€${val.toFixed(2)}`;
+        if (curr === 'USD') return `$${val.toFixed(2)} USD`;
+        return `$${val.toFixed(2)} ${curr}`;
+    };
+
     const fetchBillingData = async () => {
         setLoading(true);
         const token = patient.token;
-        const headers = { 'Authorization': `Bearer ${token}` };
+        const headers = { 
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        };
 
         try {
             // Fetch Invoices
@@ -37,7 +53,10 @@ export default function PatientBilling() {
                 let iRes;
                 try { iRes = await fetch(`${API_BASE_URL}/api/billing/invoices`, { headers }); }
                 catch { iRes = await fetch(`/api/billing/invoices`, { headers }); }
-                if (iRes.ok) setInvoices(await iRes.json());
+                if (iRes && iRes.ok) {
+                    const iData = await iRes.json();
+                    setInvoices(Array.isArray(iData) ? iData : []);
+                }
             } catch (e) { console.error('Invoices err:', e); }
 
             // Fetch Payments
@@ -45,7 +64,10 @@ export default function PatientBilling() {
                 let pRes;
                 try { pRes = await fetch(`${API_BASE_URL}/api/billing/payments`, { headers }); }
                 catch { pRes = await fetch(`/api/billing/payments`, { headers }); }
-                if (pRes.ok) setPayments(await pRes.json());
+                if (pRes && pRes.ok) {
+                    const pData = await pRes.json();
+                    setPayments(Array.isArray(pData) ? pData : []);
+                }
             } catch (e) { console.error('Payments err:', e); }
 
         } finally {
@@ -56,6 +78,14 @@ export default function PatientBilling() {
     useEffect(() => {
         fetchBillingData();
     }, []);
+
+    // Determine primary currency based on active patient invoices or doctor affiliation
+    const primaryCurrency = useMemo(() => {
+        const invWithCurr = invoices.find(i => i.currency);
+        if (invWithCurr) return invWithCurr.currency.toUpperCase();
+        if (patient.region === 'PK' || patient.doctorID === 2 || patient.doctorId === 2) return 'PKR';
+        return 'NZD';
+    }, [invoices, patient]);
 
     const totalIncurred = invoices.reduce((acc, inv) => acc + (inv.totalAmount || 0), 0);
     const totalPaid = invoices.reduce((acc, inv) => acc + (inv.paidAmount || 0), 0);
@@ -84,7 +114,7 @@ export default function PatientBilling() {
                 <div className="bg-white rounded-3xl p-5 border border-light-teal shadow-xs space-y-1">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-muted-text">Total Incurred Treatments</p>
                     <p className="text-2xl font-serif font-black text-dark-slate">
-                        ${totalIncurred.toFixed(2)} <span className="text-xs font-sans text-muted-text font-normal">NZD</span>
+                        {formatCurrency(totalIncurred, primaryCurrency)}
                     </p>
                     <p className="text-[11px] text-slate-500">{invoices.length} Invoices Issued</p>
                 </div>
@@ -92,7 +122,7 @@ export default function PatientBilling() {
                 <div className="bg-white rounded-3xl p-5 border border-light-teal shadow-xs space-y-1">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-muted-text">Total Settled Payments</p>
                     <p className="text-2xl font-serif font-black text-emerald-600">
-                        ${totalPaid.toFixed(2)} <span className="text-xs font-sans text-muted-text font-normal">NZD</span>
+                        {formatCurrency(totalPaid, primaryCurrency)}
                     </p>
                     <p className="text-[11px] text-emerald-700 font-semibold">{payments.length} Processed Transactions</p>
                 </div>
@@ -100,7 +130,7 @@ export default function PatientBilling() {
                 <div className="bg-white rounded-3xl p-5 border border-light-teal shadow-xs space-y-1">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-muted-text">Outstanding Due Balance</p>
                     <p className={`text-2xl font-serif font-black ${totalBalance > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                        ${totalBalance.toFixed(2)} <span className="text-xs font-sans text-muted-text font-normal">NZD</span>
+                        {formatCurrency(totalBalance, primaryCurrency)}
                     </p>
                     <p className="text-[11px] text-slate-500">
                         {totalBalance > 0 ? 'Action required to clear account' : 'Account in good standing'}
@@ -112,7 +142,7 @@ export default function PatientBilling() {
             <div className="flex items-center gap-2 border-b border-light-teal pb-2">
                 <button
                     onClick={() => setActiveTab('invoices')}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                         activeTab === 'invoices'
                             ? 'bg-white text-primary-teal shadow-xs border border-light-teal'
                             : 'text-muted-text hover:text-dark-slate'
@@ -127,7 +157,7 @@ export default function PatientBilling() {
 
                 <button
                     onClick={() => setActiveTab('payments')}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                         activeTab === 'payments'
                             ? 'bg-white text-primary-teal shadow-xs border border-light-teal'
                             : 'text-muted-text hover:text-dark-slate'
@@ -154,6 +184,7 @@ export default function PatientBilling() {
                             const isPaid = inv.status === 'Paid';
                             const isPendingCash = inv.status === 'Pending Cash Settlement';
                             const isExpanded = expandedInvoiceId === inv.invoiceID;
+                            const invCurrency = inv.currency || primaryCurrency;
 
                             return (
                                 <div
@@ -167,7 +198,7 @@ export default function PatientBilling() {
                                                 INV
                                             </div>
                                             <div>
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-2 flex-wrap">
                                                     <h3 className="text-base font-bold text-dark-slate">
                                                         Invoice #{inv.invoiceNumber}
                                                     </h3>
@@ -180,9 +211,13 @@ export default function PatientBilling() {
                                                     }`}>
                                                         {inv.status}
                                                     </span>
+                                                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                                                        {invCurrency}
+                                                    </span>
                                                 </div>
                                                 <p className="text-xs text-muted-text mt-0.5">
                                                     Issued on {new Date(inv.issueDate).toLocaleDateString()} • Due by {new Date(inv.dueDate).toLocaleDateString()}
+                                                    {inv.doctorName ? ` • Clinician: ${inv.doctorName}` : ''}
                                                 </p>
                                             </div>
                                         </div>
@@ -192,14 +227,14 @@ export default function PatientBilling() {
                                             <div className="text-right">
                                                 <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Balance Due</p>
                                                 <p className={`text-lg font-serif font-black ${isPaid ? 'text-emerald-600' : 'text-dark-slate'}`}>
-                                                    ${(inv.balanceAmount || (inv.totalAmount - inv.paidAmount)).toFixed(2)} NZD
+                                                    {formatCurrency(inv.balanceAmount ?? (inv.totalAmount - inv.paidAmount), invCurrency)}
                                                 </p>
                                             </div>
 
                                             {!isPaid && (
                                                 <button
                                                     onClick={() => setSelectedInvoiceForPay(inv)}
-                                                    className="px-4 py-2.5 rounded-xl bg-primary-teal hover:bg-primary-hover text-white text-xs font-bold transition-all shadow-sm shadow-primary-teal/20 flex items-center gap-1.5"
+                                                    className="px-4 py-2.5 rounded-xl bg-primary-teal hover:bg-primary-hover text-white text-xs font-bold transition-all shadow-sm shadow-primary-teal/20 flex items-center gap-1.5 cursor-pointer"
                                                 >
                                                     <CreditCard className="w-3.5 h-3.5" />
                                                     <span>Pay Balance</span>
@@ -214,7 +249,7 @@ export default function PatientBilling() {
                                             <p className="text-xs font-bold text-dark-slate">Itemized Procedure Breakdown:</p>
                                             <button
                                                 onClick={() => toggleExpand(inv.invoiceID)}
-                                                className="text-xs text-primary-hover font-semibold hover:underline flex items-center gap-1"
+                                                className="text-xs text-primary-hover font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                                             >
                                                 <span>{isExpanded ? 'Hide Lines' : 'Show Breakdown'}</span>
                                                 {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -238,7 +273,9 @@ export default function PatientBilling() {
                                                                 <td className="p-3 font-mono text-[11px] text-muted-text">{it.procedureCode || 'ADA'}</td>
                                                                 <td className="p-3 font-semibold">{it.description}</td>
                                                                 <td className="p-3 text-muted-text">{it.toothNumber ? `#${it.toothNumber}` : '—'}</td>
-                                                                <td className="p-3 text-right font-mono font-bold">${it.totalPrice?.toFixed(2) || it.unitPrice?.toFixed(2)}</td>
+                                                                <td className="p-3 text-right font-mono font-bold">
+                                                                    {formatCurrency(it.totalPrice ?? it.unitPrice, invCurrency)}
+                                                                </td>
                                                             </tr>
                                                         ))}
                                                     </tbody>
@@ -271,46 +308,54 @@ export default function PatientBilling() {
                 <div className="space-y-4">
                     {payments.length > 0 ? (
                         <div className="bg-white rounded-3xl divide-y divide-light-teal/70 border border-light-teal overflow-hidden shadow-xs">
-                            {payments.map((p) => (
-                                <div key={p.paymentID} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-warm-cream/30 transition-colors">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-                                            <CheckCircle2 className="w-5 h-5" />
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <h4 className="text-sm font-bold text-dark-slate">
-                                                    Receipt #{p.paymentReceiptNo}
-                                                </h4>
-                                                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-light-teal text-primary-teal">
-                                                    {p.paymentMethod.replace('_', ' ')}
-                                                </span>
+                            {payments.map((p) => {
+                                const matchedInv = invoices.find(i => i.invoiceID === p.invoiceID);
+                                const payCurrency = p.currency || matchedInv?.currency || primaryCurrency;
+
+                                return (
+                                    <div key={p.paymentID} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-warm-cream/30 transition-colors">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
+                                                <CheckCircle2 className="w-5 h-5" />
                                             </div>
-                                            <p className="text-xs text-muted-text">
-                                                Paid on {new Date(p.paymentDate).toLocaleDateString()} at {new Date(p.paymentDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </p>
-                                            {p.notes && <p className="text-[11px] text-slate-500">{p.notes}</p>}
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <h4 className="text-sm font-bold text-dark-slate">
+                                                        Receipt #{p.paymentReceiptNo}
+                                                    </h4>
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-light-teal text-primary-teal">
+                                                        {(p.paymentMethod || 'Payment').replace('_', ' ')}
+                                                    </span>
+                                                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                                                        {payCurrency}
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-muted-text mt-0.5">
+                                                    Paid on {new Date(p.paymentDate).toLocaleDateString()} at {new Date(p.paymentDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </p>
+                                                {p.notes && <p className="text-[11px] text-slate-500 mt-0.5">{p.notes}</p>}
+                                            </div>
+                                        </div>
+
+                                        <div className="text-right flex items-center gap-3 sm:self-center justify-between sm:justify-end">
+                                            <div>
+                                                <p className="text-base font-mono font-extrabold text-emerald-600">
+                                                    +{formatCurrency(p.amount, payCurrency)}
+                                                </p>
+                                                <p className="text-[10px] text-muted-text uppercase font-semibold">Settled</p>
+                                            </div>
+
+                                            <button
+                                                onClick={() => window.print()}
+                                                className="p-2 rounded-xl border border-light-teal hover:bg-light-teal/50 text-muted-text hover:text-dark-slate transition-colors cursor-pointer"
+                                                title="Print Official Receipt"
+                                            >
+                                                <Printer className="w-4 h-4" />
+                                            </button>
                                         </div>
                                     </div>
-
-                                    <div className="text-right flex items-center gap-3 sm:self-center justify-between sm:justify-end">
-                                        <div>
-                                            <p className="text-base font-mono font-extrabold text-emerald-600">
-                                                +${p.amount.toFixed(2)} NZD
-                                            </p>
-                                            <p className="text-[10px] text-muted-text uppercase font-semibold">Settled</p>
-                                        </div>
-
-                                        <button
-                                            onClick={() => window.print()}
-                                            className="p-2 rounded-xl border border-light-teal hover:bg-light-teal/50 text-muted-text hover:text-dark-slate transition-colors"
-                                            title="Print Official Receipt"
-                                        >
-                                            <Printer className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     ) : (
                         <div className="py-16 text-center bg-white rounded-3xl border border-light-teal p-8 space-y-3">
