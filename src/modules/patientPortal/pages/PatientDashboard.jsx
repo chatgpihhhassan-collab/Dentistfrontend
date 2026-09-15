@@ -32,6 +32,7 @@ export default function PatientDashboard() {
     const [appointmentsList, setAppointmentsList] = useState([]);
     const [teethState, setTeethState] = useState([]);
     const [invoicesList, setInvoicesList] = useState([]);
+    const [doctorsList, setDoctorsList] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -121,6 +122,23 @@ export default function PatientDashboard() {
                     }
                 } catch {}
 
+                // 5. Doctors Directory for Specialist Attribution
+                try {
+                    let docRes;
+                    try {
+                        docRes = await fetch(`${API_BASE_URL}/api/patient-portal/doctors`, { headers });
+                    } catch {
+                        docRes = await fetch(`/api/patient-portal/doctors`, { headers });
+                    }
+                    if (!docRes || !docRes.ok) {
+                        docRes = await fetch('/api/auth/doctors');
+                    }
+                    if (docRes && docRes.ok) {
+                        const docData = await docRes.json();
+                        setDoctorsList(Array.isArray(docData) ? docData : []);
+                    }
+                } catch {}
+
             } catch (err) {
                 console.error('Failed to load patient dashboard:', err);
                 setError('Could not load all telemetry. Working with cached records.');
@@ -151,6 +169,87 @@ export default function PatientDashboard() {
         } catch {
             return '';
         }
+    };
+
+    // Calendar & Date Tile Parts Helper
+    const getDateParts = (dateStr) => {
+        if (!dateStr) return { month: 'APT', day: '--', year: '', weekday: 'Date', time: '' };
+        try {
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return { month: 'APT', day: '--', year: '', weekday: 'Date', time: '' };
+            return {
+                month: d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
+                day: d.getDate(),
+                year: d.getFullYear(),
+                weekday: d.toLocaleDateString('en-US', { weekday: 'short' }),
+                time: d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+            };
+        } catch {
+            return { month: 'APT', day: '--', year: '', weekday: 'Date', time: '' };
+        }
+    };
+
+    // Clean Clinical Procedure & Doctor Parser
+    const parseAppointmentDetails = (rawReason, doctorId, doctors = []) => {
+        let raw = (rawReason || '').trim();
+        let doctorName = '';
+        let doctorRole = '';
+        let cdtCode = '';
+
+        // Extract CDT code e.g. [D0120] or (D0120) or [D2391]
+        const cdtMatch = raw.match(/\[([A-Z]\d{4})\]|\(([A-Z]\d{4})\)/i);
+        if (cdtMatch) {
+            cdtCode = (cdtMatch[1] || cdtMatch[2]).toUpperCase();
+            raw = raw.replace(cdtMatch[0], '').trim();
+        }
+
+        // Extract doctor in parentheses e.g. (Dr. Sarah J. Lee (Lead Dental Surgeon)) or (Dr. Sarah J. Lee)
+        const docParenMatch = raw.match(/\((Dr\.?[^)]+(?:\([^)]+\))?)\)/i);
+        if (docParenMatch) {
+            const docStr = docParenMatch[1].trim();
+            raw = raw.replace(docParenMatch[0], '').trim();
+            const nestedRoleMatch = docStr.match(/^(Dr\.?[^(]+)(?:\(([^)]+)\))?/i);
+            if (nestedRoleMatch) {
+                doctorName = nestedRoleMatch[1].trim();
+                if (nestedRoleMatch[2]) {
+                    doctorRole = nestedRoleMatch[2].trim();
+                }
+            } else {
+                doctorName = docStr;
+            }
+        }
+
+        // Clean common test/debug suffixes: "- testing with...", "- test...", etc.
+        raw = raw.replace(/\s*-\s*test(?:ing)?(?:\s+with\s+[^,]*)?/gi, '');
+
+        // Clean trailing taxonomy like ", Adult..." or ", Adult Consultation"
+        raw = raw.replace(/,\s*Adult(?:\s+Consultation|\s+Comprehensive\s+Exam)?/gi, '');
+        raw = raw.replace(/[,\-\s]+$/, '').trim();
+
+        // Fallback doctor identification by doctorID
+        if (!doctorName) {
+            if (doctors && doctors.length > 0) {
+                const found = doctors.find(d => (d.doctorID || d.id) === doctorId);
+                if (found) {
+                    doctorName = found.fullName || `Dr. ${found.firstName} ${found.lastName}`.trim();
+                    doctorRole = found.specialization || found.role || '';
+                }
+            }
+            if (!doctorName) {
+                if (doctorId === 2) { doctorName = 'Dr. Jhangir Ahmed'; doctorRole = 'Orthodontics & Implants'; }
+                else if (doctorId === 1) { doctorName = 'Dr. Sarah J. Lee'; doctorRole = 'Lead Dental Surgeon'; }
+                else if (doctorId === 4) { doctorName = 'Dr. Sarah Jenkins'; doctorRole = 'Periodontics Specialist'; }
+                else if (doctorId === 3) { doctorName = 'Dr. Ahmed Khan'; doctorRole = 'General Dental Practitioner'; }
+                else { doctorName = 'Dr. Sarah J. Lee'; doctorRole = 'Lead Dental Surgeon'; }
+            }
+        }
+
+        return {
+            procedure: raw || 'General Dental Consultation',
+            doctorName,
+            doctorRole,
+            cdtCode
+        };
     };
 
     // Tooth Icon SVG matching Dentia styling
@@ -334,12 +433,15 @@ export default function PatientDashboard() {
                     </div>
 
                     {/* Real Appointment History Card */}
-                    <div className="bg-white rounded-3xl p-7 border border-light-teal shadow-[0_4px_24px_rgba(16,36,75,0.03)]">
-                        <div className="flex items-center justify-between mb-5">
-                            <h3 className="text-base font-serif font-black text-dark-slate tracking-tight">Visit History</h3>
+                    <div className="bg-white rounded-3xl p-6 sm:p-7 border border-light-teal shadow-[0_4px_24px_rgba(16,36,75,0.03)] space-y-4">
+                        <div className="flex items-center justify-between pb-1 border-b border-light-teal/50">
+                            <div>
+                                <h3 className="text-base font-serif font-black text-dark-slate tracking-tight">Visit History</h3>
+                                <p className="text-[11px] text-muted-text font-medium">Recent consultations & clinical appointments</p>
+                            </div>
                             <Link 
                                 to="/portal/appointments" 
-                                className="text-xs font-bold text-primary-teal hover:text-primary-hover flex items-center gap-0.5"
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-warm-cream hover:bg-light-teal border border-light-teal text-xs font-bold text-primary-teal hover:text-primary-hover transition-all"
                             >
                                 <span>See all ({appointmentsList.length})</span>
                                 <ChevronRight className="w-3.5 h-3.5" />
@@ -347,56 +449,163 @@ export default function PatientDashboard() {
                         </div>
 
                         {/* Live Appointments Stack */}
-                        <div className="space-y-3">
-                            {/* Next Appointment Card in Solid Dentia Blue */}
-                            {nextAppointment ? (
-                                <div 
-                                    onClick={() => navigate('/portal/appointments')}
-                                    className="p-4 bg-primary-teal rounded-2xl text-white shadow-md shadow-primary-teal/25 flex items-center justify-between group cursor-pointer transition-all"
-                                >
-                                    <div className="flex items-center gap-3.5">
-                                        <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-primary-teal shadow-xs shrink-0">
-                                            <ToothSvg className="w-5 h-5" />
-                                        </div>
-                                        <div className="overflow-hidden">
-                                            <span className="inline-block px-2 py-0.5 rounded-full bg-white/20 text-[9px] font-black uppercase tracking-wider mb-1">
-                                                Next Appointment
-                                            </span>
-                                            <p className="text-xs font-extrabold leading-tight truncate">
-                                                {nextAppointment.reason || 'Routine Dental Checkup'}
-                                            </p>
-                                            <p className="text-[10px] text-white/80 mt-0.5">
-                                                {formatDate(nextAppointment.preferredDate || nextAppointment.date)} at {formatTime(nextAppointment.preferredDate || nextAppointment.date)}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <ChevronRight className="w-4 h-4 text-white/80 group-hover:translate-x-1 transition-transform shrink-0" />
-                                </div>
-                            ) : null}
+                        <div className="space-y-3 pt-1">
+                            {/* Next Appointment Card - Executive Hero Card */}
+                            {nextAppointment && (() => {
+                                const nextParsed = parseAppointmentDetails(
+                                    nextAppointment.reason, 
+                                    nextAppointment.doctorID, 
+                                    doctorsList
+                                );
+                                const nextDate = getDateParts(nextAppointment.preferredDate || nextAppointment.date);
 
-                            {/* Previous Visits or Scheduled Appointments */}
-                            {appointmentsList.slice(nextAppointment ? 1 : 0, 4).map((appt) => (
-                                <div 
-                                    key={appt.appointmentID || appt.appointmentId || Math.random()}
-                                    onClick={() => navigate('/portal/appointments')}
-                                    className="p-3.5 bg-warm-cream hover:bg-light-teal/50 border border-light-teal rounded-2xl flex items-center justify-between group cursor-pointer transition-all"
-                                >
-                                    <div className="flex items-center gap-3.5 overflow-hidden">
-                                        <div className="w-9 h-9 rounded-xl bg-light-teal text-primary-teal flex items-center justify-center shrink-0">
-                                            <CalendarIcon className="w-4 h-4" />
+                                return (
+                                    <div 
+                                        onClick={() => navigate('/portal/appointments')}
+                                        className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1E6FF4] via-[#1660DE] to-[#0F4DB8] p-4 text-white shadow-lg shadow-blue-500/20 cursor-pointer transition-all hover:shadow-xl hover:shadow-blue-500/25 hover:-translate-y-0.5 border border-blue-400/30"
+                                    >
+                                        {/* Subtle background decorative tooth contour */}
+                                        <div className="absolute -right-3 -bottom-4 opacity-10 pointer-events-none text-white">
+                                            <ToothSvg className="w-28 h-28" />
                                         </div>
-                                        <div className="overflow-hidden">
-                                            <p className="text-xs font-extrabold text-dark-slate leading-tight truncate">
-                                                {appt.reason || 'Dental Consultation'}
-                                            </p>
-                                            <p className="text-[10px] text-muted-text mt-0.5">
-                                                {formatDate(appt.preferredDate || appt.date)} · <span className="font-bold text-primary-teal">{appt.status || 'Confirmed'}</span>
-                                            </p>
+
+                                        {/* Top Bar: Badge + CDT Pill + Manage Action */}
+                                        <div className="flex items-center justify-between gap-2 mb-2.5 min-w-0">
+                                            <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-xs text-[9px] font-black uppercase tracking-wider text-white border border-white/25 shrink-0">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                                                    Next Appointment
+                                                </span>
+                                                {nextParsed.cdtCode && (
+                                                    <span className="px-2 py-0.5 rounded-full bg-white/15 text-white/95 text-[9px] font-mono font-bold border border-white/20 shrink-0">
+                                                        CDT {nextParsed.cdtCode}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <span className="text-[10px] font-bold text-white/80 group-hover:text-white flex items-center gap-0.5 shrink-0">
+                                                <span>Manage</span>
+                                                <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                                            </span>
+                                        </div>
+
+                                        {/* Procedure Title & Doctor */}
+                                        <div className="flex items-start gap-3 min-w-0 mb-3">
+                                            <div className="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-xs flex items-center justify-center text-white border border-white/25 shadow-xs shrink-0 mt-0.5">
+                                                <ToothSvg className="w-5 h-5 text-white" />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <h4 
+                                                    className="text-sm font-extrabold text-white leading-snug truncate" 
+                                                    title={nextParsed.procedure}
+                                                >
+                                                    {nextParsed.procedure}
+                                                </h4>
+                                                <p className="text-[11px] text-white/90 flex items-center gap-1.5 mt-0.5 truncate">
+                                                    <Stethoscope className="w-3.5 h-3.5 text-white/80 shrink-0" />
+                                                    <span className="truncate">{nextParsed.doctorName}</span>
+                                                    {nextParsed.doctorRole && (
+                                                        <span className="text-white/70 text-[10px] truncate hidden sm:inline">
+                                                            · {nextParsed.doctorRole}
+                                                        </span>
+                                                    )}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Bottom Info Bar: Date, Time, Operatory */}
+                                        <div className="flex items-center gap-2 pt-2.5 border-t border-white/15 text-[11px] text-white/90 min-w-0">
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                <CalendarIcon className="w-3.5 h-3.5 text-white/80" />
+                                                <span className="font-semibold">{nextDate.weekday}, {nextDate.month} {nextDate.day}</span>
+                                            </div>
+                                            <span className="text-white/40">•</span>
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                <Clock className="w-3.5 h-3.5 text-white/80" />
+                                                <span>{nextDate.time || '9:45 AM'}</span>
+                                            </div>
+                                            <span className="text-white/40 hidden sm:inline">•</span>
+                                            <span className="text-white/75 text-[10px] truncate hidden sm:inline">Operatory 1</span>
                                         </div>
                                     </div>
-                                    <ChevronRight className="w-4 h-4 text-muted-text group-hover:translate-x-1 transition-transform shrink-0" />
-                                </div>
-                            ))}
+                                );
+                            })()}
+
+                            {/* Previous Visits or Scheduled Consultations */}
+                            {appointmentsList.slice(nextAppointment ? 1 : 0, 4).map((appt) => {
+                                const parsed = parseAppointmentDetails(appt.reason, appt.doctorID, doctorsList);
+                                const dateParts = getDateParts(appt.preferredDate || appt.date);
+                                const status = appt.status || 'Confirmed';
+                                const isCompleted = status.toLowerCase() === 'completed';
+                                const isCancelled = status.toLowerCase() === 'cancelled';
+
+                                return (
+                                    <div 
+                                        key={appt.appointmentID || appt.appointmentId || Math.random()}
+                                        onClick={() => navigate('/portal/appointments')}
+                                        className="p-3.5 bg-warm-cream/70 hover:bg-light-teal/50 border border-light-teal rounded-2xl flex items-center justify-between gap-3 group cursor-pointer transition-all hover:shadow-xs min-w-0"
+                                    >
+                                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                                            {/* Modern Date Tile */}
+                                            <div className="w-11 h-12 rounded-xl bg-white border border-light-teal shadow-xs flex flex-col items-center justify-between overflow-hidden shrink-0 group-hover:border-primary-teal/40 transition-colors">
+                                                <div className="w-full bg-light-teal/80 py-0.5 text-center">
+                                                    <span className="text-[9px] font-black uppercase text-primary-teal tracking-wider leading-none block">
+                                                        {dateParts.month}
+                                                    </span>
+                                                </div>
+                                                <div className="w-full py-0.5 text-center">
+                                                    <span className="text-sm font-serif font-black text-dark-slate leading-none block">
+                                                        {dateParts.day}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Procedure & Attending Meta */}
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                    <p 
+                                                        className="text-xs font-extrabold text-dark-slate leading-tight truncate group-hover:text-primary-teal transition-colors"
+                                                        title={parsed.procedure}
+                                                    >
+                                                        {parsed.procedure}
+                                                    </p>
+                                                    {parsed.cdtCode && (
+                                                        <span className="px-1.5 py-0.2 rounded bg-light-teal text-primary-teal text-[9px] font-mono font-bold shrink-0">
+                                                            {parsed.cdtCode}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-[10px] text-muted-text mt-0.5 flex items-center gap-1.5 truncate">
+                                                    <span className="font-medium text-dark-slate/80 truncate">
+                                                        {parsed.doctorName}
+                                                    </span>
+                                                    <span>•</span>
+                                                    <span>{dateParts.time || '10:00 AM'}</span>
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Status Pill & Action Chevron */}
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                                                isCompleted
+                                                    ? 'bg-slate-100 text-slate-700 border-slate-200'
+                                                    : isCancelled
+                                                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                            }`}>
+                                                {!isCompleted && !isCancelled && (
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                                )}
+                                                {isCompleted && (
+                                                    <CheckCircle2 className="w-3 h-3 text-slate-500 shrink-0" />
+                                                )}
+                                                <span>{status}</span>
+                                            </span>
+                                            <ChevronRight className="w-3.5 h-3.5 text-muted-text group-hover:text-primary-teal group-hover:translate-x-0.5 transition-all" />
+                                        </div>
+                                    </div>
+                                );
+                            })}
 
                             {appointmentsList.length === 0 && (
                                 <div className="p-6 bg-warm-cream rounded-2xl text-center border border-light-teal">
@@ -405,7 +614,7 @@ export default function PatientDashboard() {
                                     <button
                                         type="button"
                                         onClick={() => navigate('/portal/book')}
-                                        className="mt-3 px-4 py-2 bg-primary-teal text-white text-xs font-bold rounded-xl shadow-xs"
+                                        className="mt-3 px-4 py-2 bg-primary-teal text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer hover:bg-primary-hover transition-colors"
                                     >
                                         Book Your First Visit
                                     </button>
@@ -497,27 +706,34 @@ export default function PatientDashboard() {
 
                             {/* Schedule Slot Cards */}
                             <div className="space-y-2.5">
-                                {nextAppointment ? (
-                                    <div 
-                                        onClick={() => navigate('/portal/appointments')}
-                                        className="p-3.5 bg-primary-teal rounded-2xl text-white flex items-center justify-between shadow-md shadow-primary-teal/20 cursor-pointer"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white shrink-0">
-                                                <ToothSvg className="w-4 h-4 text-white" />
+                                {nextAppointment ? (() => {
+                                    const calParsed = parseAppointmentDetails(
+                                        nextAppointment.reason, 
+                                        nextAppointment.doctorID, 
+                                        doctorsList
+                                    );
+                                    return (
+                                        <div 
+                                            onClick={() => navigate('/portal/appointments')}
+                                            className="p-3.5 bg-primary-teal hover:bg-primary-hover rounded-2xl text-white flex items-center justify-between shadow-md shadow-primary-teal/20 cursor-pointer transition-all min-w-0"
+                                        >
+                                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white shrink-0">
+                                                    <ToothSvg className="w-4 h-4 text-white" />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-xs font-extrabold leading-tight truncate" title={calParsed.procedure}>
+                                                        {calParsed.procedure}
+                                                    </p>
+                                                    <p className="text-[11px] text-white/85 truncate mt-0.5">
+                                                        {formatTime(nextAppointment.preferredDate || nextAppointment.date) || '10:00 AM'} · {calParsed.doctorName}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div className="overflow-hidden">
-                                                <p className="text-xs font-extrabold leading-tight truncate">
-                                                    {nextAppointment.reason || 'General Dental Examination'}
-                                                </p>
-                                                <p className="text-[11px] text-white/85">
-                                                    {formatTime(nextAppointment.preferredDate || nextAppointment.date) || '10:00 AM'} · Dr. Sarah J. Lee
-                                                </p>
-                                            </div>
+                                            <ChevronRight className="w-4 h-4 text-white shrink-0 ml-2" />
                                         </div>
-                                        <ChevronRight className="w-4 h-4 text-white shrink-0" />
-                                    </div>
-                                ) : (
+                                    );
+                                })() : (
                                     <div 
                                         onClick={() => navigate('/portal/book')}
                                         className="p-3.5 bg-warm-cream hover:bg-light-teal/50 border border-light-teal rounded-2xl flex items-center justify-between cursor-pointer transition-all"
