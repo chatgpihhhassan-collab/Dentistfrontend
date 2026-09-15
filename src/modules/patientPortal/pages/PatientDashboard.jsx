@@ -186,17 +186,20 @@ export default function PatientDashboard() {
     };
 
     // Calculate real tooth counts from live state
+    const activePathologyTeeth = teethState.filter(t => {
+        const s = (t.conditionStatus || t.ConditionStatus || '').toLowerCase();
+        return s && !s.includes('healthy') && !s.includes('sound');
+    });
+
+    const treatedCount = activePathologyTeeth.filter(t => {
+        const s = (t.conditionStatus || t.ConditionStatus || '').toLowerCase();
+        return s.includes('restor') || s.includes('fill') || s.includes('crown') || s.includes('veneer') || s.includes('implant') || s.includes('treated');
+    }).length;
+
+    const plannedCount = activePathologyTeeth.length - treatedCount;
     const healthyCount = teethState.length > 0 
-        ? teethState.filter(t => (t.conditionStatus || '').toLowerCase().includes('healthy') || (t.conditionStatus || '').toLowerCase().includes('sound')).length 
-        : (dashboardData?.healthSummary?.healthyTeeth ?? 28);
-
-    const treatedCount = teethState.length > 0 
-        ? teethState.filter(t => (t.conditionStatus || '').toLowerCase().includes('treated') || (t.conditionStatus || '').toLowerCase().includes('restor') || (t.conditionStatus || '').toLowerCase().includes('fill') || (t.conditionStatus || '').toLowerCase().includes('crown')).length 
-        : (dashboardData?.healthSummary?.treatedTeeth ?? 0);
-
-    const plannedCount = teethState.length > 0 
-        ? teethState.filter(t => (t.conditionStatus || '').toLowerCase().includes('cavity') || (t.conditionStatus || '').toLowerCase().includes('caries') || (t.conditionStatus || '').toLowerCase().includes('plan') || (t.conditionStatus || '').toLowerCase().includes('canal')).length 
-        : (dashboardData?.healthSummary?.needsAttention ?? 0);
+        ? Math.max(0, 32 - (treatedCount + plannedCount))
+        : (dashboardData?.healthSummary?.healthyTeeth ?? 32);
 
     const activeRxCount = dashboardData?.healthSummary?.activePrescriptionsCount ?? 0;
     const totalBalance = dashboardData?.billing?.totalBalance ?? (invoicesList.filter(i => i.status !== 'Paid' && i.status !== 'Cancelled').reduce((acc, i) => acc + (i.balanceAmount || 0), 0));

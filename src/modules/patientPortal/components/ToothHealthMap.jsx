@@ -4,13 +4,14 @@ import { ShieldCheck, Info, CheckCircle2, AlertTriangle, Sparkles } from 'lucide
 export default function ToothHealthMap({ teethState, teeth }) {
     const [selectedTooth, setSelectedTooth] = useState(null);
 
-    // Map by tooth number (support both teethState and teeth props)
+    // Map by tooth number (support both teethState and teeth props, and normalize keys)
     const teethMap = {};
     const rawTeeth = (teethState && Array.isArray(teethState) && teethState.length > 0) 
         ? teethState 
         : (Array.isArray(teeth) ? teeth : []);
     rawTeeth.forEach(t => {
-        teethMap[t.toothNumber] = t;
+        const num = t.toothNumber ?? t.ToothNumber ?? parseInt(t.toothKey || t.ToothKey, 10);
+        if (num) teethMap[num] = t;
     });
 
     // Universal Tooth names map for patients
@@ -36,16 +37,40 @@ export default function ToothHealthMap({ teethState, teeth }) {
 
     const getToothStatus = (num) => {
         const item = teethMap[num];
-        if (!item) return { label: 'Sound & Healthy', color: '#10B981', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+        if (!item) return { label: 'Sound & Healthy', category: 'healthy', color: '#10B981', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
         
-        const status = (item.conditionStatus || '').toLowerCase();
-        if (status.includes('decay') || status.includes('canal') || status.includes('pain') || status.includes('broken')) {
-            return { label: item.conditionStatus || 'Observation Needed', color: '#F59E0B', bg: 'bg-amber-50 text-amber-700 border-amber-200' };
+        const rawStatus = item.conditionStatus || item.ConditionStatus || '';
+        const status = rawStatus.toLowerCase();
+        const savedColor = item.conditionColor || item.ConditionColor;
+
+        // 1. Explicitly Healthy / Sound
+        if (status.includes('healthy') || status.includes('sound')) {
+            return { 
+                label: rawStatus || 'Sound & Healthy', 
+                category: 'healthy',
+                color: '#10B981', 
+                bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+            };
         }
-        if (status.includes('restor') || status.includes('fill') || status.includes('crown') || status.includes('treated')) {
-            return { label: item.conditionStatus || 'Restored', color: '#3B82F6', bg: 'bg-blue-50 text-blue-700 border-blue-200' };
+
+        // 2. Restored / Treated / Fillings / Crowns / Veneers / Implants
+        if (status.includes('restor') || status.includes('fill') || status.includes('crown') || status.includes('veneer') || status.includes('implant') || status.includes('bridge') || status.includes('treated')) {
+            return { 
+                label: rawStatus || 'Restored', 
+                category: 'restored',
+                color: (savedColor && savedColor !== '#10B981') ? savedColor : '#3B82F6', 
+                bg: 'bg-blue-50 text-blue-700 border-blue-200' 
+            };
         }
-        return { label: item.conditionStatus || 'Sound & Healthy', color: '#10B981', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+
+        // 3. Clinical Pathology / Impactions / Malocclusions / Decay / Observation Needed
+        const resolvedColor = (savedColor && savedColor !== '#10B981') ? savedColor : '#EF4444';
+        return { 
+            label: rawStatus || 'Clinical Finding / Monitored', 
+            category: 'attention',
+            color: resolvedColor, 
+            bg: 'bg-rose-50 text-rose-700 border-rose-200' 
+        };
     };
 
     const upperTeeth = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
@@ -61,11 +86,11 @@ export default function ToothHealthMap({ teethState, teeth }) {
                             32 Teeth
                         </span>
                     </h3>
-                    <p className="text-xs text-muted-text">Click any tooth to inspect its verified clinical standing.</p>
+                    <p className="text-xs text-muted-text">Click any tooth to inspect verified chairside findings and doctor notes.</p>
                 </div>
 
                 {/* Legend */}
-                <div className="flex items-center gap-4 text-xs font-semibold">
+                <div className="flex items-center gap-4 text-xs font-semibold flex-wrap">
                     <div className="flex items-center gap-1.5">
                         <span className="w-3 h-3 rounded-full bg-emerald-500" />
                         <span className="text-slate-600 text-[11px]">Healthy</span>
@@ -75,8 +100,8 @@ export default function ToothHealthMap({ teethState, teeth }) {
                         <span className="text-slate-600 text-[11px]">Restored</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                        <span className="w-3 h-3 rounded-full bg-amber-500" />
-                        <span className="text-slate-600 text-[11px]">Attention / Care</span>
+                        <span className="w-3 h-3 rounded-full bg-rose-500" />
+                        <span className="text-slate-600 text-[11px]">Attention / Diagnosed</span>
                     </div>
                 </div>
             </div>
@@ -95,15 +120,15 @@ export default function ToothHealthMap({ teethState, teeth }) {
                                     key={num}
                                     type="button"
                                     onClick={() => setSelectedTooth({ num, ...status, desc: getToothDescription(num), details: teethMap[num] })}
-                                    className={`w-9 h-11 sm:w-10 sm:h-12 rounded-xl flex flex-col items-center justify-between p-1 transition-all ${
+                                    className={`w-9 h-11 sm:w-10 sm:h-12 rounded-xl flex flex-col items-center justify-between p-1 transition-all cursor-pointer ${
                                         isSelected 
                                             ? 'ring-2 ring-primary-teal scale-105 shadow-md bg-white' 
                                             : 'hover:scale-105 bg-white shadow-2xs'
                                     }`}
                                 >
-                                    <span className="text-[9px] font-mono text-muted-text">{num}</span>
+                                    <span className="text-[9px] font-mono font-bold text-muted-text">{num}</span>
                                     <div 
-                                        className="w-4 h-5 rounded-md transition-colors"
+                                        className="w-4 h-5 rounded-md transition-colors shadow-2xs"
                                         style={{ backgroundColor: status.color }}
                                     />
                                     <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: status.color }} />
@@ -132,7 +157,7 @@ export default function ToothHealthMap({ teethState, teeth }) {
                                     key={num}
                                     type="button"
                                     onClick={() => setSelectedTooth({ num, ...status, desc: getToothDescription(num), details: teethMap[num] })}
-                                    className={`w-9 h-11 sm:w-10 sm:h-12 rounded-xl flex flex-col items-center justify-between p-1 transition-all ${
+                                    className={`w-9 h-11 sm:w-10 sm:h-12 rounded-xl flex flex-col items-center justify-between p-1 transition-all cursor-pointer ${
                                         isSelected 
                                             ? 'ring-2 ring-primary-teal scale-105 shadow-md bg-white' 
                                             : 'hover:scale-105 bg-white shadow-2xs'
@@ -140,10 +165,10 @@ export default function ToothHealthMap({ teethState, teeth }) {
                                 >
                                     <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: status.color }} />
                                     <div 
-                                        className="w-4 h-5 rounded-md transition-colors"
+                                        className="w-4 h-5 rounded-md transition-colors shadow-2xs"
                                         style={{ backgroundColor: status.color }}
                                     />
-                                    <span className="text-[9px] font-mono text-muted-text">{num}</span>
+                                    <span className="text-[9px] font-mono font-bold text-muted-text">{num}</span>
                                 </button>
                             );
                         })}
@@ -154,34 +179,49 @@ export default function ToothHealthMap({ teethState, teeth }) {
 
             {/* Selected Tooth Detail Panel */}
             {selectedTooth ? (
-                <div className="p-4 rounded-2xl bg-white border border-light-teal shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
-                    <div className="flex items-center gap-3">
+                <div className="p-5 rounded-2xl bg-white border border-light-teal shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fadeIn">
+                    <div className="flex items-start gap-3.5">
                         <div 
-                            className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-mono font-bold text-sm shadow-xs"
+                            className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-mono font-black text-base shadow-sm shrink-0"
                             style={{ backgroundColor: selectedTooth.color }}
                         >
                             #{selectedTooth.num}
                         </div>
-                        <div>
-                            <h4 className="text-sm font-bold text-dark-slate">{selectedTooth.desc}</h4>
-                            <p className="text-xs text-muted-text">
-                                Status:{' '}
+                        <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <h4 className="text-sm font-bold text-dark-slate">{selectedTooth.desc}</h4>
+                                <span 
+                                    className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide"
+                                    style={{ 
+                                        backgroundColor: `${selectedTooth.color}20`, 
+                                        color: selectedTooth.color === '#10B981' ? '#059669' : selectedTooth.color 
+                                    }}
+                                >
+                                    {selectedTooth.category === 'healthy' ? 'Sound / Normal' : selectedTooth.category === 'restored' ? 'Restored / Treated' : 'Attention / Care Needed'}
+                                </span>
+                            </div>
+                            <p className="text-xs text-dark-slate">
+                                <span className="text-muted-text font-medium">Status:</span>{' '}
                                 <span className="font-bold text-dark-slate">{selectedTooth.label}</span>
-                                {selectedTooth.details?.comments && ` • ${selectedTooth.details.comments}`}
                             </p>
+                            {selectedTooth.details?.comments && (
+                                <p className="text-xs text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-200/70 font-mono mt-1">
+                                    👨‍⚕️ Clinical Finding: {selectedTooth.details.comments}
+                                </p>
+                            )}
                         </div>
                     </div>
                     <button
                         type="button"
                         onClick={() => setSelectedTooth(null)}
-                        className="text-xs text-muted-text hover:text-dark-slate font-semibold px-2 py-1 rounded-lg hover:bg-slate-100"
+                        className="text-xs text-muted-text hover:text-dark-slate font-bold px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors shrink-0 cursor-pointer"
                     >
-                        Dismiss
+                        Dismiss ✕
                     </button>
                 </div>
             ) : (
                 <div className="p-3 rounded-xl bg-light-teal/40 text-center text-xs text-muted-text">
-                    💡 Click on any numbered tooth above to see its diagnosis and treatment details.
+                    💡 Click on any numbered tooth above to see its verified clinical standing and doctor comments.
                 </div>
             )}
         </div>
