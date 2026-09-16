@@ -874,6 +874,7 @@ export default function ChartPage() {
   const [radiographImgError, setRadiographImgError] = useState(false);
   const [isApplyingAiFindings, setIsApplyingAiFindings] = useState(false);
   const [appliedRadiographIds, setAppliedRadiographIds] = useState(new Set());
+  const [deletingXrayId, setDeletingXrayId] = useState(null);
 
   // Manual Tooth Observation Editing & Directory States
   const [editingToothData, setEditingToothData] = useState(null);
@@ -2513,6 +2514,67 @@ export default function ChartPage() {
     } finally {
       setIsReanalyzingXray(false);
       setTimeout(() => setToast({ visible: false, message: "" }), 3500);
+    }
+  };
+
+  const handleDeleteRadiograph = async (radId, e) => {
+    if (e && e.stopPropagation) {
+      e.stopPropagation();
+    }
+    if (!radId) return;
+
+    const targetScan = radiographs.find(r => (r.radiographID || r.RadiographID) === radId);
+    const scanTitle = targetScan?.imageName || targetScan?.ImageName || `Scan #${radId}`;
+
+    const confirmMsg = `Are you sure you want to permanently delete "${scanTitle}"?\n\nThis will remove the radiograph image and its AI radiology diagnostic report. This action cannot be undone.`;
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+
+    setDeletingXrayId(radId);
+    try {
+      // Primary route: /api/radiographs/{id}
+      let res = await fetch(`/api/radiographs/${radId}`, {
+        method: 'DELETE',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      // Fallback patient-scoped route: /api/patients/{patientId}/radiographs/{id}
+      if (!res.ok) {
+        res = await fetch(`/api/patients/${patientId}/radiographs/${radId}`, {
+          method: 'DELETE',
+          headers: { 'Accept': 'application/json' }
+        });
+      }
+
+      if (res.ok) {
+        setRadiographs(prev => {
+          const next = prev.filter(r => (r.radiographID || r.RadiographID) !== radId);
+          // If the deleted radiograph was currently selected, select the first remaining or null
+          if (selectedRadiograph && ((selectedRadiograph.radiographID || selectedRadiograph.RadiographID) === radId)) {
+            setSelectedRadiograph(next.length > 0 ? next[0] : null);
+          }
+          return next;
+        });
+
+        if (selectedRadiograph && ((selectedRadiograph.radiographID || selectedRadiograph.RadiographID) === radId)) {
+          if (radiographBlobUrl && radiographBlobUrl.startsWith('blob:')) {
+            try { URL.revokeObjectURL(radiographBlobUrl); } catch (_) {}
+          }
+          setRadiographBlobUrl('');
+        }
+
+        setToast({ visible: true, message: `Radiograph "${scanTitle}" deleted successfully.` });
+        setTimeout(() => setToast({ visible: false, message: "" }), 3500);
+      } else {
+        const errText = await res.text().catch(() => '');
+        throw new Error(errText || `Server returned HTTP ${res.status}`);
+      }
+    } catch (err) {
+      console.error("Error deleting radiograph:", err);
+      alert(`Error deleting radiograph: ${err.message || 'Failed to delete'}`);
+    } finally {
+      setDeletingXrayId(null);
     }
   };
 
@@ -7390,29 +7452,48 @@ export default function ChartPage() {
                       </p>
                       {radiographs.map(r => {
                         const isSelected = selectedRadiograph && (selectedRadiograph.radiographID === r.radiographID || selectedRadiograph.RadiographID === r.radiographID);
+                        const rId = r.radiographID || r.RadiographID;
+                        const isDeletingThis = deletingXrayId === rId;
                         return (
                           <div
-                            key={r.radiographID || r.RadiographID}
+                            key={rId}
                             onClick={() => {
                               setSelectedRadiograph(r);
                               setXrayDetailsExpanded(false);
                               setIsEditingXrayAnalysis(false);
                             }}
-                            className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center space-x-3.5 ${
+                            className={`group p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between space-x-3.5 ${
                               isSelected
                                 ? 'bg-[#EAF0FC] border-[#4A7CD2] shadow-sm'
                                 : 'bg-white border-light-teal/35 hover:bg-[#F4F6FA]/50 hover:border-[#4A7CD2]/40'
                             }`}
                           >
-                            <div className="w-10 h-10 rounded-xl bg-white border border-light-teal/40 flex items-center justify-center flex-shrink-0 text-[#4A7CD2]">
-                              <Image className="w-5 h-5" />
+                            <div className="flex items-center space-x-3.5 min-w-0 flex-grow">
+                              <div className="w-10 h-10 rounded-xl bg-white border border-light-teal/40 flex items-center justify-center flex-shrink-0 text-[#4A7CD2]">
+                                <Image className="w-5 h-5" />
+                              </div>
+                              <div className="flex-grow min-w-0">
+                                <p className="text-xs font-bold text-dark-slate truncate">{r.imageName || r.ImageName}</p>
+                                <p className="text-[10px] text-muted-text font-semibold mt-0.5">
+                                  {new Date(r.uploadedAt || r.UploadedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </p>
+                              </div>
                             </div>
-                            <div className="flex-grow min-w-0">
-                              <p className="text-xs font-bold text-dark-slate truncate">{r.imageName || r.ImageName}</p>
-                              <p className="text-[10px] text-muted-text font-semibold mt-0.5">
-                                {new Date(r.uploadedAt || r.UploadedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                              </p>
-                            </div>
+                            
+                            {/* Delete Button on archive card */}
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteRadiograph(rId, e)}
+                              disabled={isDeletingThis}
+                              className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-all flex-shrink-0 cursor-pointer disabled:opacity-50"
+                              title="Delete Radiograph Scan"
+                            >
+                              {isDeletingThis ? (
+                                <Loader2 className="w-4 h-4 text-rose-500 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
+                            </button>
                           </div>
                         );
                       })}
@@ -7431,7 +7512,7 @@ export default function ChartPage() {
                           <p className="text-xs font-bold text-muted-text">{new Date().toLocaleDateString()}</p>
                         </div>
 
-                        {/* Top Action Bar: Filename & Print / Export Buttons */}
+                        {/* Top Action Bar: Filename & Print / Export / Delete Buttons */}
                         <div className="p-4 bg-[#F8FAFC] border-b border-light-teal/30 flex flex-wrap items-center justify-between gap-3 no-print">
                           <div>
                             <span className="text-[#4A7CD2] font-extrabold tracking-widest uppercase text-[10px] block">Radiographic Scan</span>
@@ -7485,6 +7566,21 @@ export default function ChartPage() {
                             >
                               <Edit className="w-3.5 h-3.5" />
                               <span>{isEditingXrayAnalysis ? "Cancel" : "Edit Report"}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteRadiograph(selectedRadiograph.radiographID || selectedRadiograph.RadiographID, e)}
+                              disabled={deletingXrayId === (selectedRadiograph.radiographID || selectedRadiograph.RadiographID)}
+                              className="text-xs bg-white hover:bg-rose-50 border border-light-teal/50 hover:border-rose-300 text-rose-600 px-3 py-1.5 rounded-xl font-extrabold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50"
+                              title="Delete Scan & Report"
+                            >
+                              {deletingXrayId === (selectedRadiograph.radiographID || selectedRadiograph.RadiographID) ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                              ) : (
+                                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                              )}
+                              <span>Delete</span>
                             </button>
                           </div>
                         </div>
