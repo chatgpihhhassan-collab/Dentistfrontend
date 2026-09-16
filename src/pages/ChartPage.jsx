@@ -2330,14 +2330,13 @@ export default function ChartPage() {
 
       setToast({ visible: true, message: "Uploading scan & running Gemini AI diagnostics..." });
 
-      const relativeEndpoint = `/api/patients/${patientId}/radiographs?doctorId=${doctorId}`;
-      const absoluteEndpoint = isRemoteHostNeeded ? `${API_HOST}${relativeEndpoint}` : relativeEndpoint;
+      const uploadEndpoint = `/api/patients/${patientId}/radiographs?doctorId=${doctorId}`;
 
       let newRecord = null;
 
       // Primary: Try axios (omit manual Content-Type so browser generates boundary)
       try {
-        const axiosRes = await axios.post(absoluteEndpoint, formData, {
+        const axiosRes = await axios.post(uploadEndpoint, formData, {
           timeout: 90000
         });
         if (axiosRes?.data) {
@@ -2347,7 +2346,7 @@ export default function ChartPage() {
         console.warn("[UPLOAD FALLBACK] Axios post failed, falling back to fetch:", axiosErr?.message);
         
         // Secondary: Fallback to fetch
-        const fetchRes = await fetch(absoluteEndpoint, {
+        const fetchRes = await fetch(uploadEndpoint, {
           method: 'POST',
           body: formData
         });
