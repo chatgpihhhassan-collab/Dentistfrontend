@@ -727,6 +727,36 @@ export default function PatientTreatmentInvoiceTab({ patientId, patient, teethSt
     return (
         <div className="flex flex-col gap-5 flex-grow animate-fadeIn">
             
+            {/* Alert Banner: Prompt to Bill Completed Care if any exists */}
+            {summary.unbilledCompletedTotal > 0 && (
+                <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border border-purple-200 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-xs no-print animate-fadeIn">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                            <Receipt className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <div className="text-xs font-black text-slate-900 flex items-center gap-2">
+                                <span>{summary.unbilledCompletedCount} Completed Procedures Ready for Billing</span>
+                                <span className="font-mono font-extrabold text-purple-700 bg-purple-100/90 px-2 py-0.5 rounded-md text-[11px] border border-purple-200">
+                                    {formatCurrency(summary.unbilledCompletedTotal)}
+                                </span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                                These chairside procedures are marked completed in the odontogram, but no official billing invoice has been issued yet.
+                            </div>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => handleOpenCreateInvoice()}
+                        className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-extrabold shadow-sm transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                        <Receipt className="w-3.5 h-3.5" />
+                        <span>Generate Invoice ({formatCurrency(summary.unbilledCompletedTotal)})</span>
+                    </button>
+                </div>
+            )}
+
             {/* ========================================================================= */}
             {/* 1. FINANCIAL SUMMARY KPI HORIZON BANNER                                    */}
             {/* ========================================================================= */}
@@ -746,6 +776,11 @@ export default function PatientTreatmentInvoiceTab({ patientId, patient, teethSt
                     <p className="text-[10px] text-slate-500 font-medium">
                         {summary.invoiceCount} official clinic invoice{summary.invoiceCount !== 1 ? 's' : ''} issued
                     </p>
+                    {summary.unbilledCompletedTotal > 0 && (
+                        <div className="text-[10px] text-purple-700 font-bold bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 mt-1 flex items-center gap-1">
+                            <span>+ {formatCurrency(summary.unbilledCompletedTotal)} unbilled care</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Card 2: Total Settled / Paid */}
@@ -768,24 +803,37 @@ export default function PatientTreatmentInvoiceTab({ patientId, patient, teethSt
                 <div className={`p-4 rounded-2xl border shadow-2xs space-y-1 ${
                     summary.balanceDue > 0 
                         ? 'bg-gradient-to-br from-rose-50/80 to-white border-rose-200' 
+                        : summary.unbilledCompletedTotal > 0
+                        ? 'bg-gradient-to-br from-amber-50/70 to-white border-amber-200'
                         : 'bg-gradient-to-br from-slate-50 to-white border-slate-200'
                 }`}>
                     <div className="flex items-center justify-between">
                         <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-500">Outstanding Balance</span>
-                        <div className={`w-7 h-7 rounded-xl flex items-center justify-center ${summary.balanceDue > 0 ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-400'}`}>
+                        <div className={`w-7 h-7 rounded-xl flex items-center justify-center ${
+                            summary.balanceDue > 0 
+                                ? 'bg-rose-100 text-rose-600' 
+                                : summary.unbilledCompletedTotal > 0
+                                ? 'bg-amber-100 text-amber-600'
+                                : 'bg-slate-100 text-slate-400'
+                        }`}>
                             <CreditCard className="w-4 h-4" />
                         </div>
                     </div>
                     <div className={`text-xl font-extrabold font-mono ${summary.balanceDue > 0 ? 'text-rose-600' : 'text-slate-700'}`}>
                         {formatCurrency(summary.balanceDue)}
                     </div>
-                    <p className="text-[10px] font-semibold">
+                    <div className="text-[10px] font-semibold">
                         {summary.balanceDue > 0 ? (
                             <span className="text-rose-600 font-bold">● Balance pending settlement</span>
+                        ) : summary.unbilledCompletedTotal > 0 ? (
+                            <span className="text-amber-700 font-bold flex items-center gap-1">
+                                <span>⏳</span>
+                                <span>{formatCurrency(summary.unbilledCompletedTotal)} unbilled care</span>
+                            </span>
                         ) : (
                             <span className="text-emerald-600 font-bold">✓ Zero outstanding balance</span>
                         )}
-                    </p>
+                    </div>
                 </div>
 
                 {/* Card 4: Chart Treatments & Unbilled Completed Value */}
@@ -815,7 +863,7 @@ export default function PatientTreatmentInvoiceTab({ patientId, patient, teethSt
                             <button
                                 type="button"
                                 onClick={() => handleOpenCreateInvoice()}
-                                className="flex-1 py-1.5 px-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer"
+                                className="flex-1 py-1.5 px-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer ring-2 ring-purple-400/40"
                                 title="Create official clinic invoice from completed care"
                             >
                                 <Receipt className="w-3.5 h-3.5" />
