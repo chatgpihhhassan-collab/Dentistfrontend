@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
     CreditCard, DollarSign, FileText, CheckCircle2, Clock, AlertCircle, 
     Printer, Download, Plus, Search, Filter, ChevronDown, ChevronUp, 
+    ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
     ShieldCheck, Calendar, User, Stethoscope, Tag, ArrowUpRight, 
     Layers, RefreshCw, X, Receipt, Check, Banknote, Building, AlertTriangle,
     Edit3, Save, Sparkles, CheckSquare, Square
@@ -162,6 +163,10 @@ export default function PatientTreatmentInvoiceTab({ patientId, patient, teethSt
     const [toothFilter, setToothFilter] = useState('All'); // 'All' | 'Completed' | 'Planned' | 'In Progress'
     const [toothSearch, setToothSearch] = useState('');
     const [expandedInvoiceId, setExpandedInvoiceId] = useState(null);
+
+    // Pagination State for Tooth-by-Tooth Treatment Matrix (5 records per page)
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 5;
 
     // Payment Settlement Modal State
     const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -354,6 +359,19 @@ export default function PatientTreatmentInvoiceTab({ patientId, patient, teethSt
 
         return list;
     }, [reportData, toothFilter, toothSearch]);
+
+    // Reset pagination to page 1 whenever filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [toothFilter, toothSearch]);
+
+    // Pagination calculations
+    const totalRecords = filteredTreatments.length;
+    const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize));
+    const paginatedTreatments = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return filteredTreatments.slice(start, start + pageSize);
+    }, [filteredTreatments, currentPage, pageSize]);
 
     // Quick inline status toggle
     const handleQuickStatusChange = async (treatment, newStatus) => {
@@ -1037,7 +1055,7 @@ export default function PatientTreatmentInvoiceTab({ patientId, patient, teethSt
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {filteredTreatments.map((item, idx) => {
+                                    {paginatedTreatments.map((item, idx) => {
                                         const anatomicalName = TOOTH_NAMES?.[item.toothNumber] || `Tooth #${item.toothNumber}`;
                                         const isUnbilled = !item.invoiceNumber;
                                         const isDone = item.status === 'Completed';
@@ -1190,6 +1208,93 @@ export default function PatientTreatmentInvoiceTab({ patientId, patient, teethSt
                                     })}
                                 </tbody>
                             </table>
+
+                            {/* Pagination Controls Toolbar (5 records per page) */}
+                            {totalRecords > 0 && (
+                                <div className="px-5 py-3.5 bg-slate-50/80 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                                    <div className="text-slate-500 font-medium flex items-center gap-1.5">
+                                        <span>Showing</span>
+                                        <span className="font-bold text-slate-800">
+                                            {(currentPage - 1) * pageSize + 1}
+                                        </span>
+                                        <span>to</span>
+                                        <span className="font-bold text-slate-800">
+                                            {Math.min(currentPage * pageSize, totalRecords)}
+                                        </span>
+                                        <span>of</span>
+                                        <span className="font-bold text-slate-800">{totalRecords}</span>
+                                        <span>treatments</span>
+                                        <span className="text-slate-400 font-normal">({pageSize} per page)</span>
+                                    </div>
+
+                                    {totalPages > 1 && (
+                                        <div className="flex items-center gap-1">
+                                            {/* First Page */}
+                                            <button
+                                                type="button"
+                                                onClick={() => setCurrentPage(1)}
+                                                disabled={currentPage === 1}
+                                                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+                                                title="First Page"
+                                            >
+                                                <ChevronsLeft className="w-3.5 h-3.5" />
+                                            </button>
+
+                                            {/* Previous Page */}
+                                            <button
+                                                type="button"
+                                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                                disabled={currentPage === 1}
+                                                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+                                                title="Previous Page"
+                                            >
+                                                <ChevronLeft className="w-3.5 h-3.5" />
+                                            </button>
+
+                                            {/* Page Number Buttons */}
+                                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+                                                const isActive = page === currentPage;
+                                                return (
+                                                    <button
+                                                        key={page}
+                                                        type="button"
+                                                        onClick={() => setCurrentPage(page)}
+                                                        className={`w-7 h-7 rounded-lg text-xs font-bold transition flex items-center justify-center cursor-pointer ${
+                                                            isActive
+                                                                ? 'bg-[#4A7CD2] text-white shadow-xs border border-blue-600'
+                                                                : 'text-slate-600 hover:bg-white border border-transparent hover:border-slate-200'
+                                                        }`}
+                                                    >
+                                                        {page}
+                                                    </button>
+                                                );
+                                            })}
+
+                                            {/* Next Page */}
+                                            <button
+                                                type="button"
+                                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                                disabled={currentPage === totalPages}
+                                                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+                                                title="Next Page"
+                                            >
+                                                <ChevronRight className="w-3.5 h-3.5" />
+                                            </button>
+
+                                            {/* Last Page */}
+                                            <button
+                                                type="button"
+                                                onClick={() => setCurrentPage(totalPages)}
+                                                disabled={currentPage === totalPages}
+                                                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+                                                title="Last Page"
+                                            >
+                                                <ChevronsRight className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
