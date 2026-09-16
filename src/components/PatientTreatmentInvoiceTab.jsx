@@ -65,23 +65,45 @@ export const TOOTH_NAMES = {
 
 // Official ADA CDT Procedure Code Reference Catalog with Standard Fees
 export const CDT_PROCEDURE_CATALOG = [
+    // Implantology & Prosthetics
     { cdt: 'D6010', name: 'Surgical Implant Placement', category: 'Implantology', feeNZD: 1450, feePKR: 120000, keywords: ['implant placement', 'titanium implant', 'endosseous implant'] },
     { cdt: 'D6058', name: 'Implant Supported Crown (Screw-Retained / Zirconia)', category: 'Implantology', feeNZD: 1250, feePKR: 95000, keywords: ['implant', 'screw-retained', 'zirconia crown', 'fixture crown'] },
+    { cdt: 'D2740', name: 'Crown — Porcelain / Ceramic / Zirconia Full Substrate', category: 'Prosthodontics', feeNZD: 950, feePKR: 75000, keywords: ['crown', 'porcelain', 'ceramic', 'zirconia full crown', 'full crown'] },
+    { cdt: 'D2930', name: 'Stainless Steel Crown (SSC) — Primary Tooth', category: 'Pediatric Prosthetics', feeNZD: 220, feePKR: 18000, keywords: ['ssc', 'stainless steel crown', 'steel crown', 'preformed crown'] },
+    
+    // Orthodontics
+    { cdt: 'D8080', name: 'Comprehensive Orthodontic Treatment / Leveling', category: 'Orthodontics', feeNZD: 400, feePKR: 35000, keywords: ['ortho', 'malocclusion', 'overbite', 'aligner', 'braces', 'leveling', 'deep overbite'] },
+    { cdt: 'D8660', name: 'Pre-Orthodontic Diagnostic Examination', category: 'Orthodontics', feeNZD: 180, feePKR: 15000, keywords: ['pre-orthodontic', 'ortho exam', 'records'] },
+    { cdt: 'D8210', name: 'Removable Orthodontic Appliance Therapy', category: 'Orthodontics', feeNZD: 300, feePKR: 25000, keywords: ['removable appliance', 'ortho appliance', 'retainer'] },
+    { cdt: 'D1510', name: 'Space Maintainer (Fixed, Unilateral / Band & Loop)', category: 'Pediatric Orthodontics', feeNZD: 260, feePKR: 22000, keywords: ['space maintainer', 'band and loop', 'band & loop', 'appliance'] },
+
+    // Oral Surgery & Impactions
+    { cdt: 'D7240', name: 'Removal of Impacted Tooth — Completely Bony (Horizontal 90°)', category: 'Oral Surgery', feeNZD: 550, feePKR: 45000, keywords: ['impacted tooth (horizontal', 'completely bony', 'horizontal 90', 'horizontal impaction', 'impacted tooth (horizontal 90°)'] },
+    { cdt: 'D7230', name: 'Removal of Impacted Tooth — Partially Bony', category: 'Oral Surgery', feeNZD: 420, feePKR: 35000, keywords: ['partially bony', 'partial impaction'] },
+    { cdt: 'D7220', name: 'Removal of Impacted Tooth — Soft Tissue / Operculectomy', category: 'Oral Surgery', feeNZD: 300, feePKR: 25000, keywords: ['partially erupted', 'operculectomy', 'soft tissue impaction', 'partially erupted premolar'] },
+    { cdt: 'D7210', name: 'Surgical Extraction — Erupted Tooth (Flap / Sectioning)', category: 'Oral Surgery', feeNZD: 220, feePKR: 18000, keywords: ['surgical extraction', 'sectioning', 'flap'] },
+    { cdt: 'D7140', name: 'Extraction — Erupted Tooth / Exposed Root', category: 'Oral Surgery', feeNZD: 120, feePKR: 10000, keywords: ['extraction', 'extracted', 'missing', 'exfoliated', 'absent'] },
+
+    // Endodontics
     { cdt: 'D3330', name: 'Molar Root Canal Therapy (RCT)', category: 'Endodontics', feeNZD: 680, feePKR: 50000, keywords: ['rct', 'root canal', 'pulpitis', 'irreversible', 'molar endodontic', 'obturation'] },
     { cdt: 'D3320', name: 'Premolar Root Canal Therapy (RCT)', category: 'Endodontics', feeNZD: 550, feePKR: 40000, keywords: ['premolar rct', 'bicuspid rct'] },
     { cdt: 'D3310', name: 'Anterior Root Canal Therapy (RCT)', category: 'Endodontics', feeNZD: 480, feePKR: 35000, keywords: ['anterior rct', 'incisor rct', 'canine rct'] },
     { cdt: 'D3220', name: 'Therapeutic Pulpotomy (MTA / Bioceramic)', category: 'Pediatric Endodontics', feeNZD: 250, feePKR: 20000, keywords: ['pulpotomy', 'mta', 'coronal pulp', 'vital pulp'] },
-    { cdt: 'D2930', name: 'Stainless Steel Crown (SSC) — Primary Tooth', category: 'Pediatric Prosthetics', feeNZD: 220, feePKR: 18000, keywords: ['ssc', 'stainless steel crown', 'steel crown', 'preformed crown'] },
-    { cdt: 'D1510', name: 'Space Maintainer (Fixed, Unilateral / Band & Loop)', category: 'Pediatric Orthodontics', feeNZD: 260, feePKR: 22000, keywords: ['space maintainer', 'band and loop', 'band & loop', 'appliance'] },
+
+    // Restorative (Fillings)
     { cdt: 'D2160', name: 'Amalgam Restoration — 3+ Surfaces (MOD)', category: 'Restorative', feeNZD: 195, feePKR: 15000, keywords: ['amalgam (mod)', 'mod amalgam', 'amalgam restoration', 'silver filling (mod)'] },
-    { cdt: 'D2391', name: 'Resin Composite Restoration — 1 Surface Posterior (O)', category: 'Restorative', feeNZD: 145, feePKR: 12000, keywords: ['composite (o)', 'occlusal composite', 'composite restoration', 'composite filling'] },
-    { cdt: 'D2392', name: 'Resin Composite Restoration — 2 Surfaces Posterior (MO/DO)', category: 'Restorative', feeNZD: 175, feePKR: 14000, keywords: ['composite (mo)', 'composite (do)', 'mo composite', 'do composite'] },
     { cdt: 'D2393', name: 'Resin Composite Restoration — 3+ Surfaces Posterior (MOD)', category: 'Restorative', feeNZD: 210, feePKR: 17000, keywords: ['composite (mod)', 'mod composite'] },
-    { cdt: 'D2140', name: 'Amalgam Restoration — 1 Surface', category: 'Restorative', feeNZD: 135, feePKR: 11000, keywords: ['caries', 'decay', 'cavity', 'ecc', 'early childhood caries'] },
-    { cdt: 'D2740', name: 'Crown — Porcelain / Ceramic Substrate', category: 'Prosthodontics', feeNZD: 950, feePKR: 75000, keywords: ['crown', 'porcelain', 'ceramic', 'zirconia full crown'] },
-    { cdt: 'D7140', name: 'Extraction — Erupted Tooth / Exposed Root', category: 'Oral Surgery', feeNZD: 150, feePKR: 12000, keywords: ['extraction', 'extracted', 'missing', 'exfoliated', 'absent'] },
+    { cdt: 'D2392', name: 'Resin Composite Restoration — 2 Surfaces Posterior (MO/DO)', category: 'Restorative', feeNZD: 175, feePKR: 14000, keywords: ['composite (mo)', 'composite (do)', 'mo composite', 'do composite'] },
+    { cdt: 'D2391', name: 'Resin Composite Restoration — 1 Surface Posterior (O)', category: 'Restorative', feeNZD: 145, feePKR: 12000, keywords: ['composite (o)', 'occlusal composite', 'composite restoration', 'composite filling'] },
+    { cdt: 'D2140', name: 'Amalgam Restoration — 1 Surface', category: 'Restorative', feeNZD: 120, feePKR: 10000, keywords: ['caries', 'decay', 'cavity', 'ecc', 'early childhood caries'] },
+
+    // Diagnostic & Preventive
     { cdt: 'D1110', name: 'Prophylaxis / Dental Scaling & Calculus Removal', category: 'Preventive', feeNZD: 95, feePKR: 8000, keywords: ['cleaning', 'scaling', 'calculus', 'prophy', 'polish'] },
-    { cdt: 'D0120', name: 'Periodic Oral Evaluation', category: 'Diagnostic', feeNZD: 65, feePKR: 5000, keywords: ['exam', 'evaluation', 'checkup', 'consultation'] }
+    { cdt: 'D0150', name: 'Comprehensive Oral Evaluation', category: 'Diagnostic', feeNZD: 95, feePKR: 8000, keywords: ['comprehensive exam', 'initial evaluation'] },
+    { cdt: 'D0120', name: 'Periodic Oral Evaluation', category: 'Diagnostic', feeNZD: 65, feePKR: 5000, keywords: ['exam', 'evaluation', 'checkup', 'consultation'] },
+    { cdt: 'D0210', name: 'Intraoral Complete Radiographic Series (FMX)', category: 'Diagnostic', feeNZD: 140, feePKR: 12000, keywords: ['fmx', 'full mouth series'] },
+    { cdt: 'D0220', name: 'Intraoral Periapical Radiograph (RVG Single Film)', category: 'Diagnostic', feeNZD: 45, feePKR: 3000, keywords: ['rvg', 'periapical', 'x-ray'] },
+    { cdt: 'D0330', name: 'Panoramic Radiograph (OPG)', category: 'Diagnostic', feeNZD: 110, feePKR: 8000, keywords: ['opg', 'panoramic'] }
 ];
 
 export function inferCdtAndFee(conditionStatus, comments, region = 'NZ', billedFee = 0) {
@@ -107,7 +129,7 @@ export function inferCdtAndFee(conditionStatus, comments, region = 'NZ', billedF
         return {
             cdtCode: explicitCode,
             nomenclature: 'Standard Dental Procedure',
-            fee: isPkr ? 15000 : 180,
+            fee: isPkr ? 20000 : 250,
             isEstimated: true
         };
     }
@@ -128,7 +150,7 @@ export function inferCdtAndFee(conditionStatus, comments, region = 'NZ', billedF
     return {
         cdtCode: 'D0150',
         nomenclature: 'General Dental Assessment',
-        fee: isPkr ? 5000 : 85,
+        fee: isPkr ? 8000 : 95,
         isEstimated: true
     };
 }
