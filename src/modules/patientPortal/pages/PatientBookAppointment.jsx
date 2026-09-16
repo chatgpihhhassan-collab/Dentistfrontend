@@ -121,6 +121,10 @@ export default function PatientBookAppointment() {
     const [selectedProcedureKeys, setSelectedProcedureKeys] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [procedureSearch, setProcedureSearch] = useState('');
+    const [bookingMode, setBookingMode] = useState('consultation'); // 'consultation' (Option A - No plan needed) | 'procedures' (Option B - Specific plan)
+    const [showFeeScheduleModal, setShowFeeScheduleModal] = useState(false);
+    const [modalCategoryFilter, setModalCategoryFilter] = useState('All');
+    const [modalSearchQuery, setModalSearchQuery] = useState('');
 
     // 3. Time Slots Categorized
     const morningSlots = ['09:00 AM', '09:45 AM', '10:30 AM', '11:15 AM', '12:00 PM'];
@@ -286,14 +290,14 @@ export default function PatientBookAppointment() {
                         const curr = data.currency || (data.region === 'PK' || isPk ? 'PKR' : 'NZD');
                         setDoctorCurrency(curr);
 
-                        // If procedure list loaded, auto-select first or keep existing
+                        // If procedure list loaded, preserve valid selections or keep empty if in consultation mode
                         if (procs.length > 0) {
                             setSelectedProcedureKeys(prev => {
                                 if (prev.length > 0) {
                                     const valid = prev.filter(k => procs.some(p => (p.procedureCode || p.procedureName) === k));
-                                    return valid.length > 0 ? valid : [procs[0].procedureCode || procs[0].procedureName];
+                                    return valid;
                                 }
-                                return [procs[0].procedureCode || procs[0].procedureName];
+                                return [];
                             });
                         }
                     }
@@ -368,14 +372,18 @@ export default function PatientBookAppointment() {
 
     // Aggregated Fee & Summary names
     const totalConsultationFee = useMemo(() => {
-        if (selectedProceduresList.length === 0) return 0;
+        if (bookingMode === 'consultation' || selectedProceduresList.length === 0) {
+            return doctorCurrency === 'PKR' ? 2500 : 85.00;
+        }
         return selectedProceduresList.reduce((sum, p) => sum + Number(p.standardFee || p.fee || 85.00), 0);
-    }, [selectedProceduresList]);
+    }, [bookingMode, selectedProceduresList, doctorCurrency]);
 
     const combinedProceduresName = useMemo(() => {
-        if (selectedProceduresList.length === 0) return 'Dental Consultation';
+        if (bookingMode === 'consultation' || selectedProceduresList.length === 0) {
+            return 'General Dental Consultation & Examination';
+        }
         return selectedProceduresList.map(p => p.procedureName || p.label).join(', ');
-    }, [selectedProceduresList]);
+    }, [bookingMode, selectedProceduresList]);
 
     // Current selected doctor & procedure objects
     const currentDoctor = doctors.find(d => d.id === selectedDoctorId) || doctors[0] || { 
@@ -433,8 +441,8 @@ export default function PatientBookAppointment() {
             }
         }
         if (currentStep === 2) {
-            if (selectedProceduresList.length === 0) {
-                setError('Please select at least one dental treatment procedure.');
+            if (bookingMode === 'procedures' && selectedProceduresList.length === 0) {
+                setError('Please select at least one dental treatment procedure, or choose Option A for General Consultation.');
                 return;
             }
         }
@@ -504,28 +512,34 @@ export default function PatientBookAppointment() {
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {})
             };
 
-            const codeStr = procedureCode ? ` [Code: ${procedureCode}]` : '';
-            const fullReason = `${procedureName}${codeStr} (${currentDoctor.name})${reason ? ` - Notes: ${reason.trim()}` : ''}`;
+            const isConsultOnly = bookingMode === 'consultation' || selectedProceduresList.length === 0;
+            const codeStr = (!isConsultOnly && procedureCode) ? ` [Code: ${procedureCode}]` : '';
+            const fullReason = isConsultOnly
+                ? `General Dental Consultation (${currentDoctor.name})`
+                : `${procedureName}${codeStr} (${currentDoctor.name})`;
+            const finalFee = totalConsultationFee;
             const rawCard = cardNumber.replace(/\s+/g, '');
             const chosenDocId = Number(currentDoctor.id || currentDoctor.doctorID || selectedDoctorId) || 2;
             const chosenCurrency = (chosenDocId === 2 || currentDoctor?.region === 'PK') ? 'PKR' : (doctorCurrency || 'NZD');
+            const finalProcedures = isConsultOnly ? [] : selectedProceduresList.map(p => ({
+                procedureCode: p.procedureCode || '',
+                procedureName: p.procedureName || p.label || 'Dental Treatment',
+                fee: Number(p.standardFee || p.fee || 85.00),
+                category: p.category || 'General',
+                quantity: 1
+            }));
 
             const payload = {
                 preferredDate: combinedDateTime.toISOString(),
                 reason: fullReason,
+                notes: reason ? reason.trim() : null, // Synchronized with [Appointments].Notes
                 doctorID: chosenDocId,
                 paymentMethod: paymentMethod === 'Online_Card' ? 'Online_Card' : 'Cash',
-                consultationFee: procedureFee,
+                consultationFee: finalFee,
                 currency: chosenCurrency,
                 cardLast4: paymentMethod === 'Online_Card' ? rawCard.slice(-4) : null,
                 cardHolderName: paymentMethod === 'Online_Card' ? cardHolder.trim() : null,
-                procedures: selectedProceduresList.map(p => ({
-                    procedureCode: p.procedureCode || '',
-                    procedureName: p.procedureName || p.label || 'Dental Treatment',
-                    fee: Number(p.standardFee || p.fee || 85.00),
-                    category: p.category || 'General',
-                    quantity: 1
-                }))
+                procedures: finalProcedures
             };
 
             let res;
@@ -933,12 +947,12 @@ export default function PatientBookAppointment() {
                 {/* STEP 2: CHOOSE DOCTOR'S TREATMENT PLANS & PROCEDURES           */}
                 {/* ------------------------------------------------------------- */}
                 {currentStep === 2 && (
-                    <div className="space-y-3.5 animate-in fade-in">
+                    <div className="space-y-4 animate-in fade-in">
                         
-                        {/* Selected Doctor Summary Header + Quick Switch */}
-                        <div className="p-3 bg-warm-cream rounded-2xl border border-light-teal flex flex-wrap items-center justify-between gap-2">
-                            <div className="flex items-center gap-2.5">
-                                <div className="w-9 h-9 rounded-full overflow-hidden ring-1 ring-light-teal shrink-0 bg-slate-100">
+                        {/* Selected Doctor Summary Header + Quick Switch + Explore Catalog Button */}
+                        <div className="p-3.5 bg-warm-cream rounded-2xl border border-light-teal flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full overflow-hidden ring-2 ring-light-teal shrink-0 bg-slate-100">
                                     <img 
                                         src={currentDoctor.avatar} 
                                         alt={currentDoctor.name} 
@@ -950,9 +964,9 @@ export default function PatientBookAppointment() {
                                     />
                                 </div>
                                 <div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
                                         <h3 className="text-xs font-black text-dark-slate">{currentDoctor.name}</h3>
-                                        <span className="px-1.5 py-0.2 rounded bg-light-teal text-primary-hover font-mono text-[10px] font-bold">
+                                        <span className="px-2 py-0.5 rounded-md bg-light-teal text-primary-hover font-mono text-[10px] font-bold">
                                             {doctorCurrency} Fee Schedule
                                         </span>
                                     </div>
@@ -962,17 +976,133 @@ export default function PatientBookAppointment() {
                                 </div>
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={() => setCurrentStep(1)}
-                                className="px-2.5 py-1 text-[11px] font-bold text-primary-teal hover:text-primary-hover bg-white hover:bg-light-teal border border-light-teal rounded-lg transition-colors cursor-pointer"
-                            >
-                                Change Specialist
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowFeeScheduleModal(true)}
+                                    className="px-3 py-1.5 text-[11px] font-bold text-sky-800 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                                >
+                                    <FileText className="w-3.5 h-3.5 text-sky-600" />
+                                    <span>📖 Explore Full Fee Schedule</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setCurrentStep(1)}
+                                    className="px-2.5 py-1.5 text-[11px] font-bold text-primary-teal hover:text-primary-hover bg-white hover:bg-light-teal border border-light-teal rounded-xl transition-colors cursor-pointer"
+                                >
+                                    Change Specialist
+                                </button>
+                            </div>
                         </div>
 
-                        {/* Search & Category Filter Strip */}
-                        <div className="space-y-2">
+                        {/* Choice: Option A (Consultation Only) vs Option B (Select Procedures) */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {/* OPTION A: Standalone Consultation */}
+                            <div 
+                                onClick={() => {
+                                    setBookingMode('consultation');
+                                    setSelectedProcedureKeys([]);
+                                    setError('');
+                                }}
+                                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between text-left relative ${
+                                    bookingMode === 'consultation'
+                                        ? 'border-primary-teal bg-light-teal/30 shadow-sm ring-2 ring-primary-teal/30 scale-[1.01]'
+                                        : 'border-light-teal/80 hover:border-primary-teal/40 bg-white hover:bg-warm-cream/40'
+                                }`}
+                            >
+                                <div>
+                                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-black uppercase tracking-wider">
+                                            Option A · No Treatment Plan Needed
+                                        </span>
+                                        <div className={`w-4 h-4 rounded-full flex items-center justify-center ${
+                                            bookingMode === 'consultation' ? 'bg-primary-teal text-white' : 'border border-slate-300'
+                                        }`}>
+                                            {bookingMode === 'consultation' && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                                        </div>
+                                    </div>
+                                    <h4 className="text-sm font-black text-dark-slate">General Dental Consultation</h4>
+                                    <p className="text-[11px] text-muted-text mt-1 leading-relaxed">
+                                        Book an examination, checkup, or initial diagnosis. Doctor will assess your teeth chairside and plan treatments with you during the visit.
+                                    </p>
+                                </div>
+                                <div className="mt-3 pt-2 border-t border-light-teal/60 flex items-center justify-between text-xs">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Standard Examination</span>
+                                    <span className="font-mono font-black text-primary-teal text-sm">
+                                        {formatCurrency(doctorCurrency === 'PKR' ? 2500 : 85.00, doctorCurrency)}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* OPTION B: Select Specific Procedures */}
+                            <div 
+                                onClick={() => {
+                                    setBookingMode('procedures');
+                                    if (selectedProcedureKeys.length === 0 && activeProcedures.length > 0) {
+                                        setSelectedProcedureKeys([activeProcedures[0].procedureCode || activeProcedures[0].procedureName]);
+                                    }
+                                    setError('');
+                                }}
+                                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between text-left relative ${
+                                    bookingMode === 'procedures'
+                                        ? 'border-primary-teal bg-light-teal/30 shadow-sm ring-2 ring-primary-teal/30 scale-[1.01]'
+                                        : 'border-light-teal/80 hover:border-primary-teal/40 bg-white hover:bg-warm-cream/40'
+                                }`}
+                            >
+                                <div>
+                                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                                        <span className="px-2 py-0.5 rounded-md bg-sky-50 border border-sky-200 text-sky-800 text-[10px] font-black uppercase tracking-wider">
+                                            Option B · Custom Treatment Plan
+                                        </span>
+                                        <div className={`w-4 h-4 rounded-full flex items-center justify-center ${
+                                            bookingMode === 'procedures' ? 'bg-primary-teal text-white' : 'border border-slate-300'
+                                        }`}>
+                                            {bookingMode === 'procedures' && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                                        </div>
+                                    </div>
+                                    <h4 className="text-sm font-black text-dark-slate">Select Specific Procedures</h4>
+                                    <p className="text-[11px] text-muted-text mt-1 leading-relaxed">
+                                        Choose from {activeProcedures.length} procedures (Cleaning, Fillings, RCT, Extractions, Whitening) with transparent live pricing.
+                                    </p>
+                                </div>
+                                <div className="mt-3 pt-2 border-t border-light-teal/60 flex items-center justify-between text-xs">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                        {selectedProceduresList.length} Selected
+                                    </span>
+                                    <span className="font-mono font-black text-primary-teal text-sm">
+                                        {formatCurrency(totalConsultationFee, doctorCurrency)}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Consultation Mode Friendly Callout */}
+                        {bookingMode === 'consultation' && (
+                            <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
+                                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                        <span>Standalone Consultation Selected (No Pre-Selected Procedures Required)</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowFeeScheduleModal(true)}
+                                        className="text-[11px] font-bold text-emerald-700 underline hover:text-emerald-900 cursor-pointer"
+                                    >
+                                        View procedure prices anyway →
+                                    </button>
+                                </div>
+                                <p className="text-xs text-slate-600 leading-relaxed">
+                                    Your booking will be confirmed for a comprehensive dental examination with <strong>{currentDoctor.name}</strong>. The attending clinician will review your oral health chairside and formulate an individualized treatment plan during your appointment.
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Procedures Selection Mode (Search, Category Filters & Matrix) */}
+                        {bookingMode === 'procedures' && (
+                            <div className="space-y-3 pt-1">
+                                {/* Search & Category Filter Strip */}
+                                <div className="space-y-2">
                             <div className="relative">
                                 <Search className="w-3.5 h-3.5 text-muted-text absolute left-3 top-1/2 -translate-y-1/2" />
                                 <input
@@ -1149,9 +1279,11 @@ export default function PatientBookAppointment() {
                                 </div>
                             </div>
                         )}
-
                     </div>
                 )}
+
+            </div>
+        )}
 
                 {/* ------------------------------------------------------------- */}
                 {/* STEP 3: SCHEDULE DATE & TIME                                  */}
@@ -1315,11 +1447,16 @@ export default function PatientBookAppointment() {
                         </div>
 
                         {/* 3. Reason or Symptoms with One-Touch Tags */}
-                        <div className="space-y-1.5 pt-1">
+                        <div className="space-y-2 pt-1">
                             <div className="flex items-center justify-between">
-                                <label className="block text-[11px] font-bold text-muted-text uppercase tracking-wider">
-                                    3. Reason or Symptoms (Optional)
-                                </label>
+                                <div>
+                                    <label className="block text-[11px] font-bold text-dark-slate uppercase tracking-wider">
+                                        3. Patient Consultation Notes / Special Requests (Optional)
+                                    </label>
+                                    <p className="text-[10px] text-muted-text">
+                                        These comments sync directly to your doctor's chairside chart and invoice records.
+                                    </p>
+                                </div>
                                 <div className="hidden sm:flex items-center gap-1">
                                     {quickReasons.map((qr) => (
                                         <button
@@ -1333,12 +1470,12 @@ export default function PatientBookAppointment() {
                                     ))}
                                 </div>
                             </div>
-                            <input
-                                type="text"
+                            <textarea
+                                rows={2}
                                 value={reason}
                                 onChange={(e) => setReason(e.target.value)}
-                                placeholder="e.g. Tooth sensitivity on molar or scheduled checkup review"
-                                className="w-full px-3.5 py-2 bg-warm-cream/60 border border-light-teal rounded-xl text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 placeholder:text-muted-text/60"
+                                placeholder="e.g. Tooth sensitivity on lower left molar, slight gum tenderness, or questions about cosmetic whitening..."
+                                className="w-full px-3.5 py-2.5 bg-warm-cream/60 border border-light-teal rounded-xl text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 placeholder:text-muted-text/60 leading-relaxed resize-none"
                             />
                         </div>
 
@@ -1570,6 +1707,194 @@ export default function PatientBookAppointment() {
                 </div>
 
             </div>
+
+            {/* ========================================================= */}
+            {/* FULL DOCTOR FEE SCHEDULE MODAL                            */}
+            {/* ========================================================= */}
+            {showFeeScheduleModal && (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-5">
+                    <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-3xl w-full shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] flex flex-col justify-between animate-in zoom-in-95">
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between border-b border-light-teal/60 pb-3.5">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full overflow-hidden ring-2 ring-primary-teal/40 shrink-0 bg-slate-100">
+                                    <img 
+                                        src={currentDoctor.avatar} 
+                                        alt={currentDoctor.name} 
+                                        className="w-full h-full object-cover" 
+                                    />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-base font-serif font-black text-dark-slate">
+                                            {currentDoctor.name} — Fee Schedule & Catalog
+                                        </h3>
+                                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[10px] font-mono font-black border border-emerald-200">
+                                            {doctorCurrency}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-muted-text">
+                                        Browse all transparent clinical treatment pricing and estimated appointment durations.
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowFeeScheduleModal(false)}
+                                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-dark-slate flex items-center justify-center transition-colors cursor-pointer"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Search & Category Filter */}
+                        <div className="space-y-2">
+                            <div className="relative">
+                                <Search className="w-3.5 h-3.5 text-muted-text absolute left-3 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    value={modalSearchQuery}
+                                    onChange={(e) => setModalSearchQuery(e.target.value)}
+                                    placeholder="Search procedure by name, category, or code (e.g., Scaling, Extraction, 011)..."
+                                    className="w-full pl-8.5 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40"
+                                />
+                                {modalSearchQuery && (
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setModalSearchQuery('')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-text hover:text-dark-slate cursor-pointer"
+                                    >
+                                        ×
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px]">
+                                {categories.map((cat) => (
+                                    <button
+                                        key={cat}
+                                        type="button"
+                                        onClick={() => setModalCategoryFilter(cat)}
+                                        className={`px-2.5 py-1 rounded-lg font-bold whitespace-nowrap transition-all cursor-pointer ${
+                                            modalCategoryFilter === cat
+                                                ? 'bg-primary-teal text-white shadow-2xs'
+                                                : 'bg-slate-100 hover:bg-slate-200 text-dark-slate'
+                                        }`}
+                                    >
+                                        {cat}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Modal Procedures List */}
+                        <div className="flex-1 overflow-y-auto pr-1 space-y-2 max-h-[50vh] scrollbar-thin">
+                            {(() => {
+                                let list = activeProcedures;
+                                if (modalCategoryFilter !== 'All') {
+                                    list = list.filter(p => p.category === modalCategoryFilter);
+                                }
+                                if (modalSearchQuery.trim()) {
+                                    const q = modalSearchQuery.toLowerCase().trim();
+                                    list = list.filter(p => 
+                                        (p.procedureName && p.procedureName.toLowerCase().includes(q)) ||
+                                        (p.procedureCode && p.procedureCode.toLowerCase().includes(q)) ||
+                                        (p.category && p.category.toLowerCase().includes(q))
+                                    );
+                                }
+                                if (list.length === 0) {
+                                    return (
+                                        <div className="py-8 text-center text-xs text-muted-text italic">
+                                            No procedures found matching your query.
+                                        </div>
+                                    );
+                                }
+                                return (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {list.map((p) => {
+                                            const key = p.procedureCode || p.procedureName;
+                                            const isSelected = selectedProcedureKeys.includes(key);
+                                            const fee = Number(p.standardFee || p.fee || 85.00);
+                                            const badgeClass = categoryBadgeColors[p.category] || 'bg-slate-100 text-slate-700 border-slate-300';
+
+                                            return (
+                                                <div 
+                                                    key={key} 
+                                                    className="p-3 rounded-2xl border border-slate-200 bg-white hover:border-primary-teal/40 transition-all flex flex-col justify-between"
+                                                >
+                                                    <div>
+                                                        <div className="flex items-center justify-between gap-1 mb-1">
+                                                            <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${badgeClass} truncate max-w-[150px]`}>
+                                                                {p.category || 'General'}
+                                                            </span>
+                                                            <span className="text-[10px] text-muted-text font-mono">
+                                                                {p.estimatedDuration || '30 mins'}
+                                                            </span>
+                                                        </div>
+                                                        <h5 className="text-xs font-bold text-dark-slate">
+                                                            {p.procedureCode && <span className="font-mono text-primary-teal mr-1">[{p.procedureCode}]</span>}
+                                                            {p.procedureName || p.label}
+                                                        </h5>
+                                                        {p.description && (
+                                                            <p className="text-[10px] text-muted-text line-clamp-2 mt-1">
+                                                                {p.description}
+                                                            </p>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
+                                                        <span className="font-mono font-black text-xs text-primary-teal">
+                                                            {formatCurrency(fee, doctorCurrency)}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setBookingMode('procedures');
+                                                                toggleProcedure(p);
+                                                            }}
+                                                            className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                                                isSelected 
+                                                                    ? 'bg-emerald-100 text-emerald-800' 
+                                                                    : 'bg-primary-teal hover:bg-primary-hover text-white'
+                                                            }`}
+                                                        >
+                                                            {isSelected ? (
+                                                                <>
+                                                                    <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                                                    <span>Added</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Plus className="w-2.5 h-2.5" />
+                                                                    <span>Add to Plan</span>
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })()}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                            <span className="text-muted-text font-medium">
+                                Showing {activeProcedures.length} standard dental services
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setShowFeeScheduleModal(false)}
+                                className="px-4 py-2 bg-primary-teal hover:bg-primary-hover text-white font-bold rounded-xl cursor-pointer shadow-xs transition-colors"
+                            >
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </div>
     );

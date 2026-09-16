@@ -5,7 +5,8 @@ import Footer from '../components/Footer';
 import { 
     Search, ChevronLeft, ChevronRight, Plus, Calendar, Clock, 
     Sparkles, Activity, CheckCircle2, Save, Loader2, Smile, ShieldAlert, Check, X, RotateCcw,
-    Download, FileText, Filter, Eye, ChevronDown, RefreshCw, Pencil, Camera, UploadCloud, Trash2
+    Download, FileText, Filter, Eye, ChevronDown, RefreshCw, Pencil, Camera, UploadCloud, Trash2,
+    CreditCard, Stethoscope
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import '../index.css';
@@ -1723,21 +1724,31 @@ export default function PatientDirectory() {
                                                  </div>
                                              </div>
 
-                                             <button 
-                                                 onClick={() => navigate(`/chart/${selectedPatient.patientID}${activeTreatmentTag ? `?treatment=${activeTreatmentTag}` : ''}`)}
-                                                 onPointerEnter={() => {
-                                                     preloadJawImages({ immediate: true });
-                                                     if (selectedPatient?.patientID) {
-                                                         prefetchApi(`patient_${selectedPatient.patientID}`, () => fetch(`/api/patients/${selectedPatient.patientID}`).then(r => r.json()));
-                                                         prefetchApi(`patient_${selectedPatient.patientID}_chart`, () => fetch(`/api/patients/${selectedPatient.patientID}/chart`).then(r => r.json()));
-                                                         prefetchApi(`patient_${selectedPatient.patientID}_prescriptions`, () => fetch(`/api/patients/${selectedPatient.patientID}/prescriptions`).then(r => r.json()));
-                                                         prefetchApi(`patient_${selectedPatient.patientID}_diagnostic`, () => fetch(`/api/patients/${selectedPatient.patientID}/diagnostic-assessment`).then(r => r.ok && r.status !== 204 ? r.json() : null));
-                                                     }
-                                                 }}
-                                                 className="w-full bg-[#4A7CD2] hover:bg-[#3665B7] text-white py-2.5 rounded-xl text-xs font-bold shadow-md transition-all mt-4 cursor-pointer flex items-center justify-center gap-1.5"
-                                             >
-                                                 View Odontogram Chart
-                                             </button>
+                                             <div className="flex flex-col gap-2 mt-4">
+                                                 <button 
+                                                     onClick={() => navigate(`/chart/${selectedPatient.patientID}${activeTreatmentTag ? `?treatment=${activeTreatmentTag}` : ''}`)}
+                                                     onPointerEnter={() => {
+                                                         preloadJawImages({ immediate: true });
+                                                         if (selectedPatient?.patientID) {
+                                                             prefetchApi(`patient_${selectedPatient.patientID}`, () => fetch(`/api/patients/${selectedPatient.patientID}`).then(r => r.json()));
+                                                             prefetchApi(`patient_${selectedPatient.patientID}_chart`, () => fetch(`/api/patients/${selectedPatient.patientID}/chart`).then(r => r.json()));
+                                                             prefetchApi(`patient_${selectedPatient.patientID}_prescriptions`, () => fetch(`/api/patients/${selectedPatient.patientID}/prescriptions`).then(r => r.json()));
+                                                             prefetchApi(`patient_${selectedPatient.patientID}_diagnostic`, () => fetch(`/api/patients/${selectedPatient.patientID}/diagnostic-assessment`).then(r => r.ok && r.status !== 204 ? r.json() : null));
+                                                         }
+                                                     }}
+                                                     className="w-full bg-[#4A7CD2] hover:bg-[#3665B7] text-white py-2.5 rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                                                 >
+                                                     <Stethoscope className="w-3.5 h-3.5" />
+                                                     View Odontogram Chart
+                                                 </button>
+                                                 <button 
+                                                     onClick={() => navigate(`/chart/${selectedPatient.patientID}?tab=billing`)}
+                                                     className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300/80 py-2 rounded-xl text-xs font-bold shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                                                 >
+                                                     <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
+                                                     Treatment Plans & Invoices
+                                                 </button>
+                                             </div>
                                          </div>
                                      );
                                  })() : (

@@ -170,7 +170,7 @@ export default function PatientAppointments() {
         setSelectedCategory('All');
         
         const { cleanNote, procedureTitle } = parseAppointmentReason(appt.reason);
-        setEditingNotes(cleanNote || '');
+        setEditingNotes(appt.notes || cleanNote || '');
 
         // Map existing items
         if (appt.items && appt.items.length > 0) {
@@ -240,11 +240,6 @@ export default function PatientAppointments() {
 
     // Remove procedure in modal
     const handleRemoveProcedure = (index) => {
-        if (editingProcedures.length <= 1) {
-            setPlanError('An appointment must have at least one scheduled treatment or consultation.');
-            setTimeout(() => setPlanError(''), 3500);
-            return;
-        }
         setEditingProcedures(prev => prev.filter((_, i) => i !== index));
         setPlanError('');
     };
@@ -252,10 +247,6 @@ export default function PatientAppointments() {
     // Save updated treatment plan
     const handleSaveTreatmentPlan = async () => {
         if (!editingAppointment) return;
-        if (editingProcedures.length === 0) {
-            setPlanError('Please select at least one treatment before saving.');
-            return;
-        }
 
         setSavingPlan(true);
         setPlanError('');
@@ -580,14 +571,14 @@ export default function PatientAppointments() {
                                     </div>
 
                                     {/* Patient Consultation Notes / Special Requests Display */}
-                                    {cleanNote && (
+                                    {(appt.notes || cleanNote) && (
                                         <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/80 flex items-start gap-2.5 text-xs text-dark-slate shadow-2xs">
                                             <span className="text-amber-700 font-bold shrink-0 flex items-center gap-1">
                                                 <span>📝</span>
                                                 <span>Patient Notes / Special Requests:</span>
                                             </span>
                                             <span className="italic text-slate-700 leading-relaxed font-medium">
-                                                "{cleanNote}"
+                                                "{appt.notes || cleanNote}"
                                             </span>
                                         </div>
                                     )}

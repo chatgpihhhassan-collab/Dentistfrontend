@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
-import { ArrowLeft, Send, Mic, MicOff, AudioLines, Calendar, Clock, CheckCircle, AlertTriangle, AlertCircle, Save, KeyRound, FileText, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Brain, Stethoscope, Pill, ListChecks, Loader2, Printer, Download, Check, X, Edit, Image, Activity, Sparkles, Trash2, RotateCcw, Search, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Send, Mic, MicOff, AudioLines, Calendar, Clock, CheckCircle, AlertTriangle, AlertCircle, Save, KeyRound, FileText, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Brain, Stethoscope, Pill, ListChecks, Loader2, Printer, Download, Check, X, Edit, Image, Activity, Sparkles, Trash2, RotateCcw, Search, ExternalLink, CreditCard } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import RadiologyReportViewer from '../components/RadiologyReportViewer';
@@ -23,6 +23,7 @@ import FullPageSkeletonLoader from '../components/FullPageSkeletonLoader';
 import nanoPixService from '../services/nanoPixDeviceService';
 import NanoPixCaptureModal from '../components/NanoPixCaptureModal';
 import NanoPixPatientPromptModal from '../components/NanoPixPatientPromptModal';
+import PatientTreatmentInvoiceTab from '../components/PatientTreatmentInvoiceTab';
 
 // Real Anatomical Maxilla (Upper Jaw) Coordinate & Rotation Mapping for Empty Jaw Template (Exact 16 Sockets)
 export const MAXILLA_COORDS = {
@@ -629,6 +630,7 @@ const getHexColor = (status) => {
 export default function ChartPage() {
   const { patientId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   
   const [patient, setPatient] = useState(null);
   const [doctor, setDoctor] = useState(() => {
@@ -821,7 +823,29 @@ export default function ChartPage() {
   const silenceTimeoutRef = useRef(null);
 
   // AI Notes Tab States
-  const [activeTab, setActiveTab] = useState('chart'); // 'chart' | 'notes' | 'radiographs'
+  const [activeTab, setActiveTab] = useState(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'billing' || tabParam === 'invoices' || tabParam === 'treatments' || tabParam === 'treatment') return 'billing';
+    if (tabParam === 'notes') return 'notes';
+    if (tabParam === 'radiographs' || tabParam === 'imaging') return 'radiographs';
+    return 'chart';
+  }); // 'chart' | 'notes' | 'radiographs' | 'billing'
+
+  // Query parameter listener for tab switches
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'billing' || tabParam === 'invoices' || tabParam === 'treatments' || tabParam === 'treatment') {
+      setActiveTab('billing');
+    } else if (tabParam === 'notes') {
+      setActiveTab('notes');
+    } else if (tabParam === 'radiographs' || tabParam === 'imaging') {
+      setActiveTab('radiographs');
+    } else if (tabParam === 'chart') {
+      setActiveTab('chart');
+    }
+  }, [location.search]);
   const [notesHistory, setNotesHistory] = useState([]);
   const [showDeletedNotes, setShowDeletedNotes] = useState(false);
   const isCompilingNotesRef = useRef(false);
@@ -6410,6 +6434,16 @@ export default function ChartPage() {
                 >
                   <Image className="w-3.5 h-3.5" /> Imaging & X-Rays
                 </button>
+                <button
+                  onClick={() => setActiveTab('billing')}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-medium transition-all duration-200 ${
+                    activeTab === 'billing'
+                      ? 'bg-[#EAF0FC]/80 text-[#4A7CD2] shadow-md border border-[#4A7CD2]/40'
+                      : 'text-muted-text hover:text-dark-slate'
+                  }`}
+                >
+                  <CreditCard className="w-3.5 h-3.5" /> Treatment & Invoices
+                </button>
               </div>
               <div className="flex items-center gap-3">
                 <button onClick={() => navigate('/directory')} className="bg-[#EAF0FC] text-[#4A7CD2] px-4 py-2 rounded-xl text-xs font-bold border border-light-teal flex items-center hover:bg-light-teal/40 transition-colors">
@@ -7427,6 +7461,18 @@ export default function ChartPage() {
                   </div>
                 )}
 
+              </div>
+            )}
+
+            {/* ===== TREATMENT & INVOICES TAB ===== */}
+            {activeTab === 'billing' && (
+              <div className="flex flex-col gap-6 flex-grow animate-fade-in w-full">
+                <PatientTreatmentInvoiceTab
+                  patientId={patientId}
+                  patient={patient}
+                  teethState={teethState}
+                  dentitionMode={dentitionMode}
+                />
               </div>
             )}
 
@@ -9079,12 +9125,12 @@ export default function ChartPage() {
         </div>
 
         {/* Vertical Crisp Gray Divider Line */}
-        {activeTab !== 'radiographs' && (
+        {activeTab !== 'radiographs' && activeTab !== 'billing' && (
           <div className="hidden lg:block w-px bg-slate-200 self-stretch shrink-0" />
         )}
 
         {/* Right Side: Integrated AI Clinical Copilot & Dictation Console */}
-        {activeTab !== 'radiographs' && (
+        {activeTab !== 'radiographs' && activeTab !== 'billing' && (
           <div className={`w-full ${isChatCollapsed ? 'lg:w-[64px]' : 'lg:w-[380px] xl:w-[410px] 2xl:w-[430px]'} bg-gradient-to-b from-[#FAFBFD] via-white to-[#F8FAFC] flex flex-col shrink-0 transition-all duration-300 relative border-t lg:border-t-0 border-l border-slate-200/80 h-full lg:max-h-[calc(100vh-100px)] overflow-hidden shadow-xs`}>
             {isChatCollapsed ? (
               /* Collapsed Mode for Maximum Odontogram & 3D Jaw View */

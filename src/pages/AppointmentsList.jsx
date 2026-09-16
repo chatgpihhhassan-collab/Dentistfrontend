@@ -113,7 +113,7 @@ export default function AppointmentsList() {
     const [selectedAppointment, setSelectedAppointment] = useState(null);
 
     // Status update modal state
-    const [updateModal, setUpdateModal] = useState({ visible: false, appointment: null, newStatus: '', newReason: '' });
+    const [updateModal, setUpdateModal] = useState({ visible: false, appointment: null, newStatus: '', newReason: '', newNotes: '' });
     
     // Quick New Appointment Modal
     const [showNewModal, setShowNewModal] = useState(false);
@@ -357,15 +357,21 @@ export default function AppointmentsList() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     status: updateModal.newStatus, 
-                    reason: updateModal.newReason 
+                    reason: updateModal.newReason,
+                    notes: updateModal.newNotes
                 })
             });
             if (res.ok) {
-                setUpdateModal({ visible: false, appointment: null, newStatus: '', newReason: '' });
+                setUpdateModal({ visible: false, appointment: null, newStatus: '', newReason: '', newNotes: '' });
                 setToastMessage(`Appointment marked as ${updateModal.newStatus}!`);
                 fetchAppointments();
                 if (selectedAppointment && selectedAppointment.appointmentID === updateModal.appointment.appointmentID) {
-                    setSelectedAppointment(prev => prev ? { ...prev, status: updateModal.newStatus, reason: updateModal.newReason } : null);
+                    setSelectedAppointment(prev => prev ? { 
+                        ...prev, 
+                        status: updateModal.newStatus, 
+                        reason: updateModal.newReason,
+                        notes: updateModal.newNotes
+                    } : null);
                 }
             } else {
                 const errData = await res.json().catch(() => ({}));
@@ -1168,7 +1174,7 @@ export default function AppointmentsList() {
                                                             <span>Google</span>
                                                         </a>
                                                         <button
-                                                            onClick={() => setUpdateModal({ visible: true, appointment: apt, newStatus: apt.status || 'Confirmed', newReason: apt.reason || '' })}
+                                                            onClick={() => setUpdateModal({ visible: true, appointment: apt, newStatus: apt.status || 'Confirmed', newReason: apt.reason || '', newNotes: apt.notes || apt.Notes || '' })}
                                                             className="px-2 py-1 bg-[#4A7CD2] hover:bg-[#3b66b2] text-white rounded-lg text-[10px] font-bold transition cursor-pointer"
                                                         >
                                                             Status
@@ -1628,10 +1634,23 @@ export default function AppointmentsList() {
                                 <span>{getStatusBadge(selectedAppointment.status)}</span>
                             </div>
                             <div className="flex justify-between py-2 border-b border-slate-100">
-                                <span className="text-slate-500">Clinical Reason / Notes</span>
+                                <span className="text-slate-500">Clinical Reason</span>
                                 <span className="font-bold text-slate-800 max-w-[250px] text-right">{selectedAppointment.reason || selectedAppointment.Reason || 'Consultation'}</span>
                             </div>
                         </div>
+
+                        {/* Synchronized Doctor/Patient Notes Callout */}
+                        {(selectedAppointment.notes || selectedAppointment.Notes) && (
+                            <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200/90 space-y-1">
+                                <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-800 uppercase tracking-wider">
+                                    <span>📝</span>
+                                    <span>Patient Consultation Notes / Special Requests</span>
+                                </div>
+                                <p className="text-xs italic text-slate-700 leading-relaxed font-medium">
+                                    "{selectedAppointment.notes || selectedAppointment.Notes}"
+                                </p>
+                            </div>
+                        )}
 
                         {/* Selected Clinical Treatments & Fee Schedule */}
                         <div className="space-y-2 pt-2 border-t border-slate-100">
@@ -1720,7 +1739,8 @@ export default function AppointmentsList() {
                                         visible: true,
                                         appointment: selectedAppointment,
                                         newStatus: selectedAppointment.status || 'Confirmed',
-                                        newReason: selectedAppointment.reason || ''
+                                        newReason: selectedAppointment.reason || '',
+                                        newNotes: selectedAppointment.notes || selectedAppointment.Notes || ''
                                     });
                                 }}
                                 className="flex-1 py-2.5 px-4 bg-[#4A7CD2] hover:bg-[#3b66b2] text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
@@ -1728,6 +1748,16 @@ export default function AppointmentsList() {
                                 Change Status
                             </button>
                         </div>
+
+                        {selectedAppointment.patientID && (
+                            <button
+                                onClick={() => navigate(`/chart/${selectedAppointment.patientID}?tab=billing`)}
+                                className="w-full py-2.5 px-4 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                            >
+                                <FileText className="w-4 h-4 text-emerald-600" />
+                                <span>💳 View Patient Treatments & Invoices Dossier</span>
+                            </button>
+                        )}
                     </div>
                 </div>
             )}
@@ -1767,11 +1797,22 @@ export default function AppointmentsList() {
                             <div>
                                 <label className="block text-xs font-bold text-slate-600 mb-1.5">Clinical Note / Reason</label>
                                 <textarea
-                                    rows="3"
+                                    rows="2"
                                     value={updateModal.newReason}
                                     onChange={(e) => setUpdateModal(prev => ({ ...prev, newReason: e.target.value }))}
                                     placeholder="Add reason for visit or status update note..."
-                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/20"
+                                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/20"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-1.5">Synchronized Doctor/Patient Notes</label>
+                                <textarea
+                                    rows="2"
+                                    value={updateModal.newNotes || ''}
+                                    onChange={(e) => setUpdateModal(prev => ({ ...prev, newNotes: e.target.value }))}
+                                    placeholder="Comments, special requests, or clinical advice synced to patient portal..."
+                                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/20"
                                 />
                             </div>
                         </div>
