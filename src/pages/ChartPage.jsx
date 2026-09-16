@@ -2100,19 +2100,29 @@ export default function ChartPage() {
 
   // Client-side image compression to ensure high performance, prevent upload timeouts and CORS net::ERR_FAILED
   const compressImageForUpload = async (file) => {
-    // If not an image or very small (< 1MB), return original file
-    if (!file.type || !file.type.startsWith('image/') || file.size <= 1024 * 1024) {
+    if (!file) return file;
+
+    // Detect image files by MIME type or common medical/scan file extensions
+    const isImage = (file.type && file.type.startsWith('image/')) || /\.(jpe?g|png|webp|bmp|tiff?|jfif)$/i.test(file.name || '');
+    if (!isImage || file.size <= 400 * 1024) {
       return file;
     }
 
     return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          const MAX_DIMENSION = 2048; // Preserves ultra-high diagnostic resolution
-          let width = img.width;
-          let height = img.height;
+      let objectUrl = null;
+      try {
+        objectUrl = URL.createObjectURL(file);
+      } catch (e) {
+        return resolve(file);
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        try {
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+          const MAX_DIMENSION = 1920; // 1080p medical viewing resolution
+          let width = img.width || 1000;
+          let height = img.height || 1000;
 
           if (width > height) {
             if (width > MAX_DIMENSION) {
@@ -2134,26 +2144,34 @@ export default function ChartPage() {
 
           canvas.toBlob(
             (blob) => {
-              if (blob && blob.size < file.size) {
+              if (blob && blob.size > 0) {
                 const newFilename = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
                 const compressedFile = new File([blob], newFilename, {
                   type: 'image/jpeg',
                   lastModified: Date.now()
                 });
+                console.log(`[X-RAY OPTIMIZE] Compressed ${(file.size / 1024 / 1024).toFixed(2)}MB -> ${(compressedFile.size / 1024).toFixed(0)}KB`);
                 resolve(compressedFile);
               } else {
                 resolve(file);
               }
             },
             'image/jpeg',
-            0.88
+            0.82
           );
-        };
-        img.onerror = () => resolve(file);
-        img.src = event.target.result;
+        } catch (err) {
+          console.warn("[X-RAY OPTIMIZE] Canvas compression error, falling back to original:", err);
+          resolve(file);
+        }
       };
-      reader.onerror = () => resolve(file);
-      reader.readAsDataURL(file);
+
+      img.onerror = () => {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        console.warn("[X-RAY OPTIMIZE] Image decoding failed, uploading raw file.");
+        resolve(file);
+      };
+
+      img.src = objectUrl;
     });
   };
 
@@ -2280,7 +2298,7 @@ export default function ChartPage() {
     const rawFile = e.target.files?.[0] || (e.dataTransfer?.files?.[0]);
     if (!rawFile) return;
     setUploadingXray(true);
-    setToast({ visible: true, message: "Preparing & analyzing radiograph..." });
+    setToast({ visible: true, message: "Compressing & preparing radiograph..." });
     const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
     const doctorId = doctorData.doctorID || doctorData.DoctorID || 1;
 
@@ -2289,12 +2307,39 @@ export default function ChartPage() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const res = await fetch(`/api/patients/${patientId}/radiographs?doctorId=${doctorId}`, {
-        method: 'POST',
-        body: formData
-      });
-      if (res.ok) {
-        const newRecord = await res.json();
+      setToast({ visible: true, message: "Uploading scan & running Gemini AI diagnostics..." });
+
+      const relativeEndpoint = `/api/patients/${patientId}/radiographs?doctorId=${doctorId}`;
+      const absoluteEndpoint = isRemoteHostNeeded ? `${API_HOST}${relativeEndpoint}` : relativeEndpoint;
+
+      let newRecord = null;
+
+      // Primary: Try axios (handles CORS credentials and interceptors reliably)
+      try {
+        const axiosRes = await axios.post(absoluteEndpoint, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 75000
+        });
+        if (axiosRes?.data) {
+          newRecord = axiosRes.data;
+        }
+      } catch (axiosErr) {
+        console.warn("[UPLOAD FALLBACK] Axios post failed, falling back to window.fetch:", axiosErr?.message);
+        
+        // Secondary: Fallback to window.fetch
+        const fetchRes = await fetch(relativeEndpoint, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!fetchRes.ok) {
+          const errBody = await fetchRes.text().catch(() => '');
+          throw new Error(`Upload returned HTTP ${fetchRes.status}: ${errBody || fetchRes.statusText}`);
+        }
+        newRecord = await fetchRes.json();
+      }
+
+      if (newRecord) {
         setRadiographs(prev => [newRecord, ...prev]);
         setSelectedRadiograph(newRecord);
 
@@ -2310,18 +2355,15 @@ export default function ChartPage() {
           setToast({ visible: true, message: "X-Ray uploaded and analyzed successfully!" });
         }
         setTimeout(() => setToast({ visible: false, message: "" }), 4000);
-      } else {
-        const errText = await res.text();
-        console.error('Upload error:', errText);
-        setToast({ visible: true, message: `Upload failed: HTTP ${res.status}` });
-        setTimeout(() => setToast({ visible: false, message: "" }), 4000);
       }
     } catch (err) {
       console.error('Error uploading X-ray:', err);
-      setToast({ visible: true, message: "Error uploading X-ray. Check network or file format." });
-      setTimeout(() => setToast({ visible: false, message: "" }), 4000);
+      const errMsg = err.response?.data?.message || err.response?.data || err.message || "Network error uploading X-ray";
+      setToast({ visible: true, message: `Upload error: ${errMsg}. Please try again.` });
+      setTimeout(() => setToast({ visible: false, message: "" }), 5000);
     } finally {
       setUploadingXray(false);
+      if (e.target) e.target.value = '';
     }
   };
 
