@@ -2551,16 +2551,32 @@ export default function ChartPage() {
 
     setDeletingXrayId(radId);
     try {
-      // Primary route: /api/radiographs/{id}
+      // Primary route: DELETE /api/radiographs/{id}
       let res = await fetch(`/api/radiographs/${radId}`, {
         method: 'DELETE',
         headers: { 'Accept': 'application/json' }
       });
 
-      // Fallback patient-scoped route: /api/patients/{patientId}/radiographs/{id}
+      // Fallback 1: DELETE /api/patients/{patientId}/radiographs/{id}
       if (!res.ok) {
         res = await fetch(`/api/patients/${patientId}/radiographs/${radId}`, {
           method: 'DELETE',
+          headers: { 'Accept': 'application/json' }
+        });
+      }
+
+      // Fallback 2: POST /api/radiographs/{id}/delete (WebDAV/Firewall bypass)
+      if (!res.ok) {
+        res = await fetch(`/api/radiographs/${radId}/delete`, {
+          method: 'POST',
+          headers: { 'Accept': 'application/json' }
+        });
+      }
+
+      // Fallback 3: POST /api/patients/{patientId}/radiographs/{id}/delete
+      if (!res.ok) {
+        res = await fetch(`/api/patients/${patientId}/radiographs/${radId}/delete`, {
+          method: 'POST',
           headers: { 'Accept': 'application/json' }
         });
       }
