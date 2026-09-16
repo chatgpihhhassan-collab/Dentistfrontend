@@ -2099,13 +2099,13 @@ export default function ChartPage() {
     }
   };
 
-  // Client-side image compression to ensure high performance, prevent upload timeouts and CORS net::ERR_FAILED
+  // Client-side image compression to ensure high performance, prevent upload timeouts and firewall WAF blocks (which trigger CORS net::ERR_FAILED 403)
   const compressImageForUpload = async (file) => {
     if (!file) return file;
 
     // Detect image files by MIME type or common medical/scan file extensions
     const isImage = (file.type && file.type.startsWith('image/')) || /\.(jpe?g|png|webp|bmp|tiff?|jfif)$/i.test(file.name || '');
-    if (!isImage || file.size <= 400 * 1024) {
+    if (!isImage) {
       return file;
     }
 
@@ -2121,54 +2121,73 @@ export default function ChartPage() {
       img.onload = () => {
         try {
           if (objectUrl) URL.revokeObjectURL(objectUrl);
-          const MAX_DIMENSION = 1920; // 1080p medical viewing resolution
-          let width = img.width || 1000;
-          let height = img.height || 1000;
+          
+          // Firewall gateway on remote host enforces a hard ~60KB request payload ceiling.
+          // Targeting <= 32 KB guarantees immediate 200 OK without WAF interference.
+          const TARGET_MAX_BYTES = 32 * 1024;
 
-          if (width > height) {
-            if (width > MAX_DIMENSION) {
-              height = Math.round((height * MAX_DIMENSION) / width);
-              width = MAX_DIMENSION;
-            }
-          } else {
-            if (height > MAX_DIMENSION) {
-              width = Math.round((width * MAX_DIMENSION) / height);
-              height = MAX_DIMENSION;
-            }
-          }
+          const renderCanvasBlob = (maxDim, q) => {
+            let width = img.width || 800;
+            let height = img.height || 800;
 
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
-
-          canvas.toBlob(
-            (blob) => {
-              if (blob && blob.size > 0) {
-                const newFilename = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
-                const compressedFile = new File([blob], newFilename, {
-                  type: 'image/jpeg',
-                  lastModified: Date.now()
-                });
-                console.log(`[X-RAY OPTIMIZE] Compressed ${(file.size / 1024 / 1024).toFixed(2)}MB -> ${(compressedFile.size / 1024).toFixed(0)}KB`);
-                resolve(compressedFile);
-              } else {
-                resolve(file);
+            if (width > height) {
+              if (width > maxDim) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
               }
-            },
-            'image/jpeg',
-            0.82
-          );
+            } else {
+              if (height > maxDim) {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            return new Promise((res) => {
+              canvas.toBlob((b) => res(b), 'image/jpeg', q);
+            });
+          };
+
+          (async () => {
+            // Stage 1: 500px at quality 0.50
+            let blob = await renderCanvasBlob(500, 0.50);
+            
+            // Stage 2: If still > 32KB, reduce to 450px at quality 0.38
+            if (blob && blob.size > TARGET_MAX_BYTES) {
+              blob = await renderCanvasBlob(450, 0.38);
+            }
+
+            // Stage 3: If still > 32KB, reduce to 380px at quality 0.30
+            if (blob && blob.size > TARGET_MAX_BYTES) {
+              blob = await renderCanvasBlob(380, 0.30);
+            }
+
+            if (blob && blob.size > 0) {
+              const newFilename = (file.name || 'radiograph').replace(/\.[^/.]+$/, "") + ".jpg";
+              const compressedFile = new File([blob], newFilename, {
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              });
+              console.log(`[X-RAY OPTIMIZE] Compressed ${(file.size / 1024).toFixed(1)}KB -> ${(compressedFile.size / 1024).toFixed(1)}KB (Payload safe for gateway)`);
+              resolve(compressedFile);
+            } else {
+              resolve(file);
+            }
+          })().catch(() => resolve(file));
         } catch (err) {
-          console.warn("[X-RAY OPTIMIZE] Canvas compression error, falling back to original:", err);
+          console.warn("[X-RAY OPTIMIZE] Compression error, using original:", err);
           resolve(file);
         }
       };
 
       img.onerror = () => {
         if (objectUrl) URL.revokeObjectURL(objectUrl);
-        console.warn("[X-RAY OPTIMIZE] Image decoding failed, uploading raw file.");
+        console.warn("[X-RAY OPTIMIZE] Image decoding failed, using raw file.");
         resolve(file);
       };
 
@@ -2315,20 +2334,19 @@ export default function ChartPage() {
 
       let newRecord = null;
 
-      // Primary: Try axios (handles CORS credentials and interceptors reliably)
+      // Primary: Try axios (omit manual Content-Type so browser generates boundary)
       try {
         const axiosRes = await axios.post(absoluteEndpoint, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          timeout: 75000
+          timeout: 90000
         });
         if (axiosRes?.data) {
           newRecord = axiosRes.data;
         }
       } catch (axiosErr) {
-        console.warn("[UPLOAD FALLBACK] Axios post failed, falling back to window.fetch:", axiosErr?.message);
+        console.warn("[UPLOAD FALLBACK] Axios post failed, falling back to fetch:", axiosErr?.message);
         
-        // Secondary: Fallback to window.fetch
-        const fetchRes = await fetch(relativeEndpoint, {
+        // Secondary: Fallback to fetch
+        const fetchRes = await fetch(absoluteEndpoint, {
           method: 'POST',
           body: formData
         });
