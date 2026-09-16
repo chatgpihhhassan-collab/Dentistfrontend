@@ -1,15 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
     ShieldAlert, Activity, Sparkles, Crown, AlertTriangle, 
     CheckCircle2, FileText, Info, Eye, Layers, Stethoscope,
-    LayoutGrid, AlignLeft
+    LayoutGrid, AlignLeft, Check, Loader2, ArrowUpRight
 } from 'lucide-react';
+import { extractAiFindingsFromReport } from '../utils/aiRadiologyUtils';
 
 /**
  * Parses raw dental radiology report into structured categories with tooth tags, severity badges, and document view
  */
-export default function RadiologyReportViewer({ rawReportText, onToothClick }) {
+export default function RadiologyReportViewer({ rawReportText, onToothClick, onApplyFindings, isApplying = false }) {
     const [viewMode, setViewMode] = useState('cards'); // 'cards' | 'document'
+
+    const detectedFindings = useMemo(() => extractAiFindingsFromReport(rawReportText), [rawReportText]);
 
     if (!rawReportText) {
         return (
@@ -303,6 +306,49 @@ export default function RadiologyReportViewer({ rawReportText, onToothClick }) {
                     </button>
                 </div>
             </div>
+
+            {/* Quick Action Bar to Apply Findings to Dental Chart */}
+            {detectedFindings.length > 0 && onApplyFindings && (
+                <div className="p-3.5 bg-gradient-to-r from-purple-50 via-indigo-50/50 to-blue-50 border border-purple-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 shadow-2xs">
+                            <Sparkles className="w-4 h-4 text-purple-600" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-black text-slate-800">
+                                    {detectedFindings.length} Pathologies Detected by AI
+                                </span>
+                                <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.2 rounded-md">
+                                    Actionable
+                                </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                                {detectedFindings.map((f, i) => (
+                                    <span 
+                                        key={i}
+                                        onClick={() => onToothClick && onToothClick(`#${f.toothKey || f.toothNumber}`)}
+                                        className="text-[11px] font-bold text-slate-700 hover:text-purple-700 cursor-pointer bg-white px-2 py-0.5 rounded-lg border border-slate-200"
+                                        title={f.procedure || f.condition}
+                                    >
+                                        Tooth #{f.toothKey || f.toothNumber}: <span className="font-normal text-slate-500">{f.condition}</span>
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={() => onApplyFindings(detectedFindings)}
+                        disabled={isApplying}
+                        className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+                    >
+                        {isApplying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-amber-300" />}
+                        <span>{isApplying ? "Syncing Chart..." : "Apply All to Chart & Billing"}</span>
+                    </button>
+                </div>
+            )}
 
             {/* View Mode: Visual Cards Grid */}
             {viewMode === 'cards' && (

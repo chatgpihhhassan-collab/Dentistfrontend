@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
-import { ArrowLeft, Send, Mic, MicOff, AudioLines, Calendar, Clock, CheckCircle, AlertTriangle, AlertCircle, Save, KeyRound, FileText, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Brain, Stethoscope, Pill, ListChecks, Loader2, Printer, Download, Check, X, Edit, Image, Activity, Sparkles, Trash2, RotateCcw, Search, ExternalLink, CreditCard } from 'lucide-react';
+import { ArrowLeft, Send, Mic, MicOff, AudioLines, Calendar, Clock, CheckCircle, AlertTriangle, AlertCircle, Save, KeyRound, FileText, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Brain, Stethoscope, Pill, ListChecks, Loader2, Printer, Download, Check, X, Edit, Image, Activity, Sparkles, Trash2, RotateCcw, Search, ExternalLink, CreditCard, ArrowUpRight, RefreshCw } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import RadiologyReportViewer from '../components/RadiologyReportViewer';
@@ -24,6 +24,7 @@ import nanoPixService from '../services/nanoPixDeviceService';
 import NanoPixCaptureModal from '../components/NanoPixCaptureModal';
 import NanoPixPatientPromptModal from '../components/NanoPixPatientPromptModal';
 import PatientTreatmentInvoiceTab from '../components/PatientTreatmentInvoiceTab';
+import { extractAiFindingsFromReport } from '../utils/aiRadiologyUtils';
 
 // Real Anatomical Maxilla (Upper Jaw) Coordinate & Rotation Mapping for Empty Jaw Template (Exact 16 Sockets)
 export const MAXILLA_COORDS = {
@@ -871,6 +872,8 @@ export default function ChartPage() {
   const [radiographBlobUrl, setRadiographBlobUrl] = useState('');
   const [radiographImgLoading, setRadiographImgLoading] = useState(false);
   const [radiographImgError, setRadiographImgError] = useState(false);
+  const [isApplyingAiFindings, setIsApplyingAiFindings] = useState(false);
+  const [appliedRadiographIds, setAppliedRadiographIds] = useState(new Set());
 
   // Manual Tooth Observation Editing & Directory States
   const [editingToothData, setEditingToothData] = useState(null);
@@ -2154,6 +2157,125 @@ export default function ChartPage() {
     });
   };
 
+  const handleApplyAiFindingsToChart = async (findingsToApply, radiograph = selectedRadiograph) => {
+    const findings = findingsToApply || extractAiFindingsFromReport(radiograph?.analysisSummary || radiograph?.AnalysisSummary);
+    if (!findings || findings.length === 0) {
+      setToast({ visible: true, message: "No actionable tooth findings detected in this radiograph." });
+      setTimeout(() => setToast({ visible: false, message: "" }), 3000);
+      return;
+    }
+
+    const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
+    const doctorId = doctorData.doctorID || doctorData.DoctorID || 1;
+    const radName = radiograph?.imageName || radiograph?.ImageName || 'Radiograph';
+
+    setIsApplyingAiFindings(true);
+    setToast({ visible: true, message: `Syncing AI findings for ${findings.length} teeth to Dental Chart & Ledger...` });
+
+    try {
+      // 1. Prepare updates for database
+      const updates = findings.map(f => {
+        const comment = `[AI X-Ray: ${radName}] ${f.condition} (${f.confidence}% AI confidence). Procedure: ${f.procedure || f.cdtCode || 'Treatment indicated'}.`;
+        return {
+          toothNumber: f.toothNumber,
+          toothKey: String(f.toothKey || f.toothNumber),
+          conditionStatus: f.condition,
+          condition: f.condition,
+          color: f.color || '#EF4444',
+          status: f.status || 'Planned',
+          comment: comment,
+          comments: comment,
+          cdtCode: f.cdtCode || '',
+          doctorId: doctorId
+        };
+      });
+
+      // 2. Immediate local state update for instant UI feedback across 2D Odontogram, 3D Jaw, Infographics KPIs, and Billing
+      setTeethState(prev => {
+        const copy = [...prev];
+        updates.forEach(u => {
+          const idx = copy.findIndex(t => 
+            (u.toothNumber && t.toothNumber === u.toothNumber) ||
+            (u.toothKey && String(t.toothKey || t.toothNumber) === String(u.toothKey))
+          );
+          if (idx >= 0) {
+            copy[idx] = {
+              ...copy[idx],
+              conditionStatus: u.conditionStatus,
+              condition: u.condition,
+              color: u.color,
+              conditionColor: u.color,
+              status: u.status,
+              comments: u.comment,
+              comment: u.comment,
+              treatment: u.condition,
+              cdtCode: u.cdtCode || copy[idx].cdtCode,
+              isAiAnalyzed: true
+            };
+          } else {
+            copy.push({
+              patientId: Number(patientId),
+              toothNumber: u.toothNumber,
+              toothKey: u.toothKey,
+              conditionStatus: u.conditionStatus,
+              condition: u.condition,
+              color: u.color,
+              conditionColor: u.color,
+              status: u.status,
+              comments: u.comment,
+              comment: u.comment,
+              treatment: u.condition,
+              cdtCode: u.cdtCode,
+              isAiAnalyzed: true
+            });
+          }
+        });
+        return copy;
+      });
+
+      // 3. Persist to backend database via update-bulk
+      await fetch('/api/patients/teeth/update-bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patientId: Number(patientId),
+          updates: updates
+        })
+      }).catch(e => console.warn("Teeth bulk update warning:", e));
+
+      // 4. Record to patient clinical history timeline
+      const toothListStr = findings.map(f => `#${f.toothKey || f.toothNumber} (${f.condition})`).join(', ');
+      await fetch(`/api/patients/${patientId}/clinical-logs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          doctorID: doctorId,
+          message: `✨ AI Radiograph Pathology Synced to Dental Chart: ${toothListStr} from scan [${radName}].`,
+          logType: 'Radiograph'
+        })
+      }).catch(() => {});
+
+      // 5. Mark radiograph as applied locally
+      const rId = radiograph?.radiographID || radiograph?.RadiographID;
+      if (rId) {
+        setAppliedRadiographIds(prev => new Set([...prev, rId]));
+      }
+
+      setToast({ 
+        visible: true, 
+        message: `✨ AI Findings applied to Dental Chart & Treatment Ledger for ${findings.length} teeth!` 
+      });
+      setTimeout(() => setToast({ visible: false, message: "" }), 4000);
+
+    } catch (err) {
+      console.error("Error applying AI findings to chart:", err);
+      setToast({ visible: true, message: `Error syncing AI findings: ${err.message}` });
+      setTimeout(() => setToast({ visible: false, message: "" }), 4000);
+    } finally {
+      setIsApplyingAiFindings(false);
+    }
+  };
+
   const handleUploadXray = async (e) => {
     const rawFile = e.target.files?.[0] || (e.dataTransfer?.files?.[0]);
     if (!rawFile) return;
@@ -2175,8 +2297,19 @@ export default function ChartPage() {
         const newRecord = await res.json();
         setRadiographs(prev => [newRecord, ...prev]);
         setSelectedRadiograph(newRecord);
-        setToast({ visible: true, message: "X-Ray uploaded and analyzed successfully!" });
-        setTimeout(() => setToast({ visible: false, message: "" }), 3000);
+
+        // Auto-extract findings and sync to chart & treatment ledger
+        const detectedFindings = extractAiFindingsFromReport(newRecord.analysisSummary || newRecord.AnalysisSummary);
+        if (detectedFindings && detectedFindings.length > 0) {
+          await handleApplyAiFindingsToChart(detectedFindings, newRecord);
+          setToast({ 
+            visible: true, 
+            message: `✨ AI detected & applied ${detectedFindings.length} findings (Teeth: ${detectedFindings.map(f => '#' + (f.toothKey || f.toothNumber)).join(', ')}) directly to Dental Chart!` 
+          });
+        } else {
+          setToast({ visible: true, message: "X-Ray uploaded and analyzed successfully!" });
+        }
+        setTimeout(() => setToast({ visible: false, message: "" }), 4000);
       } else {
         const errText = await res.text();
         console.error('Upload error:', errText);
@@ -2317,10 +2450,18 @@ export default function ChartPage() {
       const res = await fetch(`/api/radiographs/${rId}/reanalyze`, { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
-        setSelectedRadiograph(prev => ({ ...prev, analysisSummary: data.analysisSummary, AnalysisSummary: data.analysisSummary }));
+        const updatedRad = { ...selectedRadiograph, analysisSummary: data.analysisSummary, AnalysisSummary: data.analysisSummary };
+        setSelectedRadiograph(updatedRad);
         setEditingXrayText(data.analysisSummary);
         setXrayDetailsExpanded(true);
-        setToast({ visible: true, message: "✨ Live AI Radiograph Analysis complete!" });
+
+        const detectedFindings = extractAiFindingsFromReport(data.analysisSummary);
+        if (detectedFindings && detectedFindings.length > 0) {
+          await handleApplyAiFindingsToChart(detectedFindings, updatedRad);
+          setToast({ visible: true, message: `✨ Live AI Analysis complete & synced ${detectedFindings.length} findings to Dental Chart!` });
+        } else {
+          setToast({ visible: true, message: "✨ Live AI Radiograph Analysis complete!" });
+        }
       } else {
         alert("Live AI Vision analysis failed.");
       }
@@ -7306,6 +7447,114 @@ export default function ChartPage() {
                           </div>
                         </div>
 
+                        {/* AI Radiographic Findings Detected Action Banner */}
+                        {(() => {
+                          const currentFindings = extractAiFindingsFromReport(selectedRadiograph.analysisSummary || selectedRadiograph.AnalysisSummary);
+                          if (!currentFindings || currentFindings.length === 0) return null;
+                          const isApplied = appliedRadiographIds.has(selectedRadiograph.radiographID || selectedRadiograph.RadiographID);
+
+                          return (
+                            <div className="p-4 bg-gradient-to-r from-purple-50 via-indigo-50/60 to-blue-50 border-b border-purple-200/80 flex flex-col md:flex-row md:items-center justify-between gap-3 no-print animate-fade-in">
+                              <div className="space-y-1.5 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="flex h-2.5 w-2.5 relative shrink-0">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-purple-600"></span>
+                                  </span>
+                                  <h5 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                    <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                                    <span>AI Detected Pathology on {currentFindings.length} {currentFindings.length === 1 ? 'Tooth' : 'Teeth'}</span>
+                                  </h5>
+                                  {isApplied ? (
+                                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-extrabold border border-emerald-300 flex items-center gap-1">
+                                      <Check className="w-3 h-3 text-emerald-600" />
+                                      Synced to Chart & Ledger
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[10px] font-extrabold border border-purple-300">
+                                      Actionable Findings
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Itemized Tooth Findings Pills */}
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {currentFindings.map((f, i) => (
+                                    <div 
+                                      key={i} 
+                                      onClick={() => {
+                                        const num = parseInt(f.toothNumber, 10);
+                                        if (num >= 1 && num <= 32) setDetailedTooth(num);
+                                      }}
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-slate-700 shadow-2xs text-[11px] cursor-pointer hover:border-purple-300 transition-all"
+                                      title={`Click to focus Tooth #${f.toothKey || f.toothNumber}. ${f.condition} (${f.confidence}% confidence). Procedure: ${f.procedure || f.cdtCode}`}
+                                    >
+                                      <span 
+                                        className="w-2 h-2 rounded-full shrink-0" 
+                                        style={{ backgroundColor: f.color || '#EF4444' }} 
+                                      />
+                                      <span className="font-black text-slate-900">#{f.toothKey || f.toothNumber}</span>
+                                      <span className="text-slate-300">•</span>
+                                      <span className="font-bold text-slate-700 truncate max-w-[130px]">{f.condition}</span>
+                                      {f.cdtCode && (
+                                        <span className="px-1.5 py-0.2 bg-blue-50 text-blue-700 font-mono font-bold rounded text-[10px] border border-blue-200">
+                                          {f.cdtCode}
+                                        </span>
+                                      )}
+                                      <span className="text-[10px] text-purple-600 font-extrabold">
+                                        {f.confidence}%
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Action Buttons */}
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleApplyAiFindingsToChart(currentFindings, selectedRadiograph)}
+                                  disabled={isApplyingAiFindings}
+                                  className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-sm cursor-pointer ${
+                                    isApplied 
+                                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
+                                      : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-purple-200'
+                                  }`}
+                                >
+                                  {isApplyingAiFindings ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : isApplied ? (
+                                    <RefreshCw className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                                  )}
+                                  <span>{isApplyingAiFindings ? "Syncing Chart..." : isApplied ? "Re-Apply to Chart" : "Apply All to Chart"}</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveTab('chart')}
+                                  className="px-3 py-2 rounded-xl text-xs font-bold bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 transition flex items-center gap-1 cursor-pointer"
+                                  title="View 2D Odontogram Arch & 3D Jaw"
+                                >
+                                  <span>Odontogram</span>
+                                  <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveTab('billing')}
+                                  className="px-3 py-2 rounded-xl text-xs font-bold bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 transition flex items-center gap-1 cursor-pointer"
+                                  title="View Treatment Matrix & Billing Ledger"
+                                >
+                                  <span>Billing</span>
+                                  <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
                         {/* Image viewer */}
                         <div className="relative bg-[#0F172A] min-h-[260px] max-h-[380px] flex items-center justify-center border-b border-light-teal/20 overflow-hidden p-3 rounded-t-2xl">
                           {radiographImgLoading && (
@@ -7416,6 +7665,8 @@ export default function ChartPage() {
                                       }
                                     }
                                   }}
+                                  onApplyFindings={handleApplyAiFindingsToChart}
+                                  isApplying={isApplyingAiFindings}
                                 />
                               )}
 
