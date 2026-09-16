@@ -2117,7 +2117,8 @@ export default function ChartPage() {
         return resolve(file);
       }
 
-      const img = new Image();
+      // Use native browser HTMLImageElement, not the Lucide React icon component 'Image'
+      const img = typeof window !== 'undefined' ? new window.Image() : document.createElement('img');
       img.onload = () => {
         try {
           if (objectUrl) URL.revokeObjectURL(objectUrl);
