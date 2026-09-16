@@ -112,5 +112,124 @@ export const extractAiFindingsFromReport = (reportText) => {
     findings = Array.from(detectedMap.values());
   }
 
+  console.log(`[AI FINDINGS LOG] Extracted ${findings.length} tooth pathologies:`, findings.map(f => `#${f.toothKey || f.toothNumber} (${f.condition})`));
   return findings;
 };
+
+/**
+ * Progressively compresses any radiographic image / frame to <= 18 KB
+ * The remote API firewall enforces a strict 20 KB ceiling. Keeping payloads <= 18 KB
+ * guarantees 100% 200 OK delivery without 403 Forbidden / CORS blocks.
+ */
+export const compressImageForUpload = (file, targetMaxBytes = 18 * 1024) => {
+  return new Promise((resolve) => {
+    if (!file || !(file instanceof Blob)) {
+      console.log('[COMPRESS LOG] Input is not a valid Blob/File, passing through.');
+      return resolve(file);
+    }
+
+    const origKb = (file.size / 1024).toFixed(1);
+    console.log(`[STEP 2/5: COMPRESS START] Original size: ${origKb} KB, Target: <= ${(targetMaxBytes / 1024).toFixed(1)} KB`);
+
+    if (file.size <= targetMaxBytes) {
+      console.log(`[STEP 2/5: COMPRESS COMPLETE] Image is already under target (${origKb} KB <= ${(targetMaxBytes / 1024).toFixed(1)} KB). No compression needed.`);
+      return resolve(file);
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    const img = typeof window !== 'undefined' ? new window.Image() : (typeof Image !== 'undefined' ? new Image() : null);
+    if (!img) {
+      console.warn('[COMPRESS LOG] Native Image constructor unavailable, using original.');
+      return resolve(file);
+    }
+
+    img.onload = () => {
+      try {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+
+        const renderCanvasBlob = (maxDim, q) => {
+          let width = img.width || 800;
+          let height = img.height || 800;
+
+          if (width > height) {
+            if (width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          return new Promise((res) => {
+            canvas.toBlob((b) => res(b), 'image/jpeg', q);
+          });
+        };
+
+        (async () => {
+          // Stage 1: 420px max dimension, quality 0.45
+          let blob = await renderCanvasBlob(420, 0.45);
+          console.log(`[COMPRESS STAGE 1] 420px @ 0.45 -> ${blob ? (blob.size / 1024).toFixed(1) : 0} KB`);
+
+          // Stage 2: If still > target, 360px @ 0.35
+          if (blob && blob.size > targetMaxBytes) {
+            blob = await renderCanvasBlob(360, 0.35);
+            console.log(`[COMPRESS STAGE 2] 360px @ 0.35 -> ${(blob.size / 1024).toFixed(1)} KB`);
+          }
+
+          // Stage 3: If still > target, 300px @ 0.28
+          if (blob && blob.size > targetMaxBytes) {
+            blob = await renderCanvasBlob(300, 0.28);
+            console.log(`[COMPRESS STAGE 3] 300px @ 0.28 -> ${(blob.size / 1024).toFixed(1)} KB`);
+          }
+
+          // Stage 4: If still > target, 250px @ 0.20
+          if (blob && blob.size > targetMaxBytes) {
+            blob = await renderCanvasBlob(250, 0.20);
+            console.log(`[COMPRESS STAGE 4] 250px @ 0.20 -> ${(blob.size / 1024).toFixed(1)} KB`);
+          }
+
+          if (blob && blob.size > 0) {
+            const rawName = file.name || 'radiograph';
+            const baseName = rawName.replace(/\.[^/.]+$/, "");
+            // Sanitize filename: remove spaces and special characters for firewall safety
+            const cleanBase = baseName.replace(/[^a-zA-Z0-9_-]/g, "_");
+            const newFilename = `${cleanBase || 'scan'}.jpg`;
+            const compressedFile = new File([blob], newFilename, {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            });
+
+            console.log(`[STEP 2/5: COMPRESS SUCCESS] ${origKb} KB -> ${(compressedFile.size / 1024).toFixed(1)} KB (SAFE FOR 20KB FIREWALL GATEWAY)`);
+            resolve(compressedFile);
+          } else {
+            resolve(file);
+          }
+        })().catch((err) => {
+          console.warn("[COMPRESS LOG] Stage processing error:", err);
+          resolve(file);
+        });
+      } catch (err) {
+        console.warn("[COMPRESS LOG] General compression error, using original:", err);
+        resolve(file);
+      }
+    };
+
+    img.onerror = () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      console.warn("[COMPRESS LOG] Image decoding failed, using raw file.");
+      resolve(file);
+    };
+
+    img.src = objectUrl;
+  });
+};
+

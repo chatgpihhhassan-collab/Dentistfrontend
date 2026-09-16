@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
-import { ArrowLeft, Send, Mic, MicOff, AudioLines, Calendar, Clock, CheckCircle, AlertTriangle, AlertCircle, Save, KeyRound, FileText, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Brain, Stethoscope, Pill, ListChecks, Loader2, Printer, Download, Check, X, Edit, Image, Activity, Sparkles, Trash2, RotateCcw, Search, ExternalLink, CreditCard, ArrowUpRight, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Send, Mic, MicOff, AudioLines, Calendar, Clock, CheckCircle, AlertTriangle, AlertCircle, Save, KeyRound, FileText, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Brain, Stethoscope, Pill, ListChecks, Loader2, Printer, Download, Check, X, Edit, Image, Activity, Sparkles, Trash2, RotateCcw, Search, ExternalLink, CreditCard, ArrowUpRight, RefreshCw, HardDrive } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import RadiologyReportViewer from '../components/RadiologyReportViewer';
@@ -25,7 +25,7 @@ import nanoPixService from '../services/nanoPixDeviceService';
 import NanoPixCaptureModal from '../components/NanoPixCaptureModal';
 import NanoPixPatientPromptModal from '../components/NanoPixPatientPromptModal';
 import PatientTreatmentInvoiceTab from '../components/PatientTreatmentInvoiceTab';
-import { extractAiFindingsFromReport } from '../utils/aiRadiologyUtils';
+import { extractAiFindingsFromReport, compressImageForUpload } from '../utils/aiRadiologyUtils';
 
 // Real Anatomical Maxilla (Upper Jaw) Coordinate & Rotation Mapping for Empty Jaw Template (Exact 16 Sockets)
 export const MAXILLA_COORDS = {
@@ -2100,106 +2100,10 @@ export default function ChartPage() {
     }
   };
 
-  // Client-side image compression to ensure high performance, prevent upload timeouts and firewall WAF blocks (which trigger CORS net::ERR_FAILED 403)
-  const compressImageForUpload = async (file) => {
-    if (!file) return file;
-
-    // Detect image files by MIME type or common medical/scan file extensions
-    const isImage = (file.type && file.type.startsWith('image/')) || /\.(jpe?g|png|webp|bmp|tiff?|jfif)$/i.test(file.name || '');
-    if (!isImage) {
-      return file;
-    }
-
-    return new Promise((resolve) => {
-      let objectUrl = null;
-      try {
-        objectUrl = URL.createObjectURL(file);
-      } catch (e) {
-        return resolve(file);
-      }
-
-      // Use native browser HTMLImageElement, not the Lucide React icon component 'Image'
-      const img = typeof window !== 'undefined' ? new window.Image() : document.createElement('img');
-      img.onload = () => {
-        try {
-          if (objectUrl) URL.revokeObjectURL(objectUrl);
-          
-          // Firewall gateway on remote host enforces a hard ~60KB request payload ceiling.
-          // Targeting <= 32 KB guarantees immediate 200 OK without WAF interference.
-          const TARGET_MAX_BYTES = 32 * 1024;
-
-          const renderCanvasBlob = (maxDim, q) => {
-            let width = img.width || 800;
-            let height = img.height || 800;
-
-            if (width > height) {
-              if (width > maxDim) {
-                height = Math.round((height * maxDim) / width);
-                width = maxDim;
-              }
-            } else {
-              if (height > maxDim) {
-                width = Math.round((width * maxDim) / height);
-                height = maxDim;
-              }
-            }
-
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
-
-            return new Promise((res) => {
-              canvas.toBlob((b) => res(b), 'image/jpeg', q);
-            });
-          };
-
-          (async () => {
-            // Stage 1: 500px at quality 0.50
-            let blob = await renderCanvasBlob(500, 0.50);
-            
-            // Stage 2: If still > 32KB, reduce to 450px at quality 0.38
-            if (blob && blob.size > TARGET_MAX_BYTES) {
-              blob = await renderCanvasBlob(450, 0.38);
-            }
-
-            // Stage 3: If still > 32KB, reduce to 380px at quality 0.30
-            if (blob && blob.size > TARGET_MAX_BYTES) {
-              blob = await renderCanvasBlob(380, 0.30);
-            }
-
-            if (blob && blob.size > 0) {
-              const newFilename = (file.name || 'radiograph').replace(/\.[^/.]+$/, "") + ".jpg";
-              const compressedFile = new File([blob], newFilename, {
-                type: 'image/jpeg',
-                lastModified: Date.now()
-              });
-              console.log(`[X-RAY OPTIMIZE] Compressed ${(file.size / 1024).toFixed(1)}KB -> ${(compressedFile.size / 1024).toFixed(1)}KB (Payload safe for gateway)`);
-              resolve(compressedFile);
-            } else {
-              resolve(file);
-            }
-          })().catch(() => resolve(file));
-        } catch (err) {
-          console.warn("[X-RAY OPTIMIZE] Compression error, using original:", err);
-          resolve(file);
-        }
-      };
-
-      img.onerror = () => {
-        if (objectUrl) URL.revokeObjectURL(objectUrl);
-        console.warn("[X-RAY OPTIMIZE] Image decoding failed, using raw file.");
-        resolve(file);
-      };
-
-      img.src = objectUrl;
-    });
-  };
-
   const handleApplyAiFindingsToChart = async (findingsToApply, radiograph = selectedRadiograph) => {
     const findings = findingsToApply || extractAiFindingsFromReport(radiograph?.analysisSummary || radiograph?.AnalysisSummary);
     if (!findings || findings.length === 0) {
+      console.log('[CHART SYNC] No actionable findings detected to apply.');
       setToast({ visible: true, message: "No actionable tooth findings detected in this radiograph." });
       setTimeout(() => setToast({ visible: false, message: "" }), 3000);
       return;
@@ -2210,6 +2114,7 @@ export default function ChartPage() {
     const radName = radiograph?.imageName || radiograph?.ImageName || 'Radiograph';
 
     setIsApplyingAiFindings(true);
+    console.log(`[STEP 5/5: CHART SYNC] Syncing AI findings for ${findings.length} teeth to Dental Chart & Ledger...`);
     setToast({ visible: true, message: `Syncing AI findings for ${findings.length} teeth to Dental Chart & Ledger...` });
 
     try {
@@ -2273,6 +2178,8 @@ export default function ChartPage() {
         return copy;
       });
 
+      console.log(`[CHART SYNC] teethState updated locally with ${updates.length} teeth.`);
+
       // 3. Persist to backend database via update-bulk
       await fetch('/api/patients/teeth/update-bulk', {
         method: 'POST',
@@ -2301,6 +2208,7 @@ export default function ChartPage() {
         setAppliedRadiographIds(prev => new Set([...prev, rId]));
       }
 
+      console.log(`[STEP 5/5: SUCCESS] Chart & Treatment Ledger fully updated for ${findings.length} teeth.`);
       setToast({ 
         visible: true, 
         message: `✨ AI Findings applied to Dental Chart & Treatment Ledger for ${findings.length} teeth!` 
@@ -2308,7 +2216,7 @@ export default function ChartPage() {
       setTimeout(() => setToast({ visible: false, message: "" }), 4000);
 
     } catch (err) {
-      console.error("Error applying AI findings to chart:", err);
+      console.error("[CHART SYNC ERROR] Error applying AI findings to chart:", err);
       setToast({ visible: true, message: `Error syncing AI findings: ${err.message}` });
       setTimeout(() => setToast({ visible: false, message: "" }), 4000);
     } finally {
@@ -2320,33 +2228,38 @@ export default function ChartPage() {
     const rawFile = e.target.files?.[0] || (e.dataTransfer?.files?.[0]);
     if (!rawFile) return;
     setUploadingXray(true);
-    setToast({ visible: true, message: "Compressing & preparing radiograph..." });
+    setToast({ visible: true, message: "Compressing & optimizing radiograph (target <= 18 KB)..." });
     const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
     const doctorId = doctorData.doctorID || doctorData.DoctorID || 1;
 
+    console.log(`[STEP 1/5: FRONTEND UPLOAD] File selected: "${rawFile.name}", Original Size: ${(rawFile.size / 1024).toFixed(1)} KB`);
+
     try {
-      const file = await compressImageForUpload(rawFile);
+      // Step 2: Progressive compression <= 18 KB
+      const file = await compressImageForUpload(rawFile, 18 * 1024);
+      console.log(`[STEP 2/5: COMPRESS SUCCESS] Output: ${(file.size / 1024).toFixed(1)} KB (SAFE FOR 20KB WAF GATEWAY)`);
+
       const formData = new FormData();
       formData.append('file', file);
 
-      setToast({ visible: true, message: "Uploading scan & running Gemini AI diagnostics..." });
+      setToast({ visible: true, message: `Uploading scan (${(file.size / 1024).toFixed(1)} KB) & running Gemini AI diagnostics...` });
 
       const uploadEndpoint = `/api/patients/${patientId}/radiographs?doctorId=${doctorId}`;
+      console.log(`[STEP 3/5: API DISPATCH] Sending to: ${uploadEndpoint}`);
 
       let newRecord = null;
 
-      // Primary: Try axios (omit manual Content-Type so browser generates boundary)
+      // Primary: Try axios
       try {
         const axiosRes = await axios.post(uploadEndpoint, formData, {
           timeout: 90000
         });
         if (axiosRes?.data) {
           newRecord = axiosRes.data;
+          console.log(`[STEP 3/5: UPLOAD SUCCESS] Axios returned HTTP ${axiosRes.status}, Record ID:`, newRecord.radiographID);
         }
       } catch (axiosErr) {
-        console.warn("[UPLOAD FALLBACK] Axios post failed, falling back to fetch:", axiosErr?.message);
-        
-        // Secondary: Fallback to fetch
+        console.warn(`[STEP 3/5: UPLOAD FALLBACK] Axios failed (${axiosErr.message}), falling back to fetch...`);
         const fetchRes = await fetch(uploadEndpoint, {
           method: 'POST',
           body: formData
@@ -2357,27 +2270,33 @@ export default function ChartPage() {
           throw new Error(`Upload returned HTTP ${fetchRes.status}: ${errBody || fetchRes.statusText}`);
         }
         newRecord = await fetchRes.json();
+        console.log(`[STEP 3/5: UPLOAD SUCCESS] Fetch returned HTTP ${fetchRes.status}, Record ID:`, newRecord.radiographID);
       }
 
       if (newRecord) {
         setRadiographs(prev => [newRecord, ...prev]);
         setSelectedRadiograph(newRecord);
 
-        // Auto-extract findings and sync to chart & treatment ledger
+        // Step 4: Extract findings
+        console.log(`[STEP 4/5: AI DIAGNOSTICS] Parsing Gemini report (${(newRecord.analysisSummary || '').length} chars)...`);
         const detectedFindings = extractAiFindingsFromReport(newRecord.analysisSummary || newRecord.AnalysisSummary);
+
         if (detectedFindings && detectedFindings.length > 0) {
+          // Step 5: Auto-apply to dental chart
+          console.log(`[STEP 5/5: CHART AUTO-APPLY] Applying ${detectedFindings.length} findings to Dental Chart:`, detectedFindings.map(f => `#${f.toothKey || f.toothNumber} (${f.condition})`));
           await handleApplyAiFindingsToChart(detectedFindings, newRecord);
           setToast({ 
             visible: true, 
             message: `✨ AI detected & applied ${detectedFindings.length} findings (Teeth: ${detectedFindings.map(f => '#' + (f.toothKey || f.toothNumber)).join(', ')}) directly to Dental Chart!` 
           });
         } else {
+          console.log('[STEP 5/5: CHART AUTO-APPLY] No actionable tooth pathology detected in report.');
           setToast({ visible: true, message: "X-Ray uploaded and analyzed successfully!" });
         }
         setTimeout(() => setToast({ visible: false, message: "" }), 4000);
       }
     } catch (err) {
-      console.error('Error uploading X-ray:', err);
+      console.error('[STEP 3/5: UPLOAD ERROR] Error uploading X-ray:', err);
       const errMsg = err.response?.data?.message || err.response?.data || err.message || "Network error uploading X-ray";
       setToast({ visible: true, message: `Upload error: ${errMsg}. Please try again.` });
       setTimeout(() => setToast({ visible: false, message: "" }), 5000);
@@ -7422,44 +7341,64 @@ export default function ChartPage() {
             {/* ===== IMAGING & X-RAYS TAB ===== */}
             {activeTab === 'radiographs' && (
               <div className="flex flex-col gap-6 flex-grow animate-fade-in">
-                         {/* Drag-and-drop file uploader card */}
-                <div className={`border-2 border-dashed rounded-[2rem] p-10 bg-[#F4F6FA]/40 transition-all duration-300 flex flex-col items-center justify-center text-center relative group ${
-                  uploadingXray ? 'border-purple-300 bg-purple-50/10' : 'border-[#4A7CD2]/40 hover:bg-[#EAF0FC]/10'
-                }`}>
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={handleUploadXray} 
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    disabled={uploadingXray}
-                  />
-                  {uploadingXray ? (
-                    <div className="flex flex-col items-center space-y-4">
-                      {/* Rotating Tooth Loader with pulsing aura */}
-                      <div className="relative">
-                        <div className="absolute inset-0 rounded-full bg-purple-500/20 blur-md animate-ping" />
-                        <div className="w-16 h-16 rounded-3xl bg-purple-50 flex items-center justify-center border border-purple-200 shadow-sm relative animate-spin">
-                          <svg className="w-8 h-8 text-[#8B5CF6]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                            <path d="M12 2C8 2 7 5 7 9c0 5-2 7-2 11c0 2 3 2 4 2c1.5 0 2.5-1 3-2c.5 1 1.5 2 3 2c1 0 4 0 4-2c0-4-2-6-2-11c0-4-1-7-5-7z" />
-                          </svg>
+                {/* DUAL RADIOGRAPH INPUT: Front-End Upload & USB Device Capture */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Option 1: Front-End File Drag & Drop / Browse */}
+                  <div className={`border-2 border-dashed rounded-[2rem] p-7 bg-[#F4F6FA]/40 transition-all duration-300 flex flex-col items-center justify-center text-center relative group ${
+                    uploadingXray ? 'border-purple-300 bg-purple-50/10' : 'border-[#4A7CD2]/40 hover:bg-[#EAF0FC]/20'
+                  }`}>
+                    <input 
+                      type="file" 
+                      accept="image/*,.dcm,.tif,.bmp" 
+                      onChange={handleUploadXray} 
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      disabled={uploadingXray}
+                    />
+                    {uploadingXray ? (
+                      <div className="flex flex-col items-center space-y-3">
+                        <div className="relative">
+                          <div className="absolute inset-0 rounded-full bg-purple-500/20 blur-md animate-ping" />
+                          <div className="w-14 h-14 rounded-2xl bg-purple-50 flex items-center justify-center border border-purple-200 shadow-sm relative animate-spin">
+                            <Sparkles className="w-7 h-7 text-[#8B5CF6]" />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs font-black text-dark-slate tracking-wide animate-pulse">AI is analyzing the scan, please wait...</p>
+                          <p className="text-[10px] text-[#8B5CF6] font-bold uppercase tracking-widest">Running Radiographic Diagnostics</p>
                         </div>
                       </div>
-                      <div className="space-y-1.5">
-                        <p className="text-sm font-black text-dark-slate tracking-wide animate-pulse">AI is analyzing the scan, please wait...</p>
-                        <p className="text-xs text-[#8B5CF6]/90 font-bold uppercase tracking-widest">Running Radiographic Diagnostics</p>
+                    ) : (
+                      <div className="flex flex-col items-center">
+                        <div className="w-12 h-12 rounded-2xl bg-[#EAF0FC] flex items-center justify-center mb-2 group-hover:scale-105 transition-all shadow-sm">
+                          <Image className="w-5 h-5 text-[#4A7CD2]" />
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-black text-dark-slate">1. Upload Radiograph (PC / Drive)</p>
+                          <p className="text-[11px] text-muted-text">Click or drag & drop OPG, Bitewing, or RVG files here</p>
+                        </div>
                       </div>
+                    )}
+                  </div>
+
+                  {/* Option 2: USB Device / Intraoral Sensor Capture */}
+                  <div 
+                    onClick={() => {
+                      if (detailedTooth) setNanoPixActiveTooth(String(detailedTooth));
+                      setShowNanoPixModal(true);
+                    }}
+                    className="border-2 border-dashed border-teal-400/60 rounded-[2rem] p-7 bg-teal-50/20 hover:bg-teal-50/50 transition-all duration-300 flex flex-col items-center justify-center text-center cursor-pointer group shadow-2xs"
+                  >
+                    <div className="w-12 h-12 rounded-2xl bg-teal-100 flex items-center justify-center mb-2 group-hover:scale-105 transition-all shadow-sm">
+                      <HardDrive className="w-5 h-5 text-teal-600" />
                     </div>
-                  ) : (
-                    <div className="flex flex-col items-center">
-                      <div className="w-14 h-14 rounded-2xl bg-[#EAF0FC] flex items-center justify-center mb-3 group-hover:scale-105 transition-all shadow-sm">
-                        <Image className="w-6 h-6 text-[#4A7CD2]" />
+                    <div className="space-y-0.5">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <p className="text-xs font-black text-teal-900">2. USB Device (Nano-Pix RVG Sensor)</p>
+                        <span className="px-1.5 py-0.2 bg-teal-600 text-white font-mono text-[9px] font-extrabold rounded-md shadow-2xs">USB</span>
                       </div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-bold text-dark-slate">Upload Patient Radiograph</p>
-                        <p className="text-xs text-muted-text">Click or drag & drop OPG/Bitewing image files here</p>
-                      </div>
+                      <p className="text-[11px] text-teal-700/80">Capture live chairside intraoral X-ray & auto-apply to chart</p>
                     </div>
-                  )}
+                  </div>
                 </div>
 
                 {/* Main Tab Content Split */}
@@ -11034,7 +10973,15 @@ export default function ChartPage() {
         onFindingAccepted={handleNanoPixFindingAccepted}
         onApplyAllFindings={handleApplyNanoPixCompleteReport}
         onXRaySaved={(savedScan) => {
-          console.log('✅ Nano-Pix RVG scan saved successfully:', savedScan);
+          console.log('✅ [STEP 4/5: ARCHIVE SYNC] Nano-Pix RVG scan saved successfully:', savedScan);
+          if (savedScan) {
+            setRadiographs(prev => {
+              const sId = savedScan.radiographID || savedScan.RadiographID;
+              if (prev.some(r => (r.radiographID || r.RadiographID) === sId)) return prev;
+              return [savedScan, ...prev];
+            });
+            setSelectedRadiograph(savedScan);
+          }
         }}
       />
 

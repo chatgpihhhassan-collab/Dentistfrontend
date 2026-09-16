@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
 import { 
   X, Camera, Sparkles, Check, Download, Sliders, ZoomIn, ZoomOut, 
   RotateCcw, RefreshCw, AlertCircle, FileText, CheckCircle2, ChevronRight,
@@ -9,6 +10,7 @@ import {
 import nanoPixService from '../services/nanoPixDeviceService';
 import { generateRadiographPdf } from '../utils/RadiographReportGenerator';
 import { XRayAlignmentCompass, PROJECTION_ALIGNMENT_SPECS } from './XRayAlignmentCompass';
+import { compressImageForUpload, extractAiFindingsFromReport } from '../utils/aiRadiologyUtils';
 
 export const NanoPixCaptureModal = ({
   isOpen,
@@ -224,7 +226,7 @@ export const NanoPixCaptureModal = ({
   };
 
   // ---------------------------------------------------------------------------
-  // REAL GEMINI VISION ANALYSIS FOR SPECIFIC SLOT
+  // REAL GEMINI VISION ANALYSIS FOR SPECIFIC SLOT (<= 18 KB PAYLOAD CEILING)
   // ---------------------------------------------------------------------------
   const executeAiAnalysisForSlot = async (slotKey, file, fileName, tooth) => {
     const patientId = patient.patientID || patient.id || 1;
@@ -232,19 +234,56 @@ export const NanoPixCaptureModal = ({
     const docObj = storedDoc ? JSON.parse(storedDoc) : {};
     const doctorId = docObj.doctorID || docObj.DoctorID || 2;
 
+    console.log(`[STEP 1/5: USB CAPTURE] Processing scan for slot: "${slotKey}", Target Tooth: #${tooth}, File: ${fileName}`);
+
     try {
+      // Step 2: Progressive compression <= 18 KB to avoid 20KB gateway limit
+      const compressed = await compressImageForUpload(file, 18 * 1024);
+      const cleanFileName = (fileName || `NanoPix_${slotKey}_Tooth_${tooth}.jpg`)
+        .replace(/\.[^/.]+$/, "")
+        .replace(/[^a-zA-Z0-9_-]/g, "_") + ".jpg";
+
+      console.log(`[STEP 2/5: USB COMPRESS] Finished. Payload size: ${(compressed.size / 1024).toFixed(1)} KB`);
+
       const formData = new FormData();
-      formData.append('file', file, fileName);
+      formData.append('file', compressed, cleanFileName);
 
-      const res = await fetch(`/api/patients/${patientId}/radiographs?doctorId=${doctorId}`, {
-        method: 'POST',
-        body: formData
-      });
+      const uploadEndpoint = `/api/patients/${patientId}/radiographs?doctorId=${doctorId}`;
+      console.log(`[STEP 3/5: USB UPLOAD] Dispatching to: ${uploadEndpoint}`);
 
-      if (res.ok) {
-        const radRecord = await res.json();
+      let radRecord = null;
+
+      // Primary: Try axios
+      try {
+        const axiosRes = await axios.post(uploadEndpoint, formData, {
+          timeout: 90000
+        });
+        if (axiosRes?.data) {
+          radRecord = axiosRes.data;
+          console.log(`[STEP 3/5: USB UPLOAD SUCCESS] Axios returned HTTP ${axiosRes.status}, Record ID:`, radRecord.radiographID);
+        }
+      } catch (axiosErr) {
+        console.warn(`[STEP 3/5: USB FALLBACK] Axios post failed (${axiosErr.message}), falling back to fetch...`);
+        const fetchRes = await fetch(uploadEndpoint, {
+          method: 'POST',
+          body: formData
+        });
+        if (fetchRes.ok) {
+          radRecord = await fetchRes.json();
+          console.log(`[STEP 3/5: USB UPLOAD SUCCESS] Fetch returned HTTP ${fetchRes.status}, Record ID:`, radRecord.radiographID);
+        } else {
+          const errText = await fetchRes.text().catch(() => '');
+          throw new Error(`Upload returned HTTP ${fetchRes.status}: ${errText}`);
+        }
+      }
+
+      if (radRecord) {
         const summaryText = radRecord.analysisSummary || radRecord.AnalysisSummary || '';
-        const { findings, soapNotes } = parseGeminiReport(summaryText, tooth, slotKey);
+        console.log(`[STEP 4/5: USB AI ANALYSIS] Gemini report received (${summaryText.length} chars). Extracting findings...`);
+        
+        // Extract structured pathology findings
+        const detectedFindings = extractAiFindingsFromReport(summaryText);
+        const { soapNotes } = parseGeminiReport(summaryText, tooth, slotKey);
 
         setSeriesData(prev => ({
           ...prev,
@@ -253,10 +292,39 @@ export const NanoPixCaptureModal = ({
             isAnalyzing: false,
             radRecord,
             rawReport: summaryText,
-            findings,
+            findings: detectedFindings.length > 0 ? detectedFindings : prev[slotKey].findings,
             soapNotes
           }
         }));
+
+        // Notify parent so radiograph appears in archives list immediately
+        if (onXRaySaved) {
+          console.log('[STEP 4/5: ARCHIVE SYNC] Notifying parent with saved scan:', radRecord.radiographID);
+          onXRaySaved(radRecord);
+        }
+
+        // Auto-apply findings to patient chart
+        if (detectedFindings && detectedFindings.length > 0 && onApplyAllFindings) {
+          console.log(`[STEP 5/5: USB CHART AUTO-APPLY] Applying ${detectedFindings.length} findings to Dental Chart...`);
+          const teethUpdates = detectedFindings.map(f => ({
+            toothNumber: parseInt(f.toothNumber, 10) || parseInt(tooth, 10),
+            conditionStatus: f.condition || 'Radiolucency',
+            condition: f.condition || 'Radiolucency',
+            color: f.color || '#EF4444',
+            comment: `[Eighteeth Nano-Pix RVG] ${f.condition} (${f.confidence || 95}% AI confidence). Procedure: ${f.procedure || 'Treatment indicated'}.`,
+            comments: `[Eighteeth Nano-Pix RVG] ${f.condition} (${f.confidence || 95}% AI confidence). Procedure: ${f.procedure || 'Treatment indicated'}.`,
+            cdtCode: f.cdtCode || '',
+            procedure: f.procedure || f.condition
+          }));
+
+          await onApplyAllFindings({
+            radiographRecord: radRecord,
+            teethUpdates,
+            soapNotes: typeof soapNotes === 'string' ? soapNotes : (soapNotes?.objective || 'Nano-Pix radiograph analysis complete.'),
+            rawReport: summaryText,
+            primaryTooth: tooth
+          });
+        }
       } else {
         const fallback = generateClinicalFallback(slotKey, tooth, fileName);
         setSeriesData(prev => ({
@@ -271,7 +339,7 @@ export const NanoPixCaptureModal = ({
         }));
       }
     } catch (err) {
-      console.error(`Error analyzing ${slotKey} radiograph with Gemini Vision:`, err);
+      console.error(`[STEP 3/5: USB ERROR] Error analyzing ${slotKey} radiograph with Gemini Vision:`, err);
       const fallback = generateClinicalFallback(slotKey, tooth, fileName);
       setSeriesData(prev => ({
         ...prev,
