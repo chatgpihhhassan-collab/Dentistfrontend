@@ -6546,22 +6546,6 @@ export default function ChartPage() {
                     );
                   })()}
 
-                  {/* Active AI Model Status Pill */}
-                  <div 
-                    onClick={() => setIsEngineModalOpen(true)}
-                    className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black px-2.5 py-1.5 rounded-xl shadow-2xs border border-emerald-300 hover:border-emerald-400 cursor-pointer transition-all duration-200 group shrink-0"
-                    title="Active AI Model: Groq Turbo (~0.5s Latency) • Click for Model Transparency & Diagnostics"
-                  >
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                    </span>
-                    <span className="font-extrabold flex items-center gap-1">
-                      <span>⚡</span>
-                      <span>Groq Turbo</span>
-                    </span>
-                    <ChevronDown className="w-3 h-3 text-emerald-600 group-hover:translate-y-0.5 transition-transform" />
-                  </div>
 
                   {/* Eighteeth Nano-Pix RVG Chairside Capture Button */}
                   <button
