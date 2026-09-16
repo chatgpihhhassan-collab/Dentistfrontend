@@ -360,6 +360,10 @@ export default function PatientTreatmentInvoiceTab({ patientId, patient, teethSt
         const tNum = treatment.toothNumber;
         setQuickStatusLoading(prev => ({ ...prev, [tNum]: true }));
 
+        const realCondition = (!treatment.conditionStatus || ['completed', 'planned', 'in progress', 'treated', 'healthy'].includes(treatment.conditionStatus.toLowerCase().trim()))
+            ? (treatment.comments?.split(/[.•\n]/)[0]?.trim() || treatment.cdtNomenclature || 'Dental Procedure')
+            : treatment.conditionStatus;
+
         try {
             const updatePayload = {
                 patientId: Number(patientId),
@@ -368,7 +372,7 @@ export default function PatientTreatmentInvoiceTab({ patientId, patient, teethSt
                         toothNumber: treatment.toothNumber,
                         toothKey: treatment.toothKey,
                         status: newStatus,
-                        conditionStatus: treatment.conditionStatus,
+                        conditionStatus: realCondition,
                         color: newStatus === 'Completed' ? '#10B981' : (newStatus === 'Planned' ? '#F59E0B' : '#0EA5E9'),
                         comment: treatment.comments,
                         cdtCode: treatment.cdtCode,
@@ -1062,7 +1066,9 @@ export default function PatientTreatmentInvoiceTab({ patientId, patient, teethSt
                                                 {/* Condition & Diagnosis */}
                                                 <td className="py-3.5 px-4">
                                                     <span className="font-semibold text-slate-800 block">
-                                                        {item.conditionStatus}
+                                                        {(!item.conditionStatus || ['completed', 'planned', 'in progress', 'treated', 'healthy'].includes(item.conditionStatus.toLowerCase().trim()))
+                                                            ? (item.comments?.split(/[.•\n]/)[0]?.trim() || item.cdtNomenclature || 'Dental Procedure')
+                                                            : item.conditionStatus}
                                                     </span>
                                                 </td>
 
