@@ -8,7 +8,7 @@ import { getHexColor } from './toothDataConstants';
  */
 export const extractAiFindingsFromReport = (reportText) => {
   if (!reportText || typeof reportText !== 'string') return [];
-  let findings = [];
+  const findingsMap = new Map();
 
   // 1. Primary: Look for structured JSON block in markdown or raw JSON
   try {
@@ -16,13 +16,13 @@ export const extractAiFindingsFromReport = (reportText) => {
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);
       if (Array.isArray(parsed.teethFindings) && parsed.teethFindings.length > 0) {
-        findings = parsed.teethFindings.map(f => {
+        parsed.teethFindings.forEach(f => {
           const tNum = parseInt(f.toothNumber, 10);
-          const tKey = f.toothKey || String(f.toothNumber);
+          const tKey = String(f.toothKey || f.toothNumber);
           const condition = f.condition || f.status || 'Radiographic Finding';
           const defaultColor = getHexColor(condition);
 
-          return {
+          findingsMap.set(tKey, {
             toothNumber: !isNaN(tNum) ? tNum : f.toothNumber,
             toothKey: tKey,
             condition: condition,
@@ -33,7 +33,7 @@ export const extractAiFindingsFromReport = (reportText) => {
             procedure: f.procedure || condition || 'Treatment Indicated',
             status: f.status === 'Completed' ? 'Completed' : 'Planned',
             surface: f.surface || ''
-          };
+          });
         });
       }
     }
@@ -41,127 +41,135 @@ export const extractAiFindingsFromReport = (reportText) => {
     console.warn("Structured JSON parsing of AI findings failed, falling back to clinical regex:", e);
   }
 
-  // 2. Secondary: Robust Clinical Parser for Tooth-by-Tooth Bullet Points & Narrative
-  if (findings.length === 0) {
-    const detectedMap = new Map();
-    const lines = reportText.split('\n');
+  // Helper to add findings from narrative while preserving high-confidence JSON entries
+  const addNarrativeFinding = (tKey, rawCondition) => {
+    if (!tKey || findingsMap.has(tKey)) return;
+    const condLower = rawCondition.toLowerCase();
 
-    lines.forEach(rawLine => {
-      const line = rawLine.trim();
-      if (!line) return;
+    let cond = 'Clinical Observation';
+    let color = '#3B82F6';
+    let cdt = 'D0140';
+    let proc = 'Clinical Evaluation';
+    let sev = 'Noted on Radiograph';
 
-      // Pattern 1: Single tooth bullet
-      // e.g. "- **Tooth #3 (Maxillary Right First Molar):** Complete full-coverage..."
-      // e.g. "* **Tooth #19 (Mandibular Left First Molar):** Severe coronal breakdown..."
-      // e.g. "- Tooth #14: Dental Caries..."
-      const singleMatch = line.match(/(?:tooth\s*#?|#)\s*([0-9]{1,2}|[A-Ta-t])\b(?:\s*\([^)]*\))?\s*[:\-–—*]+\s*(.+)/i);
-      if (singleMatch) {
-        const tKey = singleMatch[1].toUpperCase();
-        const rawCondition = singleMatch[2].replace(/^\*+|\*+$/g, '').trim();
-        if (!detectedMap.has(tKey) && rawCondition.length > 5) {
-          detectedMap.set(tKey, { toothKey: tKey, rawCondition });
-        }
-      }
+    if (/missing|extract|absent|lost|edentul/i.test(condLower)) {
+      cond = 'Missing Tooth';
+      color = '#64748B';
+      cdt = 'D6010';
+      proc = 'Implant / Prosthetic Replacement Evaluation';
+      sev = 'Missing';
+    } else if (/bone loss|periodont|furcation|resorption|alveolar crest/i.test(condLower)) {
+      cond = condLower.includes('severe') ? 'Severe Periodontal Bone Loss' : 'Periodontal Bone Loss';
+      color = '#DC2626';
+      cdt = 'D4341';
+      proc = 'Periodontal Scaling & Root Planing';
+      sev = 'Periodontal Involvement';
+    } else if (/defective|margin|overhang|breakdown|failing|gap/i.test(condLower)) {
+      cond = 'Defective Margin / Restoration';
+      color = '#F59E0B';
+      cdt = 'D2999';
+      proc = 'Evaluation / Replacement of Crown Margin';
+      sev = 'Defective';
+    } else if (/caries|decay|cavity|demineraliz|recurrent/i.test(condLower)) {
+      cond = 'Dental Caries / Decay';
+      color = '#EF4444';
+      cdt = 'D2391';
+      proc = 'Resin Composite Restoration';
+      sev = 'Carious Lesion';
+    } else if (/bridge|crown|fpd|prosthesis|abutment/i.test(condLower)) {
+      cond = condLower.includes('abutment') ? 'Fixed Bridge Abutment' : 'Fixed Partial Denture (Bridge)';
+      color = '#2563EB';
+      cdt = 'D6240';
+      proc = 'Fixed Prosthodontic Evaluation';
+      sev = 'Restoration Present';
+    } else if (/periapical|radiolucen|abscess|apical|lesion|rct|pulp/i.test(condLower)) {
+      cond = 'Periapical Radiolucency';
+      color = '#DC2626';
+      cdt = 'D3330';
+      proc = 'Endodontic Therapy / Evaluation';
+      sev = 'Periapical Lesion';
+    } else if (/impacted|impaction|horizontal|bony/i.test(condLower)) {
+      cond = 'Impacted Tooth (Bony)';
+      color = '#8B5CF6';
+      cdt = 'D7240';
+      proc = 'Surgical Removal of Impacted Tooth';
+      sev = 'Bony Impaction Visualized';
+    }
 
-      // Pattern 2: Range / multiple teeth
-      // e.g. "- **Teeth #4 & #5 (Premolars):** Intact clinical crowns, interproximal horizontal bone loss..."
-      // e.g. "- **Teeth #6 – #8 (Anterior):** Moderate to severe horizontal bone loss..."
-      // e.g. "- **Teeth #12 – #15 (Premolar/Molar segment):** Fixed Partial Denture (3-unit FPD)..."
-      const rangeMatch = line.match(/(?:teeth\s*#?|#)\s*([0-9]{1,2})\s*(?:[–—\-&]|to|and)\s*#?\s*([0-9]{1,2})\b(?:\s*\([^)]*\))?\s*[:\-–—*]+\s*(.+)/i);
-      if (rangeMatch) {
-        const start = parseInt(rangeMatch[1], 10);
-        const end = parseInt(rangeMatch[2], 10);
-        const rawCondition = rangeMatch[3].replace(/^\*+|\*+$/g, '').trim();
-        if (!isNaN(start) && !isNaN(end) && rawCondition.length > 5) {
-          if (line.includes('&') || line.includes('and')) {
-            [start, end].forEach(num => {
-              const k = String(num);
-              if (!detectedMap.has(k)) detectedMap.set(k, { toothKey: k, rawCondition });
-            });
-          } else {
+    const tNum = parseInt(tKey, 10);
+    findingsMap.set(tKey, {
+      toothNumber: !isNaN(tNum) ? tNum : tKey,
+      toothKey: tKey,
+      condition: cond,
+      severity: sev,
+      confidence: 88,
+      color,
+      cdtCode: cdt,
+      procedure: proc,
+      status: 'Planned',
+      surface: ''
+    });
+  };
+
+  // 2. Scan tooth-by-tooth bullet points & narrative to capture ALL described teeth (bridges, bone loss, missing teeth)
+  const lines = reportText.split('\n');
+  lines.forEach(rawLine => {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('```') || line.includes('"teethFindings"')) return;
+
+    // Matches bullets like:
+    // - **#3, #4, #5:** Missing.
+    // - **#6-#11:** Fixed bridge present.
+    // - **#12:** Appears to have a crown with a potentially defective distal margin.
+    // - **#18, #19:** Significant periodontal bone loss...
+    // - **#30, #31:** Significant horizontal bone loss.
+    // - Tooth #14: Recurrent Caries
+    const bulletMatch = line.match(/^[-*]\s*(?:\*\*)?(?:teeth\s*|tooth\s*)?([#0-9A-Ta-t,\s–—\-&to]+)(?:\*\*)?\s*[:\-–—*]+\s*(.+)/i);
+    if (bulletMatch) {
+      const rawTeethPart = bulletMatch[1];
+      const rawCondition = bulletMatch[2].replace(/^\*+|\*+$/g, '').trim();
+
+      const tokens = rawTeethPart.split(/[,&]|\band\b/);
+      tokens.forEach(tok => {
+        const t = tok.trim();
+        if (!t) return;
+
+        // Check range: "#6-#11" or "6 to 11"
+        const rMatch = t.match(/#?\s*([1-9]|[12][0-9]|3[0-2])\s*(?:[-–—]|to)\s*#?\s*([1-9]|[12][0-9]|3[0-2])\b/i);
+        if (rMatch) {
+          const start = parseInt(rMatch[1], 10);
+          const end = parseInt(rMatch[2], 10);
+          if (!isNaN(start) && !isNaN(end) && Math.abs(end - start) <= 10) {
             const min = Math.min(start, end);
             const max = Math.max(start, end);
-            if (max - min <= 5) {
-              for (let i = min; i <= max; i++) {
-                const k = String(i);
-                if (!detectedMap.has(k)) detectedMap.set(k, { toothKey: k, rawCondition });
-              }
+            for (let i = min; i <= max; i++) {
+              addNarrativeFinding(String(i), rawCondition);
+            }
+          }
+        } else {
+          // Single tooth: "#3", "Tooth 12", "A"
+          const sMatch = t.match(/#\s*([0-9]{1,2}|[A-Ta-t])\b|\btooth\s*#?\s*([0-9]{1,2}|[A-Ta-t])\b/i);
+          if (sMatch) {
+            const toothVal = (sMatch[1] || sMatch[2]).toUpperCase();
+            const numVal = parseInt(toothVal, 10);
+            if (!isNaN(numVal) && numVal >= 1 && numVal <= 32) {
+              addNarrativeFinding(String(numVal), rawCondition);
+            } else if (/^[A-T]$/.test(toothVal)) {
+              addNarrativeFinding(toothVal, rawCondition);
             }
           }
         }
-      }
-    });
-
-    // Fallback: If bullet parsing found nothing, run inline regex
-    if (detectedMap.size === 0) {
-      const toothRegex = /(?:tooth\s*#?|#)\s*([0-9]{1,2}|[A-Ta-t])\b(?:\s*[:\-–—]\s*([^\n.;]+))?/gi;
-      const matches = [...reportText.matchAll(toothRegex)];
-      matches.forEach(m => {
-        const tKey = m[1].toUpperCase();
-        const raw = (m[2] || '').trim();
-        if (!detectedMap.has(tKey) && raw.length > 3) {
-          detectedMap.set(tKey, { toothKey: tKey, rawCondition: raw });
-        }
       });
     }
+  });
 
-    // Convert detected teeth to findings
-    findings = Array.from(detectedMap.values()).map(({ toothKey, rawCondition }) => {
-      const tNum = parseInt(toothKey, 10);
-      const condLower = rawCondition.toLowerCase();
-
-      let cond = 'Radiographic Finding';
-      let color = '#3B82F6';
-      let cdt = 'D0140';
-      let proc = 'CDT D0140 (Limited Problem-Focused Examination)';
-      let sev = 'Noted on Radiograph';
-
-      if (/caries|decay|cavity|radiolucent lesion|demineraliz|caries active/i.test(condLower)) {
-        cond = 'Dental Caries / Decay';
-        color = '#EF4444';
-        cdt = 'D2391';
-        proc = 'CDT D2391 (Resin Composite - Posterior)';
-        sev = 'Enamel/Dentin Lesion';
-      } else if (/periapical|apical|periodontitis|abscess|radiolucency|rct indicated|osteitis|pdl widening/i.test(condLower)) {
-        cond = 'Periapical Radiolucency';
-        color = '#DC2626';
-        cdt = 'D3330';
-        proc = 'CDT D3330 (Endodontic Root Canal Therapy)';
-        sev = 'Apical Lesion Observed';
-      } else if (/crown|bridge|fpd|prosthesis|restoration|obturation|abutment/i.test(condLower)) {
-        cond = 'Existing Restoration Evaluation';
-        color = '#2563EB';
-        cdt = 'D2740';
-        proc = 'CDT D2740 (Restorative Crown / Abutment Evaluation)';
-        sev = 'Restoration / Margin Evaluation';
-      } else if (/bone loss|alveolar crest|pocket|resorption|crest cupping/i.test(condLower)) {
-        cond = 'Periodontal Bone Loss';
-        color = '#F59E0B';
-        cdt = 'D4341';
-        proc = 'CDT D4341 (Periodontal Scaling & Root Planing)';
-        sev = 'Alveolar Bone Loss';
-      } else if (/impacted|impaction|horizontal|bony/i.test(condLower)) {
-        cond = 'Impacted Tooth (Bony)';
-        color = '#8B5CF6';
-        cdt = 'D7240';
-        proc = 'CDT D7240 (Surgical Removal of Impacted Tooth)';
-        sev = 'Bony Impaction Visualized';
-      }
-
-      return {
-        toothNumber: !isNaN(tNum) ? tNum : toothKey,
-        toothKey: toothKey,
-        condition: cond,
-        severity: sev,
-        confidence: 93,
-        color,
-        cdtCode: cdt,
-        procedure: proc,
-        status: 'Planned',
-        surface: ''
-      };
-    });
-  }
+  // Convert map to sorted array
+  const findings = Array.from(findingsMap.values()).sort((a, b) => {
+    const na = parseInt(a.toothKey, 10);
+    const nb = parseInt(b.toothKey, 10);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return String(a.toothKey).localeCompare(String(b.toothKey));
+  });
 
   console.log(`[AI FINDINGS LOG] Dynamic AI extracted ${findings.length} tooth pathologies:`, findings.map(f => `#${f.toothKey || f.toothNumber} (${f.condition})`));
   return findings;

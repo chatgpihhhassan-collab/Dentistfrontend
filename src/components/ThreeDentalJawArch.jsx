@@ -173,12 +173,16 @@ export default function ThreeDentalJawArch({
           return tVal === toothNum || String(tVal).toUpperCase() === String(toothNum).toUpperCase();
         }
       );
-      const status = toothData?.status || toothData?.conditionStatus || 'Healthy';
+      const status = (toothData?.conditionStatus && toothData.conditionStatus !== 'Planned' && toothData.conditionStatus !== 'Healthy')
+        ? toothData.conditionStatus
+        : (toothData?.condition && toothData.condition !== 'Planned' && toothData.condition !== 'Healthy')
+        ? toothData.condition
+        : (toothData?.status && toothData.status !== 'Planned' ? toothData.status : toothData?.conditionStatus || toothData?.status || 'Healthy');
       const sLower = status.toLowerCase();
-      const isMissing = sLower.includes('miss') || sLower.includes('extract') || sLower.includes('absent') || sLower.includes('lost') || sLower.includes('exfoliat');
-      const isDecay = sLower.includes('decay') || sLower.includes('damag') || sLower === 'cavity' || sLower.includes('keera');
-      const isFilled = sLower.includes('treat') || sLower.includes('prosthesis') || sLower.includes('crown') || sLower.includes('bridge') || sLower.includes('filling') || sLower.includes('composite');
-      const isRCT = sLower.includes('canal') || sLower.includes('root') || sLower === 'yellow' || sLower.includes('pulp');
+      const isMissing = sLower.includes('miss') || sLower.includes('extract') || sLower.includes('absent') || sLower.includes('lost') || sLower.includes('exfoliat') || sLower.includes('edentul');
+      const isDecay = sLower.includes('decay') || sLower.includes('damag') || sLower === 'cavity' || sLower.includes('keera') || sLower.includes('caries');
+      const isFilled = sLower.includes('treat') || sLower.includes('prosthesis') || sLower.includes('crown') || sLower.includes('bridge') || sLower.includes('filling') || sLower.includes('composite') || sLower.includes('abutment');
+      const isRCT = sLower.includes('canal') || sLower.includes('root') || sLower === 'yellow' || sLower.includes('pulp') || sLower.includes('radiolucen') || sLower.includes('periapical') || sLower.includes('apical');
       const isHighlighted = highlightedTeeth.includes(toothNum) || highlightedTeeth.includes(String(toothNum));
 
       // If missing, socket remains empty!
@@ -221,17 +225,17 @@ function createClinicalOverlayCanvas(status, comments, toothNum, isMaxilla) {
   const isComposite = full.includes('composite') || full.includes('resin') || (full.includes('fill') && !full.includes('amalgam') && !full.includes('gic')) || (full.includes('treated') && !full.includes('crown'));
   const isAmalgam = full.includes('amalgam') || full.includes('silver');
   const isGIC = full.includes('gic') || full.includes('glass ionomer');
-  const isCaries = full.includes('caries') || full.includes('decay') || full.includes('cavity') || full.includes('keera') || full.includes('damag');
+  const isCaries = full.includes('caries') || full.includes('decay') || full.includes('cavity') || full.includes('keera') || full.includes('damag') || full.includes('defective') || full.includes('margin');
   const isRCT = full.includes('canal') || full.includes('rct') || full.includes('pulpotomy') || full.includes('obturation');
   const isSealant = full.includes('sealant');
-  const isCrown = (full.includes('crown') || full.includes('bridge') || full.includes('prosthesis')) && !full.includes('implant');
+  const isCrown = (full.includes('crown') || full.includes('bridge') || full.includes('prosthesis') || full.includes('abutment')) && !full.includes('implant');
   const isImplant = full.includes('implant');
   const isVeneer = full.includes('veneer');
-  const isMobility = (full.includes('mobility') && !full.includes('grade 0') && !full.includes('physiological')) || (full.includes('bone loss') && !full.includes('no bone loss'));
+  const isMobility = (full.includes('mobility') && !full.includes('grade 0') && !full.includes('physiological')) || (full.includes('bone loss') && !full.includes('no bone loss')) || full.includes('periodont') || full.includes('furcation');
   const isRecession = full.includes('recession');
   const isFractured = full.includes('fractur') || full.includes('chipped') || full.includes('crack');
   const isOrthodontic = full.includes('orthodontic') || full.includes('bracket') || full.includes('braces') || full.includes('malocclusion') || full.includes('crowding') || full.includes('rotation') || full.includes('diastema');
-  const isAbscess = full.includes('abscess') || full.includes('lesion') || full.includes('periapical') || full.includes('pus') || full.includes('swelling');
+  const isAbscess = full.includes('abscess') || full.includes('lesion') || full.includes('periapical') || full.includes('radiolucen') || full.includes('pus') || full.includes('swelling') || full.includes('apical');
   const isInlay = full.includes('inlay') || full.includes('onlay');
   const isPostCore = full.includes('post and core') || full.includes('post & core') || full.includes('post build');
   const isImpacted = full.includes('impacted') || full.includes('impaction');
@@ -714,8 +718,16 @@ function createClinicalOverlayCanvas(status, comments, toothNum, isMaxilla) {
       let toothColor = new THREE.Color(0xffffff);
       let opacity = 1.0;
 
+      const toothColorHex = (toothData?.color || toothData?.conditionColor || '').toLowerCase();
+      const isRedPathology = toothColorHex === '#dc2626' || toothColorHex === '#ef4444' || sLower.includes('severe') || sLower.includes('radiolucen') || sLower.includes('caries');
+      const isAmberPathology = toothColorHex === '#f59e0b' || toothColorHex === '#d97706' || sLower.includes('defective') || sLower.includes('bone loss');
+
       if (isHighlighted) {
         toothColor = new THREE.Color(0x7dd3fc); // Glowing cyan highlight
+      } else if (isRedPathology) {
+        toothColor = new THREE.Color(0xffe4e6); // Soft rose warning tint for diagnosed severe pathology
+      } else if (isAmberPathology) {
+        toothColor = new THREE.Color(0xfef3c7); // Soft amber warning tint for moderate pathology
       } else if (isSpaceMaintainer) {
         toothColor = new THREE.Color(0xdbeafe); // Soft pediatric sky blue base
       } else if (isRotated) {
@@ -748,8 +760,8 @@ function createClinicalOverlayCanvas(status, comments, toothNum, isMaxilla) {
           toothComments = `Pathology: Active caries enamel demineralization on Tooth #${toothNum}`;
         } else if (status.toLowerCase().includes('canal') || status.toLowerCase().includes('rct')) {
           toothComments = `Endodontics: Root canal therapy and obturation on Tooth #${toothNum}`;
-        } else if (status.toLowerCase().includes('mobility')) {
-          toothComments = `Periodontal: Pathologic tooth mobility on Tooth #${toothNum}`;
+        } else if (status.toLowerCase().includes('mobility') || status.toLowerCase().includes('bone loss')) {
+          toothComments = `Periodontal: Pathologic bone loss & mobility on Tooth #${toothNum}`;
         } else if (status.toLowerCase().includes('rotat')) {
           toothComments = `Developmental: ${clinicalRotOffset || 45}° axial rotation diagnosed on odontogram`;
         } else {
@@ -786,6 +798,21 @@ function createClinicalOverlayCanvas(status, comments, toothNum, isMaxilla) {
         ringMesh.position.set(0, 0, 0.08);
         ringMesh.renderOrder = 6;
         toothMesh.add(ringMesh);
+      }
+
+      // Clinical Pathology 3D Warning Aura Ring for diagnosed teeth
+      if ((isRedPathology || isAmberPathology) && !isSpaceMaintainer) {
+        const pathRingGeo = new THREE.RingGeometry(geoSize * 0.46, geoSize * 0.58, 32);
+        const pathRingMat = new THREE.MeshBasicMaterial({
+          color: isRedPathology ? 0xdc2626 : 0xf59e0b,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.85
+        });
+        const pathRingMesh = new THREE.Mesh(pathRingGeo, pathRingMat);
+        pathRingMesh.position.set(0, 0, 0.07);
+        pathRingMesh.renderOrder = 6;
+        toothMesh.add(pathRingMesh);
       }      toothMesh.userData = {
         toothNum,
         socket,

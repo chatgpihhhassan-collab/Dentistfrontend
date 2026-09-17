@@ -147,15 +147,18 @@ function RealisticHumanTooth({ number, shape = 'molar', status, color, isHighlig
   const sLower = (status || '').toLowerCase();
   const isRotated = rotationDeg !== 0 || sLower.includes('rotat');
   const rotAngle = rotationDeg || (sLower.includes('rotat') ? 45 : 0);
-  const isDecay = sLower.includes('decay') || sLower.includes('damag') || sLower === 'cavity' || sLower.includes('keera') || sLower.includes('ecc');
-  const isRCT = sLower.includes('canal') || sLower.includes('root') || sLower === 'yellow' || sLower.includes('pulpotomy') || sLower.includes('pulpectomy');
-  const isFilled = sLower.includes('treat') || sLower.includes('prosthesis') || sLower.includes('crown') || sLower.includes('bridge') || sLower.includes('filling') || sLower.includes('composite') || sLower.includes('ssc') || sLower.includes('gic') || sLower.includes('sealant');
+  const isDecay = sLower.includes('decay') || sLower.includes('damag') || sLower === 'cavity' || sLower.includes('keera') || sLower.includes('ecc') || sLower.includes('caries');
+  const isRCT = sLower.includes('canal') || sLower.includes('root') || sLower === 'yellow' || sLower.includes('pulpotomy') || sLower.includes('pulpectomy') || sLower.includes('periapical') || sLower.includes('radiolucen') || sLower.includes('abscess') || sLower.includes('apical') || sLower.includes('lesion') || sLower.includes('pulp');
+  const isFilled = sLower.includes('treat') || sLower.includes('prosthesis') || sLower.includes('crown') || sLower.includes('bridge') || sLower.includes('filling') || sLower.includes('composite') || sLower.includes('ssc') || sLower.includes('gic') || sLower.includes('sealant') || sLower.includes('abutment') || sLower.includes('fpd');
   const isCleaning = sLower.includes('clean') || sLower.includes('scaling') || sLower.includes('calculus');
-  const isMissing = sLower.includes('miss') || sLower.includes('extract') || sLower.includes('exfoliat');
+  const isMissing = sLower.includes('miss') || sLower.includes('extract') || sLower.includes('exfoliat') || sLower.includes('absent') || sLower.includes('lost') || sLower.includes('edentul');
   const isImplant = sLower.includes('implant');
   const isSpaceMaintainer = sLower.includes('space maintainer') || sLower.includes('band and loop') || sLower.includes('space');
   const isOrthodontic = sLower.includes('bracket') || sLower.includes('orthodontic');
-  const isHealthy = !isDecay && !isRCT && !isFilled && !isCleaning && !isMissing && !isRotated && !isImplant && !isOrthodontic && !isSpaceMaintainer;
+  const isBoneLoss = sLower.includes('bone loss') || sLower.includes('periodont') || sLower.includes('mobility') || sLower.includes('furcation') || sLower.includes('alveolar');
+  const isDefective = sLower.includes('defective') || sLower.includes('margin') || sLower.includes('overhang') || sLower.includes('breakdown');
+  const hasPathologyColor = Boolean(color && color !== '#10B981' && color !== '#ffffff' && color !== '#fff' && !sLower.includes('healthy'));
+  const isHealthy = !isDecay && !isRCT && !isFilled && !isCleaning && !isMissing && !isRotated && !isImplant && !isOrthodontic && !isSpaceMaintainer && !isBoneLoss && !isDefective && !hasPathologyColor;
 
   const gradId = `enamel-grad-${number}-${isFrontView ? 'front' : 'arch'}`;
   const refImage = (isFilled && !isSpaceMaintainer) ? "/tooth_filled_top.jpg" : isDecay ? "/tooth_decay_top.jpg" : isHealthy ? "/tooth_healthy_top.jpg" : null;
@@ -392,6 +395,22 @@ function RealisticHumanTooth({ number, shape = 'molar', status, color, isHighlig
             <circle cx={isFrontView ? "16" : "20"} cy={isFrontView ? "16" : "20"} r="3" fill="#2563EB" />
           </g>
         )}
+
+        {/* 9. Property: Periodontal Bone Loss / Furcation Involvement */}
+        {isBoneLoss && (
+          <g>
+            <line x1={isFrontView ? "4" : "6"} y1={isFrontView ? "30" : "30"} x2={isFrontView ? "28" : "34"} y2={isFrontView ? "30" : "30"} stroke="#DC2626" strokeWidth="2.2" strokeDasharray="3 2" />
+            <circle cx={isFrontView ? "16" : "20"} cy={isFrontView ? "32" : "30"} r="3.2" fill="#DC2626" fillOpacity="0.85" />
+          </g>
+        )}
+
+        {/* 10. Property: Defective Margin / Overhang / Breakdown */}
+        {isDefective && (
+          <g>
+            <path d={isFrontView ? "M 8 13 Q 16 17 24 13" : "M 10 11 Q 20 19 30 11"} stroke="#F59E0B" strokeWidth="2.4" strokeDasharray="2 2" fill="none" />
+            <circle cx={isFrontView ? "21" : "27"} cy={isFrontView ? "13" : "11"} r="2" fill="#D97706" />
+          </g>
+        )}
       </svg>
       )}
 
@@ -399,7 +418,12 @@ function RealisticHumanTooth({ number, shape = 'molar', status, color, isHighlig
       {label && (
         <div className="flex items-center gap-0.5 mt-0.5">
           <span 
-            className={`text-[8px] font-black leading-none px-1 py-0.2 rounded-full shadow-2xs border ${
+            style={
+              !isHealthy && color && color !== '#10B981' && color !== '#ffffff' && !isHighlighted
+                ? { backgroundColor: color, borderColor: color, color: '#ffffff', boxShadow: `0 0 8px ${color}90` }
+                : undefined
+            }
+            className={`text-[8px] font-black leading-none px-1.5 py-0.5 rounded-full shadow-2xs border ${
               isHighlighted
                 ? 'bg-cyan-500 text-white border-cyan-300 ring-2 ring-cyan-300/60 scale-110'
                 : isSpaceMaintainer
@@ -408,16 +432,16 @@ function RealisticHumanTooth({ number, shape = 'molar', status, color, isHighlig
                 ? 'bg-teal-600 text-white border-teal-300 shadow-teal-500/50 shadow-xs'
                 : isOrthodontic
                 ? 'bg-sky-600 text-white border-sky-300'
-                : isDecay
-                ? 'bg-rose-500 text-white border-rose-300'
-                : isRCT
-                ? 'bg-amber-500 text-white border-amber-300'
+                : (isDecay || isBoneLoss)
+                ? 'bg-rose-600 text-white border-rose-400 ring-1 ring-rose-300'
+                : (isRCT || isDefective)
+                ? 'bg-amber-600 text-white border-amber-400 ring-1 ring-amber-300'
                 : isFilled
                 ? 'bg-blue-500 text-white border-blue-300'
                 : isCleaning
                 ? 'bg-yellow-500 text-white border-yellow-300'
                 : isMissing
-                ? 'bg-slate-400 text-white border-slate-300'
+                ? 'bg-slate-500 text-white border-slate-400'
                 : 'bg-white/95 text-slate-700 border-slate-300 group-hover:border-blue-400'
             }`}
           >
@@ -2152,7 +2176,8 @@ export default function ChartPage() {
               condition: u.condition,
               color: u.color,
               conditionColor: u.color,
-              status: u.status,
+              status: u.conditionStatus || u.status,
+              procedureStatus: u.status || 'Planned',
               comments: u.comment,
               comment: u.comment,
               treatment: u.condition,
@@ -2168,7 +2193,8 @@ export default function ChartPage() {
               condition: u.condition,
               color: u.color,
               conditionColor: u.color,
-              status: u.status,
+              status: u.conditionStatus || u.status,
+              procedureStatus: u.status || 'Planned',
               comments: u.comment,
               comment: u.comment,
               treatment: u.condition,
@@ -2208,6 +2234,21 @@ export default function ChartPage() {
       const rId = radiograph?.radiographID || radiograph?.RadiographID;
       if (rId) {
         setAppliedRadiographIds(prev => new Set([...prev, rId]));
+      }
+
+      // 6. Spotlight ALL affected teeth together on 3D Jaw & 2D Odontogram
+      const affectedTeeth = findings.map(f => parseInt(f.toothNumber, 10)).filter(n => !isNaN(n) && n >= 1 && n <= 32);
+      if (affectedTeeth.length > 0) {
+        setHighlightedTeeth(affectedTeeth);
+        setDetailedTooth(affectedTeeth[0]);
+        const tInfo = TOOTH_ANATOMY[affectedTeeth[0]];
+        setHighlightInfo({
+          title: `AI Findings Applied (${affectedTeeth.length} Teeth)`,
+          subtitle: `Teeth: ${affectedTeeth.map(n => '#' + n).join(', ')}`,
+          type: 'multi',
+          color: '#DC2626',
+          toothNum: affectedTeeth[0]
+        });
       }
 
       console.log(`[STEP 5/5: SUCCESS] Chart & Treatment Ledger fully updated for ${findings.length} teeth.`);
@@ -8242,7 +8283,11 @@ export default function ChartPage() {
                           <div className="flex gap-1.5 justify-center items-end bg-white p-2 rounded-xl border border-pink-200/80 shadow-2xs">
                             {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'].map((toothKey) => {
                               const t = teethState.find(x => String(x.toothNumber ?? x.ToothNumber).toUpperCase() === toothKey);
-                              const status = t?.status || t?.conditionStatus || 'Healthy';
+                              const status = (t?.conditionStatus && t.conditionStatus !== 'Planned' && t.conditionStatus !== 'Healthy')
+                                ? t.conditionStatus
+                                : (t?.condition && t.condition !== 'Planned' && t.condition !== 'Healthy')
+                                ? t.condition
+                                : (t?.status && t.status !== 'Planned' ? t.status : t?.conditionStatus || t?.condition || t?.status || 'Healthy');
                               const isHighlighted = highlightedTeeth.includes(toothKey);
                               const finalColor = t?.color || t?.conditionColor || getHexColor(status);
                               const pInfo = PEDIATRIC_TOOTH_NAMES[toothKey];
@@ -8289,7 +8334,11 @@ export default function ChartPage() {
                           <div className="flex gap-1.5 justify-center items-end bg-white p-2 rounded-xl border border-pink-200/80 shadow-2xs">
                             {['T', 'S', 'R', 'Q', 'P', 'O', 'N', 'M', 'L', 'K'].map((toothKey) => {
                               const t = teethState.find(x => String(x.toothNumber ?? x.ToothNumber).toUpperCase() === toothKey);
-                              const status = t?.status || t?.conditionStatus || 'Healthy';
+                              const status = (t?.conditionStatus && t.conditionStatus !== 'Planned' && t.conditionStatus !== 'Healthy')
+                                ? t.conditionStatus
+                                : (t?.condition && t.condition !== 'Planned' && t.condition !== 'Healthy')
+                                ? t.condition
+                                : (t?.status && t.status !== 'Planned' ? t.status : t?.conditionStatus || t?.condition || t?.status || 'Healthy');
                               const isHighlighted = highlightedTeeth.includes(toothKey);
                               const finalColor = t?.color || t?.conditionColor || getHexColor(status);
                               const pInfo = PEDIATRIC_TOOTH_NAMES[toothKey];
@@ -8338,7 +8387,11 @@ export default function ChartPage() {
                             {Array.from({ length: 16 }).map((_, i) => {
                               const toothNum = i + 1;
                               const t = teethState.find(x => parseInt(x.toothNumber ?? x.ToothNumber) === toothNum);
-                              const status = t?.status || t?.conditionStatus || 'Healthy';
+                              const status = (t?.conditionStatus && t.conditionStatus !== 'Planned' && t.conditionStatus !== 'Healthy')
+                                ? t.conditionStatus
+                                : (t?.condition && t.condition !== 'Planned' && t.condition !== 'Healthy')
+                                ? t.condition
+                                : (t?.status && t.status !== 'Planned' ? t.status : t?.conditionStatus || t?.condition || t?.status || 'Healthy');
                               const isHighlighted = highlightedTeeth.includes(toothNum);
                               const finalColor = t?.color || t?.conditionColor || getHexColor(status);
                               const shape = DENTAL_COORDS[toothNum]?.shape || (toothNum % 2 === 0 ? 'incisor' : 'canine');
@@ -8383,7 +8436,11 @@ export default function ChartPage() {
                           <div className="flex gap-1 justify-center items-end bg-white p-1.5 rounded-xl border border-slate-200/80 shadow-2xs">
                             {[32,31,30,29,28,27,26,25,24,23,22,21,20,19,18,17].map((toothNum) => {
                               const t = teethState.find(x => parseInt(x.toothNumber ?? x.ToothNumber) === toothNum);
-                              const status = t?.status || t?.conditionStatus || 'Healthy';
+                              const status = (t?.conditionStatus && t.conditionStatus !== 'Planned' && t.conditionStatus !== 'Healthy')
+                                ? t.conditionStatus
+                                : (t?.condition && t.condition !== 'Planned' && t.condition !== 'Healthy')
+                                ? t.condition
+                                : (t?.status && t.status !== 'Planned' ? t.status : t?.conditionStatus || t?.condition || t?.status || 'Healthy');
                               const isHighlighted = highlightedTeeth.includes(toothNum);
                               const finalColor = t?.color || t?.conditionColor || getHexColor(status);
                               const shape = DENTAL_COORDS[toothNum]?.shape || (toothNum % 2 === 0 ? 'incisor' : 'canine');
