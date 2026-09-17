@@ -862,6 +862,7 @@ export default function ChartPage() {
 
   // Radiographs states
   const [radiographs, setRadiographs] = useState([]);
+  const [radiographsPage, setRadiographsPage] = useState(1);
   const [radiographsLoading, setRadiographsLoading] = useState(false);
   const [selectedRadiograph, setSelectedRadiograph] = useState(null);
   const [uploadingXray, setUploadingXray] = useState(false);
@@ -2086,6 +2087,7 @@ export default function ChartPage() {
       // API returns { value: [...], Count: N } — unwrap the array
       const data = Array.isArray(raw) ? raw : (raw.value || []);
       setRadiographs(data);
+      setRadiographsPage(1);
       if (data.length > 0) {
         setSelectedRadiograph(data[0]);
         setXrayDetailsExpanded(false);
@@ -2275,6 +2277,7 @@ export default function ChartPage() {
 
       if (newRecord) {
         setRadiographs(prev => [newRecord, ...prev]);
+        setRadiographsPage(1);
         setSelectedRadiograph(newRecord);
 
         // Step 4: Extract findings
@@ -2517,6 +2520,7 @@ export default function ChartPage() {
           if (selectedRadiograph && ((selectedRadiograph.radiographID || selectedRadiograph.RadiographID) === radId)) {
             setSelectedRadiograph(next.length > 0 ? next[0] : null);
           }
+          setRadiographsPage(p => Math.min(p, Math.max(1, Math.ceil(next.length / 5))));
           return next;
         });
 
@@ -7428,58 +7432,138 @@ export default function ChartPage() {
                 ) : (
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start flex-grow">
                     
-                    {/* Left Column: List of files (OPGs/Bitewings) */}
-                    <div className="lg:col-span-4 flex flex-col gap-2.5 max-h-[550px] overflow-y-auto pr-1 no-scrollbar">
-                      <p className="text-[10px] font-extrabold text-muted-text uppercase tracking-widest mb-1.5 flex items-center justify-between">
-                        <span>Imaging Archives ({radiographs.length})</span>
-                      </p>
-                      {radiographs.map(r => {
-                        const isSelected = selectedRadiograph && (selectedRadiograph.radiographID === r.radiographID || selectedRadiograph.RadiographID === r.radiographID);
-                        const rId = r.radiographID || r.RadiographID;
-                        const isDeletingThis = deletingXrayId === rId;
-                        return (
-                          <div
-                            key={rId}
-                            onClick={() => {
-                              setSelectedRadiograph(r);
-                              setXrayDetailsExpanded(false);
-                              setIsEditingXrayAnalysis(false);
-                            }}
-                            className={`group p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between space-x-3.5 ${
-                              isSelected
-                                ? 'bg-[#EAF0FC] border-[#4A7CD2] shadow-sm'
-                                : 'bg-white border-light-teal/35 hover:bg-[#F4F6FA]/50 hover:border-[#4A7CD2]/40'
-                            }`}
-                          >
-                            <div className="flex items-center space-x-3.5 min-w-0 flex-grow">
-                              <div className="w-10 h-10 rounded-xl bg-white border border-light-teal/40 flex items-center justify-center flex-shrink-0 text-[#4A7CD2]">
-                                <Image className="w-5 h-5" />
-                              </div>
-                              <div className="flex-grow min-w-0">
-                                <p className="text-xs font-bold text-dark-slate truncate">{r.imageName || r.ImageName}</p>
-                                <p className="text-[10px] text-muted-text font-semibold mt-0.5">
-                                  {new Date(r.uploadedAt || r.UploadedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                                </p>
-                              </div>
-                            </div>
-                            
-                            {/* Delete Button on archive card */}
-                            <button
-                              type="button"
-                              onClick={(e) => handleDeleteRadiograph(rId, e)}
-                              disabled={isDeletingThis}
-                              className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-all flex-shrink-0 cursor-pointer disabled:opacity-50"
-                              title="Delete Radiograph Scan"
+                    {/* Left Column: List of files (OPGs/Bitewings) with Pagination */}
+                    <div className="lg:col-span-4 flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between mb-1 px-0.5">
+                        <p className="text-[10px] font-extrabold text-muted-text uppercase tracking-widest flex items-center gap-1.5">
+                          <Image className="w-3.5 h-3.5 text-[#4A7CD2]" />
+                          <span>Imaging Archives ({radiographs.length})</span>
+                        </p>
+                        <span className="text-[10px] font-bold text-[#4A7CD2] bg-[#EAF0FC] px-2 py-0.5 rounded-full border border-light-teal/40 shadow-2xs">
+                          P.{radiographsPage}/{Math.ceil(radiographs.length / 5) || 1}
+                        </span>
+                      </div>
+
+                      {/* Paginated Scans List (Max 5 Records Per Page) */}
+                      <div className="flex flex-col gap-2.5">
+                        {radiographs.slice((radiographsPage - 1) * 5, radiographsPage * 5).map(r => {
+                          const isSelected = selectedRadiograph && (selectedRadiograph.radiographID === r.radiographID || selectedRadiograph.RadiographID === r.radiographID);
+                          const rId = r.radiographID || r.RadiographID;
+                          const isDeletingThis = deletingXrayId === rId;
+                          return (
+                            <div
+                              key={rId}
+                              onClick={() => {
+                                setSelectedRadiograph(r);
+                                setXrayDetailsExpanded(false);
+                                setIsEditingXrayAnalysis(false);
+                              }}
+                              className={`group p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between space-x-3.5 ${
+                                isSelected
+                                  ? 'bg-[#EAF0FC] border-[#4A7CD2] shadow-sm ring-1 ring-[#4A7CD2]/40'
+                                  : 'bg-white border-light-teal/35 hover:bg-[#F4F6FA]/50 hover:border-[#4A7CD2]/40 shadow-2xs'
+                              }`}
                             >
-                              {isDeletingThis ? (
-                                <Loader2 className="w-4 h-4 text-rose-500 animate-spin" />
-                              ) : (
-                                <Trash2 className="w-4 h-4" />
-                              )}
-                            </button>
+                              <div className="flex items-center space-x-3 min-w-0 flex-grow">
+                                <div className={`w-9 h-9 rounded-xl border flex items-center justify-center flex-shrink-0 transition-colors ${
+                                  isSelected ? 'bg-white border-[#4A7CD2]/60 text-[#4A7CD2]' : 'bg-[#F4F6FA] border-light-teal/40 text-slate-500 group-hover:text-[#4A7CD2]'
+                                }`}>
+                                  <Image className="w-4 h-4" />
+                                </div>
+                                <div className="flex-grow min-w-0">
+                                  <p className={`text-xs font-bold truncate ${isSelected ? 'text-[#10244B]' : 'text-dark-slate'}`}>
+                                    {r.imageName || r.ImageName || `Scan #${rId}`}
+                                  </p>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="text-[10px] text-muted-text font-semibold">
+                                      {new Date(r.uploadedAt || r.UploadedAt || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </span>
+                                    {(r.analysisSummary || r.AnalysisSummary) && (
+                                      <span className="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200 flex items-center gap-0.5">
+                                        <Sparkles className="w-2.5 h-2.5" /> AI
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              {/* Delete Button on archive card */}
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteRadiograph(rId, e)}
+                                disabled={isDeletingThis}
+                                className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-all flex-shrink-0 cursor-pointer disabled:opacity-50"
+                                title="Delete Radiograph Scan"
+                              >
+                                {isDeletingThis ? (
+                                  <Loader2 className="w-3.5 h-3.5 text-rose-500 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Pagination Footer Controls (Max 5 Records Per Page) */}
+                      {radiographs.length > 5 && (
+                        <div className="pt-2.5 border-t border-light-teal/30 flex items-center justify-between px-1 mt-1">
+                          <button
+                            type="button"
+                            disabled={radiographsPage === 1}
+                            onClick={() => setRadiographsPage(p => Math.max(1, p - 1))}
+                            className="p-1.5 rounded-xl bg-white border border-light-teal/50 hover:bg-[#EAF0FC] text-[#4A7CD2] disabled:opacity-30 disabled:pointer-events-none cursor-pointer shadow-2xs transition-all flex items-center gap-1 text-xs font-bold"
+                            title="Previous 5 Scans"
+                          >
+                            <ChevronLeft className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Numeric Page Buttons (Sliding window of max 5 buttons) */}
+                          <div className="flex items-center gap-1">
+                            {(() => {
+                              const totalPages = Math.ceil(radiographs.length / 5) || 1;
+                              const maxButtons = 5;
+                              let start = Math.max(1, radiographsPage - Math.floor(maxButtons / 2));
+                              let end = start + maxButtons - 1;
+                              if (end > totalPages) {
+                                end = totalPages;
+                                start = Math.max(1, end - maxButtons + 1);
+                              }
+                              const pages = [];
+                              for (let i = start; i <= end; i++) pages.push(i);
+
+                              return pages.map(pageNum => {
+                                const isActive = radiographsPage === pageNum;
+                                return (
+                                  <button
+                                    key={pageNum}
+                                    type="button"
+                                    onClick={() => setRadiographsPage(pageNum)}
+                                    className={`w-6 h-6 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                                      isActive 
+                                        ? 'bg-[#4A7CD2] text-white shadow-xs' 
+                                        : 'bg-white border border-light-teal/40 text-muted-text hover:text-dark-slate hover:border-[#4A7CD2]/40'
+                                    }`}
+                                  >
+                                    {pageNum}
+                                  </button>
+                                );
+                              });
+                            })()}
                           </div>
-                        );
-                      })}
+
+                          <button
+                            type="button"
+                            disabled={radiographsPage >= Math.ceil(radiographs.length / 5)}
+                            onClick={() => setRadiographsPage(p => Math.min(Math.ceil(radiographs.length / 5), p + 1))}
+                            className="p-1.5 rounded-xl bg-white border border-light-teal/50 hover:bg-[#EAF0FC] text-[#4A7CD2] disabled:opacity-30 disabled:pointer-events-none cursor-pointer shadow-2xs transition-all flex items-center gap-1 text-xs font-bold"
+                            title="Next 5 Scans"
+                          >
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* Right Column: Display image + Collapsible AI report */}
