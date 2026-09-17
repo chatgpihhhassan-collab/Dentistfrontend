@@ -663,7 +663,7 @@ export default function ChartPage() {
   const [chatInput, setChatInput] = useState('');
   const [highlightedTeeth, setHighlightedTeeth] = useState([]);
   const [highlightInfo, setHighlightInfo] = useState(null);
-  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
+  const [isChatCollapsed, setIsChatCollapsed] = useState(true);
   const [selectedJawView, setSelectedJawView] = useState('both'); // 'both' | 'maxilla' | 'mandible'
   const [showOrthoTmjModal, setShowOrthoTmjModal] = useState(false);
   const [liveOrthoAssessment, setLiveOrthoAssessment] = useState(null);
