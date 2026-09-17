@@ -9,7 +9,14 @@ import { extractAiFindingsFromReport } from '../utils/aiRadiologyUtils';
 /**
  * Parses raw dental radiology report into structured categories with tooth tags, severity badges, and document view
  */
-export default function RadiologyReportViewer({ rawReportText, onToothClick, onApplyFindings, isApplying = false }) {
+export default function RadiologyReportViewer({ 
+    rawReportText, 
+    onToothClick, 
+    onApplyFindings, 
+    isApplying = false,
+    onReanalyze,
+    isReanalyzing = false
+}) {
     const [viewMode, setViewMode] = useState('cards'); // 'cards' | 'document'
 
     const detectedFindings = useMemo(() => extractAiFindingsFromReport(rawReportText), [rawReportText]);
@@ -346,6 +353,35 @@ export default function RadiologyReportViewer({ rawReportText, onToothClick, onA
                     >
                         {isApplying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-amber-300" />}
                         <span>{isApplying ? "Syncing Chart..." : "Apply All to Chart & Billing"}</span>
+                    </button>
+                </div>
+            )}
+
+            {/* Action Banner for Historical/Unanalyzed Scan */}
+            {detectedFindings.length === 0 && onReanalyze && (
+                <div className="p-3.5 bg-gradient-to-r from-blue-50 via-indigo-50/40 to-slate-50 border border-blue-200/80 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                            <Sparkles className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                            <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                <span>Dynamic AI Vision Analysis</span>
+                                <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-0.2 rounded-md">Ready</span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 font-medium">
+                                Run multi-model Gemini Vision to inspect teeth pathologies and auto-populate the Odontogram.
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onReanalyze}
+                        disabled={isReanalyzing}
+                        className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-[#4A7CD2] to-[#8B5CF6] hover:opacity-90 text-white rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+                    >
+                        {isReanalyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-amber-300" />}
+                        <span>{isReanalyzing ? "Analyzing Radiograph..." : "Run Live AI Vision Analysis"}</span>
                     </button>
                 </div>
             )}

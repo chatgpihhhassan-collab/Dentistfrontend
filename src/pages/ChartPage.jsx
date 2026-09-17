@@ -2425,29 +2425,38 @@ export default function ChartPage() {
   const handleReanalyzeXray = async () => {
     if (!selectedRadiograph) return;
     const rId = selectedRadiograph.radiographID || selectedRadiograph.RadiographID;
+    const rName = selectedRadiograph.imageName || selectedRadiograph.ImageName || `Scan #${rId}`;
     setIsReanalyzingXray(true);
     setToast({ visible: true, message: "Gemini Vision is analyzing the radiograph..." });
+    console.log(`%c[AI RE-ANALYZE START] Triggering dynamic Gemini Vision for radiograph #${rId} (${rName})...`, 'color: #8B5CF6; font-weight: bold;');
     try {
       const res = await fetch(`/api/radiographs/${rId}/reanalyze`, { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
+        const reportLength = (data.analysisSummary || '').length;
+        console.log(`%c[AI RE-ANALYZE SUCCESS] Server returned dynamic report (${reportLength} characters).`, 'color: #10B981; font-weight: bold;');
         const updatedRad = { ...selectedRadiograph, analysisSummary: data.analysisSummary, AnalysisSummary: data.analysisSummary };
         setSelectedRadiograph(updatedRad);
         setEditingXrayText(data.analysisSummary);
         setXrayDetailsExpanded(true);
 
         const detectedFindings = extractAiFindingsFromReport(data.analysisSummary);
+        console.log(`%c[AI RE-ANALYZE FINDINGS] Detected ${detectedFindings.length} teeth pathologies:`, 'color: #3B82F6; font-weight: bold;', detectedFindings.map(f => `#${f.toothKey || f.toothNumber} (${f.condition}, CDT: ${f.cdtCode || 'N/A'})`));
         if (detectedFindings && detectedFindings.length > 0) {
+          console.log(`%c[AI RE-ANALYZE AUTO-APPLY] Automatically syncing ${detectedFindings.length} findings to Dental Chart...`, 'color: #8B5CF6; font-weight: bold;');
           await handleApplyAiFindingsToChart(detectedFindings, updatedRad);
           setToast({ visible: true, message: `✨ Live AI Analysis complete & synced ${detectedFindings.length} findings to Dental Chart!` });
         } else {
+          console.warn('[AI RE-ANALYZE] No tooth pathologies identified in this radiograph projection.');
           setToast({ visible: true, message: "✨ Live AI Radiograph Analysis complete!" });
         }
       } else {
-        alert("Live AI Vision analysis failed.");
+        const errTxt = await res.text().catch(() => '');
+        console.error(`[AI RE-ANALYZE ERROR] Server returned HTTP ${res.status}:`, errTxt);
+        alert(`Live AI Vision analysis failed (HTTP ${res.status}): ${errTxt}`);
       }
     } catch (err) {
-      console.error(err);
+      console.error("[AI RE-ANALYZE EXCEPTION] Network or runtime error during re-analysis:", err);
       alert("Error analyzing radiograph: " + err.message);
     } finally {
       setIsReanalyzingXray(false);
@@ -7779,6 +7788,8 @@ export default function ChartPage() {
                                   }}
                                   onApplyFindings={handleApplyAiFindingsToChart}
                                   isApplying={isApplyingAiFindings}
+                                  onReanalyze={handleReanalyzeXray}
+                                  isReanalyzing={isReanalyzingXray}
                                 />
                               )}
 
