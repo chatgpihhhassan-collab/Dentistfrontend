@@ -1,4 +1,4 @@
-import { getHexColor } from './toothDataConstants';
+import { getHexColor } from './toothDataConstants.js';
 
 /**
  * Parses and extracts structured tooth findings from an AI radiograph diagnostic report.
