@@ -27,6 +27,7 @@ import NanoPixPatientPromptModal from '../components/NanoPixPatientPromptModal';
 import PatientTreatmentInvoiceTab from '../components/PatientTreatmentInvoiceTab';
 import ChartRadiographFilmstrip from '../components/ChartRadiographFilmstrip';
 import RadiographImpactInspectorModal from '../components/RadiographImpactInspectorModal';
+import ClinicalReportEditor from '../components/ClinicalReportEditor';
 import { extractAiFindingsFromReport, extractSoapFromReport, compressImageForUpload, isTestRadiograph, getHumanReadableReport, recombineReportWithStructuredData } from '../utils/aiRadiologyUtils';
 
 // Real Anatomical Maxilla (Upper Jaw) Coordinate & Rotation Mapping for Empty Jaw Template (Exact 16 Sockets)
@@ -2600,7 +2601,7 @@ export default function ChartPage() {
     }
   }, [selectedRadiograph]);
 
-  const handleSaveXrayToHistory = async () => {
+  const handleSaveXrayToHistory = async (overrideText = null) => {
     if (!selectedRadiograph) return;
     setSavingXrayTimeline(true);
     const radId = selectedRadiograph.radiographID || selectedRadiograph.RadiographID;
@@ -2608,9 +2609,10 @@ export default function ChartPage() {
     const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
     const doctorId = doctorData.doctorID || doctorData.DoctorID || 1;
 
+    const sourceText = typeof overrideText === 'string' && overrideText.trim() ? overrideText : editingXrayText;
     const originalSummary = selectedRadiograph.analysisSummary || selectedRadiograph.AnalysisSummary || '';
-    const fullAnalysisToSave = recombineReportWithStructuredData(editingXrayText, originalSummary);
-    const cleanNarrativeForTimeline = getHumanReadableReport(editingXrayText);
+    const fullAnalysisToSave = recombineReportWithStructuredData(sourceText, originalSummary);
+    const cleanNarrativeForTimeline = getHumanReadableReport(sourceText);
 
     try {
       // 1. Update the AnalysisSummary in the Radiographs table (with preserved structured findings)
@@ -2632,6 +2634,7 @@ export default function ChartPage() {
         return idMatch ? { ...r, analysisSummary: fullAnalysisToSave, AnalysisSummary: fullAnalysisToSave } : r;
       }));
       setSelectedRadiograph(prev => ({ ...prev, analysisSummary: fullAnalysisToSave, AnalysisSummary: fullAnalysisToSave }));
+      setEditingXrayText(cleanNarrativeForTimeline);
 
       // 2. Post clean clinical entry to the Patient's Clinical Log Timeline (no JSON code blocks)
       const resLog = await fetch(`/api/patients/${patientId}/clinical-logs`, {
@@ -2647,7 +2650,7 @@ export default function ChartPage() {
       });
 
       if (resLog.ok) {
-        setToast({ visible: true, message: "Saved to Patient History successfully!" });
+        setToast({ visible: true, message: "Clinical report saved & synced to Patient History!" });
         setTimeout(() => setToast({ visible: false, message: "" }), 3000);
         setIsEditingXrayAnalysis(false);
       } else {
@@ -8116,61 +8119,52 @@ export default function ChartPage() {
                           >
                             <div className="space-y-4 pt-1">
                               {isEditingXrayAnalysis ? (
-                                <div className="bg-[#F4F6FA]/80 border border-light-teal/50 p-4 rounded-2xl shadow-2xs space-y-2.5">
-                                  <div className="flex items-center justify-between flex-wrap gap-2 pb-1 border-b border-light-teal/30">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-xs font-black text-[#10244B]">Edit Clinical Diagnostic Report</span>
-                                      <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 shadow-2xs">
-                                        Clinical Narrative Mode
-                                      </span>
-                                    </div>
-                                    <span className="text-[10.5px] text-slate-500 font-medium">
-                                      ✨ Machine-readable AI tooth findings & CDT codes are protected and preserved automatically
-                                    </span>
-                                  </div>
-                                  <textarea
-                                    value={editingXrayText}
-                                    onChange={(e) => setEditingXrayText(e.target.value)}
-                                    className="w-full bg-white border border-light-teal/50 rounded-xl p-3.5 text-xs text-slate-800 focus:outline-none focus:border-[#4A7CD2] focus:ring-1 focus:ring-[#4A7CD2]/30 font-sans font-medium leading-relaxed shadow-2xs"
-                                    rows={12}
-                                    placeholder="Edit clinical radiographic findings, anatomical observations, and SOAP notes..."
-                                  />
-                                </div>
-                              ) : (
-                                <RadiologyReportViewer 
-                                  rawReportText={selectedRadiograph.analysisSummary || selectedRadiograph.AnalysisSummary}
-                                  onToothClick={(toothTag) => {
-                                    const match = toothTag.match(/#(\d+)/);
-                                    if (match) {
-                                      const num = parseInt(match[1]);
-                                      if (num >= 1 && num <= 32) {
-                                        setDetailedTooth(num);
-                                      }
-                                    }
+                                <ClinicalReportEditor
+                                  rawReportText={editingXrayText || selectedRadiograph.analysisSummary || selectedRadiograph.AnalysisSummary}
+                                  originalAiReport={selectedRadiograph.analysisSummary || selectedRadiograph.AnalysisSummary}
+                                  onSave={(updatedCleanText) => {
+                                    handleSaveXrayToHistory(updatedCleanText);
                                   }}
-                                  onApplyFindings={handleApplyAiFindingsToChart}
-                                  isApplying={isApplyingAiFindings}
-                                  onReanalyze={handleReanalyzeXray}
-                                  isReanalyzing={isReanalyzingXray}
+                                  onCancel={() => setIsEditingXrayAnalysis(false)}
+                                  isSaving={savingXrayTimeline}
                                 />
-                              )}
+                              ) : (
+                                <>
+                                  <RadiologyReportViewer 
+                                    rawReportText={selectedRadiograph.analysisSummary || selectedRadiograph.AnalysisSummary}
+                                    onToothClick={(toothTag) => {
+                                      const match = toothTag.match(/#(\d+)/);
+                                      if (match) {
+                                        const num = parseInt(match[1]);
+                                        if (num >= 1 && num <= 32) {
+                                          setDetailedTooth(num);
+                                        }
+                                      }
+                                    }}
+                                    onApplyFindings={handleApplyAiFindingsToChart}
+                                    isApplying={isApplyingAiFindings}
+                                    onReanalyze={handleReanalyzeXray}
+                                    isReanalyzing={isReanalyzingXray}
+                                  />
 
-                              {/* Save to History Button */}
-                              <div className="flex justify-end no-print">
-                                <button
-                                  type="button"
-                                  onClick={handleSaveXrayToHistory}
-                                  disabled={savingXrayTimeline}
-                                  className="bg-[#4A7CD2] hover:bg-[#3665B7] text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
-                                >
-                                  {savingXrayTimeline ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                  ) : (
-                                    <Save className="w-3.5 h-3.5" />
-                                  )}
-                                  Save to Patient History
-                                </button>
-                              </div>
+                                  {/* Save to History Button */}
+                                  <div className="flex justify-end no-print">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSaveXrayToHistory()}
+                                      disabled={savingXrayTimeline}
+                                      className="bg-[#4A7CD2] hover:bg-[#3665B7] text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer active:scale-95"
+                                    >
+                                      {savingXrayTimeline ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      ) : (
+                                        <Save className="w-3.5 h-3.5" />
+                                      )}
+                                      Save to Patient History
+                                    </button>
+                                  </div>
+                                </>
+                              )}
                             </div>
                           </div>
 

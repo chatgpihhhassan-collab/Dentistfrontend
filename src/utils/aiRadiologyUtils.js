@@ -400,4 +400,142 @@ export const recombineReportWithStructuredData = (editedText, originalReport) =>
   return cleanEdited;
 };
 
+/**
+ * Parses a raw clinical radiology report into structured, doctor-editable sections:
+ * - Overview (modality, anatomical structures, periodontal status, crown-to-root ratios)
+ * - Tooth Findings (array of { tooth, description, confidence })
+ * - General/Regional Observations (array of { label, description })
+ * - SOAP Clinical Notes (subjective, objective, assessment, plan)
+ */
+export const parseClinicalReport = (reportText) => {
+  const result = {
+    overview: {
+      modality: 'Panoramic Radiograph',
+      anatomicalStructures: '',
+      periodontalStatus: '',
+      crownToRootRatios: '',
+      additionalNotes: ''
+    },
+    toothFindings: [],
+    generalFindings: [],
+    soap: {
+      subjective: '',
+      objective: '',
+      assessment: '',
+      plan: ''
+    }
+  };
+
+  if (!reportText || typeof reportText !== 'string') return result;
+
+  // Split into sections by markdown heading or keywords
+  const sections = reportText.split(/(?=###\s*\d+\.|\bCLINICAL RADIOGRAPHIC OVERVIEW\b|\bTOOTH-BY-TOOTH FINDINGS\b|\bCOMPREHENSIVE SOAP\b)/i);
+
+  sections.forEach(sec => {
+    const secLower = sec.toLowerCase();
+
+    if (secLower.includes('radiographic overview') || secLower.includes('section 1')) {
+      const mod = sec.match(/\*\*Modality:\*\*\s*([^\n]+)/i);
+      if (mod) result.overview.modality = mod[1].trim().replace(/\.$/, '');
+
+      const anat = sec.match(/\*\*Anatomical Structures:\*\*\s*([^\n]+(?:\n(?!\s*-\s*\*\*)[^\n]+)*)/i);
+      if (anat) result.overview.anatomicalStructures = anat[1].trim();
+
+      const perio = sec.match(/\*\*Periodontal Status:\*\*\s*([^\n]+(?:\n(?!\s*-\s*\*\*)[^\n]+)*)/i);
+      if (perio) result.overview.periodontalStatus = perio[1].trim();
+
+      const cr = sec.match(/\*\*Crown-to-Root Ratios:\*\*\s*([^\n]+(?:\n(?!\s*-\s*\*\*)[^\n]+)*)/i);
+      if (cr) result.overview.crownToRootRatios = cr[1].trim();
+    } else if (secLower.includes('tooth-by-tooth') || secLower.includes('pathology') || secLower.includes('section 2')) {
+      const lines = sec.split('\n');
+      lines.forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('###')) return;
+
+        // Matches: - **Tooth 3:** Impacted/partially erupted third molar. (Confidence: 95%)
+        const toothMatch = trimmed.match(/^[-\*•]?\s*\*\*Tooth\s*(\d+|[A-T]):\*\*\s*(.*)/i);
+        if (toothMatch) {
+          const tooth = toothMatch[1];
+          let desc = toothMatch[2].trim();
+          let confidence = '95%';
+          const confMatch = desc.match(/\(Confidence:\s*(\d+%(?:\s*AI)?)\)/i);
+          if (confMatch) {
+            confidence = confMatch[1];
+            desc = desc.replace(confMatch[0], '').trim();
+          }
+          result.toothFindings.push({ tooth, description: desc, confidence });
+          return;
+        }
+
+        // Matches generic bullet: - **Maxillary Anterior Region (6-11):** ...
+        const labelMatch = trimmed.match(/^[-\*•]?\s*\*\*([^*]+):\*\*\s*(.*)/);
+        if (labelMatch) {
+          result.generalFindings.push({ label: labelMatch[1].trim(), description: labelMatch[2].trim() });
+          return;
+        }
+
+        if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
+          result.generalFindings.push({ label: 'Observation', description: trimmed.replace(/^[-*•]\s*/, '').trim() });
+        }
+      });
+    } else if (secLower.includes('soap') || secLower.includes('section 3')) {
+      const subj = sec.match(/\*\*Subjective:\*\*\s*([^\n]+(?:\n(?!\s*-\s*\*\*)[^\n]+)*)/i);
+      if (subj) result.soap.subjective = subj[1].trim();
+
+      const obj = sec.match(/\*\*Objective:\*\*\s*([^\n]+(?:\n(?!\s*-\s*\*\*)[^\n]+)*)/i);
+      if (obj) result.soap.objective = obj[1].trim();
+
+      const assess = sec.match(/\*\*Assessment:\*\*\s*([^\n]+(?:\n(?!\s*-\s*\*\*)[^\n]+)*)/i);
+      if (assess) result.soap.assessment = assess[1].trim();
+
+      const plan = sec.match(/\*\*Plan:\*\*\s*([^\n]+(?:\n(?!\s*-\s*\*\*)[^\n]+)*)/i);
+      if (plan) result.soap.plan = plan[1].trim();
+    }
+  });
+
+  return result;
+};
+
+/**
+ * Serializes the structured editor data back into a clean, professional clinical report string
+ */
+export const serializeClinicalReport = (data) => {
+  if (!data) return '';
+  const parts = [];
+
+  // Section 1: Overview
+  parts.push('### 1. CLINICAL RADIOGRAPHIC OVERVIEW');
+  if (data.overview?.modality) parts.push(`- **Modality:** ${data.overview.modality}`);
+  if (data.overview?.anatomicalStructures) parts.push(`- **Anatomical Structures:** ${data.overview.anatomicalStructures}`);
+  if (data.overview?.periodontalStatus) parts.push(`- **Periodontal Status:** ${data.overview.periodontalStatus}`);
+  if (data.overview?.crownToRootRatios) parts.push(`- **Crown-to-Root Ratios:** ${data.overview.crownToRootRatios}`);
+  if (data.overview?.additionalNotes) parts.push(`- **Additional Observations:** ${data.overview.additionalNotes}`);
+
+  // Section 2: Tooth Findings & Regional Pathology
+  parts.push('\n### 2. TOOTH-BY-TOOTH FINDINGS & PATHOLOGY');
+  if (Array.isArray(data.toothFindings)) {
+    data.toothFindings.forEach(f => {
+      if (!f.tooth && !f.description) return;
+      const confStr = f.confidence ? ` (Confidence: ${f.confidence.includes('%') ? f.confidence : f.confidence + '%'})` : '';
+      parts.push(`- **Tooth ${f.tooth}:** ${f.description}${confStr}`);
+    });
+  }
+  if (Array.isArray(data.generalFindings)) {
+    data.generalFindings.forEach(g => {
+      if (!g.description) return;
+      parts.push(`- **${g.label || 'Observation'}:** ${g.description}`);
+    });
+  }
+
+  // Section 3: SOAP Notes
+  parts.push('\n### 3. COMPREHENSIVE SOAP CLINICAL NOTES');
+  if (data.soap?.subjective) parts.push(`- **Subjective:** ${data.soap.subjective}`);
+  if (data.soap?.objective) parts.push(`- **Objective:** ${data.soap.objective}`);
+  if (data.soap?.assessment) parts.push(`- **Assessment:** ${data.soap.assessment}`);
+  if (data.soap?.plan) parts.push(`- **Plan:** ${data.soap.plan}`);
+
+  return parts.join('\n');
+};
+
+
 
