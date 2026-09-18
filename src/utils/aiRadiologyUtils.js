@@ -332,3 +332,17 @@ export const extractSoapFromReport = (reportText) => {
   return null;
 };
 
+/**
+ * Checks if a radiograph record represents a dummy/test scan.
+ * Identifies filenames containing 'test', dummy test extensions, or explicit test flags.
+ */
+export const isTestRadiograph = (r) => {
+  if (!r) return false;
+  if (r.isTest === true || r.isTestScan === true) return true;
+  const name = (r.imageName || r.ImageName || '').toLowerCase().trim();
+  if (name.includes('test')) return true;
+  if (name.endsWith('.bin') || name.endsWith('.json') || name.endsWith('.txt')) return true;
+  if (name === 'sample.jpg' || name === 'dummy.jpg') return true;
+  return false;
+};
+

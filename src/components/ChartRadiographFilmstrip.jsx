@@ -18,7 +18,7 @@ import {
   LayoutGrid,
   Minimize2
 } from 'lucide-react';
-import { extractAiFindingsFromReport } from '../utils/aiRadiologyUtils.js';
+import { extractAiFindingsFromReport, isTestRadiograph } from '../utils/aiRadiologyUtils.js';
 
 const PAGE_SIZE = 5;
 
@@ -27,6 +27,7 @@ const PAGE_SIZE = 5;
  * 
  * Doctor-friendly diagnostic imaging dock engineered for ZERO-SCROLL operatory workstations.
  * Features:
+ * - Automatically excludes dummy/test scans by default (enables on demand)
  * - Default "Zero-Scroll Compact Mode" (takes < 105px vertical space)
  * - Optional "Detailed Cards Mode" toggleable by doctor
  * - 5-scan pagination with compact in-header navigation
@@ -46,12 +47,17 @@ export default function ChartRadiographFilmstrip({
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [viewMode, setViewMode] = useState('compact'); // 'compact' (zero-scroll default) | 'expanded'
+  const [showTestScans, setShowTestScans] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const fileInputRef = React.useRef(null);
 
-  const totalPages = Math.max(1, Math.ceil(radiographs.length / PAGE_SIZE));
+  // Exclude test images by default; enable when explicitly requested
+  const testScansCount = radiographs.filter(r => isTestRadiograph(r)).length;
+  const activeRadiographs = showTestScans ? radiographs : radiographs.filter(r => !isTestRadiograph(r));
+
+  const totalPages = Math.max(1, Math.ceil(activeRadiographs.length / PAGE_SIZE));
   const safePage = Math.min(currentPage, totalPages);
-  const pagedRadiographs = radiographs.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const pagedRadiographs = activeRadiographs.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
@@ -131,8 +137,25 @@ export default function ChartRadiographFilmstrip({
               Diagnostic Radiographs
             </span>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#2563EB] border border-blue-200">
-              {radiographs.length} {radiographs.length === 1 ? 'Scan' : 'Scans'}
+              {activeRadiographs.length} {activeRadiographs.length === 1 ? 'Scan' : 'Scans'}
             </span>
+            {testScansCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTestScans(!showTestScans);
+                  setCurrentPage(1);
+                }}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[9.5px] font-extrabold transition cursor-pointer border ${
+                  showTestScans 
+                    ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-2xs' 
+                    : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 hover:text-slate-800'
+                }`}
+                title={showTestScans ? "Click to hide test scans" : `Click to enable ${testScansCount} excluded test scans`}
+              >
+                <span>{showTestScans ? `🧪 Tests Active (${testScansCount})` : `🧪 Show Tests (${testScansCount})`}</span>
+              </button>
+            )}
             <div className="hidden sm:flex items-center gap-1.5 text-[10.5px] text-slate-500 ml-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
               <span className="font-medium text-slate-600">Nano-Pix RVG</span>
@@ -169,7 +192,7 @@ export default function ChartRadiographFilmstrip({
         {/* Right: Inline Pager, View Mode Toggle & Quick Triggers */}
         <div className="flex items-center gap-2">
           {/* Compact In-Header Paging (Takes ZERO extra vertical space) */}
-          {radiographs.length > PAGE_SIZE && (
+          {activeRadiographs.length > PAGE_SIZE && (
             <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-slate-200 shadow-2xs text-[11px]">
               <button
                 type="button"
@@ -262,7 +285,7 @@ export default function ChartRadiographFilmstrip({
       {/* Dock Content Body */}
       {!isCollapsed && (
         <div className="p-2.5 bg-[#F8FAFC]/70">
-          {radiographs.length === 0 ? (
+          {activeRadiographs.length === 0 ? (
             /* Empty State */
             <div className="py-4 text-center flex flex-col items-center justify-center">
               <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#4A7CD2] mb-1.5">
