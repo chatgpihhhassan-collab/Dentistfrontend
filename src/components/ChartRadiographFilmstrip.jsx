@@ -14,7 +14,9 @@ import {
   Layers, 
   CheckCircle2, 
   AlertTriangle, 
-  Zap 
+  Zap,
+  LayoutGrid,
+  Minimize2
 } from 'lucide-react';
 import { extractAiFindingsFromReport } from '../utils/aiRadiologyUtils.js';
 
@@ -23,13 +25,13 @@ const PAGE_SIZE = 5;
 /**
  * ChartRadiographFilmstrip
  * 
- * Doctor-friendly diagnostic imaging dock on the Dental Chart page.
+ * Doctor-friendly diagnostic imaging dock engineered for ZERO-SCROLL operatory workstations.
  * Features:
- * - Clean, medical clinic aesthetic matching Dentia design system
- * - Pagination (5 scans per page) for high volume scan histories
- * - Direct image loading from API with failover
- * - Hardware device status (Eighteeth Nano-Pix / Dicora USB)
- * - 1-click scan clinical impact spotlighting on 3D jaw and 2D odontogram
+ * - Default "Zero-Scroll Compact Mode" (takes < 105px vertical space)
+ * - Optional "Detailed Cards Mode" toggleable by doctor
+ * - 5-scan pagination with compact in-header navigation
+ * - Direct cloud image resolution with base64 failover
+ * - Instant 1-click clinical impact spotlighting on 3D jaw and 2D odontogram
  */
 export default function ChartRadiographFilmstrip({
   radiographs = [],
@@ -43,6 +45,7 @@ export default function ChartRadiographFilmstrip({
   isAnalyzing = false
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [viewMode, setViewMode] = useState('compact'); // 'compact' (zero-scroll default) | 'expanded'
   const [currentPage, setCurrentPage] = useState(1);
   const fileInputRef = React.useRef(null);
 
@@ -69,12 +72,16 @@ export default function ChartRadiographFilmstrip({
     const summary = (r.analysisSummary || r.AnalysisSummary || '').toLowerCase();
 
     let modality = 'Periapical RVG';
+    let shortModality = 'RVG';
     if (name.includes('pano') || name.includes('opg') || summary.includes('panoramic') || summary.includes('opg')) {
       modality = 'Panoramic (OPG)';
+      shortModality = 'OPG';
     } else if (name.includes('bite') || name.includes('bwx') || summary.includes('bitewing')) {
       modality = 'Bitewing (BWX)';
+      shortModality = 'BWX';
     } else if (name.includes('cam') || name.includes('photo') || summary.includes('photograph')) {
       modality = 'Intraoral Photo';
+      shortModality = 'PHOTO';
     }
 
     let device = 'Eighteeth Nano-Pix';
@@ -88,7 +95,7 @@ export default function ChartRadiographFilmstrip({
       device = 'Digital Panoramic OPG';
     }
 
-    return { modality, device };
+    return { modality, shortModality, device };
   };
 
   const getImageUrl = (r) => {
@@ -102,7 +109,7 @@ export default function ChartRadiographFilmstrip({
   };
 
   return (
-    <div className="w-full bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden mb-5 transition-all duration-300">
+    <div className="w-full bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden mb-3 transition-all duration-200">
       {/* Hidden File Input */}
       <input 
         type="file" 
@@ -112,79 +119,120 @@ export default function ChartRadiographFilmstrip({
         className="hidden" 
       />
 
-      {/* Dock Header Bar: Clean Medical Theme */}
-      <div className="px-5 py-3.5 bg-gradient-to-r from-slate-50 via-blue-50/30 to-slate-50 border-b border-slate-200/80 flex flex-wrap items-center justify-between gap-3 select-none">
-        {/* Left: Icon & Title */}
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-[#4A7CD2] to-[#2563EB] flex items-center justify-center text-white shadow-xs">
-            <Layers className="w-4.5 h-4.5" />
+      {/* Dock Compact Header: Zero-Scroll Operatory Bar */}
+      <div className="px-3.5 py-2 bg-gradient-to-r from-slate-50 via-blue-50/40 to-slate-50 border-b border-slate-200/80 flex flex-wrap items-center justify-between gap-2 select-none">
+        {/* Left: Title & Count & Devices */}
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-[#4A7CD2] to-[#2563EB] flex items-center justify-center text-white shadow-2xs">
+            <Layers className="w-3.5 h-3.5" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold text-xs text-[#10244B] tracking-wider uppercase">
-                Diagnostic Radiographs & Sensors
-              </span>
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-[#2563EB] border border-blue-200">
-                {radiographs.length} {radiographs.length === 1 ? 'Scan' : 'Scans'}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
-              <span className="flex items-center gap-1 font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                Eighteeth Nano-Pix RVG Ready
-              </span>
+          <div className="flex items-center gap-2">
+            <span className="font-extrabold text-[11px] text-[#10244B] tracking-wider uppercase">
+              Diagnostic Radiographs
+            </span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#2563EB] border border-blue-200">
+              {radiographs.length} {radiographs.length === 1 ? 'Scan' : 'Scans'}
+            </span>
+            <div className="hidden sm:flex items-center gap-1.5 text-[10.5px] text-slate-500 ml-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="font-medium text-slate-600">Nano-Pix RVG</span>
               <span>•</span>
-              <span className="flex items-center gap-1 font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
-                Dicora USB Sensor Ready
-              </span>
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
+              <span className="font-medium text-slate-600">Dicora USB</span>
             </div>
           </div>
         </div>
 
-        {/* Center: Active Scan Impact Tag */}
+        {/* Center: Active Scan Spotlight Pill */}
         {activeScanImpact && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-cyan-50 border border-cyan-300 text-cyan-900 text-xs shadow-2xs animate-in fade-in">
-            <Zap className="w-3.5 h-3.5 text-cyan-600 animate-pulse" />
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-50 border border-cyan-300 text-cyan-900 text-[11px] shadow-2xs animate-in fade-in">
+            <Zap className="w-3 h-3 text-cyan-600 animate-pulse" />
             <span className="font-bold">
               Spotlight: <span className="font-mono text-cyan-800">{activeScanImpact.imageName}</span>
             </span>
-            <div className="flex items-center gap-1">
-              {(activeScanImpact.teeth || []).slice(0, 5).map(t => (
-                <span key={t} className="px-1.5 py-0.5 rounded bg-cyan-600 text-white text-[10px] font-bold">
-                  #{t}
-                </span>
-              ))}
-              {(activeScanImpact.teeth || []).length > 5 && (
-                <span className="text-[10px] text-cyan-700 font-bold">
-                  +{(activeScanImpact.teeth || []).length - 5}
-                </span>
-              )}
-            </div>
+            <span className="px-1.5 py-0.2 rounded bg-cyan-600 text-white text-[9.5px] font-extrabold">
+              {activeScanImpact.teeth?.length || 0} Teeth
+            </span>
             <button 
               onClick={(e) => {
                 e.stopPropagation();
                 onClearScanImpact && onClearScanImpact();
               }}
               title="Clear Spotlight"
-              className="ml-1 p-0.5 rounded-md hover:bg-cyan-200/70 text-cyan-700 hover:text-cyan-950 transition cursor-pointer"
+              className="ml-0.5 p-0.5 rounded hover:bg-cyan-200/70 text-cyan-700 hover:text-cyan-950 transition cursor-pointer"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3 h-3" />
             </button>
           </div>
         )}
 
-        {/* Right: Actions & Collapse Button */}
+        {/* Right: Inline Pager, View Mode Toggle & Quick Triggers */}
         <div className="flex items-center gap-2">
+          {/* Compact In-Header Paging (Takes ZERO extra vertical space) */}
+          {radiographs.length > PAGE_SIZE && (
+            <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-slate-200 shadow-2xs text-[11px]">
+              <button
+                type="button"
+                onClick={() => handlePageChange(safePage - 1)}
+                disabled={safePage <= 1}
+                className="p-0.5 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                title="Previous 5 scans"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <span className="font-extrabold text-slate-700 px-1">
+                {safePage}/{totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => handlePageChange(safePage + 1)}
+                disabled={safePage >= totalPages}
+                className="p-0.5 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                title="Next 5 scans"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* View Mode Switcher: Zero-Scroll vs Detailed */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px]">
+            <button
+              type="button"
+              onClick={() => setViewMode('compact')}
+              className={`px-2 py-1 rounded-md font-extrabold transition cursor-pointer flex items-center gap-1 ${
+                viewMode === 'compact' 
+                  ? 'bg-white text-[#2563EB] shadow-2xs' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Ultra-compact Zero-Scroll operatory mode"
+            >
+              <span>⚡ Compact</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('expanded')}
+              className={`px-2 py-1 rounded-md font-extrabold transition cursor-pointer flex items-center gap-1 ${
+                viewMode === 'expanded' 
+                  ? 'bg-white text-[#2563EB] shadow-2xs' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Expanded large-card preview mode"
+            >
+              <LayoutGrid className="w-3 h-3" />
+              <span>Cards</span>
+            </button>
+          </div>
+
           {/* Sensor Capture */}
           <button
             type="button"
             onClick={onTriggerSensorCapture}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-xs active:scale-95 transition cursor-pointer"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold shadow-2xs active:scale-95 transition cursor-pointer"
             title="Acquire frame from Eighteeth Nano-Pix / Dicora USB RVG"
           >
-            <Camera className="w-3.5 h-3.5" />
-            <span>Sensor Capture</span>
+            <Camera className="w-3 h-3" />
+            <span className="hidden sm:inline">Sensor</span>
           </button>
 
           {/* Upload X-Ray */}
@@ -192,63 +240,158 @@ export default function ChartRadiographFilmstrip({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isAnalyzing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-300 shadow-2xs active:scale-95 transition disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-bold border border-slate-300 shadow-2xs active:scale-95 transition disabled:opacity-50 cursor-pointer"
             title="Upload DICOM, JPEG or PNG X-Ray"
           >
-            <Upload className="w-3.5 h-3.5 text-[#2563EB]" />
-            <span>{isAnalyzing ? 'Analyzing...' : 'Upload X-Ray'}</span>
+            <Upload className="w-3 h-3 text-[#2563EB]" />
+            <span className="hidden sm:inline">{isAnalyzing ? 'Analyzing...' : 'Upload'}</span>
           </button>
 
-          {/* Collapse / Expand */}
+          {/* Collapse Toggle */}
           <button
             type="button"
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-800 border border-slate-200 transition cursor-pointer"
+            className="p-1 rounded-lg bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-800 border border-slate-200 transition cursor-pointer"
             title={isCollapsed ? 'Expand Filmstrip' : 'Collapse Filmstrip'}
           >
-            {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+            {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
           </button>
         </div>
       </div>
 
-      {/* Dock Body: Paged 5-Card Grid */}
+      {/* Dock Content Body */}
       {!isCollapsed && (
-        <div className="p-4 bg-[#F8FAFC]/60">
+        <div className="p-2.5 bg-[#F8FAFC]/70">
           {radiographs.length === 0 ? (
             /* Empty State */
-            <div className="py-8 text-center flex flex-col items-center justify-center">
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#4A7CD2] mb-3">
-                <Image className="w-6 h-6" />
+            <div className="py-4 text-center flex flex-col items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#4A7CD2] mb-1.5">
+                <Image className="w-4 h-4" />
               </div>
-              <h4 className="text-sm font-bold text-slate-800 mb-1">
+              <h4 className="text-xs font-bold text-slate-800 mb-0.5">
                 No Diagnostic Radiographs for this Patient
               </h4>
-              <p className="text-xs text-slate-500 max-w-md mb-4">
-                Capture dental X-rays via USB RVG Sensor (Eighteeth Nano-Pix / Dicora) or upload DICOM/JPG scans to visualize pathologies directly on the Dental Chart.
+              <p className="text-[11px] text-slate-500 max-w-sm mb-2.5">
+                Capture via Eighteeth Nano-Pix / Dicora USB Sensor or upload DICOM/JPG scans.
               </p>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={onTriggerSensorCapture}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs cursor-pointer transition"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold shadow-2xs cursor-pointer transition"
                 >
-                  <Camera className="w-4 h-4" />
+                  <Camera className="w-3.5 h-3.5" />
                   <span>Launch Sensor Capture</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold cursor-pointer transition"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-[11px] font-bold cursor-pointer transition"
                 >
-                  <Upload className="w-4 h-4 text-[#2563EB]" />
-                  <span>Upload Radiograph File</span>
+                  <Upload className="w-3.5 h-3.5 text-[#2563EB]" />
+                  <span>Upload Scan</span>
                 </button>
               </div>
             </div>
+          ) : viewMode === 'compact' ? (
+            /* ========================================================================= */
+            /* ⚡ ZERO-SCROLL COMPACT OPERATORY MODE (Takes only ~62px height!)          */
+            /* ========================================================================= */
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+              {pagedRadiographs.map((r) => {
+                const rId = r.radiographID || r.RadiographID;
+                const isSelected = selectedScanId === rId;
+                const { shortModality, device } = getScanMetadata(r);
+                const findings = extractAiFindingsFromReport(r.analysisSummary || r.AnalysisSummary);
+                const hasFindings = findings.length > 0;
+                const imageUrl = getImageUrl(r);
+
+                return (
+                  <div
+                    key={rId}
+                    onClick={() => onSelectScan && onSelectScan(r, findings)}
+                    className={`h-[58px] rounded-xl border transition-all duration-150 cursor-pointer overflow-hidden flex items-center p-1.5 gap-2 group/compact bg-white select-none ${
+                      isSelected 
+                        ? 'border-cyan-500 ring-2 ring-cyan-500/30 bg-cyan-50/50 shadow-xs' 
+                        : 'border-slate-200 hover:border-cyan-400 hover:bg-slate-50/80 hover:shadow-2xs'
+                    }`}
+                    title={`Click to spotlight ${findings.length} teeth diagnosed in ${r.imageName}`}
+                  >
+                    {/* Compact Image Viewport (Left) */}
+                    <div className="relative w-12 h-11 rounded-lg bg-slate-950 overflow-hidden shrink-0 flex items-center justify-center">
+                      <img 
+                        src={imageUrl} 
+                        alt={r.imageName || 'X-Ray'} 
+                        className="w-full h-full object-cover group-hover/compact:scale-105 transition-transform"
+                        loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          const placeholder = e.currentTarget.parentElement?.querySelector('.compact-fallback');
+                          if (placeholder) placeholder.classList.remove('hidden');
+                        }}
+                      />
+                      <div className="compact-fallback hidden absolute inset-0 flex items-center justify-center text-slate-400 bg-slate-900">
+                        <Image className="w-4 h-4 opacity-50" />
+                      </div>
+                      
+                      {/* Mini Modality Tag */}
+                      <span className="absolute bottom-0 inset-x-0 bg-slate-950/85 text-cyan-300 text-[8px] font-black text-center tracking-tighter py-0.2">
+                        {shortModality}
+                      </span>
+                    </div>
+
+                    {/* Middle Info */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between leading-none mb-1">
+                        <span className="font-extrabold text-[11px] text-slate-800 truncate" title={r.imageName}>
+                          {r.imageName}
+                        </span>
+                        <span className="text-[9.5px] text-slate-400 font-mono">
+                          {r.uploadedAt ? new Date(r.uploadedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}
+                        </span>
+                      </div>
+
+                      {/* Diagnostic Status Pill */}
+                      {hasFindings ? (
+                        <div className="flex items-center gap-1">
+                          <span className="px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 text-rose-700 text-[9.5px] font-extrabold flex items-center gap-0.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                            {findings.length} Teeth
+                          </span>
+                          <span className="text-[9px] text-slate-400 truncate">
+                            #{findings[0]?.toothNumber}
+                            {findings.length > 1 ? `, #${findings[1]?.toothNumber}` : ''}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 text-[9px] font-bold">
+                          ✓ Normal
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Right: PiP Button or Spotlight Indicator */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onInspectScan && onInspectScan(r, findings);
+                      }}
+                      className="p-1 rounded-md text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 transition cursor-pointer"
+                      title="Inspect scan in PiP Viewer"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           ) : (
+            /* ========================================================================= */
+            /* 🖼️ DETAILED CARDS MODE (Optional toggle for in-depth viewing)              */
+            /* ========================================================================= */
             <div>
-              {/* 5-Column Responsive Cards Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                 {pagedRadiographs.map((r) => {
                   const rId = r.radiographID || r.RadiographID;
                   const isSelected = selectedScanId === rId;
@@ -261,204 +404,109 @@ export default function ChartRadiographFilmstrip({
                     <div
                       key={rId}
                       onClick={() => onSelectScan && onSelectScan(r, findings)}
-                      className={`rounded-2xl border transition-all duration-200 cursor-pointer overflow-hidden flex flex-col group/card bg-white ${
+                      className={`rounded-xl border transition-all duration-150 cursor-pointer overflow-hidden flex flex-col group/card bg-white ${
                         isSelected 
-                          ? 'border-cyan-500 ring-3 ring-cyan-500/25 shadow-md shadow-cyan-500/10 -translate-y-1' 
-                          : 'border-slate-200 hover:border-cyan-400 hover:shadow-md hover:-translate-y-0.5'
+                          ? 'border-cyan-500 ring-2 ring-cyan-500/25 shadow-xs' 
+                          : 'border-slate-200 hover:border-cyan-400 hover:shadow-2xs'
                       }`}
                     >
-                      {/* Image Viewport: Dark clinical background to show radiopacity contrast */}
-                      <div className="relative h-28 w-full bg-slate-950 flex items-center justify-center overflow-hidden">
+                      <div className="relative h-24 w-full bg-slate-950 flex items-center justify-center overflow-hidden">
                         <img 
                           src={imageUrl} 
-                          alt={r.imageName || 'Dental Radiograph'} 
-                          className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-300"
+                          alt={r.imageName || 'Radiograph'} 
+                          className="w-full h-full object-cover group-hover/card:scale-105 transition-transform"
                           loading="lazy"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none';
-                            const placeholder = e.currentTarget.parentElement?.querySelector('.fallback-placeholder');
+                            const placeholder = e.currentTarget.parentElement?.querySelector('.detailed-fallback');
                             if (placeholder) placeholder.classList.remove('hidden');
                           }}
                         />
-                        {/* Fallback placeholder */}
-                        <div className="fallback-placeholder hidden absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-900 p-2">
-                          <Image className="w-7 h-7 opacity-40 mb-1" />
-                          <span className="text-[10px] font-mono text-center truncate w-full text-slate-300">{r.imageName}</span>
+                        <div className="detailed-fallback hidden absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-900 p-1">
+                          <Image className="w-5 h-5 opacity-40 mb-1" />
+                          <span className="text-[9px] font-mono text-center truncate w-full text-slate-300">{r.imageName}</span>
                         </div>
 
-                        {/* Modality Badge (Top-Left) */}
-                        <div className="absolute top-2 left-2">
-                          <span className="px-2 py-0.5 rounded-md text-[9.5px] font-extrabold bg-slate-900/85 backdrop-blur-xs text-cyan-300 border border-cyan-500/30 shadow-xs">
+                        <div className="absolute top-1.5 left-1.5">
+                          <span className="px-1.5 py-0.2 rounded text-[8.5px] font-extrabold bg-slate-900/85 text-cyan-300 border border-cyan-500/30">
                             {modality}
                           </span>
                         </div>
 
-                        {/* Inspect PiP Button (Top-Right) */}
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             onInspectScan && onInspectScan(r, findings);
                           }}
-                          className={`absolute top-2 right-2 p-1.5 rounded-lg bg-slate-900/90 text-slate-200 hover:text-white hover:bg-cyan-600 transition shadow-xs cursor-pointer ${
-                            isSelected ? 'opacity-100' : 'opacity-0 group-hover/card:opacity-100'
-                          }`}
-                          title="Inspect radiograph in high-definition (Zoom & Invert Greyscale)"
+                          className="absolute top-1.5 right-1.5 p-1 rounded-md bg-slate-900/90 text-slate-200 hover:text-white hover:bg-cyan-600 transition cursor-pointer"
+                          title="Inspect radiograph in PiP"
                         >
-                          <Maximize2 className="w-3.5 h-3.5" />
+                          <Maximize2 className="w-3 h-3" />
                         </button>
 
-                        {/* Active Selection Ribbon */}
                         {isSelected && (
-                          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-cyan-600/95 to-cyan-600/60 px-2 py-1 flex items-center justify-between text-white text-[10px] font-bold">
-                            <span className="flex items-center gap-1">
-                              <Sparkles className="w-3 h-3 text-yellow-300" />
-                              Active Spotlight
-                            </span>
+                          <div className="absolute bottom-0 inset-x-0 bg-cyan-600/90 px-2 py-0.5 flex items-center justify-between text-white text-[9px] font-bold">
+                            <span>⚡ Active Spotlight</span>
                             <span>{findings.length} Teeth</span>
                           </div>
                         )}
                       </div>
 
-                      {/* Card Content */}
-                      <div className="p-3 flex-1 flex flex-col justify-between">
+                      <div className="p-2 flex-1 flex flex-col justify-between">
                         <div>
-                          {/* File Name & Date */}
                           <div className="flex items-center justify-between mb-1">
-                            <span className="font-extrabold text-xs text-slate-800 truncate max-w-[125px]" title={r.imageName}>
+                            <span className="font-extrabold text-[11px] text-slate-800 truncate max-w-[120px]" title={r.imageName}>
                               {r.imageName}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-mono">
+                            <span className="text-[9.5px] text-slate-400 font-mono">
                               {r.uploadedAt ? new Date(r.uploadedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}
                             </span>
                           </div>
 
-                          {/* Hardware Sensor Device */}
-                          <div className="text-[10.5px] text-slate-500 mb-2 truncate">
-                            via <span className="text-slate-700 font-semibold">{device}</span>
+                          <div className="text-[9.5px] text-slate-500 mb-1.5 truncate">
+                            via {device}
                           </div>
 
-                          {/* Impacted Teeth Chips */}
-                          <div className="mb-2">
+                          <div className="mb-1">
                             {hasFindings ? (
-                              <div>
-                                <div className="flex items-center gap-1 text-[11px] font-bold text-rose-600 mb-1">
-                                  <AlertTriangle className="w-3 h-3 text-rose-500" />
-                                  <span>{findings.length} Impacted {findings.length === 1 ? 'Tooth' : 'Teeth'}</span>
-                                </div>
-                                <div className="flex flex-wrap gap-1">
-                                  {findings.slice(0, 4).map(f => (
-                                    <span 
-                                      key={f.toothKey}
-                                      className="px-1.5 py-0.5 rounded text-[10px] font-extrabold border shadow-2xs"
-                                      style={{
-                                        backgroundColor: `${f.color}15`,
-                                        borderColor: `${f.color}40`,
-                                        color: f.color
-                                      }}
-                                    >
-                                      #{f.toothNumber}
-                                    </span>
-                                  ))}
-                                  {findings.length > 4 && (
-                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                                      +{findings.length - 4}
-                                    </span>
-                                  )}
-                                </div>
+                              <div className="flex flex-wrap gap-1">
+                                {findings.slice(0, 4).map(f => (
+                                  <span 
+                                    key={f.toothKey}
+                                    className="px-1 py-0.2 rounded text-[9px] font-extrabold border"
+                                    style={{
+                                      backgroundColor: `${f.color}15`,
+                                      borderColor: `${f.color}40`,
+                                      color: f.color
+                                    }}
+                                  >
+                                    #{f.toothNumber}
+                                  </span>
+                                ))}
+                                {findings.length > 4 && (
+                                  <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600">
+                                    +{findings.length - 4}
+                                  </span>
+                                )}
                               </div>
                             ) : (
-                              <div className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                                <span>Normal Anatomy</span>
-                              </div>
+                              <span className="text-[9.5px] text-emerald-600 font-medium">✓ Normal Anatomy</span>
                             )}
                           </div>
                         </div>
 
-                        {/* Card Bottom Trigger */}
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                          <span className={`text-[10.5px] font-bold transition ${
-                            isSelected ? 'text-cyan-700' : 'text-[#4A7CD2] group-hover/card:underline'
-                          }`}>
-                            {isSelected ? '✓ Highlighted on Chart' : 'Click to Highlight'}
+                        <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px] font-bold">
+                          <span className={isSelected ? 'text-cyan-700' : 'text-[#4A7CD2]'}>
+                            {isSelected ? '✓ Highlighted' : 'Click to Highlight'}
                           </span>
-                          <Eye className={`w-3.5 h-3.5 transition ${
-                            isSelected ? 'text-cyan-600' : 'text-slate-400 group-hover/card:text-[#4A7CD2]'
-                          }`} />
+                          <Eye className="w-3 h-3 text-slate-400" />
                         </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
-
-              {/* Pagination Controls Bar (Shown if scans > 5) */}
-              {radiographs.length > PAGE_SIZE && (
-                <div className="mt-4 pt-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3 text-xs">
-                  {/* Left: Summary Count */}
-                  <div className="text-slate-500 font-medium">
-                    Showing <strong className="text-slate-800 font-bold">{(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, radiographs.length)}</strong> of <strong className="text-slate-800 font-bold">{radiographs.length}</strong> radiographs
-                  </div>
-
-                  {/* Center/Right: Page Navigator */}
-                  <div className="flex items-center gap-1.5">
-                    {/* Previous Page Button */}
-                    <button
-                      type="button"
-                      onClick={() => handlePageChange(safePage - 1)}
-                      disabled={safePage <= 1}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold shadow-2xs transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      <ChevronLeft className="w-3.5 h-3.5" />
-                      <span>Previous</span>
-                    </button>
-
-                    {/* Page Number Pills */}
-                    <div className="flex items-center gap-1 px-1">
-                      {Array.from({ length: totalPages }, (_, idx) => {
-                        const pNum = idx + 1;
-                        // Limit visible pills if total pages is large
-                        if (
-                          pNum === 1 || 
-                          pNum === totalPages || 
-                          (pNum >= safePage - 1 && pNum <= safePage + 1)
-                        ) {
-                          const isCurrent = pNum === safePage;
-                          return (
-                            <button
-                              key={pNum}
-                              type="button"
-                              onClick={() => handlePageChange(pNum)}
-                              className={`w-7 h-7 rounded-lg text-xs font-bold transition cursor-pointer flex items-center justify-center ${
-                                isCurrent 
-                                  ? 'bg-[#2563EB] text-white shadow-xs' 
-                                  : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-                              }`}
-                            >
-                              {pNum}
-                            </button>
-                          );
-                        } else if (pNum === safePage - 2 || pNum === safePage + 2) {
-                          return <span key={pNum} className="px-0.5 text-slate-400">...</span>;
-                        }
-                        return null;
-                      })}
-                    </div>
-
-                    {/* Next Page Button */}
-                    <button
-                      type="button"
-                      onClick={() => handlePageChange(safePage + 1)}
-                      disabled={safePage >= totalPages}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold shadow-2xs transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      <span>Next</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>

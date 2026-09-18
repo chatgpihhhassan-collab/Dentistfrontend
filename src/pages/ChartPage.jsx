@@ -8388,30 +8388,30 @@ export default function ChartPage() {
                   )}
                   
                   {/* Full Panel Grand 3D Odontogram Arch Studio */}
-                  <div className="relative w-full border border-light-teal/50 rounded-3xl p-3 bg-gradient-to-b from-[#FFFFFF] via-[#F8FAFC] to-[#EFF6FF] overflow-hidden shadow-xs flex items-center justify-center">
+                  <div className="relative w-full border border-light-teal/50 rounded-2xl p-1.5 bg-gradient-to-b from-[#FFFFFF] via-[#F8FAFC] to-[#EFF6FF] overflow-hidden shadow-2xs flex items-center justify-center">
                     {selectedJawView === 'both' ? (
-                      <div className="grid grid-cols-2 gap-4 w-full items-center max-w-[840px]">
+                      <div className="grid grid-cols-2 gap-2.5 w-full items-center max-w-[800px]">
                         {/* Maxilla (Upper) */}
-                        <div className="flex flex-col items-center bg-white rounded-3xl p-3 border border-light-teal/50 shadow-2xs w-full overflow-hidden">
-                          <div className="w-full flex items-center justify-between px-3 py-2 bg-gradient-to-r from-[#F8FAFC] to-[#EFF6FF] rounded-xl border border-light-teal/30 mb-2 relative z-20 shadow-2xs">
-                            <div className="flex items-center gap-2">
-                              <span className="w-2 h-2 rounded-full bg-[#4A7CD2]" />
-                              <span className="text-[10.5px] font-black text-[#10244B] uppercase tracking-wider">
+                        <div className="flex flex-col items-center bg-white rounded-2xl p-1.5 border border-light-teal/50 shadow-2xs w-full overflow-hidden">
+                          <div className="w-full flex items-center justify-between px-2 py-0.5 bg-gradient-to-r from-[#F8FAFC] to-[#EFF6FF] rounded-lg border border-light-teal/30 mb-1 relative z-20 shadow-2xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#4A7CD2]" />
+                              <span className="text-[10px] font-black text-[#10244B] uppercase tracking-wider">
                                 {dentitionMode === 'pediatric' ? 'Primary Maxilla (Upper)' : 'Maxilla (Upper Jaw)'}
                               </span>
                             </div>
-                            <span className="text-[9px] font-black text-[#4A7CD2] bg-white px-2.5 py-0.5 rounded-full border border-light-teal/40 shadow-2xs">
+                            <span className="text-[8.5px] font-black text-[#4A7CD2] bg-white px-2 py-0.2 rounded-full border border-light-teal/40 shadow-2xs">
                               {dentitionMode === 'pediatric' ? '10 Primary Teeth (A–J)' : '16 Teeth'}
                             </span>
                           </div>
-                          <div className="w-full overflow-hidden rounded-2xl flex items-center justify-center">
+                          <div className="w-full overflow-hidden rounded-xl flex items-center justify-center">
                             <ThreeDentalJawArch
                               key={`three_jaw_${selectedJawView}_maxilla_${dentitionMode}`}
                               jawType="maxilla"
                               isPediatric={dentitionMode === 'pediatric'}
                               teethState={teethState}
                               highlightedTeeth={highlightedTeeth}
-                              className="w-full max-w-[310px] xl:max-w-[340px] h-[265px] xl:h-[290px] aspect-square"
+                              className="w-full max-w-[230px] xl:max-w-[260px] h-[175px] xl:h-[190px] aspect-square"
                               onToothClick={(toothNum, status, socket) => {
                                 setDetailedTooth(toothNum);
                                 setHighlightedTeeth([toothNum]);
@@ -8436,26 +8436,26 @@ export default function ChartPage() {
                         </div>
 
                         {/* Mandible (Lower) */}
-                        <div className="flex flex-col items-center bg-white rounded-3xl p-3 border border-light-teal/50 shadow-2xs w-full overflow-hidden">
-                          <div className="w-full flex items-center justify-between px-3 py-2 bg-gradient-to-r from-[#F8FAFC] to-[#EFF6FF] rounded-xl border border-light-teal/30 mb-2 relative z-20 shadow-2xs">
-                            <div className="flex items-center gap-2">
-                              <span className="w-2 h-2 rounded-full bg-[#4A7CD2]" />
-                              <span className="text-[10.5px] font-black text-[#10244B] uppercase tracking-wider">
+                        <div className="flex flex-col items-center bg-white rounded-2xl p-1.5 border border-light-teal/50 shadow-2xs w-full overflow-hidden">
+                          <div className="w-full flex items-center justify-between px-2 py-0.5 bg-gradient-to-r from-[#F8FAFC] to-[#EFF6FF] rounded-lg border border-light-teal/30 mb-1 relative z-20 shadow-2xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#4A7CD2]" />
+                              <span className="text-[10px] font-black text-[#10244B] uppercase tracking-wider">
                                 {dentitionMode === 'pediatric' ? 'Primary Mandible (Lower)' : 'Mandible (Lower Jaw)'}
                               </span>
                             </div>
-                            <span className="text-[9px] font-black text-[#4A7CD2] bg-white px-2.5 py-0.5 rounded-full border border-light-teal/40 shadow-2xs">
+                            <span className="text-[8.5px] font-black text-[#4A7CD2] bg-white px-2 py-0.2 rounded-full border border-light-teal/40 shadow-2xs">
                               {dentitionMode === 'pediatric' ? '10 Primary Teeth (K–T)' : '16 Teeth'}
                             </span>
                           </div>
-                          <div className="w-full overflow-hidden rounded-2xl flex items-center justify-center">
+                          <div className="w-full overflow-hidden rounded-xl flex items-center justify-center">
                             <ThreeDentalJawArch
                               key={`three_jaw_${selectedJawView}_mandible_${dentitionMode}`}
                               jawType="mandible"
                               isPediatric={dentitionMode === 'pediatric'}
                               teethState={teethState}
                               highlightedTeeth={highlightedTeeth}
-                              className="w-full max-w-[310px] xl:max-w-[340px] h-[265px] xl:h-[290px] aspect-square"
+                              className="w-full max-w-[230px] xl:max-w-[260px] h-[175px] xl:h-[190px] aspect-square"
                               onToothClick={(toothNum, status, socket) => {
                                 setDetailedTooth(toothNum);
                                 setHighlightedTeeth([toothNum]);
@@ -8481,26 +8481,26 @@ export default function ChartPage() {
                       </div>
                     ) : (
                       <div className="flex flex-col items-center justify-center w-full">
-                        <div className="flex flex-col items-center bg-white rounded-3xl p-3 border border-light-teal/50 shadow-2xs max-w-[400px] w-full overflow-hidden">
-                          <div className="w-full flex items-center justify-between px-3 py-2 bg-gradient-to-r from-[#F8FAFC] to-[#EFF6FF] rounded-xl border border-light-teal/30 mb-2 relative z-20 shadow-2xs">
-                            <div className="flex items-center gap-2">
-                              <span className="w-2 h-2 rounded-full bg-[#4A7CD2]" />
-                              <span className="text-[10.5px] font-black text-[#10244B] uppercase tracking-wider">
+                        <div className="flex flex-col items-center bg-white rounded-2xl p-1.5 border border-light-teal/50 shadow-2xs max-w-[340px] w-full overflow-hidden">
+                          <div className="w-full flex items-center justify-between px-2 py-0.5 bg-gradient-to-r from-[#F8FAFC] to-[#EFF6FF] rounded-lg border border-light-teal/30 mb-1 relative z-20 shadow-2xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#4A7CD2]" />
+                              <span className="text-[10px] font-black text-[#10244B] uppercase tracking-wider">
                                 {selectedJawView === 'maxilla' ? (dentitionMode === 'pediatric' ? 'Primary Maxilla (Upper)' : 'Maxilla (Upper Jaw)') : (dentitionMode === 'pediatric' ? 'Primary Mandible (Lower)' : 'Mandible (Lower Jaw)')}
                               </span>
                             </div>
-                            <span className="text-[9px] font-black text-[#4A7CD2] bg-white px-2.5 py-0.5 rounded-full border border-light-teal/40 shadow-2xs">
+                            <span className="text-[8.5px] font-black text-[#4A7CD2] bg-white px-2 py-0.2 rounded-full border border-light-teal/40 shadow-2xs">
                               {dentitionMode === 'pediatric' ? '10 Primary Teeth' : '16 Teeth'}
                             </span>
                           </div>
-                          <div className="w-full overflow-hidden rounded-2xl flex items-center justify-center">
+                          <div className="w-full overflow-hidden rounded-xl flex items-center justify-center">
                             <ThreeDentalJawArch
                               key={`three_jaw_${selectedJawView}_single_${dentitionMode}`}
                               jawType={selectedJawView}
                               isPediatric={dentitionMode === 'pediatric'}
                               teethState={teethState}
                               highlightedTeeth={highlightedTeeth}
-                              className="w-full max-w-[340px] h-[290px] aspect-square"
+                              className="w-full max-w-[250px] h-[185px] aspect-square"
                             onToothClick={(toothNum, status, socket) => {
                               setDetailedTooth(toothNum);
                               setHighlightedTeeth([toothNum]);
@@ -8528,7 +8528,7 @@ export default function ChartPage() {
                 </div>
 
                   {/* Embedded Diagnostic Radiographs & Sensors Filmstrip Dock */}
-                  <div className="w-full max-w-[840px] mx-auto mt-2">
+                  <div className="w-full max-w-[820px] mx-auto mt-1.5">
                     <ChartRadiographFilmstrip
                       radiographs={radiographs}
                       selectedScanId={activeScanImpact?.scanId}
@@ -8543,7 +8543,7 @@ export default function ChartPage() {
                   </div>
 
                   {/* Prominent & Crisp 2D Dental Odontogram Representation */}
-                  <div className="w-full max-w-[820px] mx-auto flex flex-col gap-1.5 bg-gradient-to-b from-[#F8FAFC] to-[#EFF6FF]/70 p-3 rounded-2xl border border-light-teal/50 shadow-2xs">
+                  <div className="w-full max-w-[820px] mx-auto flex flex-col gap-1 bg-gradient-to-b from-[#F8FAFC] to-[#EFF6FF]/70 p-2 rounded-xl border border-light-teal/50 shadow-2xs">
                     
                     {dentitionMode === 'pediatric' ? (
                       /* ========== 👶 PEDIATRIC PRIMARY 20-TOOTH 2D ODONTOGRAM (A–T) ========== */
@@ -8755,37 +8755,26 @@ export default function ChartPage() {
                     )}
                   </div>
 
-                  {/* === 2.5 QUICK DIAGNOSTIC SUITE LAUNCHER STRIP FOR TEENS / YOUNG ADULTS & ADULTS === */}
-                  <div className="bg-gradient-to-r from-blue-50/90 via-indigo-50/60 to-purple-50/80 rounded-2xl border border-blue-200/80 p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-xs my-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#2563EB] to-[#7C3AED] text-white flex items-center justify-center text-lg shadow-sm shrink-0">
-                        📐
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="text-xs font-black text-[#10244B]">
-                            Ortho, Occlusion, Wisdom Impaction & TMJ Diagnostic Suite
-                          </h4>
-                          <span className="text-[9px] font-black bg-white text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200 shadow-2xs">
-                            12 Interactive Vector Diagrams
-                          </span>
-                        </div>
-                        <p className="text-[10px] font-bold text-slate-500 mt-0.5">
-                          Overbite (65%) · Underbite · Crossbite · Open Bite · Molar Wear · Wisdom Impactions · TMJ Clicking
-                        </p>
-                      </div>
+                  {/* Compact Diagnostic Suite Launcher Strip */}
+                  <div className="w-full max-w-[820px] mx-auto bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-purple-50/70 rounded-xl border border-blue-200/60 px-3 py-1.5 flex items-center justify-between gap-2 shadow-2xs mt-1.5 mb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm">📐</span>
+                      <span className="text-[11px] font-extrabold text-[#10244B] truncate">
+                        Ortho, Occlusion, Wisdom Impaction & TMJ Diagnostic Suite
+                      </span>
+                      <span className="hidden sm:inline text-[9.5px] font-bold text-indigo-700 bg-white px-2 py-0.2 rounded-full border border-indigo-200">
+                        12 Diagrams
+                      </span>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowOrthoTmjModal(true)}
-                        className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-black px-4 py-2 rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>Launch 12-Diagram Diagnostic Suite</span>
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowOrthoTmjModal(true)}
+                      className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-[10.5px] font-black px-3 py-1 rounded-lg shadow-2xs transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>Launch Suite</span>
+                    </button>
                   </div>
 
                   {/* Ortho, Impactions & TMJ 12-Diagram Diagnostic Suite Modal */}
