@@ -259,21 +259,21 @@ export default function ChartRadiographFilmstrip({
       />
 
       {/* ========================================================================= */}
-      {/* 1. CONSOLE HEADER BAR                                                     */}
+      {/* 1. CONSOLE HEADER BAR (Harmonized with website theme: luminous white/light-teal gradient) */}
       {/* ========================================================================= */}
-      <div className="p-3 bg-gradient-to-r from-[#10244B] via-[#1E3A8A] to-[#10244B] text-white flex flex-col gap-2 select-none border-b border-blue-700/30 shadow-md">
+      <div className="p-3 bg-gradient-to-r from-white via-[#F8FAFC] to-[#EAF0FC]/80 text-slate-800 flex flex-col gap-2.5 select-none border-b border-light-teal/50 shadow-2xs">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           {/* Title & Hardware Status */}
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-[#4A7CD2] flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#4A7CD2] to-[#3665B7] flex items-center justify-center text-white shadow-xs shadow-blue-500/15 shrink-0">
               <Layers className="w-4 h-4" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-black text-xs text-slate-100 tracking-wider uppercase">
+                <span className="font-black text-xs text-[#10244B] tracking-wider uppercase">
                   Radiograph Diagnostic Console
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-500/20 text-blue-200 border border-blue-400/30">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-50 text-[#4A7CD2] border border-blue-200 shadow-2xs">
                   {activeRadiographs.length} Scans
                 </span>
                 {isCurrentlySpotlighted && (
@@ -282,15 +282,15 @@ export default function ChartRadiographFilmstrip({
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2 text-[10.5px] text-slate-300 mt-0.5">
+              <div className="flex items-center gap-2 text-[10.5px] text-slate-500 mt-0.5">
                 <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span className="text-emerald-300 font-semibold">Nano-Pix RVG</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="text-emerald-700 font-bold">Nano-Pix RVG</span>
                 </span>
-                <span>•</span>
+                <span className="text-slate-300">•</span>
                 <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-blue-300"></span>
-                  <span className="text-blue-200">Dicora USB</span>
+                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                  <span className="text-blue-700 font-semibold">Dicora USB</span>
                 </span>
               </div>
             </div>
@@ -326,7 +326,7 @@ export default function ChartRadiographFilmstrip({
                 className={`px-2 py-1.5 rounded-xl text-[10px] font-black transition cursor-pointer border ${
                   showTestScans 
                     ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-xs' 
-                    : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900 shadow-2xs'
                 }`}
                 title={showTestScans ? "Hide test images" : `Include ${testScansCount} test images`}
               >
@@ -338,10 +338,10 @@ export default function ChartRadiographFilmstrip({
               <button
                 type="button"
                 onClick={() => onWorkspaceModeChange(workspaceMode === 'radiology' ? 'split' : 'radiology')}
-                className="p-1.5 rounded-xl bg-slate-800/80 hover:bg-blue-900 text-blue-200 border border-slate-700 transition cursor-pointer hidden sm:flex items-center gap-1 text-[10px] font-bold"
+                className="p-1.5 rounded-xl bg-white hover:bg-blue-50 text-slate-700 hover:text-[#4A7CD2] border border-slate-200 shadow-2xs transition cursor-pointer hidden sm:flex items-center gap-1 text-[10px] font-bold"
                 title={workspaceMode === 'radiology' ? "Switch to Split View" : "Maximize Radiology Studio"}
               >
-                <Maximize2 className="w-3.5 h-3.5" />
+                <Maximize2 className="w-3.5 h-3.5 text-[#4A7CD2]" />
                 <span>{workspaceMode === 'radiology' ? 'Split View' : 'Full Studio'}</span>
               </button>
             )}
@@ -349,7 +349,7 @@ export default function ChartRadiographFilmstrip({
             <button
               type="button"
               onClick={() => setIsCollapsed(!isCollapsed)}
-              className="p-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition cursor-pointer"
+              className="p-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200 shadow-2xs transition cursor-pointer"
               title={isCollapsed ? "Expand Console" : "Collapse Console"}
             >
               {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
@@ -358,8 +358,8 @@ export default function ChartRadiographFilmstrip({
         </div>
 
         {/* Filter Pills Row */}
-        <div className="flex items-center gap-1 pt-1 overflow-x-auto no-scrollbar">
-          <span className="text-[10px] font-bold text-slate-300 uppercase mr-1">Filter:</span>
+        <div className="flex items-center gap-1.5 pt-0.5 overflow-x-auto no-scrollbar">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mr-1">Filter:</span>
           {[
             { id: 'all', label: `All (${radiographs.length})` },
             { id: 'opg', label: `Panoramic OPG (${opgCount})` },
@@ -370,10 +370,10 @@ export default function ChartRadiographFilmstrip({
               key={tab.id}
               type="button"
               onClick={() => setActiveFilter(tab.id)}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer shrink-0 ${
+              className={`px-2.5 py-1 rounded-lg text-[10px] transition-all cursor-pointer shrink-0 border ${
                 activeFilter === tab.id
-                  ? 'bg-[#4A7CD2] text-white shadow-xs font-black'
-                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
+                  ? 'bg-[#4A7CD2] text-white border-[#4A7CD2] shadow-xs font-black'
+                  : 'bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-slate-200 shadow-2xs font-bold'
               }`}
             >
               {tab.label}
