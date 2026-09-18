@@ -722,8 +722,17 @@ function createClinicalOverlayCanvas(status, comments, toothNum, isMaxilla) {
       const isRedPathology = toothColorHex === '#dc2626' || toothColorHex === '#ef4444' || sLower.includes('severe') || sLower.includes('radiolucen') || sLower.includes('caries');
       const isAmberPathology = toothColorHex === '#f59e0b' || toothColorHex === '#d97706' || sLower.includes('defective') || sLower.includes('bone loss');
 
+      const hasActiveSpotlight = Array.isArray(highlightedTeeth) && highlightedTeeth.length > 0;
       if (isHighlighted) {
-        toothColor = new THREE.Color(0x7dd3fc); // Glowing cyan highlight
+        opacity = 1.0;
+        toothColor = isRedPathology 
+          ? new THREE.Color(0xff8080) 
+          : isAmberPathology 
+          ? new THREE.Color(0xffe082) 
+          : new THREE.Color(0x38bdf8); // Glowing cyan spotlight
+      } else if (hasActiveSpotlight) {
+        opacity = 0.40; // Soft dimming of non-impacted teeth in spotlight mode
+        toothColor = new THREE.Color(0xc0c8d0);
       } else if (isRedPathology) {
         toothColor = new THREE.Color(0xffe4e6); // Soft rose warning tint for diagnosed severe pathology
       } else if (isAmberPathology) {
@@ -1065,7 +1074,7 @@ function createClinicalOverlayCanvas(status, comments, toothNum, isMaxilla) {
         renderer.dispose();
       } catch (e) {}
     };
-  }, [jawType, teethState]);
+  }, [jawType, teethState, highlightedTeeth]);
 
   return (
     <div className={`relative w-full aspect-square select-none flex items-center justify-center ${className}`}>

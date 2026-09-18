@@ -292,3 +292,43 @@ export const compressImageForUpload = (file, targetMaxBytes = 18 * 1024) => {
   });
 };
 
+/**
+ * Extracts SOAP clinical notes from an AI radiograph report
+ */
+export const extractSoapFromReport = (reportText) => {
+  if (!reportText || typeof reportText !== 'string') return null;
+
+  try {
+    const jsonMatch = reportText.match(/```json\s*([\s\S]*?)\s*```/) || reportText.match(/\{[\s\S]*"soap"[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+      if (parsed.soap && (parsed.soap.subjective || parsed.soap.assessment || parsed.soap.plan)) {
+        return {
+          subjective: parsed.soap.subjective || '',
+          objective: parsed.soap.objective || '',
+          assessment: parsed.soap.assessment || '',
+          plan: parsed.soap.plan || ''
+        };
+      }
+    }
+  } catch (e) {
+    // fallback to regex
+  }
+
+  const subjectiveMatch = reportText.match(/Subjective[:\s*\n]+([^\n#]+)/i);
+  const objectiveMatch = reportText.match(/Objective[:\s*\n]+([^\n#]+)/i);
+  const assessmentMatch = reportText.match(/Assessment[:\s*\n]+([^\n#]+)/i);
+  const planMatch = reportText.match(/Plan[:\s*\n]+([^\n#]+)/i);
+
+  if (assessmentMatch || planMatch || objectiveMatch) {
+    return {
+      subjective: subjectiveMatch ? subjectiveMatch[1].trim() : 'Diagnostic radiographic evaluation.',
+      objective: objectiveMatch ? objectiveMatch[1].trim() : 'Radiographic evaluation performed.',
+      assessment: assessmentMatch ? assessmentMatch[1].trim() : 'Tooth pathologies identified on radiograph.',
+      plan: planMatch ? planMatch[1].trim() : 'Recommended dental interventions documented.'
+    };
+  }
+
+  return null;
+};
+

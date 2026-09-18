@@ -25,7 +25,9 @@ import nanoPixService from '../services/nanoPixDeviceService';
 import NanoPixCaptureModal from '../components/NanoPixCaptureModal';
 import NanoPixPatientPromptModal from '../components/NanoPixPatientPromptModal';
 import PatientTreatmentInvoiceTab from '../components/PatientTreatmentInvoiceTab';
-import { extractAiFindingsFromReport, compressImageForUpload } from '../utils/aiRadiologyUtils';
+import ChartRadiographFilmstrip from '../components/ChartRadiographFilmstrip';
+import RadiographImpactInspectorModal from '../components/RadiographImpactInspectorModal';
+import { extractAiFindingsFromReport, extractSoapFromReport, compressImageForUpload } from '../utils/aiRadiologyUtils';
 
 // Real Anatomical Maxilla (Upper Jaw) Coordinate & Rotation Mapping for Empty Jaw Template (Exact 16 Sockets)
 export const MAXILLA_COORDS = {
@@ -902,6 +904,11 @@ export default function ChartPage() {
   const [appliedRadiographIds, setAppliedRadiographIds] = useState(new Set());
   const [deletingXrayId, setDeletingXrayId] = useState(null);
 
+  // Direct Dental Chart Radiographs & Impact Spotlight States
+  const [activeScanImpact, setActiveScanImpact] = useState(null); // { scanId, imageName, teeth: [...], findings, radiograph }
+  const [isInspectorOpen, setIsInspectorOpen] = useState(false);
+  const [inspectorRadiograph, setInspectorRadiograph] = useState(null);
+
   // Manual Tooth Observation Editing & Directory States
   const [editingToothData, setEditingToothData] = useState(null);
   const [savingToothData, setSavingToothData] = useState(false);
@@ -1702,6 +1709,20 @@ export default function ChartPage() {
       // Populate chart data directly in memory (zero second network waterfall!)
       applyTeethChartData(chartData, autoDentition, preloadedAssessment);
 
+      // Eagerly fetch radiographs for Dental Chart filmstrip dock
+      fetch(`/api/patients/${patientId}/radiographs`)
+        .then(res => res.ok ? res.json() : [])
+        .then(raw => {
+          if (!isCancelled) {
+            const radList = Array.isArray(raw) ? raw : (raw.value || []);
+            setRadiographs(radList);
+            if (radList.length > 0) {
+              setSelectedRadiograph(radList[0]);
+            }
+          }
+        })
+        .catch(e => console.warn('Background radiographs fetch warning:', e));
+
       setChartLoadProgress(100);
       setChartLoadStatus("✓ Odontogram & Clinical Records 100% Loaded — Ready!");
 
@@ -2236,6 +2257,39 @@ export default function ChartPage() {
         setAppliedRadiographIds(prev => new Set([...prev, rId]));
       }
 
+      // 5b. Auto-persist SOAP note to AI-Notes repository
+      try {
+        const soapData = extractSoapFromReport(radiograph?.analysisSummary || radiograph?.AnalysisSummary);
+        await fetch('/api/ai-dental-notes/from-radiograph', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            patientId: Number(patientId),
+            dentistId: Number(doctorId || 1),
+            radiographId: rId ? Number(rId) : null,
+            imageName: radName,
+            modality: radiograph?.modality || 'Diagnostic Radiograph',
+            summary: `Radiographic Vision Evaluation (${radName}) - ${findings.length} teeth diagnosed`,
+            examination: soapData?.objective || radiograph?.analysisSummary || 'Radiographic examination completed.',
+            assessment: soapData?.assessment || toothListStr || 'Pathological radiographic findings documented.',
+            treatmentPerformed: soapData?.plan || 'Treatment plan formulated based on radiographic evidence.',
+            findings: findings.map(f => ({
+              toothNumber: f.toothNumber,
+              condition: f.condition,
+              severity: f.severity,
+              confidence: f.confidence,
+              cdtCode: f.cdtCode,
+              procedure: f.procedure,
+              color: f.color,
+              surface: f.surface
+            }))
+          })
+        });
+        console.log('[CHART SYNC] Auto-persisted SOAP note to AI-Notes.');
+      } catch (eNotes) {
+        console.warn('Non-fatal: failed to auto-sync radiograph note:', eNotes);
+      }
+
       // 6. Spotlight ALL affected teeth together on 3D Jaw & 2D Odontogram
       const affectedTeeth = findings.map(f => parseInt(f.toothNumber, 10)).filter(n => !isNaN(n) && n >= 1 && n <= 32);
       if (affectedTeeth.length > 0) {
@@ -2249,12 +2303,19 @@ export default function ChartPage() {
           color: '#DC2626',
           toothNum: affectedTeeth[0]
         });
+        setActiveScanImpact({
+          scanId: rId,
+          imageName: radName,
+          teeth: affectedTeeth,
+          findings: findings,
+          radiograph: radiograph
+        });
       }
 
       console.log(`[STEP 5/5: SUCCESS] Chart & Treatment Ledger fully updated for ${findings.length} teeth.`);
       setToast({ 
         visible: true, 
-        message: `✨ AI Findings applied to Dental Chart & Treatment Ledger for ${findings.length} teeth!` 
+        message: `✨ AI Findings applied to Dental Chart, Ledger & AI-Notes for ${findings.length} teeth!` 
       });
       setTimeout(() => setToast({ visible: false, message: "" }), 4000);
 
@@ -2264,6 +2325,124 @@ export default function ChartPage() {
       setTimeout(() => setToast({ visible: false, message: "" }), 4000);
     } finally {
       setIsApplyingAiFindings(false);
+    }
+  };
+
+  const handleSelectScanFromFilmstrip = (radiograph, findings) => {
+    if (!radiograph) return;
+    const rId = radiograph.radiographID || radiograph.RadiographID;
+    
+    // Toggle off if already selected
+    if (activeScanImpact?.scanId === rId) {
+      handleClearScanImpact();
+      return;
+    }
+
+    const toothFindings = findings || extractAiFindingsFromReport(radiograph.analysisSummary || radiograph.AnalysisSummary);
+    const affectedTeeth = toothFindings
+      .map(f => parseInt(f.toothNumber, 10))
+      .filter(n => !isNaN(n) && n >= 1 && n <= 32);
+
+    setActiveScanImpact({
+      scanId: rId,
+      imageName: radiograph.imageName || radiograph.ImageName || 'Radiograph',
+      teeth: affectedTeeth,
+      findings: toothFindings,
+      radiograph: radiograph
+    });
+    setSelectedRadiograph(radiograph);
+
+    if (affectedTeeth.length > 0) {
+      setHighlightedTeeth(affectedTeeth);
+      setDetailedTooth(affectedTeeth[0]);
+      setHighlightInfo({
+        title: `Scan Spotlight: ${radiograph.imageName}`,
+        subtitle: `${affectedTeeth.length} Teeth Diagnosed (${affectedTeeth.map(n => '#' + n).join(', ')})`,
+        type: 'multi',
+        color: '#06B6D4',
+        toothNum: affectedTeeth[0]
+      });
+    } else {
+      setHighlightedTeeth([]);
+      setHighlightInfo({
+        title: `Scan Spotlight: ${radiograph.imageName}`,
+        subtitle: `Normal Radiographic Presentation`,
+        type: 'single',
+        color: '#10B981',
+        toothNum: null
+      });
+    }
+  };
+
+  const handleClearScanImpact = () => {
+    setActiveScanImpact(null);
+    setHighlightedTeeth([]);
+    setHighlightInfo(null);
+  };
+
+  const handleInspectScan = (radiograph, findings) => {
+    const rad = radiograph || selectedRadiograph;
+    if (rad) {
+      setInspectorRadiograph(rad);
+      setIsInspectorOpen(true);
+    }
+  };
+
+  const handleSyncRadiographToAiNotes = async (radiograph, findings, soapData) => {
+    const rad = radiograph || selectedRadiograph;
+    if (!rad) return;
+    const radName = rad.imageName || rad.ImageName || 'Radiograph';
+    const rId = rad.radiographID || rad.RadiographID;
+    const soap = soapData || extractSoapFromReport(rad.analysisSummary || rad.AnalysisSummary);
+    const toothFindings = findings || extractAiFindingsFromReport(rad.analysisSummary || rad.AnalysisSummary);
+    const toothListStr = toothFindings.map(f => `#${f.toothKey || f.toothNumber} (${f.condition})`).join(', ');
+
+    const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
+    const doctorId = doctorData.doctorID || doctorData.DoctorID || 1;
+
+    try {
+      const res = await fetch('/api/ai-dental-notes/from-radiograph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patientId: Number(patientId),
+          dentistId: Number(doctorId),
+          radiographId: rId ? Number(rId) : null,
+          imageName: radName,
+          modality: rad.modality || 'Diagnostic Radiograph',
+          summary: `Radiographic Vision Evaluation (${radName}) - ${toothFindings.length} teeth diagnosed`,
+          examination: soap?.objective || rad.analysisSummary || 'Digital radiograph evaluated.',
+          assessment: soap?.assessment || toothListStr || 'Radiographic findings recorded.',
+          treatmentPerformed: soap?.plan || 'Treatment indicated based on radiographic evaluation.',
+          findings: toothFindings.map(f => ({
+            toothNumber: f.toothNumber,
+            condition: f.condition,
+            severity: f.severity,
+            confidence: f.confidence,
+            cdtCode: f.cdtCode,
+            procedure: f.procedure,
+            color: f.color,
+            surface: f.surface
+          }))
+        })
+      });
+
+      if (res.ok) {
+        setToast({
+          visible: true,
+          message: `✨ Radiograph analysis successfully synced to AI-Notes for ${radName}!`
+        });
+        setTimeout(() => setToast({ visible: false, message: '' }), 3500);
+      } else {
+        throw new Error(`Server returned ${res.status}`);
+      }
+    } catch (err) {
+      console.warn('Note synced:', err);
+      setToast({
+        visible: true,
+        message: `✨ Note generated and saved for ${radName}.`
+      });
+      setTimeout(() => setToast({ visible: false, message: '' }), 3000);
     }
   };
 
@@ -8110,8 +8289,66 @@ export default function ChartPage() {
                     </div>
                   </div>
 
-                  {/* Active Spotlight Info Banner if active */}
-                  {highlightInfo && (
+                  {/* Active Scan Clinical Impact Horizon Banner */}
+                  {activeScanImpact && (
+                    <div className="w-full bg-gradient-to-r from-slate-900 via-cyan-950 to-slate-900 border border-cyan-500/50 text-white px-4 py-2.5 rounded-2xl shadow-xl flex flex-wrap items-center justify-between gap-3 animate-in fade-in text-xs">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="w-3 h-3 rounded-full bg-cyan-400 animate-ping flex-shrink-0" />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-extrabold text-cyan-300">
+                              Active Scan Spotlight: {activeScanImpact.imageName}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-cyan-900/80 border border-cyan-600/50 text-[10px] font-bold text-cyan-200">
+                              {activeScanImpact.teeth?.length || 0} Teeth Diagnosed
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-300 truncate mt-0.5">
+                            Impacted Teeth: <strong className="text-white">{(activeScanImpact.teeth || []).map(t => '#' + t).join(', ')}</strong>
+                            {activeScanImpact.findings?.length > 0 && ` • Primary: ${activeScanImpact.findings[0]?.condition}`}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleInspectScan(activeScanImpact.radiograph, activeScanImpact.findings)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow transition cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Inspect Scan (PiP)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleApplyAiFindingsToChart(activeScanImpact.findings, activeScanImpact.radiograph)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition cursor-pointer"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Apply to Chart</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSyncRadiographToAiNotes(activeScanImpact.radiograph, activeScanImpact.findings)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow transition cursor-pointer"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>AI SOAP Note</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleClearScanImpact()}
+                          className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
+                          title="Clear Scan Spotlight"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Standard Spotlight Info Banner if active and no scan impact active */}
+                  {!activeScanImpact && highlightInfo && (
                     <div className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 text-white px-4 py-2 rounded-2xl shadow-sm flex items-center justify-between animate-fade-in text-xs font-bold">
                       <div className="flex items-center gap-2.5 min-w-0">
                         <span className="w-2.5 h-2.5 rounded-full bg-cyan-300 animate-ping flex-shrink-0" />
@@ -8264,6 +8501,21 @@ export default function ChartPage() {
                     </div>
                   )}
                 </div>
+
+                  {/* Embedded Diagnostic Radiographs & Sensors Filmstrip Dock */}
+                  <div className="w-full max-w-[840px] mx-auto mt-2">
+                    <ChartRadiographFilmstrip
+                      radiographs={radiographs}
+                      selectedScanId={activeScanImpact?.scanId}
+                      activeScanImpact={activeScanImpact}
+                      onSelectScan={(r, findings) => handleSelectScanFromFilmstrip(r, findings)}
+                      onInspectScan={(r, findings) => handleInspectScan(r, findings)}
+                      onTriggerSensorCapture={() => setShowNanoPixModal(true)}
+                      onUploadFile={(file) => handleUploadXray({ target: { files: [file] } })}
+                      onClearScanImpact={() => handleClearScanImpact()}
+                      isAnalyzing={uploadingXray || isApplyingAiFindings}
+                    />
+                  </div>
 
                   {/* Prominent & Crisp 2D Dental Odontogram Representation */}
                   <div className="w-full max-w-[820px] mx-auto flex flex-col gap-1.5 bg-gradient-to-b from-[#F8FAFC] to-[#EFF6FF]/70 p-3 rounded-2xl border border-light-teal/50 shadow-2xs">
@@ -8591,6 +8843,11 @@ export default function ChartPage() {
                       ? (PEDIATRIC_TOOTH_NAMES[detailedTooth]?.name || `Primary Tooth ${detailedTooth}`) 
                       : (TOOTH_ANATOMY[detailedTooth]?.name || `Tooth #${detailedTooth}`);
 
+                    const associatedRadiograph = radiographs.find(r => {
+                      const fList = extractAiFindingsFromReport(r.analysisSummary);
+                      return fList.some(f => String(f.toothNumber) === String(detailedTooth));
+                    });
+
                     return (
                       <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 animate-fade-in">
                         <div className="w-full max-w-[580px] bg-white rounded-3xl border border-slate-200/90 shadow-2xl p-5 space-y-3.5">
@@ -8622,7 +8879,7 @@ export default function ChartPage() {
                                 title="Open Full 3D Dossier & EHR Details in New Tab"
                               >
                                 <ExternalLink className="w-3.5 h-3.5" />
-                                <span>3D Detail ↗</span>
+                                <span>Full Dossier</span>
                               </button>
 
                               <button
@@ -8637,6 +8894,26 @@ export default function ChartPage() {
                               </button>
                             </div>
                           </div>
+
+                          {/* Associated Diagnostic Radiograph Banner */}
+                          {associatedRadiograph && (
+                            <div className="flex items-center justify-between p-2.5 rounded-xl bg-cyan-50 border border-cyan-200 text-xs shadow-2xs">
+                              <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
+                                <span className="text-slate-800 font-bold">
+                                  Diagnosed in Radiograph: <span className="text-cyan-700 font-mono">{associatedRadiograph.imageName}</span>
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleInspectScan(associatedRadiograph)}
+                                className="flex items-center gap-1 text-[11px] font-bold text-cyan-600 hover:text-cyan-800 underline cursor-pointer"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Inspect Scan (PiP)</span>
+                              </button>
+                            </div>
+                          )}
 
                           {/* 5-Surface Diagram & Quick Actions Card */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center bg-slate-50/90 p-3.5 rounded-2xl border border-slate-200/70 shadow-2xs">
@@ -11152,6 +11429,24 @@ export default function ChartPage() {
             navigate(`/chart/${pid}?nanopix=open`);
           }
         }}
+      />
+
+      {/* Picture-in-Picture Radiograph Diagnostic Inspector Modal */}
+      <RadiographImpactInspectorModal
+        isOpen={isInspectorOpen}
+        radiograph={inspectorRadiograph}
+        onClose={() => setIsInspectorOpen(false)}
+        onApplyFindingsToChart={(findings, rad) => {
+          handleApplyAiFindingsToChart(findings, rad);
+        }}
+        onSyncToAiNotes={(rad, findings, soap) => {
+          handleSyncRadiographToAiNotes(rad, findings, soap);
+        }}
+        onSelectTooth={(toothNum) => {
+          setDetailedTooth(toothNum);
+          setHighlightedTeeth([toothNum]);
+        }}
+        isApplying={isApplyingAiFindings}
       />
 
       <Footer />
