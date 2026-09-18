@@ -729,7 +729,7 @@ function createClinicalOverlayCanvas(status, comments, toothNum, isMaxilla) {
           ? new THREE.Color(0xff8080) 
           : isAmberPathology 
           ? new THREE.Color(0xffe082) 
-          : new THREE.Color(0x38bdf8); // Glowing cyan spotlight
+          : new THREE.Color(0x4a7cd2); // Dentia Sapphire clinical spotlight
       } else if (hasActiveSpotlight) {
         opacity = 0.40; // Soft dimming of non-impacted teeth in spotlight mode
         toothColor = new THREE.Color(0xc0c8d0);
@@ -994,18 +994,18 @@ function createClinicalOverlayCanvas(status, comments, toothNum, isMaxilla) {
           mesh.rotation.z = mesh.userData.baseRotationZ + rotWobble;
           mesh.scale.set(1.16, 1.16, 1.0);
           mesh.position.z = mesh.userData.baseZ + 0.22;
-          if (mesh.material && mesh.material.color) mesh.material.color.setHex(0x7dd3fc);
+          if (mesh.material && mesh.material.color) mesh.material.color.setHex(0x60a5fa);
         } else if (isHovered) {
           const hoverPulse = 1.12 + Math.sin(elapsed * 6) * 0.03;
           mesh.scale.set(hoverPulse, hoverPulse, 1.0);
           mesh.position.z = mesh.userData.baseZ + 0.18;
           mesh.rotation.z = mesh.userData.baseRotationZ;
-          if (mesh.material && mesh.material.color) mesh.material.color.setHex(0x7dd3fc);
+          if (mesh.material && mesh.material.color) mesh.material.color.setHex(0x60a5fa);
         } else if (isHighlighted && curHighlights.length <= 4) {
           mesh.scale.set(1.08, 1.08, 1.0);
           mesh.position.z = mesh.userData.baseZ + 0.08;
           mesh.rotation.z = mesh.userData.baseRotationZ;
-          if (mesh.material && mesh.material.color) mesh.material.color.setHex(0x7dd3fc);
+          if (mesh.material && mesh.material.color) mesh.material.color.setHex(0x60a5fa);
         } else {
           // Combined Entrance Wave + Idle Clinical state
           const finalScale = mesh.userData.baseScale * entranceScaleMult * idleScaleMult;

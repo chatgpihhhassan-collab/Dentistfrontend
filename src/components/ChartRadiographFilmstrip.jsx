@@ -1,64 +1,154 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { 
-  Image, 
-  Eye, 
+  Image as ImageIcon, 
   Sparkles, 
   ChevronDown, 
   ChevronUp, 
-  ChevronLeft, 
-  ChevronRight, 
   Camera, 
   Upload, 
   Maximize2, 
   X, 
   Layers, 
-  Zap
+  Zap,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Contrast,
+  Sun,
+  FileText,
+  Sliders,
+  CheckCircle2,
+  Check
 } from 'lucide-react';
 import { extractAiFindingsFromReport, isTestRadiograph } from '../utils/aiRadiologyUtils.js';
 
-const PAGE_SIZE = 4;
-
 /**
- * ChartRadiographFilmstrip (Vertical Diagnostic Radiographs Panel)
+ * ChartRadiographFilmstrip (Interactive Radiograph Diagnostic Console)
  * 
- * Arranged VERTICALLY alongside the Dental Chart (3D Jaws + 2D Odontogram).
- * Features:
- * - Vertical card layout (cards stacked vertically one under another)
- * - Restores full anatomical size of the 3D jaws
- * - Real-time bi-directional spotlighting on 3D jaw and 2D odontogram
- * - Auto-filters dummy test images with 1-click on-demand toggle
- * - Direct sensor capture & file upload
- * - Deep PiP optical zoom inspector
+ * A comprehensive clinical radiology workstation embedded directly alongside the Dental Chart.
+ * Key Features:
+ * - In-place High-Definition Diagnostic Viewer (no modal required to inspect scans)
+ * - Greyscale Invert (Negative Mode) for apical/caries examination
+ * - Contrast & Brightness adjustments with quick diagnostic presets (Normal, High Contrast, Bone Density)
+ * - In-place Zoom & Pan (100% - 300%)
+ * - Interactive Diagnosed Tooth Chips (#14, #19, #30) with 1-click chart synchronization
+ * - 1-Click "Apply to Chart" and "AI SOAP Note" triggers
+ * - Scans Carousel Filmstrip with Modality Filters (All, OPG, RVG, Diagnosed)
+ * - Hardware Sensor Acquisition (Nano-Pix / Dicora USB RVG) and File Upload
  */
 export default function ChartRadiographFilmstrip({
   radiographs = [],
   selectedScanId = null,
+  selectedRadiograph = null,
   activeScanImpact = null,
   onSelectScan,
   onInspectScan,
   onTriggerSensorCapture,
   onUploadFile,
   onClearScanImpact,
-  isAnalyzing = false
+  onApplyAiFindings,
+  onSyncAiNotes,
+  onSelectTooth,
+  detailedTooth = null,
+  isAnalyzing = false,
+  workspaceMode = 'split',
+  onWorkspaceModeChange = null
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showTestScans, setShowTestScans] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const fileInputRef = React.useRef(null);
+  const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'opg' | 'rvg' | 'diagnosed'
+  const [zoom, setZoom] = useState(1);
+  const [isInverted, setIsInverted] = useState(false);
+  const [contrastPreset, setContrastPreset] = useState('normal'); // 'normal' | 'high' | 'bone'
+  const [brightness, setBrightness] = useState(100);
+  const [contrast, setContrast] = useState(100);
+  const [showAdjustmentSliders, setShowAdjustmentSliders] = useState(false);
 
-  // Exclude test images by default; enable when explicitly requested
-  const testScansCount = radiographs.filter(r => isTestRadiograph(r)).length;
-  const activeRadiographs = showTestScans ? radiographs : radiographs.filter(r => !isTestRadiograph(r));
+  const fileInputRef = useRef(null);
+  const carouselContainerRef = useRef(null);
 
-  const totalPages = Math.max(1, Math.ceil(activeRadiographs.length / PAGE_SIZE));
-  const safePage = Math.min(currentPage, totalPages);
-  const pagedRadiographs = activeRadiographs.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-
-  const handlePageChange = (newPage) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setCurrentPage(newPage);
+  // Filter test scans unless explicitly enabled
+  const testScansCount = useMemo(() => radiographs.filter(r => isTestRadiograph(r)).length, [radiographs]);
+  const activeRadiographs = useMemo(() => {
+    const base = showTestScans ? radiographs : radiographs.filter(r => !isTestRadiograph(r));
+    if (activeFilter === 'opg') {
+      return base.filter(r => {
+        const name = (r.imageName || r.ImageName || '').toLowerCase();
+        const summary = (r.analysisSummary || r.AnalysisSummary || '').toLowerCase();
+        return name.includes('pano') || name.includes('opg') || summary.includes('panoramic') || summary.includes('opg');
+      });
     }
-  };
+    if (activeFilter === 'rvg') {
+      return base.filter(r => {
+        const name = (r.imageName || r.ImageName || '').toLowerCase();
+        const summary = (r.analysisSummary || r.AnalysisSummary || '').toLowerCase();
+        return !name.includes('pano') && !name.includes('opg') && !summary.includes('panoramic') && !summary.includes('opg');
+      });
+    }
+    if (activeFilter === 'diagnosed') {
+      return base.filter(r => {
+        const findings = extractAiFindingsFromReport(r.analysisSummary || r.AnalysisSummary);
+        return findings.length > 0;
+      });
+    }
+    return base;
+  }, [radiographs, showTestScans, activeFilter]);
+
+  // Determine current active radiograph
+  const currentRadiograph = useMemo(() => {
+    if (activeScanImpact?.radiograph) return activeScanImpact.radiograph;
+    if (selectedRadiograph) return selectedRadiograph;
+    if (selectedScanId) {
+      const match = radiographs.find(r => (r.radiographID || r.RadiographID) === selectedScanId);
+      if (match) return match;
+    }
+    return activeRadiographs[0] || radiographs[0] || null;
+  }, [activeScanImpact, selectedRadiograph, selectedScanId, activeRadiographs, radiographs]);
+
+  // Extract AI findings for current active radiograph
+  const activeFindings = useMemo(() => {
+    if (activeScanImpact?.findings?.length > 0) return activeScanImpact.findings;
+    if (currentRadiograph) {
+      return extractAiFindingsFromReport(currentRadiograph.analysisSummary || currentRadiograph.AnalysisSummary);
+    }
+    return [];
+  }, [activeScanImpact, currentRadiograph]);
+
+  // Doctor-centric findings triage
+  const [findingsFilter, setFindingsFilter] = useState('all'); // 'all' | 'pathology' | 'restorations' | 'missing'
+
+  const pathologyFindings = useMemo(() => {
+    return activeFindings.filter(f => {
+      const c = (f.condition || '').toLowerCase();
+      return c.includes('caries') || c.includes('decay') || c.includes('bone loss') || c.includes('periodont') || 
+             c.includes('radiolucen') || c.includes('abscess') || c.includes('lesion') || c.includes('defective') || 
+             c.includes('impaction') || c.includes('calculus') || c.includes('pulpitis');
+    });
+  }, [activeFindings]);
+
+  const restorationFindings = useMemo(() => {
+    return activeFindings.filter(f => {
+      const c = (f.condition || '').toLowerCase();
+      return (c.includes('bridge') || c.includes('abutment') || c.includes('crown') || c.includes('fill') || 
+             c.includes('composite') || c.includes('implant') || c.includes('prosthesis') || c.includes('fpd') ||
+             c.includes('rct') || c.includes('canal')) &&
+             !c.includes('defective') && !c.includes('caries');
+    });
+  }, [activeFindings]);
+
+  const missingFindings = useMemo(() => {
+    return activeFindings.filter(f => {
+      const c = (f.condition || '').toLowerCase();
+      return c.includes('missing') || c.includes('extract') || c.includes('lost') || c.includes('absent') || c.includes('edentul');
+    });
+  }, [activeFindings]);
+
+  const displayedFindings = useMemo(() => {
+    if (findingsFilter === 'pathology') return pathologyFindings;
+    if (findingsFilter === 'restorations') return restorationFindings;
+    if (findingsFilter === 'missing') return missingFindings;
+    return activeFindings;
+  }, [findingsFilter, activeFindings, pathologyFindings, restorationFindings, missingFindings]);
 
   const handleFileInputChange = (e) => {
     const file = e.target.files?.[0];
@@ -69,6 +159,7 @@ export default function ChartRadiographFilmstrip({
   };
 
   const getScanMetadata = (r) => {
+    if (!r) return { modality: 'Radiograph', shortModality: 'X-RAY', device: 'Digital RVG' };
     const name = (r.imageName || r.ImageName || '').toLowerCase();
     const summary = (r.analysisSummary || r.AnalysisSummary || '').toLowerCase();
 
@@ -100,6 +191,7 @@ export default function ChartRadiographFilmstrip({
   };
 
   const getImageUrl = (r) => {
+    if (!r) return '';
     if (r.imageData && r.imageData.length > 50) {
       return r.imageData.startsWith('data:') 
         ? r.imageData 
@@ -109,323 +201,709 @@ export default function ChartRadiographFilmstrip({
     return `https://dentist-api-dev.vitonta.com/api/radiographs/${id}/image`;
   };
 
+  // Image Adjustment Handlers
+  const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.25, 3));
+  const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.25, 0.75));
+  const handleResetZoom = () => {
+    setZoom(1);
+    setIsInverted(false);
+    setContrastPreset('normal');
+    setBrightness(100);
+    setContrast(100);
+  };
+
+  const applyContrastPreset = (preset) => {
+    setContrastPreset(preset);
+    if (preset === 'normal') {
+      setBrightness(100);
+      setContrast(100);
+    } else if (preset === 'high') {
+      setBrightness(105);
+      setContrast(135);
+    } else if (preset === 'bone') {
+      setBrightness(95);
+      setContrast(155);
+    }
+  };
+
+  const currentMeta = getScanMetadata(currentRadiograph);
+  const currentImageUrl = getImageUrl(currentRadiograph);
+  const currentScanId = currentRadiograph?.radiographID || currentRadiograph?.RadiographID;
+  const isCurrentlySpotlighted = activeScanImpact?.scanId === currentScanId;
+
+  // Filter counts
+  const opgCount = radiographs.filter(r => {
+    const name = (r.imageName || r.ImageName || '').toLowerCase();
+    const summary = (r.analysisSummary || r.AnalysisSummary || '').toLowerCase();
+    return name.includes('pano') || name.includes('opg') || summary.includes('panoramic') || summary.includes('opg');
+  }).length;
+
+  const diagnosedCount = radiographs.filter(r => {
+    const f = extractAiFindingsFromReport(r.analysisSummary || r.AnalysisSummary);
+    return f.length > 0;
+  }).length;
+
+  const isRadiologyFullMode = workspaceMode === 'radiology';
+
   return (
-    <div className="w-full bg-white rounded-3xl border border-light-teal/50 shadow-sm overflow-hidden flex flex-col transition-all duration-200">
+    <div className={`w-full bg-white rounded-3xl border border-light-teal/50 shadow-sm overflow-hidden flex flex-col transition-all duration-300 ${
+      isRadiologyFullMode ? 'ring-2 ring-cyan-500/30' : ''
+    }`}>
       {/* Hidden File Input */}
       <input 
         type="file" 
         ref={fileInputRef} 
         onChange={handleFileInputChange} 
-        accept="image/*,.dcm" 
+        accept="image/*,.dcm,.tif,.bmp" 
         className="hidden" 
       />
 
-      {/* Vertical Panel Header */}
-      <div className="p-3 bg-gradient-to-r from-slate-50 via-blue-50/50 to-slate-50 border-b border-slate-200/80 flex flex-col gap-2 select-none">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-[#4A7CD2] to-[#2563EB] flex items-center justify-center text-white shadow-2xs">
-              <Layers className="w-3.5 h-3.5" />
+      {/* ========================================================================= */}
+      {/* 1. CONSOLE HEADER BAR                                                     */}
+      {/* ========================================================================= */}
+      <div className="p-3 bg-gradient-to-r from-[#10244B] via-[#1E3A8A] to-[#10244B] text-white flex flex-col gap-2 select-none border-b border-blue-700/30 shadow-md">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          {/* Title & Hardware Status */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-[#4A7CD2] flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0">
+              <Layers className="w-4 h-4" />
             </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-xs text-[#10244B] tracking-wider uppercase">
-                  Diagnostic Scans
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-black text-xs text-slate-100 tracking-wider uppercase">
+                  Radiograph Diagnostic Console
                 </span>
-                <span className="px-2 py-0.2 rounded-full text-[10px] font-black bg-blue-100/70 text-[#2563EB] border border-blue-200">
-                  {activeRadiographs.length}
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-500/20 text-blue-200 border border-blue-400/30">
+                  {activeRadiographs.length} Scans
                 </span>
+                {isCurrentlySpotlighted && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#4A7CD2] text-white flex items-center gap-1 shadow-xs animate-pulse">
+                    <Zap className="w-3 h-3 fill-current" /> Live Chart Sync
+                  </span>
+                )}
               </div>
-              <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Nano-Pix</span>
+              <div className="flex items-center gap-2 text-[10.5px] text-slate-300 mt-0.5">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span className="text-emerald-300 font-semibold">Nano-Pix RVG</span>
+                </span>
                 <span>•</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
-                <span>Dicora USB</span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-blue-300"></span>
+                  <span className="text-blue-200">Dicora USB</span>
+                </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
-            {/* Collapse Toggle */}
+          {/* Quick Actions (Sensor / Upload / Tests) */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={onTriggerSensorCapture}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-[11px] font-black shadow-xs active:scale-95 transition cursor-pointer"
+              title="Acquire intraoral frame from Eighteeth Nano-Pix or Dicora Sensor"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>Sensor</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isAnalyzing}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#4A7CD2] hover:bg-[#3665B7] text-white text-[11px] font-black shadow-xs active:scale-95 transition cursor-pointer disabled:opacity-50"
+              title="Upload dental radiograph (OPG, Bitewing, Periapical)"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Upload</span>
+            </button>
+
+            {testScansCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowTestScans(!showTestScans)}
+                className={`px-2 py-1.5 rounded-xl text-[10px] font-black transition cursor-pointer border ${
+                  showTestScans 
+                    ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-xs' 
+                    : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+                }`}
+                title={showTestScans ? "Hide test images" : `Include ${testScansCount} test images`}
+              >
+                <span>{showTestScans ? `🧪 Tests (${testScansCount})` : `🧪 +${testScansCount}`}</span>
+              </button>
+            )}
+
+            {onWorkspaceModeChange && (
+              <button
+                type="button"
+                onClick={() => onWorkspaceModeChange(workspaceMode === 'radiology' ? 'split' : 'radiology')}
+                className="p-1.5 rounded-xl bg-slate-800/80 hover:bg-blue-900 text-blue-200 border border-slate-700 transition cursor-pointer hidden sm:flex items-center gap-1 text-[10px] font-bold"
+                title={workspaceMode === 'radiology' ? "Switch to Split View" : "Maximize Radiology Studio"}
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+                <span>{workspaceMode === 'radiology' ? 'Split View' : 'Full Studio'}</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setIsCollapsed(!isCollapsed)}
-              className="p-1 rounded-lg bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-800 border border-slate-200 transition cursor-pointer"
-              title={isCollapsed ? 'Expand Scans Panel' : 'Collapse Scans Panel'}
+              className="p-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition cursor-pointer"
+              title={isCollapsed ? "Expand Console" : "Collapse Console"}
             >
               {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
             </button>
           </div>
         </div>
 
-        {/* Action Triggers Row */}
-        <div className="flex items-center gap-1.5 pt-1">
-          <button
-            type="button"
-            onClick={onTriggerSensorCapture}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-extrabold shadow-2xs active:scale-95 transition cursor-pointer"
-            title="Acquire frame from Eighteeth Nano-Pix / Dicora USB RVG"
-          >
-            <Camera className="w-3.5 h-3.5" />
-            <span>Sensor</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isAnalyzing}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl bg-white hover:bg-blue-50 text-[#2563EB] border border-blue-200/80 text-[11px] font-extrabold shadow-2xs active:scale-95 transition cursor-pointer disabled:opacity-50"
-            title="Upload Bitewing, OPG or RVG scan file"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Upload</span>
-          </button>
-
-          {/* Test Scans Toggle Button */}
-          {testScansCount > 0 && (
+        {/* Filter Pills Row */}
+        <div className="flex items-center gap-1 pt-1 overflow-x-auto no-scrollbar">
+          <span className="text-[10px] font-bold text-slate-300 uppercase mr-1">Filter:</span>
+          {[
+            { id: 'all', label: `All (${radiographs.length})` },
+            { id: 'opg', label: `Panoramic OPG (${opgCount})` },
+            { id: 'rvg', label: `RVG / Bitewing (${radiographs.length - opgCount})` },
+            { id: 'diagnosed', label: `AI Diagnosed (${diagnosedCount})` }
+          ].map(tab => (
             <button
+              key={tab.id}
               type="button"
-              onClick={() => {
-                setShowTestScans(!showTestScans);
-                setCurrentPage(1);
-              }}
-              className={`px-2 py-1.5 rounded-xl text-[10px] font-extrabold transition cursor-pointer border ${
-                showTestScans 
-                  ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-2xs' 
-                  : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 hover:text-slate-800'
+              onClick={() => setActiveFilter(tab.id)}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer shrink-0 ${
+                activeFilter === tab.id
+                  ? 'bg-[#4A7CD2] text-white shadow-xs font-black'
+                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
               }`}
-              title={showTestScans ? "Hide test scans" : `Include ${testScansCount} hidden test scans`}
             >
-              <span>{showTestScans ? `🧪 Tests (${testScansCount})` : `🧪 +${testScansCount}`}</span>
+              {tab.label}
             </button>
-          )}
+          ))}
         </div>
-
-        {/* Active Scan Spotlight Pill */}
-        {activeScanImpact && (
-          <div className="flex items-center justify-between gap-1.5 px-2.5 py-1 rounded-xl bg-cyan-50 border border-cyan-300 text-cyan-950 text-[11px] shadow-2xs animate-in fade-in mt-0.5">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <Zap className="w-3.5 h-3.5 text-cyan-600 animate-pulse shrink-0" />
-              <span className="font-bold truncate">
-                Spotlight: <span className="font-mono text-cyan-800">{activeScanImpact.imageName}</span>
-              </span>
-            </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <span className="px-1.5 py-0.2 rounded bg-cyan-600 text-white text-[9.5px] font-black">
-                {activeScanImpact.teeth?.length || 0} Teeth
-              </span>
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onClearScanImpact && onClearScanImpact();
-                }}
-                title="Clear Spotlight"
-                className="p-0.5 rounded hover:bg-cyan-200/70 text-cyan-700 hover:text-cyan-950 transition cursor-pointer"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Vertical Content Body */}
+      {/* ========================================================================= */}
+      {/* 2. CONSOLE BODY                                                           */}
+      {/* ========================================================================= */}
       {!isCollapsed && (
-        <div className="p-2.5 bg-[#F8FAFC]/70 flex flex-col gap-2.5 flex-1 min-h-0">
+        <div className="p-3 bg-[#F8FAFC] flex flex-col gap-3">
           {activeRadiographs.length === 0 ? (
             /* Empty State */
-            <div className="py-8 text-center flex flex-col items-center justify-center">
-              <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#4A7CD2] mb-2 shadow-2xs">
-                <Image className="w-5 h-5 opacity-60" />
+            <div className="py-12 px-4 text-center flex flex-col items-center justify-center bg-white rounded-2xl border border-slate-200">
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#4A7CD2] mb-3 shadow-2xs">
+                <ImageIcon className="w-6 h-6 opacity-60" />
               </div>
-              <p className="text-xs font-black text-slate-700">No Patient Scans</p>
-              <p className="text-[11px] text-slate-400 mt-0.5 max-w-[200px]">
-                Acquire with RVG Sensor or upload dental radiographs to view.
+              <p className="text-sm font-black text-slate-800">No Patient Radiographs Found</p>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                Capture chairside RVG images using your sensor or upload OPG / Bitewing files to run AI diagnostics.
               </p>
+              <div className="flex items-center gap-2 mt-4">
+                <button
+                  type="button"
+                  onClick={onTriggerSensorCapture}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <Camera className="w-4 h-4" /> Trigger RVG Sensor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 rounded-xl bg-[#4A7CD2] hover:bg-[#3665B7] text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <Upload className="w-4 h-4" /> Upload Scan File
+                </button>
+              </div>
             </div>
           ) : (
-            /* Vertical List of Radiograph Cards */
-            <div className="flex flex-col gap-2.5 overflow-y-auto max-h-[560px] pr-1">
-              {pagedRadiographs.map((r) => {
-                const rId = r.radiographID || r.RadiographID;
-                const isSelected = selectedScanId === rId;
-                const { modality, device } = getScanMetadata(r);
-                const findings = extractAiFindingsFromReport(r.analysisSummary || r.AnalysisSummary);
-                const hasFindings = findings.length > 0;
-                const imageUrl = getImageUrl(r);
+            <>
+              {/* ========================================================================= */}
+              {/* 2A. ACTIVE RADIOGRAPH DIAGNOSTIC STAGE (IN-PLACE VIEWER)                 */}
+              {/* ========================================================================= */}
+              {currentRadiograph && (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col">
+                  {/* Stage Top Bar: Active Scan Metadata & Quick Tools */}
+                  <div className="px-3.5 py-2 bg-gradient-to-r from-slate-100 via-white to-slate-100 border-b border-slate-200 flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-black bg-[#10244B] text-cyan-300">
+                        {currentMeta.modality}
+                      </span>
+                      <span className="text-xs font-black text-slate-900 truncate max-w-[200px]" title={currentRadiograph.imageName}>
+                        {currentRadiograph.imageName || `Scan #${currentScanId}`}
+                      </span>
+                      <span className="text-[10.5px] text-slate-500 font-mono hidden sm:inline">
+                        via {currentMeta.device}
+                      </span>
+                    </div>
 
-                return (
-                  <div
-                    key={rId}
-                    onClick={() => onSelectScan && onSelectScan(r, findings)}
-                    className={`rounded-2xl border transition-all duration-200 cursor-pointer overflow-hidden flex flex-col group bg-white shadow-2xs ${
-                      isSelected 
-                        ? 'border-cyan-500 ring-2 ring-cyan-500/30 bg-cyan-50/30 shadow-sm' 
-                        : 'border-slate-200/90 hover:border-cyan-400 hover:shadow-xs'
-                    }`}
-                  >
-                    {/* Top: Radiograph Image Preview Banner */}
-                    <div className="relative h-28 w-full bg-slate-950 flex items-center justify-center overflow-hidden">
-                      <img 
-                        src={imageUrl} 
-                        alt={r.imageName || 'Radiograph'} 
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                        loading="lazy"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          const placeholder = e.currentTarget.parentElement?.querySelector('.vertical-fallback');
-                          if (placeholder) placeholder.classList.remove('hidden');
-                        }}
-                      />
-                      <div className="vertical-fallback hidden absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-900 p-2">
-                        <Image className="w-6 h-6 opacity-40 mb-1" />
-                        <span className="text-[9.5px] font-mono text-center truncate w-full text-slate-300">{r.imageName}</span>
-                      </div>
-
-                      {/* Modality Tag */}
-                      <div className="absolute top-2 left-2">
-                        <span className="px-2 py-0.5 rounded-lg text-[9px] font-black bg-slate-950/80 text-cyan-300 border border-cyan-500/30 shadow-2xs">
-                          {modality}
-                        </span>
-                      </div>
-
-                      {/* PiP Inspector Trigger */}
+                    {/* Stage Diagnostic Toolbar */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {/* Negative / Invert Greyscale Toggle */}
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onInspectScan && onInspectScan(r, findings);
+                        onClick={() => setIsInverted(!isInverted)}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition cursor-pointer border ${
+                          isInverted 
+                            ? 'bg-purple-700 text-white border-purple-800 shadow-xs' 
+                            : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+                        }`}
+                        title="Invert Greyscale (Negative Mode) — Essential for examining pulp & caries"
+                      >
+                        <Contrast className="w-3 h-3" />
+                        <span>Invert</span>
+                      </button>
+
+                      {/* Diagnostic Presets */}
+                      <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px]">
+                        <button
+                          type="button"
+                          onClick={() => applyContrastPreset('normal')}
+                          className={`px-1.5 py-0.5 rounded font-bold transition cursor-pointer ${
+                            contrastPreset === 'normal' ? 'bg-white text-[#10244B] shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                          title="Normal diagnostic contrast"
+                        >
+                          Norm
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyContrastPreset('high')}
+                          className={`px-1.5 py-0.5 rounded font-bold transition cursor-pointer ${
+                            contrastPreset === 'high' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                          title="High contrast for caries inspection"
+                        >
+                          Hi-Con
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyContrastPreset('bone')}
+                          className={`px-1.5 py-0.5 rounded font-bold transition cursor-pointer ${
+                            contrastPreset === 'bone' ? 'bg-white text-cyan-800 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                          title="Bone & Trabecular density enhancement"
+                        >
+                          Bone
+                        </button>
+                      </div>
+
+                      {/* Zoom Controls */}
+                      <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                        <button
+                          type="button"
+                          onClick={handleZoomOut}
+                          className="p-1 hover:bg-white text-slate-600 hover:text-slate-900 rounded cursor-pointer transition"
+                          title="Zoom Out"
+                        >
+                          <ZoomOut className="w-3 h-3" />
+                        </button>
+                        <span className="text-[10px] font-mono font-bold px-1 text-slate-700 min-w-[32px] text-center">
+                          {Math.round(zoom * 100)}%
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleZoomIn}
+                          className="p-1 hover:bg-white text-slate-600 hover:text-slate-900 rounded cursor-pointer transition"
+                          title="Zoom In"
+                        >
+                          <ZoomIn className="w-3 h-3" />
+                        </button>
+                        {zoom !== 1 && (
+                          <button
+                            type="button"
+                            onClick={handleResetZoom}
+                            className="p-1 hover:bg-white text-slate-600 hover:text-slate-900 rounded cursor-pointer transition"
+                            title="Reset Zoom"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Fine Tune Slider Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => setShowAdjustmentSliders(!showAdjustmentSliders)}
+                        className={`p-1.5 rounded-lg border transition cursor-pointer ${
+                          showAdjustmentSliders 
+                            ? 'bg-blue-100 text-[#2563EB] border-blue-300' 
+                            : 'bg-white text-slate-600 hover:text-slate-900 border-slate-300'
+                        }`}
+                        title="Fine-tune Brightness & Contrast"
+                      >
+                        <Sliders className="w-3 h-3" />
+                      </button>
+
+                      {/* Deep PiP Inspector */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onInspectScan) onInspectScan(currentRadiograph, activeFindings);
                         }}
-                        className="absolute top-2 right-2 p-1.5 rounded-lg bg-slate-950/80 text-slate-200 hover:text-white hover:bg-cyan-600 transition cursor-pointer shadow-2xs"
-                        title="Inspect in High-Definition Deep Zoom"
+                        className="p-1.5 rounded-lg bg-[#4A7CD2] hover:bg-[#3665B7] text-white shadow-2xs transition cursor-pointer"
+                        title="Open Deep Zoom Inspector (PiP)"
                       >
                         <Maximize2 className="w-3.5 h-3.5" />
                       </button>
+                    </div>
+                  </div>
 
-                      {/* Active Spotlight Stripe */}
-                      {isSelected && (
-                        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-r from-cyan-600 to-blue-600 px-2 py-0.5 flex items-center justify-between text-white text-[9.5px] font-black shadow-xs">
-                          <span className="flex items-center gap-1">
-                            <Zap className="w-2.5 h-2.5 text-cyan-200" /> Spotlight Active
-                          </span>
-                          <span>{findings.length} Teeth</span>
-                        </div>
+                  {/* Fine-tune Sliders Row */}
+                  {showAdjustmentSliders && (
+                    <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-4 text-xs">
+                      <div className="flex items-center gap-2 flex-1">
+                        <Sun className="w-3.5 h-3.5 text-amber-500" />
+                        <span className="text-[10px] font-bold text-slate-600 w-16">Bright: {brightness}%</span>
+                        <input
+                          type="range"
+                          min="50"
+                          max="160"
+                          value={brightness}
+                          onChange={(e) => setBrightness(Number(e.target.value))}
+                          className="flex-1 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 flex-1">
+                        <Contrast className="w-3.5 h-3.5 text-indigo-500" />
+                        <span className="text-[10px] font-bold text-slate-600 w-16">Contrast: {contrast}%</span>
+                        <input
+                          type="range"
+                          min="50"
+                          max="180"
+                          value={contrast}
+                          onChange={(e) => setContrast(Number(e.target.value))}
+                          className="flex-1 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleResetZoom}
+                        className="text-[10px] font-bold text-slate-500 hover:text-slate-800 underline"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  )}
+
+                  {/* High-Definition Optical Radiograph Viewport */}
+                  <div className={`relative w-full bg-slate-950 flex items-center justify-center overflow-hidden select-none ${
+                    isRadiologyFullMode ? 'h-[440px]' : 'h-[250px] sm:h-[280px]'
+                  }`}>
+                    <img
+                      src={currentImageUrl}
+                      alt={currentRadiograph.imageName || 'Active Radiograph'}
+                      style={{
+                        transform: `scale(${zoom})`,
+                        filter: `brightness(${brightness}%) contrast(${contrast}%) ${isInverted ? 'invert(100%)' : ''}`,
+                        transformOrigin: 'center center',
+                        transition: 'transform 0.15s ease-out, filter 0.1s ease-out'
+                      }}
+                      className="max-w-full max-h-full object-contain pointer-events-none"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        const fallback = e.currentTarget.parentElement?.querySelector('.stage-fallback');
+                        if (fallback) fallback.classList.remove('hidden');
+                      }}
+                    />
+
+                    {/* Fallback placeholder if image load fails */}
+                    <div className="stage-fallback hidden absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-900 p-4">
+                      <ImageIcon className="w-10 h-10 opacity-30 mb-2" />
+                      <p className="text-xs font-mono text-slate-300">{currentRadiograph.imageName}</p>
+                      <p className="text-[10px] text-slate-500 mt-1">Image preview unavailable or processing.</p>
+                    </div>
+
+                    {/* Live Sync Status Overlay Badge */}
+                    <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                      {isCurrentlySpotlighted ? (
+                        <span className="px-2.5 py-1 rounded-lg text-[10.5px] font-black bg-[#4A7CD2] text-white flex items-center gap-1 shadow-md">
+                          <Zap className="w-3.5 h-3.5 fill-current" /> Live Spotlighted on 3D Arch & 2D Chart
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onSelectScan) onSelectScan(currentRadiograph, activeFindings);
+                          }}
+                          className="px-2.5 py-1 rounded-lg text-[10.5px] font-black bg-[#4A7CD2] hover:bg-[#3665B7] text-white flex items-center gap-1 shadow-md cursor-pointer transition active:scale-95"
+                          title="Spotlight diagnosed teeth on 3D Jaw & 2D Chart"
+                        >
+                          <Zap className="w-3.5 h-3.5" /> Click to Spotlight on Chart
+                        </button>
                       )}
                     </div>
 
-                    {/* Middle: Scan Details & AI Findings */}
-                    <div className="p-2.5 flex flex-col gap-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-xs text-slate-900 truncate max-w-[170px]" title={r.imageName}>
-                          {r.imageName}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-mono">
-                          {r.uploadedAt ? new Date(r.uploadedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}
-                        </span>
-                      </div>
+                    {/* Modality & Date Tag */}
+                    <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded bg-slate-900/85 text-slate-300 text-[9.5px] font-mono border border-slate-700 shadow-sm">
+                      {currentRadiograph.uploadedAt ? new Date(currentRadiograph.uploadedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent Scan'}
+                    </div>
+                  </div>
 
-                      <div className="text-[10px] text-slate-500 truncate">
-                        via {device}
-                      </div>
-
-                      {/* Diagnosed Teeth Chips */}
-                      {hasFindings ? (
-                        <div className="flex flex-col gap-1 mt-0.5">
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] font-black text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
-                              ⚡ {findings.length} Diagnosed Teeth:
+                  {/* Diagnosed Teeth & Action Bar */}
+                  <div className="p-3 bg-white border-t border-slate-200 flex flex-col gap-2.5">
+                    {/* Diagnosed Teeth Pathology Header & Smart Filter Tabs */}
+                    {activeFindings.length > 0 ? (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-black text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-lg border border-rose-200 flex items-center gap-1 shadow-2xs">
+                              <span>⚡</span>
+                              <span>{activeFindings.length} AI Findings Detected</span>
                             </span>
-                          </div>
-                          <div className="flex flex-wrap gap-1 max-h-12 overflow-hidden">
-                            {findings.slice(0, 7).map(f => (
-                              <span 
-                                key={f.toothKey}
-                                className="px-1.5 py-0.2 rounded text-[9.5px] font-extrabold border shadow-2xs"
-                                style={{
-                                  backgroundColor: `${f.color}15`,
-                                  borderColor: `${f.color}40`,
-                                  color: f.color
-                                }}
-                              >
-                                #{f.toothNumber}
-                              </span>
-                            ))}
-                            {findings.length > 7 && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                                +{findings.length - 7}
+                            {isCurrentlySpotlighted && (
+                              <span className="text-[10px] font-black text-[#4A7CD2] bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 animate-pulse">
+                                Live Chart Sync Active
                               </span>
                             )}
                           </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600">
-                          <span>✓ Normal Anatomy</span>
-                        </div>
-                      )}
 
-                      {/* Bottom: Highlight Trigger */}
-                      <div className="pt-1 border-t border-slate-100 flex items-center justify-between mt-0.5">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelectScan && onSelectScan(r, findings);
-                          }}
-                          className={`text-[10.5px] font-extrabold transition cursor-pointer flex items-center gap-1 ${
-                            isSelected 
-                              ? 'text-cyan-700 font-black' 
-                              : 'text-[#2563EB] hover:text-[#1D4ED8]'
-                          }`}
-                        >
-                          <Zap className="w-3 h-3" />
-                          <span>{isSelected ? '✓ Spotlighted on Chart' : 'Click to Highlight'}</span>
-                        </button>
+                          {/* Quick Clinical Category Filter Tabs */}
+                          <div className="flex items-center gap-1 text-[10px] bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                            {[
+                              { id: 'all', label: `All (${activeFindings.length})` },
+                              { id: 'pathology', label: `Pathology (${pathologyFindings.length})` },
+                              { id: 'restorations', label: `Restorations (${restorationFindings.length})` },
+                              { id: 'missing', label: `Missing (${missingFindings.length})` }
+                            ].map(cat => (
+                              <button
+                                key={cat.id}
+                                type="button"
+                                onClick={() => setFindingsFilter(cat.id)}
+                                className={`px-2 py-0.5 rounded font-bold transition cursor-pointer ${
+                                  findingsFilter === cat.id
+                                    ? 'bg-white text-[#10244B] shadow-2xs font-black'
+                                    : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                              >
+                                {cat.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
 
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onInspectScan && onInspectScan(r, findings);
-                          }}
-                          className="text-[10px] text-slate-400 hover:text-slate-700 p-0.5 rounded cursor-pointer"
-                          title="Open in deep zoom modal"
-                        >
-                          <Eye className="w-3 h-3" />
-                        </button>
+                        {/* Interactive Tooth Chips Tray (Compact & Scrollable to prevent screen overflow) */}
+                        <div className="max-h-[85px] overflow-y-auto pr-1 flex flex-wrap gap-1.5">
+                          {displayedFindings.length === 0 ? (
+                            <div className="text-[11px] text-slate-400 italic py-1">
+                              No findings in this category.
+                            </div>
+                          ) : (
+                            displayedFindings.map(f => {
+                              const isThisToothActive = detailedTooth === parseInt(f.toothNumber, 10);
+                              return (
+                                <button
+                                  key={f.toothKey || f.toothNumber}
+                                  type="button"
+                                  onClick={() => {
+                                    if (onSelectTooth) onSelectTooth(parseInt(f.toothNumber, 10));
+                                  }}
+                                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border shadow-2xs ${
+                                    isThisToothActive 
+                                      ? 'ring-2 ring-[#4A7CD2] ring-offset-1 scale-105 shadow-xs bg-blue-50 font-black' 
+                                      : 'hover:scale-102 hover:shadow-xs bg-white'
+                                  }`}
+                                  style={{
+                                    borderColor: isThisToothActive ? '#4A7CD2' : `${f.color || '#4A7CD2'}50`
+                                  }}
+                                  title={`Click to focus Tooth #${f.toothNumber}: ${f.condition} (${f.severity})`}
+                                >
+                                  <span 
+                                    className="font-mono font-black text-[10.5px] px-1 py-0.2 rounded"
+                                    style={{
+                                      backgroundColor: `${f.color || '#4A7CD2'}20`,
+                                      color: f.color || '#10244B'
+                                    }}
+                                  >
+                                    #{f.toothNumber}
+                                  </span>
+                                  <span className="font-semibold text-[11px] text-slate-800 truncate max-w-[155px]">
+                                    {f.condition}
+                                  </span>
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
                       </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Normal Radiographic Presentation — No active caries, bone loss, or lesions detected.</span>
+                      </div>
+                    )}
+
+                    {/* Direct Clinical Workflow Actions Row (Permanently visible above the fold) */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        {activeFindings.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onApplyAiFindings) onApplyAiFindings(activeFindings, currentRadiograph);
+                            }}
+                            disabled={isAnalyzing}
+                            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-xs transition cursor-pointer disabled:opacity-50 active:scale-95"
+                            title="Apply detected conditions to Dental Chart and Treatment Ledger"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>Apply to Chart</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onSyncAiNotes) onSyncAiNotes(currentRadiograph, activeFindings);
+                          }}
+                          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#4A7CD2] hover:bg-[#3665B7] text-white text-xs font-black shadow-xs transition cursor-pointer active:scale-95"
+                          title="Generate and persist AI SOAP Progress Note"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>AI SOAP Note</span>
+                        </button>
+
+                        {activeFindings.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onSelectScan) onSelectScan(currentRadiograph, activeFindings);
+                            }}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#4A7CD2] border border-blue-200 text-xs font-bold transition cursor-pointer"
+                            title="Spotlight all diagnosed teeth on 3D Arch and 2D Chart"
+                          >
+                            <Zap className="w-3 h-3" />
+                            <span>Spotlight All ({activeFindings.length})</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {isCurrentlySpotlighted && (
+                        <button
+                          type="button"
+                          onClick={onClearScanImpact}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition cursor-pointer"
+                          title="Clear chart highlights"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span>Clear Spotlight</span>
+                        </button>
+                      )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                </div>
+              )}
 
-          {/* Pagination Footer */}
-          {activeRadiographs.length > PAGE_SIZE && (
-            <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between px-1">
-              <button
-                type="button"
-                onClick={() => handlePageChange(safePage - 1)}
-                disabled={safePage <= 1}
-                className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-[10.5px] font-bold disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition flex items-center gap-0.5"
-              >
-                <ChevronLeft className="w-3 h-3" /> Prev
-              </button>
-              
-              <span className="text-[10.5px] font-extrabold text-slate-600">
-                Page {safePage} of {totalPages}
-              </span>
+              {/* ========================================================================= */}
+              {/* 2B. SMART SCANS CAROUSEL / FILMSTRIP DOCK                                */}
+              {/* ========================================================================= */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-2.5 flex flex-col gap-2 shadow-2xs">
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-black text-slate-800 uppercase tracking-wider">
+                      Patient Imaging Archive
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.2 rounded-full border border-slate-200">
+                      {activeRadiographs.length} Available
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">
+                    Click any thumbnail to inspect
+                  </span>
+                </div>
 
-              <button
-                type="button"
-                onClick={() => handlePageChange(safePage + 1)}
-                disabled={safePage >= totalPages}
-                className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-[10.5px] font-bold disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition flex items-center gap-0.5"
-              >
-                Next <ChevronRight className="w-3 h-3" />
-              </button>
-            </div>
+                {/* Horizontal Scrolling Thumbnails Tray */}
+                <div 
+                  ref={carouselContainerRef}
+                  className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 overflow-y-auto max-h-[190px] pr-1"
+                >
+                  {activeRadiographs.map((r) => {
+                    const rId = r.radiographID || r.RadiographID;
+                    const isSelected = (currentScanId === rId);
+                    const { shortModality } = getScanMetadata(r);
+                    const findings = extractAiFindingsFromReport(r.analysisSummary || r.AnalysisSummary);
+                    const imageUrl = getImageUrl(r);
+
+                    return (
+                      <div
+                        key={rId}
+                        onClick={() => {
+                          if (onSelectScan) onSelectScan(r, findings);
+                          // Reset viewport zoom when switching scans
+                          setZoom(1);
+                        }}
+                        className={`relative rounded-xl border transition-all duration-200 cursor-pointer overflow-hidden flex flex-col group bg-white ${
+                          isSelected 
+                            ? 'border-[#4A7CD2] ring-2 ring-[#4A7CD2]/40 shadow-xs bg-blue-50/20' 
+                            : 'border-slate-200 hover:border-[#4A7CD2]/80 hover:shadow-2xs'
+                        }`}
+                      >
+                        {/* Thumbnail Viewport */}
+                        <div className="relative h-20 w-full bg-slate-950 flex items-center justify-center overflow-hidden">
+                          <img
+                            src={imageUrl}
+                            alt={r.imageName || 'Scan'}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            loading="lazy"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              const ph = e.currentTarget.parentElement?.querySelector('.thumb-ph');
+                              if (ph) ph.classList.remove('hidden');
+                            }}
+                          />
+                          <div className="thumb-ph hidden absolute inset-0 flex flex-col items-center justify-center text-slate-500 bg-slate-900 p-1">
+                            <ImageIcon className="w-5 h-5 opacity-40 mb-0.5" />
+                            <span className="text-[9px] font-mono text-center truncate w-full text-slate-400">{r.imageName}</span>
+                          </div>
+
+                          {/* Modality Tag */}
+                          <div className="absolute top-1 left-1">
+                            <span className="px-1.5 py-0.2 rounded text-[8.5px] font-black bg-slate-950/80 text-blue-200 border border-blue-400/30 shadow-2xs">
+                              {shortModality}
+                            </span>
+                          </div>
+
+                          {/* Diagnosed Teeth Count Badge */}
+                          {findings.length > 0 ? (
+                            <div className="absolute top-1 right-1">
+                              <span className="px-1.5 py-0.2 rounded text-[8.5px] font-black bg-rose-600 text-white shadow-2xs">
+                                ⚡ {findings.length}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="absolute top-1 right-1">
+                              <span className="px-1.5 py-0.2 rounded text-[8px] font-bold bg-emerald-600/90 text-white shadow-2xs">
+                                ✓ Normal
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Selected Active Ring */}
+                          {isSelected && (
+                            <div className="absolute inset-0 border-2 border-[#4A7CD2] rounded-xl pointer-events-none flex items-end justify-end p-1">
+                              <span className="p-0.5 rounded-full bg-[#4A7CD2] text-white shadow-xs">
+                                <Check className="w-2.5 h-2.5 stroke-[3]" />
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Thumbnail Footer Info */}
+                        <div className="p-1.5 bg-white flex flex-col gap-0.5">
+                          <span className="text-[10.5px] font-bold text-slate-900 truncate" title={r.imageName}>
+                            {r.imageName || `Scan #${rId}`}
+                          </span>
+                          <div className="flex items-center justify-between text-[9px] text-slate-400 font-mono">
+                            <span>{r.uploadedAt ? new Date(r.uploadedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}</span>
+                            <span className="font-sans font-bold text-[#4A7CD2]">
+                              {isSelected ? 'Active' : 'Inspect'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}
