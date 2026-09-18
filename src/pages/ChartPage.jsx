@@ -8291,30 +8291,53 @@ export default function ChartPage() {
 
                   {/* Active Scan Clinical Impact Horizon Banner */}
                   {activeScanImpact && (
-                    <div className="w-full bg-gradient-to-r from-slate-900 via-cyan-950 to-slate-900 border border-cyan-500/50 text-white px-4 py-2.5 rounded-2xl shadow-xl flex flex-wrap items-center justify-between gap-3 animate-in fade-in text-xs">
+                    <div className="w-full bg-gradient-to-r from-[#10244B] via-[#1E3A8A] to-[#0F172A] border border-cyan-400/40 text-white px-4 py-3 rounded-2xl shadow-lg flex flex-wrap items-center justify-between gap-3 animate-in fade-in text-xs">
                       <div className="flex items-center gap-3 min-w-0">
-                        <span className="w-3 h-3 rounded-full bg-cyan-400 animate-ping flex-shrink-0" />
+                        <div className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center text-cyan-300 shrink-0">
+                          <Zap className="w-4 h-4 text-cyan-400 animate-pulse" />
+                        </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-extrabold text-cyan-300">
-                              Active Scan Spotlight: {activeScanImpact.imageName}
+                            <span className="font-extrabold text-sm text-cyan-300">
+                              Active Scan Spotlight: <span className="font-mono text-white">{activeScanImpact.imageName}</span>
                             </span>
-                            <span className="px-2 py-0.5 rounded-full bg-cyan-900/80 border border-cyan-600/50 text-[10px] font-bold text-cyan-200">
-                              {activeScanImpact.teeth?.length || 0} Teeth Diagnosed
+                            <span className="px-2.5 py-0.5 rounded-full bg-cyan-950/80 border border-cyan-500/50 text-[10.5px] font-bold text-cyan-200">
+                              {activeScanImpact.teeth?.length || 0} Diagnosed Teeth
                             </span>
                           </div>
-                          <p className="text-[11px] text-slate-300 truncate mt-0.5">
-                            Impacted Teeth: <strong className="text-white">{(activeScanImpact.teeth || []).map(t => '#' + t).join(', ')}</strong>
-                            {activeScanImpact.findings?.length > 0 && ` • Primary: ${activeScanImpact.findings[0]?.condition}`}
-                          </p>
+                          
+                          {/* Diagnosed Tooth Pills Row */}
+                          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                            <span className="text-[11px] text-slate-300 font-semibold mr-0.5">Impacted:</span>
+                            {(activeScanImpact.teeth || []).slice(0, 8).map(tNum => (
+                              <span 
+                                key={tNum} 
+                                className="px-1.5 py-0.5 rounded bg-cyan-500/25 border border-cyan-400/50 text-[10px] font-extrabold text-cyan-200"
+                              >
+                                #{tNum}
+                              </span>
+                            ))}
+                            {(activeScanImpact.teeth || []).length > 8 && (
+                              <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-bold border border-slate-700">
+                                +{(activeScanImpact.teeth || []).length - 8} more
+                              </span>
+                            )}
+                            {activeScanImpact.findings?.length > 0 && (
+                              <span className="text-[11px] text-slate-400 ml-1.5 truncate max-w-[260px]">
+                                • Primary: {activeScanImpact.findings[0]?.condition}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
+                      {/* Action Buttons */}
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => handleInspectScan(activeScanImpact.radiograph, activeScanImpact.findings)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow transition cursor-pointer"
+                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                          title="Inspect radiograph with Zoom & Invert Greyscale"
                         >
                           <Eye className="w-3.5 h-3.5" />
                           <span>Inspect Scan (PiP)</span>
@@ -8322,7 +8345,8 @@ export default function ChartPage() {
                         <button
                           type="button"
                           onClick={() => handleApplyAiFindingsToChart(activeScanImpact.findings, activeScanImpact.radiograph)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition cursor-pointer"
+                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                          title="Apply findings directly to Dental Chart and Treatment Ledger"
                         >
                           <Sparkles className="w-3.5 h-3.5" />
                           <span>Apply to Chart</span>
@@ -8330,7 +8354,8 @@ export default function ChartPage() {
                         <button
                           type="button"
                           onClick={() => handleSyncRadiographToAiNotes(activeScanImpact.radiograph, activeScanImpact.findings)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow transition cursor-pointer"
+                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                          title="Generate and persist AI SOAP note"
                         >
                           <FileText className="w-3.5 h-3.5" />
                           <span>AI SOAP Note</span>
@@ -8338,7 +8363,7 @@ export default function ChartPage() {
                         <button
                           type="button"
                           onClick={() => handleClearScanImpact()}
-                          className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
+                          className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer border border-slate-700"
                           title="Clear Scan Spotlight"
                         >
                           <X className="w-4 h-4" />

@@ -47,8 +47,10 @@ export default function RadiographImpactInspectorModal({
   const [copiedState, setCopiedState] = useState(false);
 
   const findings = extractAiFindingsFromReport(radiograph.analysisSummary);
-  const soapNotes = extractSoapFromReport(radiograph.analysisSummary);
-  const imageUrl = `/api/radiographs/${radiograph.radiographID}/image`;
+  const rId = radiograph.radiographID || radiograph.RadiographID;
+  const imageUrl = radiograph.imageData && radiograph.imageData.length > 50
+    ? (radiograph.imageData.startsWith('data:') ? radiograph.imageData : `data:${radiograph.mimeType || 'image/jpeg'};base64,${radiograph.imageData}`)
+    : `https://dentist-api-dev.vitonta.com/api/radiographs/${rId}/image`;
 
   const resetAdjustments = () => {
     setZoom(1);
