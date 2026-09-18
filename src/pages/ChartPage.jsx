@@ -27,7 +27,7 @@ import NanoPixPatientPromptModal from '../components/NanoPixPatientPromptModal';
 import PatientTreatmentInvoiceTab from '../components/PatientTreatmentInvoiceTab';
 import ChartRadiographFilmstrip from '../components/ChartRadiographFilmstrip';
 import RadiographImpactInspectorModal from '../components/RadiographImpactInspectorModal';
-import { extractAiFindingsFromReport, extractSoapFromReport, compressImageForUpload, isTestRadiograph } from '../utils/aiRadiologyUtils';
+import { extractAiFindingsFromReport, extractSoapFromReport, compressImageForUpload, isTestRadiograph, getHumanReadableReport, recombineReportWithStructuredData } from '../utils/aiRadiologyUtils';
 
 // Real Anatomical Maxilla (Upper Jaw) Coordinate & Rotation Mapping for Empty Jaw Template (Exact 16 Sockets)
 export const MAXILLA_COORDS = {
@@ -2543,7 +2543,7 @@ export default function ChartPage() {
 
   useEffect(() => {
     if (selectedRadiograph) {
-      setEditingXrayText(selectedRadiograph.analysisSummary || selectedRadiograph.AnalysisSummary || '');
+      setEditingXrayText(getHumanReadableReport(selectedRadiograph.analysisSummary || selectedRadiograph.AnalysisSummary || ''));
       setIsEditingXrayAnalysis(false);
 
       const radId = selectedRadiograph.radiographID || selectedRadiograph.RadiographID;
@@ -2608,14 +2608,18 @@ export default function ChartPage() {
     const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
     const doctorId = doctorData.doctorID || doctorData.DoctorID || 1;
 
+    const originalSummary = selectedRadiograph.analysisSummary || selectedRadiograph.AnalysisSummary || '';
+    const fullAnalysisToSave = recombineReportWithStructuredData(editingXrayText, originalSummary);
+    const cleanNarrativeForTimeline = getHumanReadableReport(editingXrayText);
+
     try {
-      // 1. Update the AnalysisSummary in the Radiographs table
+      // 1. Update the AnalysisSummary in the Radiographs table (with preserved structured findings)
       const resUpdate = await fetch(`/api/radiographs/${radId}/analysis`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ analysisSummary: editingXrayText })
+        body: JSON.stringify({ analysisSummary: fullAnalysisToSave })
       });
 
       if (!resUpdate.ok) {
@@ -2625,11 +2629,11 @@ export default function ChartPage() {
       // Update local states
       setRadiographs(prev => prev.map(r => {
         const idMatch = (r.radiographID || r.RadiographID) === radId;
-        return idMatch ? { ...r, analysisSummary: editingXrayText, AnalysisSummary: editingXrayText } : r;
+        return idMatch ? { ...r, analysisSummary: fullAnalysisToSave, AnalysisSummary: fullAnalysisToSave } : r;
       }));
-      setSelectedRadiograph(prev => ({ ...prev, analysisSummary: editingXrayText, AnalysisSummary: editingXrayText }));
+      setSelectedRadiograph(prev => ({ ...prev, analysisSummary: fullAnalysisToSave, AnalysisSummary: fullAnalysisToSave }));
 
-      // 2. Post a new entry to the Patient's Clinical Log Timeline
+      // 2. Post clean clinical entry to the Patient's Clinical Log Timeline (no JSON code blocks)
       const resLog = await fetch(`/api/patients/${patientId}/clinical-logs`, {
         method: 'POST',
         headers: {
@@ -2637,7 +2641,7 @@ export default function ChartPage() {
         },
         body: JSON.stringify({
           doctorID: doctorId,
-          message: `AI Radiograph Report (${filename}): ${editingXrayText}`,
+          message: `AI Radiograph Report (${filename}): ${cleanNarrativeForTimeline}`,
           logType: 'Radiograph'
         })
       });
@@ -2672,7 +2676,7 @@ export default function ChartPage() {
         console.log(`%c[AI RE-ANALYZE SUCCESS] Server returned dynamic report (${reportLength} characters).`, 'color: #10B981; font-weight: bold;');
         const updatedRad = { ...selectedRadiograph, analysisSummary: data.analysisSummary, AnalysisSummary: data.analysisSummary };
         setSelectedRadiograph(updatedRad);
-        setEditingXrayText(data.analysisSummary);
+        setEditingXrayText(getHumanReadableReport(data.analysisSummary));
         setXrayDetailsExpanded(true);
 
         const detectedFindings = extractAiFindingsFromReport(data.analysisSummary);
@@ -2802,9 +2806,10 @@ export default function ChartPage() {
     const pName = `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim() || 'Patient';
     const docName = `Dr. ${doctor?.firstName || doctor?.name || 'Ahmed'}`;
     const scanName = selectedRadiograph.imageName || selectedRadiograph.ImageName || 'Radiograph Scan';
-    const rawAnalysis = isEditingXrayAnalysis && editingXrayText 
+    const rawReportSource = isEditingXrayAnalysis && editingXrayText 
       ? editingXrayText 
       : (selectedRadiograph.analysisSummary || selectedRadiograph.AnalysisSummary || 'No diagnostic findings reported.');
+    const rawAnalysis = getHumanReadableReport(rawReportSource) || 'No diagnostic findings reported.';
     const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
     // Format markdown to clean HTML
@@ -2923,9 +2928,10 @@ export default function ChartPage() {
     const pName = `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim() || 'Patient';
     const docName = `Dr. ${doctor?.firstName || doctor?.name || 'Ahmed'}`;
     const scanName = selectedRadiograph.imageName || selectedRadiograph.ImageName || 'Radiograph Scan';
-    const rawAnalysis = isEditingXrayAnalysis && editingXrayText 
+    const rawReportSource = isEditingXrayAnalysis && editingXrayText 
       ? editingXrayText 
       : (selectedRadiograph.analysisSummary || selectedRadiograph.AnalysisSummary || 'No diagnostic findings reported.');
+    const rawAnalysis = getHumanReadableReport(rawReportSource) || 'No diagnostic findings reported.';
     const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
     try {
@@ -7883,9 +7889,7 @@ export default function ChartPage() {
                               type="button"
                               onClick={() => {
                                 if (!xrayDetailsExpanded) setXrayDetailsExpanded(true);
-                                if (isEditingXrayAnalysis) {
-                                  setEditingXrayText(selectedRadiograph.analysisSummary || selectedRadiograph.AnalysisSummary || '');
-                                }
+                                setEditingXrayText(getHumanReadableReport(selectedRadiograph.analysisSummary || selectedRadiograph.AnalysisSummary || ''));
                                 setIsEditingXrayAnalysis(!isEditingXrayAnalysis);
                               }}
                               className="text-xs bg-[#EAF0FC] hover:bg-[#D5E1F7] border border-[#4A7CD2]/30 text-[#4A7CD2] px-3 py-1.5 rounded-xl font-extrabold transition-all flex items-center gap-1.5 cursor-pointer"
@@ -8112,13 +8116,24 @@ export default function ChartPage() {
                           >
                             <div className="space-y-4 pt-1">
                               {isEditingXrayAnalysis ? (
-                                <div className="bg-[#F4F6FA]/70 border border-light-teal/30 p-4 rounded-2xl">
+                                <div className="bg-[#F4F6FA]/80 border border-light-teal/50 p-4 rounded-2xl shadow-2xs space-y-2.5">
+                                  <div className="flex items-center justify-between flex-wrap gap-2 pb-1 border-b border-light-teal/30">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-black text-[#10244B]">Edit Clinical Diagnostic Report</span>
+                                      <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 shadow-2xs">
+                                        Clinical Narrative Mode
+                                      </span>
+                                    </div>
+                                    <span className="text-[10.5px] text-slate-500 font-medium">
+                                      ✨ Machine-readable AI tooth findings & CDT codes are protected and preserved automatically
+                                    </span>
+                                  </div>
                                   <textarea
                                     value={editingXrayText}
                                     onChange={(e) => setEditingXrayText(e.target.value)}
-                                    className="w-full bg-white border border-light-teal/45 rounded-xl p-3 text-xs text-dark-slate focus:outline-none focus:border-[#4A7CD2] font-sans font-semibold leading-relaxed"
-                                    rows={8}
-                                    placeholder="Edit raw radiology report text..."
+                                    className="w-full bg-white border border-light-teal/50 rounded-xl p-3.5 text-xs text-slate-800 focus:outline-none focus:border-[#4A7CD2] focus:ring-1 focus:ring-[#4A7CD2]/30 font-sans font-medium leading-relaxed shadow-2xs"
+                                    rows={12}
+                                    placeholder="Edit clinical radiographic findings, anatomical observations, and SOAP notes..."
                                   />
                                 </div>
                               ) : (

@@ -346,3 +346,58 @@ export const isTestRadiograph = (r) => {
   return false;
 };
 
+/**
+ * Strips machine-readable JSON metadata / Section 4 Structured Data from an AI report.
+ * Returns only the clean human-readable clinical narrative (Overview, Findings, SOAP notes)
+ * so doctors can edit and review without seeing raw code or JSON blocks.
+ */
+export const getHumanReadableReport = (reportText) => {
+  if (!reportText || typeof reportText !== 'string') return '';
+  
+  // 1. Remove Section 4 / Structured Data heading and everything following it
+  let cleaned = reportText.replace(/###\s*4[.\s]*STRUCTURED\s*DATA[\s\S]*$/i, '');
+  
+  // 2. Remove any standalone ```json ... ``` code blocks
+  cleaned = cleaned.replace(/```json[\s\S]*?```/gi, '');
+  
+  // 3. Remove any trailing raw JSON object containing "teethFindings"
+  cleaned = cleaned.replace(/\{[\s\S]*?"teethFindings"[\s\S]*?\}\s*$/i, '');
+  
+  return cleaned.trim();
+};
+
+/**
+ * Extracts any structured JSON block from the report text.
+ */
+export const getStructuredJsonFromReport = (reportText) => {
+  if (!reportText || typeof reportText !== 'string') return null;
+  const jsonMatch = reportText.match(/```json\s*([\s\S]*?)\s*```/) || reportText.match(/\{[\s\S]*"teethFindings"[\s\S]*\}/);
+  if (jsonMatch) {
+    return (jsonMatch[1] || jsonMatch[0]).trim();
+  }
+  return null;
+};
+
+/**
+ * Recombines the doctor-edited human-readable report with the structured JSON metadata
+ * so that machine-readable findings and chart sync are preserved in storage.
+ */
+export const recombineReportWithStructuredData = (editedText, originalReport) => {
+  const cleanEdited = (editedText || '').trim();
+  if (!cleanEdited) return '';
+  
+  // If the edited text already contains structured JSON, return as is
+  if (/teethFindings/i.test(cleanEdited) && /```json/i.test(cleanEdited)) {
+    return cleanEdited;
+  }
+  
+  // Extract JSON from original report if available
+  const existingJson = getStructuredJsonFromReport(originalReport);
+  if (existingJson) {
+    return `${cleanEdited}\n\n### 4. STRUCTURED DATA\n\`\`\`json\n${existingJson}\n\`\`\``;
+  }
+  
+  return cleanEdited;
+};
+
+
