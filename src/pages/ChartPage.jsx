@@ -8422,163 +8422,154 @@ export default function ChartPage() {
                     </div>
                   )}
                   
-                  {/* Full Panel Grand 3D Odontogram Arch Studio */}
-                  <div className="relative w-full border border-light-teal/50 rounded-2xl p-1.5 bg-gradient-to-b from-[#FFFFFF] via-[#F8FAFC] to-[#EFF6FF] overflow-hidden shadow-2xs flex items-center justify-center">
-                    {selectedJawView === 'both' ? (
-                      <div className="grid grid-cols-2 gap-2.5 w-full items-center max-w-[800px]">
-                        {/* Maxilla (Upper) */}
-                        <div className="flex flex-col items-center bg-white rounded-2xl p-1.5 border border-light-teal/50 shadow-2xs w-full overflow-hidden">
-                          <div className="w-full flex items-center justify-between px-2 py-0.5 bg-gradient-to-r from-[#F8FAFC] to-[#EFF6FF] rounded-lg border border-light-teal/30 mb-1 relative z-20 shadow-2xs">
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#4A7CD2]" />
-                              <span className="text-[10px] font-black text-[#10244B] uppercase tracking-wider">
-                                {dentitionMode === 'pediatric' ? 'Primary Maxilla (Upper)' : 'Maxilla (Upper Jaw)'}
-                              </span>
+                  {/* Clinical Operatory Stage: Responsive Side-by-Side Flex Layout */}
+                  <div className="flex flex-col lg:flex-row gap-4 items-start w-full">
+                    
+                    {/* Left/Center Main Column: Full-Scale 3D Jaws + 2D Odontogram */}
+                    <div className="flex-1 min-w-0 flex flex-col gap-3 w-full">
+                      
+                      {/* Full Panel Grand 3D Odontogram Arch Studio (RESTORED TO FULL GRAND SIZE!) */}
+                      <div className="relative w-full border border-light-teal/50 rounded-3xl p-3.5 bg-gradient-to-b from-[#FFFFFF] via-[#F8FAFC] to-[#EFF6FF] overflow-hidden shadow-sm flex items-center justify-center">
+                        {selectedJawView === 'both' ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full items-center max-w-[880px]">
+                            {/* Maxilla (Upper) */}
+                            <div className="flex flex-col items-center bg-white rounded-2xl p-2 border border-light-teal/50 shadow-2xs w-full overflow-hidden">
+                              <div className="w-full flex items-center justify-between px-2.5 py-1 bg-gradient-to-r from-[#F8FAFC] to-[#EFF6FF] rounded-lg border border-light-teal/30 mb-1.5 relative z-20 shadow-2xs">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-2 h-2 rounded-full bg-[#4A7CD2]" />
+                                  <span className="text-[11px] font-black text-[#10244B] uppercase tracking-wider">
+                                    {dentitionMode === 'pediatric' ? 'Primary Maxilla (Upper)' : 'Maxilla (Upper Jaw)'}
+                                  </span>
+                                </div>
+                                <span className="text-[9.5px] font-black text-[#4A7CD2] bg-white px-2 py-0.5 rounded-full border border-light-teal/40 shadow-2xs">
+                                  {dentitionMode === 'pediatric' ? '10 Primary Teeth (A–J)' : '16 Teeth'}
+                                </span>
+                              </div>
+                              <div className="w-full overflow-hidden rounded-xl flex items-center justify-center">
+                                <ThreeDentalJawArch
+                                  key={`three_jaw_${selectedJawView}_maxilla_${dentitionMode}`}
+                                  jawType="maxilla"
+                                  isPediatric={dentitionMode === 'pediatric'}
+                                  teethState={teethState}
+                                  highlightedTeeth={highlightedTeeth}
+                                  className="w-full max-w-[340px] xl:max-w-[370px] h-[270px] xl:h-[295px] aspect-square"
+                                  onToothClick={(toothNum, status, socket) => {
+                                    setDetailedTooth(toothNum);
+                                    setHighlightedTeeth([toothNum]);
+                                    const tInfo = dentitionMode === 'pediatric' ? PEDIATRIC_TOOTH_NAMES[toothNum] : TOOTH_ANATOMY[toothNum];
+                                    const sLower = (status || '').toLowerCase();
+                                    const isDecay = sLower.includes('decay') || sLower.includes('damag') || sLower === 'cavity' || sLower.includes('keera');
+                                    const isFilled = sLower.includes('treat') || sLower.includes('prosthesis') || sLower.includes('crown') || sLower.includes('bridge') || sLower.includes('filling') || sLower.includes('composite');
+                                    const isRCT = sLower.includes('canal') || sLower.includes('root') || sLower === 'yellow' || sLower.includes('pulpotomy');
+
+                                    if (tInfo) {
+                                      setHighlightInfo({
+                                        title: `Tooth ${toothNum}`,
+                                        subtitle: tInfo.name,
+                                        type: 'single',
+                                        color: isDecay ? '#EF4444' : isFilled ? '#3B82F6' : isRCT ? '#F59E0B' : '#10B981',
+                                        toothNum: toothNum
+                                      });
+                                    }
+                                  }}
+                                />
+                              </div>
                             </div>
-                            <span className="text-[8.5px] font-black text-[#4A7CD2] bg-white px-2 py-0.2 rounded-full border border-light-teal/40 shadow-2xs">
-                              {dentitionMode === 'pediatric' ? '10 Primary Teeth (A–J)' : '16 Teeth'}
-                            </span>
-                          </div>
-                          <div className="w-full overflow-hidden rounded-xl flex items-center justify-center">
-                            <ThreeDentalJawArch
-                              key={`three_jaw_${selectedJawView}_maxilla_${dentitionMode}`}
-                              jawType="maxilla"
-                              isPediatric={dentitionMode === 'pediatric'}
-                              teethState={teethState}
-                              highlightedTeeth={highlightedTeeth}
-                              className="w-full max-w-[230px] xl:max-w-[260px] h-[175px] xl:h-[190px] aspect-square"
-                              onToothClick={(toothNum, status, socket) => {
-                                setDetailedTooth(toothNum);
-                                setHighlightedTeeth([toothNum]);
-                                const tInfo = dentitionMode === 'pediatric' ? PEDIATRIC_TOOTH_NAMES[toothNum] : TOOTH_ANATOMY[toothNum];
-                                const sLower = (status || '').toLowerCase();
-                                const isDecay = sLower.includes('decay') || sLower.includes('damag') || sLower === 'cavity' || sLower.includes('keera');
-                                const isFilled = sLower.includes('treat') || sLower.includes('prosthesis') || sLower.includes('crown') || sLower.includes('bridge') || sLower.includes('filling') || sLower.includes('composite');
-                                const isRCT = sLower.includes('canal') || sLower.includes('root') || sLower === 'yellow' || sLower.includes('pulpotomy');
 
-                                if (tInfo) {
-                                  setHighlightInfo({
-                                    title: `Tooth ${toothNum}`,
-                                    subtitle: tInfo.name,
-                                    type: 'single',
-                                    color: isDecay ? '#EF4444' : isFilled ? '#3B82F6' : isRCT ? '#F59E0B' : '#10B981',
-                                    toothNum: toothNum
-                                  });
-                                }
-                              }}
-                            />
-                          </div>
-                        </div>
+                            {/* Mandible (Lower) */}
+                            <div className="flex flex-col items-center bg-white rounded-2xl p-2 border border-light-teal/50 shadow-2xs w-full overflow-hidden">
+                              <div className="w-full flex items-center justify-between px-2.5 py-1 bg-gradient-to-r from-[#F8FAFC] to-[#EFF6FF] rounded-lg border border-light-teal/30 mb-1.5 relative z-20 shadow-2xs">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-2 h-2 rounded-full bg-[#4A7CD2]" />
+                                  <span className="text-[11px] font-black text-[#10244B] uppercase tracking-wider">
+                                    {dentitionMode === 'pediatric' ? 'Primary Mandible (Lower)' : 'Mandible (Lower Jaw)'}
+                                  </span>
+                                </div>
+                                <span className="text-[9.5px] font-black text-[#4A7CD2] bg-white px-2 py-0.5 rounded-full border border-light-teal/40 shadow-2xs">
+                                  {dentitionMode === 'pediatric' ? '10 Primary Teeth (K–T)' : '16 Teeth'}
+                                </span>
+                              </div>
+                              <div className="w-full overflow-hidden rounded-xl flex items-center justify-center">
+                                <ThreeDentalJawArch
+                                  key={`three_jaw_${selectedJawView}_mandible_${dentitionMode}`}
+                                  jawType="mandible"
+                                  isPediatric={dentitionMode === 'pediatric'}
+                                  teethState={teethState}
+                                  highlightedTeeth={highlightedTeeth}
+                                  className="w-full max-w-[340px] xl:max-w-[370px] h-[270px] xl:h-[295px] aspect-square"
+                                  onToothClick={(toothNum, status, socket) => {
+                                    setDetailedTooth(toothNum);
+                                    setHighlightedTeeth([toothNum]);
+                                    const tInfo = dentitionMode === 'pediatric' ? PEDIATRIC_TOOTH_NAMES[toothNum] : TOOTH_ANATOMY[toothNum];
+                                    const sLower = (status || '').toLowerCase();
+                                    const isDecay = sLower.includes('decay') || sLower.includes('damag') || sLower === 'cavity' || sLower.includes('keera');
+                                    const isFilled = sLower.includes('treat') || sLower.includes('prosthesis') || sLower.includes('crown') || sLower.includes('bridge') || sLower.includes('filling') || sLower.includes('composite');
+                                    const isRCT = sLower.includes('canal') || sLower.includes('root') || sLower === 'yellow' || sLower.includes('pulpotomy');
 
-                        {/* Mandible (Lower) */}
-                        <div className="flex flex-col items-center bg-white rounded-2xl p-1.5 border border-light-teal/50 shadow-2xs w-full overflow-hidden">
-                          <div className="w-full flex items-center justify-between px-2 py-0.5 bg-gradient-to-r from-[#F8FAFC] to-[#EFF6FF] rounded-lg border border-light-teal/30 mb-1 relative z-20 shadow-2xs">
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#4A7CD2]" />
-                              <span className="text-[10px] font-black text-[#10244B] uppercase tracking-wider">
-                                {dentitionMode === 'pediatric' ? 'Primary Mandible (Lower)' : 'Mandible (Lower Jaw)'}
-                              </span>
+                                    if (tInfo) {
+                                      setHighlightInfo({
+                                        title: `Tooth ${toothNum}`,
+                                        subtitle: tInfo.name,
+                                        type: 'single',
+                                        color: isDecay ? '#EF4444' : isFilled ? '#3B82F6' : isRCT ? '#F59E0B' : '#10B981',
+                                        toothNum: toothNum
+                                      });
+                                    }
+                                  }}
+                                />
+                              </div>
                             </div>
-                            <span className="text-[8.5px] font-black text-[#4A7CD2] bg-white px-2 py-0.2 rounded-full border border-light-teal/40 shadow-2xs">
-                              {dentitionMode === 'pediatric' ? '10 Primary Teeth (K–T)' : '16 Teeth'}
-                            </span>
                           </div>
-                          <div className="w-full overflow-hidden rounded-xl flex items-center justify-center">
-                            <ThreeDentalJawArch
-                              key={`three_jaw_${selectedJawView}_mandible_${dentitionMode}`}
-                              jawType="mandible"
-                              isPediatric={dentitionMode === 'pediatric'}
-                              teethState={teethState}
-                              highlightedTeeth={highlightedTeeth}
-                              className="w-full max-w-[230px] xl:max-w-[260px] h-[175px] xl:h-[190px] aspect-square"
-                              onToothClick={(toothNum, status, socket) => {
-                                setDetailedTooth(toothNum);
-                                setHighlightedTeeth([toothNum]);
-                                const tInfo = dentitionMode === 'pediatric' ? PEDIATRIC_TOOTH_NAMES[toothNum] : TOOTH_ANATOMY[toothNum];
-                                const sLower = (status || '').toLowerCase();
-                                const isDecay = sLower.includes('decay') || sLower.includes('damag') || sLower === 'cavity' || sLower.includes('keera');
-                                const isFilled = sLower.includes('treat') || sLower.includes('prosthesis') || sLower.includes('crown') || sLower.includes('bridge') || sLower.includes('filling') || sLower.includes('composite');
-                                const isRCT = sLower.includes('canal') || sLower.includes('root') || sLower === 'yellow' || sLower.includes('pulpotomy');
+                        ) : (
+                          <div className="flex flex-col items-center justify-center w-full">
+                            <div className="flex flex-col items-center bg-white rounded-2xl p-2 border border-light-teal/50 shadow-2xs max-w-[420px] w-full overflow-hidden">
+                              <div className="w-full flex items-center justify-between px-2.5 py-1 bg-gradient-to-r from-[#F8FAFC] to-[#EFF6FF] rounded-lg border border-light-teal/30 mb-1 relative z-20 shadow-2xs">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-2 h-2 rounded-full bg-[#4A7CD2]" />
+                                  <span className="text-[11px] font-black text-[#10244B] uppercase tracking-wider">
+                                    {selectedJawView === 'maxilla' ? (dentitionMode === 'pediatric' ? 'Primary Maxilla (Upper)' : 'Maxilla (Upper Jaw)') : (dentitionMode === 'pediatric' ? 'Primary Mandible (Lower)' : 'Mandible (Lower Jaw)')}
+                                  </span>
+                                </div>
+                                <span className="text-[9.5px] font-black text-[#4A7CD2] bg-white px-2 py-0.5 rounded-full border border-light-teal/40 shadow-2xs">
+                                  {dentitionMode === 'pediatric' ? '10 Primary Teeth' : '16 Teeth'}
+                                </span>
+                              </div>
+                              <div className="w-full overflow-hidden rounded-xl flex items-center justify-center">
+                                <ThreeDentalJawArch
+                                  key={`three_jaw_${selectedJawView}_single_${dentitionMode}`}
+                                  jawType={selectedJawView}
+                                  isPediatric={dentitionMode === 'pediatric'}
+                                  teethState={teethState}
+                                  highlightedTeeth={highlightedTeeth}
+                                  className="w-full max-w-[380px] h-[290px] aspect-square"
+                                  onToothClick={(toothNum, status, socket) => {
+                                    setDetailedTooth(toothNum);
+                                    setHighlightedTeeth([toothNum]);
+                                    const tInfo = dentitionMode === 'pediatric' ? PEDIATRIC_TOOTH_NAMES[toothNum] : TOOTH_ANATOMY[toothNum];
+                                    const sLower = (status || '').toLowerCase();
+                                    const isDecay = sLower.includes('decay') || sLower.includes('damag') || sLower === 'cavity' || sLower.includes('keera');
+                                    const isFilled = sLower.includes('treat') || sLower.includes('prosthesis') || sLower.includes('crown') || sLower.includes('bridge') || sLower.includes('filling') || sLower.includes('composite');
+                                    const isRCT = sLower.includes('canal') || sLower.includes('root') || sLower === 'yellow' || sLower.includes('pulpotomy');
 
-                                if (tInfo) {
-                                  setHighlightInfo({
-                                    title: `Tooth ${toothNum}`,
-                                    subtitle: tInfo.name,
-                                    type: 'single',
-                                    color: isDecay ? '#EF4444' : isFilled ? '#3B82F6' : isRCT ? '#F59E0B' : '#10B981',
-                                    toothNum: toothNum
-                                  });
-                                }
-                              }}
-                            />
+                                    if (tInfo) {
+                                      setHighlightInfo({
+                                        title: `Tooth ${toothNum}`,
+                                        subtitle: tInfo.name,
+                                        type: 'single',
+                                        color: isDecay ? '#EF4444' : isFilled ? '#3B82F6' : isRCT ? '#F59E0B' : '#10B981',
+                                        toothNum: toothNum
+                                      });
+                                    }
+                                  }}
+                                />
+                              </div>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center w-full">
-                        <div className="flex flex-col items-center bg-white rounded-2xl p-1.5 border border-light-teal/50 shadow-2xs max-w-[340px] w-full overflow-hidden">
-                          <div className="w-full flex items-center justify-between px-2 py-0.5 bg-gradient-to-r from-[#F8FAFC] to-[#EFF6FF] rounded-lg border border-light-teal/30 mb-1 relative z-20 shadow-2xs">
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#4A7CD2]" />
-                              <span className="text-[10px] font-black text-[#10244B] uppercase tracking-wider">
-                                {selectedJawView === 'maxilla' ? (dentitionMode === 'pediatric' ? 'Primary Maxilla (Upper)' : 'Maxilla (Upper Jaw)') : (dentitionMode === 'pediatric' ? 'Primary Mandible (Lower)' : 'Mandible (Lower Jaw)')}
-                              </span>
-                            </div>
-                            <span className="text-[8.5px] font-black text-[#4A7CD2] bg-white px-2 py-0.2 rounded-full border border-light-teal/40 shadow-2xs">
-                              {dentitionMode === 'pediatric' ? '10 Primary Teeth' : '16 Teeth'}
-                            </span>
-                          </div>
-                          <div className="w-full overflow-hidden rounded-xl flex items-center justify-center">
-                            <ThreeDentalJawArch
-                              key={`three_jaw_${selectedJawView}_single_${dentitionMode}`}
-                              jawType={selectedJawView}
-                              isPediatric={dentitionMode === 'pediatric'}
-                              teethState={teethState}
-                              highlightedTeeth={highlightedTeeth}
-                              className="w-full max-w-[250px] h-[185px] aspect-square"
-                            onToothClick={(toothNum, status, socket) => {
-                              setDetailedTooth(toothNum);
-                              setHighlightedTeeth([toothNum]);
-                              const tInfo = dentitionMode === 'pediatric' ? PEDIATRIC_TOOTH_NAMES[toothNum] : TOOTH_ANATOMY[toothNum];
-                              const sLower = (status || '').toLowerCase();
-                              const isDecay = sLower.includes('decay') || sLower.includes('damag') || sLower === 'cavity' || sLower.includes('keera');
-                              const isFilled = sLower.includes('treat') || sLower.includes('prosthesis') || sLower.includes('crown') || sLower.includes('bridge') || sLower.includes('filling') || sLower.includes('composite');
-                              const isRCT = sLower.includes('canal') || sLower.includes('root') || sLower === 'yellow' || sLower.includes('pulpotomy');
-
-                              if (tInfo) {
-                                setHighlightInfo({
-                                  title: `Tooth ${toothNum}`,
-                                  subtitle: tInfo.name,
-                                  type: 'single',
-                                  color: isDecay ? '#EF4444' : isFilled ? '#3B82F6' : isRCT ? '#F59E0B' : '#10B981',
-                                  toothNum: toothNum
-                                });
-                              }
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                  {/* Embedded Diagnostic Radiographs & Sensors Filmstrip Dock */}
-                  <div className="w-full max-w-[820px] mx-auto mt-1.5">
-                    <ChartRadiographFilmstrip
-                      radiographs={radiographs}
-                      selectedScanId={activeScanImpact?.scanId}
-                      activeScanImpact={activeScanImpact}
-                      onSelectScan={(r, findings) => handleSelectScanFromFilmstrip(r, findings)}
-                      onInspectScan={(r, findings) => handleInspectScan(r, findings)}
-                      onTriggerSensorCapture={() => setShowNanoPixModal(true)}
-                      onUploadFile={(file) => handleUploadXray({ target: { files: [file] } })}
-                      onClearScanImpact={() => handleClearScanImpact()}
-                      isAnalyzing={uploadingXray || isApplyingAiFindings}
-                    />
-                  </div>
 
                   {/* Prominent & Crisp 2D Dental Odontogram Representation */}
-                  <div className="w-full max-w-[820px] mx-auto flex flex-col gap-1 bg-gradient-to-b from-[#F8FAFC] to-[#EFF6FF]/70 p-2 rounded-xl border border-light-teal/50 shadow-2xs">
+                  <div className="w-full flex flex-col gap-1.5 bg-gradient-to-b from-[#F8FAFC] to-[#EFF6FF]/70 p-3 rounded-2xl border border-light-teal/50 shadow-2xs">
                     
                     {dentitionMode === 'pediatric' ? (
                       /* ========== 👶 PEDIATRIC PRIMARY 20-TOOTH 2D ODONTOGRAM (A–T) ========== */
@@ -8790,26 +8781,45 @@ export default function ChartPage() {
                     )}
                   </div>
 
-                  {/* Compact Diagnostic Suite Launcher Strip */}
-                  <div className="w-full max-w-[820px] mx-auto bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-purple-50/70 rounded-xl border border-blue-200/60 px-3 py-1.5 flex items-center justify-between gap-2 shadow-2xs mt-1.5 mb-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-sm">📐</span>
-                      <span className="text-[11px] font-extrabold text-[#10244B] truncate">
-                        Ortho, Occlusion, Wisdom Impaction & TMJ Diagnostic Suite
-                      </span>
-                      <span className="hidden sm:inline text-[9.5px] font-bold text-indigo-700 bg-white px-2 py-0.2 rounded-full border border-indigo-200">
-                        12 Diagrams
-                      </span>
+                      {/* Compact Diagnostic Suite Launcher Strip */}
+                      <div className="w-full bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-purple-50/70 rounded-xl border border-blue-200/60 px-3.5 py-2 flex items-center justify-between gap-2 shadow-2xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-sm">📐</span>
+                          <span className="text-[11px] font-extrabold text-[#10244B] truncate">
+                            Ortho, Occlusion, Wisdom Impaction & TMJ Diagnostic Suite
+                          </span>
+                          <span className="hidden sm:inline text-[9.5px] font-bold text-indigo-700 bg-white px-2 py-0.2 rounded-full border border-indigo-200">
+                            12 Diagrams
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowOrthoTmjModal(true)}
+                          className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-[10.5px] font-black px-3 py-1 rounded-lg shadow-2xs transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          <span>Launch Suite</span>
+                        </button>
+                      </div>
+
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setShowOrthoTmjModal(true)}
-                      className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-[10.5px] font-black px-3 py-1 rounded-lg shadow-2xs transition-all cursor-pointer flex items-center gap-1 shrink-0"
-                    >
-                      <Sparkles className="w-3 h-3" />
-                      <span>Launch Suite</span>
-                    </button>
+                    {/* Right Column: Vertical Diagnostic Radiographs Panel */}
+                    <div className="w-full lg:w-[320px] xl:w-[340px] shrink-0 sticky top-2">
+                      <ChartRadiographFilmstrip
+                        radiographs={radiographs}
+                        selectedScanId={activeScanImpact?.scanId}
+                        activeScanImpact={activeScanImpact}
+                        onSelectScan={(r, findings) => handleSelectScanFromFilmstrip(r, findings)}
+                        onInspectScan={(r, findings) => handleInspectScan(r, findings)}
+                        onTriggerSensorCapture={() => setShowNanoPixModal(true)}
+                        onUploadFile={(file) => handleUploadXray({ target: { files: [file] } })}
+                        onClearScanImpact={() => handleClearScanImpact()}
+                        isAnalyzing={uploadingXray || isApplyingAiFindings}
+                      />
+                    </div>
+
                   </div>
 
                   {/* Ortho, Impactions & TMJ 12-Diagram Diagnostic Suite Modal */}

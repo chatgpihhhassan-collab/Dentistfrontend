@@ -12,27 +12,23 @@ import {
   Maximize2, 
   X, 
   Layers, 
-  CheckCircle2, 
-  AlertTriangle, 
-  Zap,
-  LayoutGrid,
-  Minimize2
+  Zap
 } from 'lucide-react';
 import { extractAiFindingsFromReport, isTestRadiograph } from '../utils/aiRadiologyUtils.js';
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 4;
 
 /**
- * ChartRadiographFilmstrip
+ * ChartRadiographFilmstrip (Vertical Diagnostic Radiographs Panel)
  * 
- * Doctor-friendly diagnostic imaging dock engineered for ZERO-SCROLL operatory workstations.
+ * Arranged VERTICALLY alongside the Dental Chart (3D Jaws + 2D Odontogram).
  * Features:
- * - Automatically excludes dummy/test scans by default (enables on demand)
- * - Default "Zero-Scroll Compact Mode" (takes < 105px vertical space)
- * - Optional "Detailed Cards Mode" toggleable by doctor
- * - 5-scan pagination with compact in-header navigation
- * - Direct cloud image resolution with base64 failover
- * - Instant 1-click clinical impact spotlighting on 3D jaw and 2D odontogram
+ * - Vertical card layout (cards stacked vertically one under another)
+ * - Restores full anatomical size of the 3D jaws
+ * - Real-time bi-directional spotlighting on 3D jaw and 2D odontogram
+ * - Auto-filters dummy test images with 1-click on-demand toggle
+ * - Direct sensor capture & file upload
+ * - Deep PiP optical zoom inspector
  */
 export default function ChartRadiographFilmstrip({
   radiographs = [],
@@ -46,7 +42,6 @@ export default function ChartRadiographFilmstrip({
   isAnalyzing = false
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [viewMode, setViewMode] = useState('compact'); // 'compact' (zero-scroll default) | 'expanded'
   const [showTestScans, setShowTestScans] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const fileInputRef = React.useRef(null);
@@ -115,7 +110,7 @@ export default function ChartRadiographFilmstrip({
   };
 
   return (
-    <div className="w-full bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden mb-3 transition-all duration-200">
+    <div className="w-full bg-white rounded-3xl border border-light-teal/50 shadow-sm overflow-hidden flex flex-col transition-all duration-200">
       {/* Hidden File Input */}
       <input 
         type="file" 
@@ -125,206 +120,137 @@ export default function ChartRadiographFilmstrip({
         className="hidden" 
       />
 
-      {/* Dock Compact Header: Zero-Scroll Operatory Bar */}
-      <div className="px-3.5 py-2 bg-gradient-to-r from-slate-50 via-blue-50/40 to-slate-50 border-b border-slate-200/80 flex flex-wrap items-center justify-between gap-2 select-none">
-        {/* Left: Title & Count & Devices */}
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-[#4A7CD2] to-[#2563EB] flex items-center justify-center text-white shadow-2xs">
-            <Layers className="w-3.5 h-3.5" />
-          </div>
+      {/* Vertical Panel Header */}
+      <div className="p-3 bg-gradient-to-r from-slate-50 via-blue-50/50 to-slate-50 border-b border-slate-200/80 flex flex-col gap-2 select-none">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="font-extrabold text-[11px] text-[#10244B] tracking-wider uppercase">
-              Diagnostic Radiographs
-            </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#2563EB] border border-blue-200">
-              {activeRadiographs.length} {activeRadiographs.length === 1 ? 'Scan' : 'Scans'}
-            </span>
-            {testScansCount > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setShowTestScans(!showTestScans);
-                  setCurrentPage(1);
-                }}
-                className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[9.5px] font-extrabold transition cursor-pointer border ${
-                  showTestScans 
-                    ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-2xs' 
-                    : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 hover:text-slate-800'
-                }`}
-                title={showTestScans ? "Click to hide test scans" : `Click to enable ${testScansCount} excluded test scans`}
-              >
-                <span>{showTestScans ? `🧪 Tests Active (${testScansCount})` : `🧪 Show Tests (${testScansCount})`}</span>
-              </button>
-            )}
-            <div className="hidden sm:flex items-center gap-1.5 text-[10.5px] text-slate-500 ml-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="font-medium text-slate-600">Nano-Pix RVG</span>
-              <span>•</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
-              <span className="font-medium text-slate-600">Dicora USB</span>
+            <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-[#4A7CD2] to-[#2563EB] flex items-center justify-center text-white shadow-2xs">
+              <Layers className="w-3.5 h-3.5" />
             </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-extrabold text-xs text-[#10244B] tracking-wider uppercase">
+                  Diagnostic Scans
+                </span>
+                <span className="px-2 py-0.2 rounded-full text-[10px] font-black bg-blue-100/70 text-[#2563EB] border border-blue-200">
+                  {activeRadiographs.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Nano-Pix</span>
+                <span>•</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
+                <span>Dicora USB</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1">
+            {/* Collapse Toggle */}
+            <button
+              type="button"
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="p-1 rounded-lg bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-800 border border-slate-200 transition cursor-pointer"
+              title={isCollapsed ? 'Expand Scans Panel' : 'Collapse Scans Panel'}
+            >
+              {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+            </button>
           </div>
         </div>
 
-        {/* Center: Active Scan Spotlight Pill */}
-        {activeScanImpact && (
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-50 border border-cyan-300 text-cyan-900 text-[11px] shadow-2xs animate-in fade-in">
-            <Zap className="w-3 h-3 text-cyan-600 animate-pulse" />
-            <span className="font-bold">
-              Spotlight: <span className="font-mono text-cyan-800">{activeScanImpact.imageName}</span>
-            </span>
-            <span className="px-1.5 py-0.2 rounded bg-cyan-600 text-white text-[9.5px] font-extrabold">
-              {activeScanImpact.teeth?.length || 0} Teeth
-            </span>
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                onClearScanImpact && onClearScanImpact();
-              }}
-              title="Clear Spotlight"
-              className="ml-0.5 p-0.5 rounded hover:bg-cyan-200/70 text-cyan-700 hover:text-cyan-950 transition cursor-pointer"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-        )}
-
-        {/* Right: Inline Pager, View Mode Toggle & Quick Triggers */}
-        <div className="flex items-center gap-2">
-          {/* Compact In-Header Paging (Takes ZERO extra vertical space) */}
-          {activeRadiographs.length > PAGE_SIZE && (
-            <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-slate-200 shadow-2xs text-[11px]">
-              <button
-                type="button"
-                onClick={() => handlePageChange(safePage - 1)}
-                disabled={safePage <= 1}
-                className="p-0.5 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                title="Previous 5 scans"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
-              <span className="font-extrabold text-slate-700 px-1">
-                {safePage}/{totalPages}
-              </span>
-              <button
-                type="button"
-                onClick={() => handlePageChange(safePage + 1)}
-                disabled={safePage >= totalPages}
-                className="p-0.5 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                title="Next 5 scans"
-              >
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
-          {/* View Mode Switcher: Zero-Scroll vs Detailed */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px]">
-            <button
-              type="button"
-              onClick={() => setViewMode('compact')}
-              className={`px-2 py-1 rounded-md font-extrabold transition cursor-pointer flex items-center gap-1 ${
-                viewMode === 'compact' 
-                  ? 'bg-white text-[#2563EB] shadow-2xs' 
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              title="Ultra-compact Zero-Scroll operatory mode"
-            >
-              <span>⚡ Compact</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('expanded')}
-              className={`px-2 py-1 rounded-md font-extrabold transition cursor-pointer flex items-center gap-1 ${
-                viewMode === 'expanded' 
-                  ? 'bg-white text-[#2563EB] shadow-2xs' 
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              title="Expanded large-card preview mode"
-            >
-              <LayoutGrid className="w-3 h-3" />
-              <span>Cards</span>
-            </button>
-          </div>
-
-          {/* Sensor Capture */}
+        {/* Action Triggers Row */}
+        <div className="flex items-center gap-1.5 pt-1">
           <button
             type="button"
             onClick={onTriggerSensorCapture}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold shadow-2xs active:scale-95 transition cursor-pointer"
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-extrabold shadow-2xs active:scale-95 transition cursor-pointer"
             title="Acquire frame from Eighteeth Nano-Pix / Dicora USB RVG"
           >
-            <Camera className="w-3 h-3" />
-            <span className="hidden sm:inline">Sensor</span>
+            <Camera className="w-3.5 h-3.5" />
+            <span>Sensor</span>
           </button>
 
-          {/* Upload X-Ray */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isAnalyzing}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-bold border border-slate-300 shadow-2xs active:scale-95 transition disabled:opacity-50 cursor-pointer"
-            title="Upload DICOM, JPEG or PNG X-Ray"
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl bg-white hover:bg-blue-50 text-[#2563EB] border border-blue-200/80 text-[11px] font-extrabold shadow-2xs active:scale-95 transition cursor-pointer disabled:opacity-50"
+            title="Upload Bitewing, OPG or RVG scan file"
           >
-            <Upload className="w-3 h-3 text-[#2563EB]" />
-            <span className="hidden sm:inline">{isAnalyzing ? 'Analyzing...' : 'Upload'}</span>
+            <Upload className="w-3.5 h-3.5" />
+            <span>Upload</span>
           </button>
 
-          {/* Collapse Toggle */}
-          <button
-            type="button"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1 rounded-lg bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-800 border border-slate-200 transition cursor-pointer"
-            title={isCollapsed ? 'Expand Filmstrip' : 'Collapse Filmstrip'}
-          >
-            {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
-          </button>
+          {/* Test Scans Toggle Button */}
+          {testScansCount > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowTestScans(!showTestScans);
+                setCurrentPage(1);
+              }}
+              className={`px-2 py-1.5 rounded-xl text-[10px] font-extrabold transition cursor-pointer border ${
+                showTestScans 
+                  ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-2xs' 
+                  : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 hover:text-slate-800'
+              }`}
+              title={showTestScans ? "Hide test scans" : `Include ${testScansCount} hidden test scans`}
+            >
+              <span>{showTestScans ? `🧪 Tests (${testScansCount})` : `🧪 +${testScansCount}`}</span>
+            </button>
+          )}
         </div>
+
+        {/* Active Scan Spotlight Pill */}
+        {activeScanImpact && (
+          <div className="flex items-center justify-between gap-1.5 px-2.5 py-1 rounded-xl bg-cyan-50 border border-cyan-300 text-cyan-950 text-[11px] shadow-2xs animate-in fade-in mt-0.5">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Zap className="w-3.5 h-3.5 text-cyan-600 animate-pulse shrink-0" />
+              <span className="font-bold truncate">
+                Spotlight: <span className="font-mono text-cyan-800">{activeScanImpact.imageName}</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="px-1.5 py-0.2 rounded bg-cyan-600 text-white text-[9.5px] font-black">
+                {activeScanImpact.teeth?.length || 0} Teeth
+              </span>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClearScanImpact && onClearScanImpact();
+                }}
+                title="Clear Spotlight"
+                className="p-0.5 rounded hover:bg-cyan-200/70 text-cyan-700 hover:text-cyan-950 transition cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Dock Content Body */}
+      {/* Vertical Content Body */}
       {!isCollapsed && (
-        <div className="p-2.5 bg-[#F8FAFC]/70">
+        <div className="p-2.5 bg-[#F8FAFC]/70 flex flex-col gap-2.5 flex-1 min-h-0">
           {activeRadiographs.length === 0 ? (
             /* Empty State */
-            <div className="py-4 text-center flex flex-col items-center justify-center">
-              <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#4A7CD2] mb-1.5">
-                <Image className="w-4 h-4" />
+            <div className="py-8 text-center flex flex-col items-center justify-center">
+              <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#4A7CD2] mb-2 shadow-2xs">
+                <Image className="w-5 h-5 opacity-60" />
               </div>
-              <h4 className="text-xs font-bold text-slate-800 mb-0.5">
-                No Diagnostic Radiographs for this Patient
-              </h4>
-              <p className="text-[11px] text-slate-500 max-w-sm mb-2.5">
-                Capture via Eighteeth Nano-Pix / Dicora USB Sensor or upload DICOM/JPG scans.
+              <p className="text-xs font-black text-slate-700">No Patient Scans</p>
+              <p className="text-[11px] text-slate-400 mt-0.5 max-w-[200px]">
+                Acquire with RVG Sensor or upload dental radiographs to view.
               </p>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onTriggerSensorCapture}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold shadow-2xs cursor-pointer transition"
-                >
-                  <Camera className="w-3.5 h-3.5" />
-                  <span>Launch Sensor Capture</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-[11px] font-bold cursor-pointer transition"
-                >
-                  <Upload className="w-3.5 h-3.5 text-[#2563EB]" />
-                  <span>Upload Scan</span>
-                </button>
-              </div>
             </div>
-          ) : viewMode === 'compact' ? (
-            /* ========================================================================= */
-            /* ⚡ ZERO-SCROLL COMPACT OPERATORY MODE (Takes only ~62px height!)          */
-            /* ========================================================================= */
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+          ) : (
+            /* Vertical List of Radiograph Cards */
+            <div className="flex flex-col gap-2.5 overflow-y-auto max-h-[560px] pr-1">
               {pagedRadiographs.map((r) => {
                 const rId = r.radiographID || r.RadiographID;
                 const isSelected = selectedScanId === rId;
-                const { shortModality, device } = getScanMetadata(r);
+                const { modality, device } = getScanMetadata(r);
                 const findings = extractAiFindingsFromReport(r.analysisSummary || r.AnalysisSummary);
                 const hasFindings = findings.length > 0;
                 const imageUrl = getImageUrl(r);
@@ -333,128 +259,128 @@ export default function ChartRadiographFilmstrip({
                   <div
                     key={rId}
                     onClick={() => onSelectScan && onSelectScan(r, findings)}
-                    className={`h-[58px] rounded-xl border transition-all duration-150 cursor-pointer overflow-hidden flex items-center p-1.5 gap-2 group/compact bg-white select-none ${
+                    className={`rounded-2xl border transition-all duration-200 cursor-pointer overflow-hidden flex flex-col group bg-white shadow-2xs ${
                       isSelected 
-                        ? 'border-cyan-500 ring-2 ring-cyan-500/30 bg-cyan-50/50 shadow-xs' 
-                        : 'border-slate-200 hover:border-cyan-400 hover:bg-slate-50/80 hover:shadow-2xs'
+                        ? 'border-cyan-500 ring-2 ring-cyan-500/30 bg-cyan-50/30 shadow-sm' 
+                        : 'border-slate-200/90 hover:border-cyan-400 hover:shadow-xs'
                     }`}
-                    title={`Click to spotlight ${findings.length} teeth diagnosed in ${r.imageName}`}
                   >
-                    {/* Compact Image Viewport (Left) */}
-                    <div className="relative w-12 h-11 rounded-lg bg-slate-950 overflow-hidden shrink-0 flex items-center justify-center">
+                    {/* Top: Radiograph Image Preview Banner */}
+                    <div className="relative h-28 w-full bg-slate-950 flex items-center justify-center overflow-hidden">
                       <img 
                         src={imageUrl} 
-                        alt={r.imageName || 'X-Ray'} 
-                        className="w-full h-full object-cover group-hover/compact:scale-105 transition-transform"
+                        alt={r.imageName || 'Radiograph'} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                         loading="lazy"
                         onError={(e) => {
                           e.currentTarget.style.display = 'none';
-                          const placeholder = e.currentTarget.parentElement?.querySelector('.compact-fallback');
+                          const placeholder = e.currentTarget.parentElement?.querySelector('.vertical-fallback');
                           if (placeholder) placeholder.classList.remove('hidden');
                         }}
                       />
-                      <div className="compact-fallback hidden absolute inset-0 flex items-center justify-center text-slate-400 bg-slate-900">
-                        <Image className="w-4 h-4 opacity-50" />
+                      <div className="vertical-fallback hidden absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-900 p-2">
+                        <Image className="w-6 h-6 opacity-40 mb-1" />
+                        <span className="text-[9.5px] font-mono text-center truncate w-full text-slate-300">{r.imageName}</span>
                       </div>
-                      
-                      {/* Mini Modality Tag */}
-                      <span className="absolute bottom-0 inset-x-0 bg-slate-950/85 text-cyan-300 text-[8px] font-black text-center tracking-tighter py-0.2">
-                        {shortModality}
-                      </span>
+
+                      {/* Modality Tag */}
+                      <div className="absolute top-2 left-2">
+                        <span className="px-2 py-0.5 rounded-lg text-[9px] font-black bg-slate-950/80 text-cyan-300 border border-cyan-500/30 shadow-2xs">
+                          {modality}
+                        </span>
+                      </div>
+
+                      {/* PiP Inspector Trigger */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onInspectScan && onInspectScan(r, findings);
+                        }}
+                        className="absolute top-2 right-2 p-1.5 rounded-lg bg-slate-950/80 text-slate-200 hover:text-white hover:bg-cyan-600 transition cursor-pointer shadow-2xs"
+                        title="Inspect in High-Definition Deep Zoom"
+                      >
+                        <Maximize2 className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Active Spotlight Stripe */}
+                      {isSelected && (
+                        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-r from-cyan-600 to-blue-600 px-2 py-0.5 flex items-center justify-between text-white text-[9.5px] font-black shadow-xs">
+                          <span className="flex items-center gap-1">
+                            <Zap className="w-2.5 h-2.5 text-cyan-200" /> Spotlight Active
+                          </span>
+                          <span>{findings.length} Teeth</span>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Middle Info */}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between leading-none mb-1">
-                        <span className="font-extrabold text-[11px] text-slate-800 truncate" title={r.imageName}>
+                    {/* Middle: Scan Details & AI Findings */}
+                    <div className="p-2.5 flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-xs text-slate-900 truncate max-w-[170px]" title={r.imageName}>
                           {r.imageName}
                         </span>
-                        <span className="text-[9.5px] text-slate-400 font-mono">
+                        <span className="text-[10px] text-slate-400 font-mono">
                           {r.uploadedAt ? new Date(r.uploadedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}
                         </span>
                       </div>
 
-                      {/* Diagnostic Status Pill */}
+                      <div className="text-[10px] text-slate-500 truncate">
+                        via {device}
+                      </div>
+
+                      {/* Diagnosed Teeth Chips */}
                       {hasFindings ? (
-                        <div className="flex items-center gap-1">
-                          <span className="px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 text-rose-700 text-[9.5px] font-extrabold flex items-center gap-0.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                            {findings.length} Teeth
-                          </span>
-                          <span className="text-[9px] text-slate-400 truncate">
-                            #{findings[0]?.toothNumber}
-                            {findings.length > 1 ? `, #${findings[1]?.toothNumber}` : ''}
-                          </span>
+                        <div className="flex flex-col gap-1 mt-0.5">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] font-black text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
+                              ⚡ {findings.length} Diagnosed Teeth:
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1 max-h-12 overflow-hidden">
+                            {findings.slice(0, 7).map(f => (
+                              <span 
+                                key={f.toothKey}
+                                className="px-1.5 py-0.2 rounded text-[9.5px] font-extrabold border shadow-2xs"
+                                style={{
+                                  backgroundColor: `${f.color}15`,
+                                  borderColor: `${f.color}40`,
+                                  color: f.color
+                                }}
+                              >
+                                #{f.toothNumber}
+                              </span>
+                            ))}
+                            {findings.length > 7 && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                +{findings.length - 7}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       ) : (
-                        <span className="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 text-[9px] font-bold">
-                          ✓ Normal
-                        </span>
+                        <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                          <span>✓ Normal Anatomy</span>
+                        </div>
                       )}
-                    </div>
 
-                    {/* Right: PiP Button or Spotlight Indicator */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onInspectScan && onInspectScan(r, findings);
-                      }}
-                      className="p-1 rounded-md text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 transition cursor-pointer"
-                      title="Inspect scan in PiP Viewer"
-                    >
-                      <Maximize2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            /* ========================================================================= */
-            /* 🖼️ DETAILED CARDS MODE (Optional toggle for in-depth viewing)              */
-            /* ========================================================================= */
-            <div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                {pagedRadiographs.map((r) => {
-                  const rId = r.radiographID || r.RadiographID;
-                  const isSelected = selectedScanId === rId;
-                  const { modality, device } = getScanMetadata(r);
-                  const findings = extractAiFindingsFromReport(r.analysisSummary || r.AnalysisSummary);
-                  const hasFindings = findings.length > 0;
-                  const imageUrl = getImageUrl(r);
-
-                  return (
-                    <div
-                      key={rId}
-                      onClick={() => onSelectScan && onSelectScan(r, findings)}
-                      className={`rounded-xl border transition-all duration-150 cursor-pointer overflow-hidden flex flex-col group/card bg-white ${
-                        isSelected 
-                          ? 'border-cyan-500 ring-2 ring-cyan-500/25 shadow-xs' 
-                          : 'border-slate-200 hover:border-cyan-400 hover:shadow-2xs'
-                      }`}
-                    >
-                      <div className="relative h-24 w-full bg-slate-950 flex items-center justify-center overflow-hidden">
-                        <img 
-                          src={imageUrl} 
-                          alt={r.imageName || 'Radiograph'} 
-                          className="w-full h-full object-cover group-hover/card:scale-105 transition-transform"
-                          loading="lazy"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            const placeholder = e.currentTarget.parentElement?.querySelector('.detailed-fallback');
-                            if (placeholder) placeholder.classList.remove('hidden');
+                      {/* Bottom: Highlight Trigger */}
+                      <div className="pt-1 border-t border-slate-100 flex items-center justify-between mt-0.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectScan && onSelectScan(r, findings);
                           }}
-                        />
-                        <div className="detailed-fallback hidden absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-900 p-1">
-                          <Image className="w-5 h-5 opacity-40 mb-1" />
-                          <span className="text-[9px] font-mono text-center truncate w-full text-slate-300">{r.imageName}</span>
-                        </div>
-
-                        <div className="absolute top-1.5 left-1.5">
-                          <span className="px-1.5 py-0.2 rounded text-[8.5px] font-extrabold bg-slate-900/85 text-cyan-300 border border-cyan-500/30">
-                            {modality}
-                          </span>
-                        </div>
+                          className={`text-[10.5px] font-extrabold transition cursor-pointer flex items-center gap-1 ${
+                            isSelected 
+                              ? 'text-cyan-700 font-black' 
+                              : 'text-[#2563EB] hover:text-[#1D4ED8]'
+                          }`}
+                        >
+                          <Zap className="w-3 h-3" />
+                          <span>{isSelected ? '✓ Spotlighted on Chart' : 'Click to Highlight'}</span>
+                        </button>
 
                         <button
                           type="button"
@@ -462,74 +388,43 @@ export default function ChartRadiographFilmstrip({
                             e.stopPropagation();
                             onInspectScan && onInspectScan(r, findings);
                           }}
-                          className="absolute top-1.5 right-1.5 p-1 rounded-md bg-slate-900/90 text-slate-200 hover:text-white hover:bg-cyan-600 transition cursor-pointer"
-                          title="Inspect radiograph in PiP"
+                          className="text-[10px] text-slate-400 hover:text-slate-700 p-0.5 rounded cursor-pointer"
+                          title="Open in deep zoom modal"
                         >
-                          <Maximize2 className="w-3 h-3" />
+                          <Eye className="w-3 h-3" />
                         </button>
-
-                        {isSelected && (
-                          <div className="absolute bottom-0 inset-x-0 bg-cyan-600/90 px-2 py-0.5 flex items-center justify-between text-white text-[9px] font-bold">
-                            <span>⚡ Active Spotlight</span>
-                            <span>{findings.length} Teeth</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="p-2 flex-1 flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-extrabold text-[11px] text-slate-800 truncate max-w-[120px]" title={r.imageName}>
-                              {r.imageName}
-                            </span>
-                            <span className="text-[9.5px] text-slate-400 font-mono">
-                              {r.uploadedAt ? new Date(r.uploadedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}
-                            </span>
-                          </div>
-
-                          <div className="text-[9.5px] text-slate-500 mb-1.5 truncate">
-                            via {device}
-                          </div>
-
-                          <div className="mb-1">
-                            {hasFindings ? (
-                              <div className="flex flex-wrap gap-1">
-                                {findings.slice(0, 4).map(f => (
-                                  <span 
-                                    key={f.toothKey}
-                                    className="px-1 py-0.2 rounded text-[9px] font-extrabold border"
-                                    style={{
-                                      backgroundColor: `${f.color}15`,
-                                      borderColor: `${f.color}40`,
-                                      color: f.color
-                                    }}
-                                  >
-                                    #{f.toothNumber}
-                                  </span>
-                                ))}
-                                {findings.length > 4 && (
-                                  <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600">
-                                    +{findings.length - 4}
-                                  </span>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-[9.5px] text-emerald-600 font-medium">✓ Normal Anatomy</span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px] font-bold">
-                          <span className={isSelected ? 'text-cyan-700' : 'text-[#4A7CD2]'}>
-                            {isSelected ? '✓ Highlighted' : 'Click to Highlight'}
-                          </span>
-                          <Eye className="w-3 h-3 text-slate-400" />
-                        </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Pagination Footer */}
+          {activeRadiographs.length > PAGE_SIZE && (
+            <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between px-1">
+              <button
+                type="button"
+                onClick={() => handlePageChange(safePage - 1)}
+                disabled={safePage <= 1}
+                className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-[10.5px] font-bold disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition flex items-center gap-0.5"
+              >
+                <ChevronLeft className="w-3 h-3" /> Prev
+              </button>
+              
+              <span className="text-[10.5px] font-extrabold text-slate-600">
+                Page {safePage} of {totalPages}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => handlePageChange(safePage + 1)}
+                disabled={safePage >= totalPages}
+                className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-[10.5px] font-bold disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition flex items-center gap-0.5"
+              >
+                Next <ChevronRight className="w-3 h-3" />
+              </button>
             </div>
           )}
         </div>
