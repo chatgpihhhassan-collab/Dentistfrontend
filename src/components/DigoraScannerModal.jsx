@@ -423,6 +423,20 @@ export default function DigoraScannerModal({
                 <span>Ethernet link active! DICOM C-ECHO Verification: ACK received (0x0000 Success).</span>
               </div>
             )}
+
+            {/* Direct Hardware Diagnostic Tool Download */}
+            <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[10.5px]">
+              <span className="text-slate-500">Physical machine test tool:</span>
+              <a
+                href="/TEST_DIGORA_DEVICE.bat"
+                download="TEST_DIGORA_DEVICE.bat"
+                className="inline-flex items-center gap-1 font-bold text-blue-700 hover:text-blue-800 underline cursor-pointer"
+                title="Download local hardware diagnostic tool for Windows"
+              >
+                <Terminal className="w-3 h-3" />
+                <span>Download TEST_DIGORA_DEVICE.bat</span>
+              </a>
+            </div>
           </div>
 
           <p className="text-[11px] text-center text-slate-400">
