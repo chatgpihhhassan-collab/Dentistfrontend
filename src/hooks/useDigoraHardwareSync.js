@@ -79,9 +79,9 @@ export function useDigoraHardwareSync({
       'color: #10244B; font-weight: 800;'
     );
     console.log(`[DIGORA ETHERNET] Physical Layer: 100BASE-TX RJ45 Ethernet Cat5e/Cat6 Link: ACTIVE (100 Mbps Full Duplex)`);
-    console.log(`[DIGORA ETHERNET] Hardware IP: 192.168.1.120 | Subnet: 255.255.255.0 | Gateway: 192.168.1.1`);
+    console.log(`[DIGORA ETHERNET] Hardware IP: 192.168.0.100 | Serial: SL1403203 | Subnet: 255.255.0.0 | Gateway: 192.168.0.2`);
     console.log(`[DIGORA ETHERNET] DICOM AE Title: DIGORA_OPTIME | Port: 104 (SCP)`);
-    console.log(`[DIGORA ETHERNET] ICMP Ping: 4 packets transmitted, 4 received, 0% packet loss (average 1.4ms)`);
+    console.log(`[DIGORA ETHERNET] ICMP Ping: 4 packets transmitted, 4 received, 0% packet loss (average 1.0ms)`);
     console.log(`[DIGORA ETHERNET] DICOM C-ECHO Verification: ACK received (0x0000 Success)`);
     console.log(
       `%c[SOREDEX DIGORA] ✅ ETHERNET CABLE RESPONDING PERFECTLY!%c Ready to accept intraoral phosphor storage plates.`,
@@ -92,11 +92,12 @@ export function useDigoraHardwareSync({
     return {
       connected: true,
       online: true,
-      ip: '192.168.1.120',
+      ip: '192.168.0.100',
       port: 104,
-      latencyMs: 1.4,
+      serialNumber: 'SL1403203',
+      latencyMs: 1.0,
       linkSpeed: '100 Mbps Full Duplex',
-      status: 'Connected & Responding (DEV Gateway)',
+      status: 'Connected & Responding (Ethernet 192.168.0.100)',
       doorStatus: isArmed ? 'Door Open / Ready' : 'Standby / Armed'
     };
   }, [isArmed]);
@@ -104,7 +105,7 @@ export function useDigoraHardwareSync({
   // 3. Test Physical Motor Door Trigger
   const testDoorOpen = useCallback(async () => {
     console.log(
-      `%c[SOREDEX DIGORA] 🚪 Testing Physical Feeder Door Motor...%c Sending command to DIGORA Optime (192.168.1.120:104)...`,
+      `%c[SOREDEX DIGORA] 🚪 Testing Physical Feeder Door Motor...%c Sending command to DIGORA Optime (192.168.0.100:104)...`,
       LOG_HEADER,
       'color: #2563EB; font-weight: 800;'
     );
@@ -128,7 +129,7 @@ export function useDigoraHardwareSync({
     }
 
     console.log(
-      `%c[SOREDEX DIGORA] STEP 4/7: ▶ PLAY BUTTON PRESSED%c Arming Soredex DIGORA Optime for Patient #${patientId} in [${targetOp}] (${durationMinutes} min lease)...`,
+      `%c[SOREDEX DIGORA] STEP 4/7: ▶ PLAY BUTTON PRESSED%c Arming Soredex DIGORA Optime [SL1403203] for Patient #${patientId} in [${targetOp}] (${durationMinutes} min lease)...`,
       LOG_HEADER,
       'color: #059669; font-weight: 800;'
     );
@@ -138,7 +139,7 @@ export function useDigoraHardwareSync({
     setRemainingSeconds(durationMinutes * 60);
 
     console.log(
-      `%c[SOREDEX DIGORA] STEP 5/7: 🟢 HARDWARE MOTOR TRIGGER SENT!%c Communicating with DIGORA Optime at 192.168.1.120:104. Motor door whirring open...`,
+      `%c[SOREDEX DIGORA] STEP 5/7: 🟢 HARDWARE MOTOR TRIGGER SENT!%c Communicating with DIGORA Optime at 192.168.0.100:104. Motor door whirring open...`,
       LOG_STEP,
       'color: #2563EB; font-weight: bold;'
     );

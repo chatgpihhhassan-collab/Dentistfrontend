@@ -210,7 +210,7 @@ export default function DigoraScannerModal({
           <div className="mt-4 pt-3 border-t border-slate-700/60 flex items-center justify-between text-xs text-slate-300">
             <span className="flex items-center gap-1.5">
               <Wifi className="w-3.5 h-3.5 text-emerald-400" />
-              <span>IP: 192.168.1.120 (Port 104 DICOM C-STORE)</span>
+              <span>IP: 192.168.0.100 &bull; Serial: SL1403203 (DICOM Port 104)</span>
             </span>
             <span className="font-mono text-emerald-300 font-bold">
               Lease: {digoraSync?.formattedRemainingTime || '10:00'}
@@ -381,7 +381,7 @@ export default function DigoraScannerModal({
               <div className="flex items-center gap-1.5 font-semibold">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>
-                  {digoraSync?.isArmed ? '🟢 Shutter OPEN & Slot Active' : '● Machine Ready (Standby)'} &bull; DIGORA: 192.168.1.120:104
+                  {digoraSync?.isArmed ? '🟢 Shutter OPEN & Slot Active' : '● Machine Ready (Standby)'} &bull; DIGORA: 192.168.0.100:104 [SL1403203]
                 </span>
               </div>
               <button
