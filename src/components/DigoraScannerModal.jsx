@@ -404,14 +404,25 @@ export default function DigoraScannerModal({
                 <p className="font-semibold">
                   ⚡ Option B: To let [ ▶ Play ] automatically whir the motor & open the DIGORA door:
                 </p>
-                <div className="flex items-center gap-2 mt-2">
+                <p className="text-[10.5px] text-amber-800 mt-0.5">
+                  Save both files in the same folder on your clinic PC, then double-click <strong>start_digora_bridge.bat</strong>.
+                </p>
+                <div className="flex flex-wrap items-center gap-2 mt-2">
                   <a
                     href="/start_digora_bridge.bat"
                     download="start_digora_bridge.bat"
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 text-white font-bold text-[11px] shadow-sm transition cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    <span>Download start_digora_bridge.bat</span>
+                    <span>1. Download start_digora_bridge.bat</span>
+                  </a>
+                  <a
+                    href="/digora_lan_bridge.cjs"
+                    download="digora_lan_bridge.cjs"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-bold text-[11px] shadow-sm transition cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>2. Download digora_lan_bridge.cjs</span>
                   </a>
                   <button
                     type="button"
