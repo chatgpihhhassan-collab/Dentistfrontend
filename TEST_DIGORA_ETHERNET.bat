@@ -207,10 +207,10 @@ if ($choice -eq "4") {
 }
 
 # Options 1 or 2: Standard Hardware Diagnostic
-$targetIps = @("192.168.0.120", "192.168.1.120", "192.168.0.75")
+$targetIps = @("192.168.0.100", "192.168.0.75", "192.168.1.120")
 
 if ($choice -eq "2") {
-    $custom = Read-Host "Enter the Soredex DIGORA IP address (e.g. from Scanora)"
+    $custom = Read-Host "Enter the Soredex DIGORA IP address (Default: 192.168.0.100)"
     if (-not [string]::IsNullOrWhiteSpace($custom)) {
         $targetIps = @($custom.Trim())
     }
