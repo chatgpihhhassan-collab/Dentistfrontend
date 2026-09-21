@@ -18,9 +18,12 @@ import {
   FileText,
   Sliders,
   CheckCircle2,
-  Check
+  Check,
+  Play,
+  ArrowDownCircle
 } from 'lucide-react';
 import { extractAiFindingsFromReport, isTestRadiograph } from '../utils/aiRadiologyUtils.js';
+import DigoraScannerModal from './DigoraScannerModal';
 
 /**
  * ChartRadiographFilmstrip (Interactive Radiograph Diagnostic Console)
@@ -53,10 +56,13 @@ export default function ChartRadiographFilmstrip({
   isAnalyzing = false,
   workspaceMode = 'split',
   onWorkspaceModeChange = null,
-  digoraSync = null
+  digoraSync = null,
+  patientId = null,
+  patientName = 'Active Patient'
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showTestScans, setShowTestScans] = useState(false);
+  const [showDigoraModal, setShowDigoraModal] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'opg' | 'rvg' | 'diagnosed'
   const [zoom, setZoom] = useState(1);
   const [isInverted, setIsInverted] = useState(false);
@@ -337,19 +343,37 @@ export default function ChartRadiographFilmstrip({
             </div>
           </div>
 
-          {/* Quick Actions (DIGORA Test / Sensor / Upload / Tests) */}
+          {/* Quick Actions (DIGORA Play & Accept Chip / Sensor / Upload / Tests) */}
           <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
             {digoraSync && (
-              <button
-                type="button"
-                onClick={() => digoraSync.simulateScan()}
-                disabled={digoraSync.isSimulating}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-[11px] font-black shadow-xs active:scale-95 transition cursor-pointer disabled:opacity-50"
-                title="Test Soredex DIGORA Optime Ethernet plate scanning and instant zero-install patient chart auto-mount"
-              >
-                <Zap className="w-3.5 h-3.5 fill-current text-blue-200" />
-                <span>{digoraSync.isSimulating ? 'Scanning...' : 'Test DIGORA Scan'}</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!digoraSync.isArmed) digoraSync.armScanner();
+                    setShowDigoraModal(true);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-[11px] shadow-sm active:scale-95 transition cursor-pointer ${
+                    digoraSync.isArmed
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                      : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white'
+                  }`}
+                  title="Activate Soredex DIGORA Optime Ethernet Scanner with Play Button"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  <span>{digoraSync.isArmed ? `Active (${digoraSync.formattedRemainingTime})` : '▶ Play DIGORA'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowDigoraModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-[11px] font-black shadow-sm active:scale-95 transition cursor-pointer"
+                  title="Accept X-Ray Phosphor Plate (Chip) from DIGORA Optime into Dental Chart"
+                >
+                  <ArrowDownCircle className="w-3.5 h-3.5" />
+                  <span>Accept X-Ray Chip</span>
+                </button>
+              </>
             )}
 
             <button
@@ -961,6 +985,16 @@ export default function ChartRadiographFilmstrip({
           )}
         </div>
       )}
+
+      {/* Soredex DIGORA Optime Hardware Console Modal */}
+      <DigoraScannerModal
+        isOpen={showDigoraModal}
+        onClose={() => setShowDigoraModal(false)}
+        patientId={patientId}
+        patientName={patientName}
+        operatoryId="Op-1"
+        digoraSync={digoraSync}
+      />
     </div>
   );
 }

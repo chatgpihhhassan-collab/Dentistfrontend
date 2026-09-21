@@ -8644,6 +8644,8 @@ export default function ChartPage() {
                           workspaceMode={workspaceMode}
                           onWorkspaceModeChange={(mode) => setWorkspaceMode(mode)}
                           digoraSync={digoraSync}
+                          patientId={patientId}
+                          patientName={patient ? `${patient.firstName || ''} ${patient.lastName || ''}`.trim() : `Patient #${patientId}`}
                         />
                       </div>
                     )}
@@ -9089,6 +9091,8 @@ export default function ChartPage() {
                           workspaceMode={workspaceMode}
                           onWorkspaceModeChange={(mode) => setWorkspaceMode(mode)}
                           digoraSync={digoraSync}
+                          patientId={patientId}
+                          patientName={patient ? `${patient.firstName || ''} ${patient.lastName || ''}`.trim() : `Patient #${patientId}`}
                         />
                       </div>
                     )}
