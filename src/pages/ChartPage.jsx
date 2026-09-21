@@ -918,37 +918,75 @@ export default function ChartPage() {
     operatoryId: 'Op-1',
     autoArm: true,
     onRadiographAcquired: (scanData) => {
-      console.log('✨ [DIGORA OPTIME LIVE AUTO-LOAD] Fresh radiograph acquired:', scanData);
+      const radId = scanData.RadiographID || scanData.radiographID || scanData.id;
+      const imgName = scanData.ImageName || scanData.imageName || `DIGORA_OPTIME_${new Date().toLocaleTimeString().replace(/:/g, '-')}.png`;
+      const cleanBase = (API_BASE_URL || 'https://dentist-api-dev.vitonta.com').replace(/\/$/, '');
+      const directImgUrl = scanData.dataUrl || `${cleanBase}/api/radiographs/${radId}/image`;
+
+      console.log(
+        `%c[CHART AUTO-LOAD] STEP 9/13: Received Soredex DIGORA Optime Scan Payload%c Radiograph ID #${radId} for Patient #${patientId}`,
+        'background: #2563EB; color: #FFF; font-weight: bold; padding: 2px 6px; border-radius: 4px;',
+        'color: #10244B; font-weight: 700;'
+      );
+
       const newScan = {
-        radiographID: scanData.RadiographID || scanData.radiographID || scanData.id,
-        RadiographID: scanData.RadiographID || scanData.radiographID || scanData.id,
+        radiographID: radId,
+        RadiographID: radId,
         patientID: Number(patientId),
         PatientID: Number(patientId),
-        imageName: scanData.ImageName || scanData.imageName || `DIGORA_OPTIME_${new Date().toLocaleTimeString()}.png`,
-        ImageName: scanData.ImageName || scanData.imageName || `DIGORA_OPTIME_${new Date().toLocaleTimeString()}.png`,
+        imageName: imgName,
+        ImageName: imgName,
         mimeType: scanData.MimeType || scanData.mimeType || 'image/png',
         uploadedAt: scanData.UploadedAt || scanData.uploadedAt || new Date().toISOString(),
         analysisSummary: scanData.AnalysisSummary || scanData.analysisSummary || '',
         AnalysisSummary: scanData.AnalysisSummary || scanData.analysisSummary || '',
-        source: 'Soredex DIGORA Optime Ethernet'
+        source: 'Soredex DIGORA Optime Ethernet',
+        imageUrl: directImgUrl,
+        dataUrl: scanData.dataUrl || null
       };
 
+      console.log(
+        `%c[CHART AUTO-LOAD] STEP 10/13: Prepending New X-Ray into Radiographs List%c ${imgName}`,
+        'background: #2563EB; color: #FFF; font-weight: bold; padding: 2px 6px; border-radius: 4px;',
+        'color: #10244B;'
+      );
+
       setRadiographs(prev => {
-        const filtered = prev.filter(r => (r.radiographID || r.RadiographID) !== (newScan.radiographID || newScan.RadiographID));
+        const filtered = prev.filter(r => (r.radiographID || r.RadiographID) !== radId);
         return [newScan, ...filtered];
       });
 
+      console.log(
+        `%c[CHART AUTO-LOAD] STEP 11/13: Setting Active Radiograph to Viewport%c URL: ${directImgUrl}`,
+        'background: #2563EB; color: #FFF; font-weight: bold; padding: 2px 6px; border-radius: 4px;',
+        'color: #10244B;'
+      );
       setSelectedRadiograph(newScan);
+      setRadiographBlobUrl(directImgUrl);
 
       // Auto-extract findings & spotlight on 3D Jaw & 2D Odontogram immediately
       try {
         const findings = extractAiFindingsFromReport(newScan.analysisSummary);
+        const diagnosedTeethCount = findings?.length || 0;
+        console.log(
+          `%c[CHART AUTO-LOAD] STEP 12/13: Parsing Gemini AI Findings & Spotlighting Teeth%c ${diagnosedTeethCount} tooth findings detected`,
+          'background: #7C3AED; color: #FFF; font-weight: bold; padding: 2px 6px; border-radius: 4px;',
+          'color: #7C3AED; font-weight: bold;',
+          findings?.map(f => `#${f.toothKey || f.toothNumber} (${f.condition})`) || []
+        );
+
         if (findings && findings.length > 0) {
           handleSelectScanFromFilmstrip(newScan, findings);
         }
       } catch (err) {
-        console.warn('Auto-spotlight error:', err);
+        console.warn('[CHART AUTO-LOAD] Auto-spotlight warning:', err);
       }
+
+      console.log(
+        `%c[CHART AUTO-LOAD] STEP 13/13: ✨ Auto-Mount Complete!%c Soredex DIGORA Optime radiograph is mounted & visible for Patient #${patientId}`,
+        'background: #059669; color: #FFF; font-weight: 900; font-size: 11px; padding: 3px 8px; border-radius: 4px;',
+        'color: #059669; font-weight: 700;'
+      );
 
       setToast({
         visible: true,
@@ -2606,13 +2644,23 @@ export default function ChartPage() {
       setRadiographImgLoading(true);
       setRadiographImgError(false);
 
-      // 1. If selectedRadiograph already contains base64 imageData
+      // 1. If selectedRadiograph already contains dataUrl or base64 imageData
+      if (selectedRadiograph.dataUrl) {
+        setRadiographBlobUrl(selectedRadiograph.dataUrl);
+        setRadiographImgLoading(false);
+        return;
+      }
       if (selectedRadiograph.imageData && selectedRadiograph.imageData.length > 50) {
         const mime = selectedRadiograph.mimeType || 'image/jpeg';
         const base64Data = selectedRadiograph.imageData.startsWith('data:') 
           ? selectedRadiograph.imageData 
           : `data:${mime};base64,${selectedRadiograph.imageData}`;
         setRadiographBlobUrl(base64Data);
+        setRadiographImgLoading(false);
+        return;
+      }
+      if (selectedRadiograph.imageUrl && selectedRadiograph.imageUrl.startsWith('data:')) {
+        setRadiographBlobUrl(selectedRadiograph.imageUrl);
         setRadiographImgLoading(false);
         return;
       }

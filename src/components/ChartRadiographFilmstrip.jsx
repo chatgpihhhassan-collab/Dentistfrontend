@@ -178,7 +178,9 @@ export default function ChartRadiographFilmstrip({
     }
 
     let device = 'Eighteeth Nano-Pix';
-    if (name.includes('dicora') || summary.includes('dicora')) {
+    if (name.includes('digora') || summary.includes('digora') || name.includes('soredex') || summary.includes('soredex')) {
+      device = 'Soredex DIGORA Optime (Ethernet)';
+    } else if (name.includes('dicora') || summary.includes('dicora')) {
       device = 'Dicora USB RVG';
     } else if (name.includes('dexis') || summary.includes('dexis')) {
       device = 'Dexis Platinum';
@@ -193,12 +195,15 @@ export default function ChartRadiographFilmstrip({
 
   const getImageUrl = (r) => {
     if (!r) return '';
+    if (r.dataUrl) return r.dataUrl;
+    if (r.imageUrl) return r.imageUrl;
     if (r.imageData && r.imageData.length > 50) {
       return r.imageData.startsWith('data:') 
         ? r.imageData 
         : `data:${r.mimeType || 'image/jpeg'};base64,${r.imageData}`;
     }
     const id = r.radiographID || r.RadiographID;
+    if (!id) return '';
     return `https://dentist-api-dev.vitonta.com/api/radiographs/${id}/image`;
   };
 
