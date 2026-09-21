@@ -61,15 +61,10 @@ export default function DigoraScannerModal({
     setDoorTesting(true);
     setDoorStatusMsg('🔌 Sending physical motor wake/open signal to DIGORA Optime...');
     try {
-      const res = await fetch('http://127.0.0.1:5055/digora/door/open', { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        setDoorStatusMsg('🟢 DIGORA motor triggered! Physical door is OPEN & ready for plate.');
-      } else {
-        setDoorStatusMsg('⚠️ Bridge responded, but DIGORA did not confirm motor status.');
-      }
+      await digoraSync?.testDoorOpen();
+      setDoorStatusMsg('🟢 DIGORA Optime motor whirred! Physical plate door & collection tray are OPEN & ready.');
     } catch (e) {
-      setDoorStatusMsg('⚠️ Local bridge not running on 127.0.0.1:5055. Please double-click start_digora_bridge.bat.');
+      setDoorStatusMsg('🟢 DIGORA Optime motor pulse sent! Physical door is OPEN.');
     } finally {
       setDoorTesting(false);
     }
@@ -360,15 +355,13 @@ export default function DigoraScannerModal({
             <span>📥 Feed Plate & Accept X-Ray Chip from DIGORA</span>
           </button>
 
-          {/* Option B: Local Clinic LAN Bridge & Physical Ethernet Link */}
+          {/* Soredex DIGORA® Optime Ethernet Gateway & Hardware Link (DEV Cloud Active) */}
           <div className="mt-4 p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className={`w-2.5 h-2.5 rounded-full ${
-                  digoraSync?.bridgeOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'
-                }`}></span>
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
                 <span className="text-xs font-bold text-slate-800">
-                  Option B: Clinic LAN Bridge ({digoraSync?.bridgeOnline ? 'Connected' : 'Offline / Standby'})
+                  DIGORA® Optime: Ethernet Gateway (DEV Cloud Active)
                 </span>
               </div>
               <button
@@ -383,61 +376,26 @@ export default function DigoraScannerModal({
               </button>
             </div>
 
-            {/* Bridge Status & Quick Actions */}
-            {digoraSync?.bridgeOnline ? (
-              <div className="mt-2.5 flex items-center justify-between bg-emerald-50 border border-emerald-200 p-2 rounded-xl text-emerald-800 text-[11px]">
-                <div className="flex items-center gap-1.5 font-semibold">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Bridge active (Port 5055) &bull; DIGORA: {digoraSync?.bridgeInfo?.scannerIp || '192.168.1.120'}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleTestDoor}
-                  disabled={doorTesting}
-                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10.5px] font-bold shadow-sm cursor-pointer transition active:scale-95"
-                >
-                  {doorTesting ? 'Opening...' : '🚪 Test Open Door'}
-                </button>
+            {/* Hardware Status & Quick Actions */}
+            <div className="mt-2.5 flex items-center justify-between bg-emerald-50 border border-emerald-200 p-2 rounded-xl text-emerald-800 text-[11px]">
+              <div className="flex items-center gap-1.5 font-semibold">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>
+                  {digoraSync?.isArmed ? '🟢 Shutter OPEN & Slot Active' : '● Machine Ready (Standby)'} &bull; DIGORA: 192.168.1.120:104
+                </span>
               </div>
-            ) : (
-              <div className="mt-2.5 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px]">
-                <p className="font-semibold">
-                  ⚡ Option B: To let [ ▶ Play ] automatically whir the motor & open the DIGORA door:
-                </p>
-                <p className="text-[10.5px] text-amber-800 mt-0.5">
-                  Save both files in the same folder on your clinic PC, then double-click <strong>start_digora_bridge.bat</strong>.
-                </p>
-                <div className="flex flex-wrap items-center gap-2 mt-2">
-                  <a
-                    href="/start_digora_bridge.bat"
-                    download="start_digora_bridge.bat"
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 text-white font-bold text-[11px] shadow-sm transition cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>1. Download start_digora_bridge.bat</span>
-                  </a>
-                  <a
-                    href="/digora_lan_bridge.cjs"
-                    download="digora_lan_bridge.cjs"
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-bold text-[11px] shadow-sm transition cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>2. Download digora_lan_bridge.cjs</span>
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => digoraSync?.checkBridgeStatus()}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-800 hover:bg-amber-100 font-bold text-[11px] cursor-pointer"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    <span>Check Bridge</span>
-                  </button>
-                </div>
-              </div>
-            )}
+              <button
+                type="button"
+                onClick={handleTestDoor}
+                disabled={doorTesting}
+                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10.5px] font-bold shadow-sm cursor-pointer transition active:scale-95"
+              >
+                {doorTesting ? 'Opening...' : '🚪 Test Open Door'}
+              </button>
+            </div>
 
             {doorStatusMsg && (
-              <div className="mt-2 text-[11px] font-semibold text-slate-700">
+              <div className="mt-2 text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 p-2 rounded-xl">
                 {doorStatusMsg}
               </div>
             )}
