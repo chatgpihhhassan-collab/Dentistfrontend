@@ -200,6 +200,71 @@ export default function DigoraScannerModal({
           </div>
         </div>
 
+        {/* Physical DIGORA Optime Hardware Diagram (Faithful to Real Device Photo) */}
+        <div className="mt-4 p-3 rounded-2xl bg-slate-900 border border-slate-800 text-center relative overflow-hidden">
+          <div className="flex items-center justify-between px-2 pb-1.5 text-[11px] font-bold text-slate-400 border-b border-slate-800">
+            <span className="flex items-center gap-1.5 text-emerald-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Soredex DIGORA® Optime (Countertop Intraoral PSP Scanner)</span>
+            </span>
+            <span className="text-slate-400 font-mono text-[10px]">Rear RJ45 Ethernet &bull; DICOM 104</span>
+          </div>
+
+          <div className="py-1 flex items-center justify-center">
+            <svg viewBox="0 0 540 180" className="w-full max-w-[480px] h-auto drop-shadow-lg" fill="none" xmlns="http://www.w3.org/2000/svg">
+              {/* Desk shadow */}
+              <ellipse cx="270" cy="168" rx="250" ry="8" fill="#030712" opacity="0.6" />
+
+              {/* Rear Chassis (Grey metallic side) */}
+              <path d="M40 50 L140 20 L210 20 L160 50 L40 50 Z" fill="#475569" />
+              <path d="M40 50 L160 50 L160 155 L40 145 Z" fill="#64748b" stroke="#334155" strokeWidth="1.5" />
+              {/* Rear Ethernet Cable Indication */}
+              <path d="M35 110 C15 110, 10 140, 2 155" stroke="#10b981" strokeWidth="3.5" strokeDasharray="3 2" />
+              <text x="5" y="105" fill="#34d399" fontSize="9" fontWeight="bold" fontFamily="sans-serif">RJ45 Ethernet LAN</text>
+
+              {/* Main White Machine Front Housing */}
+              <rect x="155" y="30" width="310" height="128" rx="14" fill="#F8FAFC" stroke="#CBD5E1" strokeWidth="2" />
+              <path d="M155 30 Q170 30 180 30 L450 30 Q465 30 465 45 L465 145 Q465 158 450 158 L170 158 Q155 158 155 145 Z" fill="#FFFFFF" />
+
+              {/* Top Oval Button Console */}
+              <rect x="175" y="34" width="270" height="16" rx="8" fill="#E2E8F0" stroke="#94A3B8" strokeWidth="1" />
+              {/* Round Start/Play Push Button */}
+              <circle cx="210" cy="42" r="6" fill={digoraSync?.isArmed ? "#10B981" : "#F59E0B"} stroke="#FFFFFF" strokeWidth="1.5" />
+              {/* Top LED status text */}
+              <text x="225" y="45" fill="#475569" fontSize="8" fontWeight="bold" fontFamily="sans-serif">
+                {digoraSync?.isArmed ? "READY FOR PSP PLATE" : "STANDBY / PLAY"}
+              </text>
+
+              {/* SOREDEX DIGORA Optime Brand Logo */}
+              <g transform="translate(180, 80)">
+                <path d="M0 4 L6 0 L6 8 Z" fill="#DC2626" />
+                <path d="M5 0 L11 4 L5 8 Z" fill="#DC2626" opacity="0.7" />
+                <text x="16" y="7" fill="#0F172A" fontSize="11" fontWeight="900" fontFamily="sans-serif" letterSpacing="0.5">SOREDEX</text>
+                <text x="75" y="7" fill="#0F172A" fontSize="10" fontWeight="900" fontFamily="sans-serif">DIGORA</text>
+                <text x="122" y="7" fill="#DC2626" fontSize="10" fontWeight="bold" fontFamily="sans-serif">Optime</text>
+              </g>
+
+              {/* Right Vertical Ingestion Slot (Funnel) */}
+              <rect x="360" y="55" width="70" height="90" rx="8" fill="#F1F5F9" stroke="#CBD5E1" strokeWidth="1.5" />
+              <rect x="388" y="65" width="14" height="65" rx="3" fill="#0F172A" />
+              {digoraSync?.isArmed && (
+                <g className="animate-pulse">
+                  <line x1="395" y1="58" x2="395" y2="70" stroke="#10B981" strokeWidth="2" strokeLinecap="round" />
+                  <polygon points="392,68 398,68 395,74" fill="#10B981" />
+                  <text x="395" y="52" fill="#34D399" fontSize="8" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">FEED PLATE</text>
+                </g>
+              )}
+
+              {/* Smoked Tinted Bottom Collection Tray (Matching user photo!) */}
+              <rect x="345" y="118" width="115" height="42" rx="6" fill="#1E293B" opacity="0.78" stroke="#475569" strokeWidth="1.5" />
+              {/* Ejected Plate resting inside collection tray (just like user photo) */}
+              <rect x="380" y="132" width="38" height="22" rx="3" fill="#E2E8F0" stroke="#94A3B8" strokeWidth="1" transform="rotate(-6 380 132)" />
+              <circle cx="410" cy="132" r="1.5" fill="#64748B" />
+              <text x="402" y="170" fill="#94A3B8" fontSize="8" textAnchor="middle" fontFamily="sans-serif">Drop Collection Tray</text>
+            </svg>
+          </div>
+        </div>
+
         {/* Phosphor Storage Plate (X-Ray Chip) Ingest Section */}
         <div className="mt-5 space-y-4">
           <div className="flex items-center justify-between">
