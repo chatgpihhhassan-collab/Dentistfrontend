@@ -19,9 +19,15 @@ if %ERRORLEVEL% NEQ 0 (
 echo     Node.js is detected.
 echo.
 echo [2] Starting Bridge on http://127.0.0.1:5055 ...
-echo     Connecting Cloud Web App to DIGORA Optime scanner...
+echo     Connecting Cloud Web App to DIGORA Optime countertop scanner...
 echo.
-node "%~dp0digora_lan_bridge.js" %1
+
+if exist "%~dp0digora_lan_bridge.cjs" (
+  node "%~dp0digora_lan_bridge.cjs" %*
+) else (
+  node "%~dp0digora_lan_bridge.js" %*
+)
+
 if %ERRORLEVEL% NEQ 0 (
   echo.
   echo [Bridge Exited] Press any key to restart or close.
