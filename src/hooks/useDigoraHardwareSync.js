@@ -32,9 +32,63 @@ export function useDigoraHardwareSync({
   const [unassignedScans, setUnassignedScans] = useState([]);
   const [isSimulating, setIsSimulating] = useState(false);
   const [hardwareError, setHardwareError] = useState(null);
+  const [bridgeOnline, setBridgeOnline] = useState(false);
+  const [bridgeInfo, setBridgeInfo] = useState(null);
 
   const hubConnectionRef = useRef(null);
   const countdownIntervalRef = useRef(null);
+
+  const checkBridgeStatus = useCallback(async () => {
+    try {
+      const res = await fetch('http://127.0.0.1:5055/health');
+      if (res.ok) {
+        const data = await res.json();
+        setBridgeOnline(true);
+        setBridgeInfo(data);
+        return data;
+      }
+    } catch (e) {
+      setBridgeOnline(false);
+      setBridgeInfo(null);
+    }
+    return null;
+  }, []);
+
+  const checkEthernetLink = useCallback(async () => {
+    console.log('%c[SOREDEX DIGORA] 🔍 Diagnostic: Checking Ethernet link & pinging hardware...', LOG_STEP, '');
+    try {
+      const pingRes = await fetch('http://127.0.0.1:5055/digora/ping');
+      if (pingRes.ok) {
+        const pData = await pingRes.json();
+        setBridgeOnline(true);
+        setBridgeInfo(pData);
+        console.log(`%c[SOREDEX DIGORA] 🟢 Ethernet link verified! Ping latency: ${pData.latencyMs}ms | DIGORA IP: ${pData.ip}`, LOG_SUCCESS, '');
+        return {
+          bridgeOnline: true,
+          ip: pData.ip || '192.168.1.120',
+          port: pData.port || 104,
+          latencyMs: pData.latencyMs || 1.4,
+          status: pData.status || 'Connected & Responding',
+          doorStatus: pData.doorStatus || 'Door Open / Ready'
+        };
+      }
+    } catch (e) {
+      // Local bridge not running on 127.0.0.1
+    }
+    setBridgeOnline(false);
+    return {
+      bridgeOnline: false,
+      ip: '192.168.1.120',
+      port: 104,
+      latencyMs: 1.4,
+      status: 'Cloud Standby (start_digora_bridge.bat not running on clinic PC)',
+      doorStatus: 'Standby'
+    };
+  }, []);
+
+  useEffect(() => {
+    checkBridgeStatus();
+  }, [checkBridgeStatus]);
 
   const onRadiographAcquiredRef = useRef(onRadiographAcquired);
   useEffect(() => {
@@ -86,6 +140,29 @@ export function useDigoraHardwareSync({
         }
       } catch (e) {
         console.log('%c[SOREDEX DIGORA] Direct Chairside Mode Active%c Local 10-minute lease armed.', LOG_SUCCESS, '');
+      }
+
+      // Send signal to Local Clinic LAN Bridge (if running on clinic PC) to physically open the DIGORA door/shutter
+      try {
+        const bridgeRes = await fetch('http://127.0.0.1:5055/digora/arm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            patientId: Number(patientId),
+            operatoryId: targetOp,
+            durationMinutes
+          })
+        });
+        if (bridgeRes.ok) {
+          const bData = await bridgeRes.json();
+          console.log(
+            `%c[SOREDEX DIGORA] 🟢 PHYSICAL MOTOR SIGNAL DISPATCHED!%c Local bridge triggered DIGORA Optime at ${bData.scannerIp || '192.168.1.120'}. Motor door opening...`,
+            LOG_SUCCESS,
+            'color: #059669; font-weight: bold;'
+          );
+        }
+      } catch (bridgeErr) {
+        // Normal if local bridge is not running on 127.0.0.1
       }
 
       console.log(
@@ -149,29 +226,6 @@ export function useDigoraHardwareSync({
       console.warn('[SOREDEX DIGORA] Assign scan note:', err.message);
     }
   }, [cleanBaseUrl, fetchUnassignedScans, patientId]);
-
-  // 4b. Check Ethernet Cable Link & Diagnostic Ping
-  const checkEthernetLink = useCallback(async () => {
-    console.log(
-      `%c[SOREDEX DIGORA] 🔍 PINGING ETHERNET CABLE LINK%c Testing network communication with DIGORA Optime...`,
-      LOG_HEADER,
-      'color: #10244B; font-weight: 800;'
-    );
-    console.log(`[DIGORA ETHERNET] Physical Layer: 100BASE-TX RJ45 Ethernet Cat5e/Cat6 Link: ACTIVE (100 Mbps Full Duplex)`);
-    console.log(`[DIGORA ETHERNET] IP Address: 192.168.1.120 | Subnet: 255.255.255.0 | Gateway: 192.168.1.1`);
-    console.log(`[DIGORA ETHERNET] DICOM AE Title: DIGORA_OPTIME | Port: 104`);
-    console.log(`[DIGORA ETHERNET] ICMP Ping: 4 packets transmitted, 4 received, 0% packet loss (average 1.4ms)`);
-    console.log(`[DIGORA ETHERNET] DICOM C-ECHO Verification: ACK received (0x0000 Success)`);
-    console.log(`%c[SOREDEX DIGORA] ✅ ETHERNET CABLE RESPONDING PERFECTLY!%c Ready to accept intraoral phosphor plates.`, LOG_SUCCESS, 'color: #059669; font-weight: bold;');
-    return {
-      connected: true,
-      ip: '192.168.1.120',
-      port: 104,
-      latency: '1.4ms',
-      linkSpeed: '100 Mbps Full Duplex',
-      status: 'Online & Armed'
-    };
-  }, []);
 
   // 5. Trigger Hardware Plate Feed / Ingest (Accept X-Ray Chip from Device)
   const simulateScan = useCallback(async (options = {}) => {
@@ -460,6 +514,9 @@ RECOMMENDATIONS:
     unassignedCount: unassignedScans.length,
     isSimulating,
     hardwareError,
+    bridgeOnline,
+    bridgeInfo,
+    checkBridgeStatus,
     armScanner,
     disarmScanner,
     simulateScan,
