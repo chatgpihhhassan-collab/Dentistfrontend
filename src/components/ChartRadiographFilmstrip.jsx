@@ -52,7 +52,8 @@ export default function ChartRadiographFilmstrip({
   detailedTooth = null,
   isAnalyzing = false,
   workspaceMode = 'split',
-  onWorkspaceModeChange = null
+  onWorkspaceModeChange = null,
+  digoraSync = null
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showTestScans, setShowTestScans] = useState(false);
@@ -282,22 +283,70 @@ export default function ChartRadiographFilmstrip({
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2 text-[10.5px] text-slate-500 mt-0.5">
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span className="text-emerald-700 font-bold">Nano-Pix RVG</span>
-                </span>
+              
+              {/* Soredex DIGORA Optime & Sensor Status Line */}
+              <div className="flex items-center gap-2 text-[10.5px] text-slate-500 mt-0.5 flex-wrap">
+                {digoraSync?.isArmed ? (
+                  <button
+                    type="button"
+                    onClick={() => digoraSync.disarmScanner()}
+                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition cursor-pointer shadow-2xs"
+                    title={`Soredex DIGORA Optime is armed over Ethernet. Scan a phosphor plate in the machine to auto-load. Lease expires in ${digoraSync.formattedRemainingTime}. Click to disarm.`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span className="font-extrabold text-[10px]">DIGORA Optime: Armed ({digoraSync.formattedRemainingTime})</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => digoraSync?.armScanner()}
+                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition cursor-pointer shadow-2xs"
+                    title="Click to arm Soredex DIGORA Optime Ethernet scanner for this patient"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                    <span className="font-bold text-[10px]">DIGORA Optime: Ready (Click to Arm)</span>
+                  </button>
+                )}
+
                 <span className="text-slate-300">•</span>
                 <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                  <span className="text-blue-700 font-semibold">Dicora USB</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span className="text-slate-600 font-semibold text-[10px]">Ethernet LAN (Zero-Install)</span>
                 </span>
+
+                {digoraSync?.unassignedCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (digoraSync.unassignedScans[0]?.id) {
+                        digoraSync.assignScan(digoraSync.unassignedScans[0].id);
+                      }
+                    }}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-300 hover:bg-blue-200 text-[10px] font-black animate-pulse cursor-pointer"
+                    title="Click to assign waiting scan to current patient"
+                  >
+                    <span>🔔 {digoraSync.unassignedCount} Waiting (Assign)</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Quick Actions (Sensor / Upload / Tests) */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          {/* Quick Actions (DIGORA Test / Sensor / Upload / Tests) */}
+          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+            {digoraSync && (
+              <button
+                type="button"
+                onClick={() => digoraSync.simulateScan()}
+                disabled={digoraSync.isSimulating}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-[11px] font-black shadow-xs active:scale-95 transition cursor-pointer disabled:opacity-50"
+                title="Test Soredex DIGORA Optime Ethernet plate scanning and instant zero-install patient chart auto-mount"
+              >
+                <Zap className="w-3.5 h-3.5 fill-current text-blue-200" />
+                <span>{digoraSync.isSimulating ? 'Scanning...' : 'Test DIGORA Scan'}</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={onTriggerSensorCapture}

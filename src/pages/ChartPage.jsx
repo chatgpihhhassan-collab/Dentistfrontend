@@ -29,6 +29,7 @@ import ChartRadiographFilmstrip from '../components/ChartRadiographFilmstrip';
 import RadiographImpactInspectorModal from '../components/RadiographImpactInspectorModal';
 import ClinicalReportEditor from '../components/ClinicalReportEditor';
 import { extractAiFindingsFromReport, extractSoapFromReport, compressImageForUpload, isTestRadiograph, getHumanReadableReport, recombineReportWithStructuredData } from '../utils/aiRadiologyUtils';
+import { useDigoraHardwareSync } from '../hooks/useDigoraHardwareSync';
 
 // Real Anatomical Maxilla (Upper Jaw) Coordinate & Rotation Mapping for Empty Jaw Template (Exact 16 Sockets)
 export const MAXILLA_COORDS = {
@@ -910,6 +911,52 @@ export default function ChartPage() {
   const [activeScanImpact, setActiveScanImpact] = useState(null); // { scanId, imageName, teeth: [...], findings, radiograph }
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
   const [inspectorRadiograph, setInspectorRadiograph] = useState(null);
+
+  // 🌟 Soredex DIGORA® Optime Ethernet Live Real-Time Integration Hook (100% Zero-Client footprint)
+  const digoraSync = useDigoraHardwareSync({
+    patientId,
+    operatoryId: 'Op-1',
+    autoArm: true,
+    onRadiographAcquired: (scanData) => {
+      console.log('✨ [DIGORA OPTIME LIVE AUTO-LOAD] Fresh radiograph acquired:', scanData);
+      const newScan = {
+        radiographID: scanData.RadiographID || scanData.radiographID || scanData.id,
+        RadiographID: scanData.RadiographID || scanData.radiographID || scanData.id,
+        patientID: Number(patientId),
+        PatientID: Number(patientId),
+        imageName: scanData.ImageName || scanData.imageName || `DIGORA_OPTIME_${new Date().toLocaleTimeString()}.png`,
+        ImageName: scanData.ImageName || scanData.imageName || `DIGORA_OPTIME_${new Date().toLocaleTimeString()}.png`,
+        mimeType: scanData.MimeType || scanData.mimeType || 'image/png',
+        uploadedAt: scanData.UploadedAt || scanData.uploadedAt || new Date().toISOString(),
+        analysisSummary: scanData.AnalysisSummary || scanData.analysisSummary || '',
+        AnalysisSummary: scanData.AnalysisSummary || scanData.analysisSummary || '',
+        source: 'Soredex DIGORA Optime Ethernet'
+      };
+
+      setRadiographs(prev => {
+        const filtered = prev.filter(r => (r.radiographID || r.RadiographID) !== (newScan.radiographID || newScan.RadiographID));
+        return [newScan, ...filtered];
+      });
+
+      setSelectedRadiograph(newScan);
+
+      // Auto-extract findings & spotlight on 3D Jaw & 2D Odontogram immediately
+      try {
+        const findings = extractAiFindingsFromReport(newScan.analysisSummary);
+        if (findings && findings.length > 0) {
+          handleSelectScanFromFilmstrip(newScan, findings);
+        }
+      } catch (err) {
+        console.warn('Auto-spotlight error:', err);
+      }
+
+      setToast({
+        visible: true,
+        message: `✨ Fresh X-ray acquired from DIGORA Optime and loaded for Patient #${patientId}!`
+      });
+      setTimeout(() => setToast({ visible: false, message: '' }), 5000);
+    }
+  });
 
   // Operatory Workspace View Mode & 3D Arch Density States
   const [workspaceMode, setWorkspaceMode] = useState('split'); // 'split' | 'radiology' | 'chart'
@@ -8548,6 +8595,7 @@ export default function ChartPage() {
                           isAnalyzing={uploadingXray || isApplyingAiFindings}
                           workspaceMode={workspaceMode}
                           onWorkspaceModeChange={(mode) => setWorkspaceMode(mode)}
+                          digoraSync={digoraSync}
                         />
                       </div>
                     )}
@@ -8992,6 +9040,7 @@ export default function ChartPage() {
                           isAnalyzing={uploadingXray || isApplyingAiFindings}
                           workspaceMode={workspaceMode}
                           onWorkspaceModeChange={(mode) => setWorkspaceMode(mode)}
+                          digoraSync={digoraSync}
                         />
                       </div>
                     )}
