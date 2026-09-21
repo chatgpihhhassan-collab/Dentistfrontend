@@ -32,7 +32,6 @@ const C = {
   bgRed: "\x1b[41m\x1b[37m"
 };
 
-console.clear();
 console.log(`${C.bold}${C.cyan}
 ===================================================================
   SOREDEX DIGORA® OPTIME — HARDWARE & DOOR DIAGNOSTIC TOOL
