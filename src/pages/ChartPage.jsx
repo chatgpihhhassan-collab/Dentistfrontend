@@ -30,6 +30,8 @@ import RadiographImpactInspectorModal from '../components/RadiographImpactInspec
 import ClinicalReportEditor from '../components/ClinicalReportEditor';
 import { extractAiFindingsFromReport, extractSoapFromReport, compressImageForUpload, isTestRadiograph, getHumanReadableReport, recombineReportWithStructuredData } from '../utils/aiRadiologyUtils';
 import { useDigoraHardwareSync } from '../hooks/useDigoraHardwareSync';
+import { API_BASE_URL } from '../config/apiConfig';
+import DigoraScannerModal from '../components/DigoraScannerModal';
 
 // Real Anatomical Maxilla (Upper Jaw) Coordinate & Rotation Mapping for Empty Jaw Template (Exact 16 Sockets)
 export const MAXILLA_COORDS = {
@@ -911,17 +913,29 @@ export default function ChartPage() {
   const [activeScanImpact, setActiveScanImpact] = useState(null); // { scanId, imageName, teeth: [...], findings, radiograph }
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
   const [inspectorRadiograph, setInspectorRadiograph] = useState(null);
+  const [showDigoraModal, setShowDigoraModal] = useState(false);
+
+  // Safe callback references for onRadiographAcquired to guarantee error-free execution
+  const handleApplyAiFindingsRef = useRef();
+  const handleSelectScanRef = useRef();
+  const handleSyncNotesRef = useRef();
+
+  useEffect(() => {
+    handleApplyAiFindingsRef.current = handleApplyAiFindingsToChart;
+    handleSelectScanRef.current = handleSelectScanFromFilmstrip;
+    handleSyncNotesRef.current = handleSyncRadiographToAiNotes;
+  });
 
   // 🌟 Soredex DIGORA® Optime Ethernet Live Real-Time Integration Hook (100% Zero-Client footprint)
   const digoraSync = useDigoraHardwareSync({
     patientId,
     operatoryId: 'Op-1',
-    autoArm: true,
+    autoArm: false,
     onRadiographAcquired: (scanData) => {
-      const radId = scanData.RadiographID || scanData.radiographID || scanData.id;
+      const radId = scanData.RadiographID || scanData.radiographID || scanData.id || Date.now();
       const imgName = scanData.ImageName || scanData.imageName || `DIGORA_OPTIME_${new Date().toLocaleTimeString().replace(/:/g, '-')}.png`;
       const cleanBase = (API_BASE_URL || 'https://dentist-api-dev.vitonta.com').replace(/\/$/, '');
-      const directImgUrl = scanData.dataUrl || `${cleanBase}/api/radiographs/${radId}/image`;
+      const directImgUrl = scanData.dataUrl || scanData.imageUrl || `${cleanBase}/api/radiographs/${radId}/image`;
 
       console.log(
         `%c[CHART AUTO-LOAD] STEP 9/13: Received Soredex DIGORA Optime Scan Payload%c Radiograph ID #${radId} for Patient #${patientId}`,
@@ -942,8 +956,16 @@ export default function ChartPage() {
         AnalysisSummary: scanData.AnalysisSummary || scanData.analysisSummary || '',
         source: 'Soredex DIGORA Optime Ethernet',
         imageUrl: directImgUrl,
-        dataUrl: scanData.dataUrl || null
+        dataUrl: scanData.dataUrl || directImgUrl,
+        imageData: scanData.imageData || (directImgUrl && directImgUrl.startsWith('data:') ? directImgUrl.split(',')[1] : null)
       };
+
+      if (typeof window !== 'undefined' && directImgUrl) {
+        try {
+          localStorage.setItem(`dentia_radiograph_${radId}`, directImgUrl);
+          localStorage.setItem('dentia_latest_radiograph', directImgUrl);
+        } catch (_) {}
+      }
 
       console.log(
         `%c[CHART AUTO-LOAD] STEP 10/13: Prepending New X-Ray into Radiographs List%c ${imgName}`,
@@ -963,6 +985,8 @@ export default function ChartPage() {
       );
       setSelectedRadiograph(newScan);
       setRadiographBlobUrl(directImgUrl);
+      setRadiographImgLoading(false);
+      setRadiographImgError(false);
 
       // Auto-extract findings & spotlight on 3D Jaw & 2D Odontogram immediately
       try {
@@ -975,8 +999,23 @@ export default function ChartPage() {
           findings?.map(f => `#${f.toothKey || f.toothNumber} (${f.condition})`) || []
         );
 
+        // Auto-expand AI Diagnostic Report drawer so full clinical report is immediately visible
+        setEditingXrayText(getHumanReadableReport(newScan.analysisSummary));
+        setXrayDetailsExpanded(true);
+
         if (findings && findings.length > 0) {
-          handleSelectScanFromFilmstrip(newScan, findings);
+          // 1. Auto-apply AI findings to Dental Chart & 3D Jaw
+          if (handleApplyAiFindingsRef.current) {
+            handleApplyAiFindingsRef.current(findings, newScan);
+          }
+          // 2. Spotlight teeth in diagnostic filmstrip & jaw
+          if (handleSelectScanRef.current) {
+            handleSelectScanRef.current(newScan, findings);
+          }
+          // 3. Auto-sync to AI Clinical SOAP notes
+          if (handleSyncNotesRef.current) {
+            handleSyncNotesRef.current(newScan, findings);
+          }
         }
       } catch (err) {
         console.warn('[CHART AUTO-LOAD] Auto-spotlight warning:', err);
@@ -990,7 +1029,7 @@ export default function ChartPage() {
 
       setToast({
         visible: true,
-        message: `✨ Fresh X-ray acquired from DIGORA Optime and loaded for Patient #${patientId}!`
+        message: `✨ DIGORA Optime X-Ray digitized & AI Diagnostic Report generated for Patient #${patientId}!`
       });
       setTimeout(() => setToast({ visible: false, message: '' }), 5000);
     }
@@ -7125,6 +7164,34 @@ export default function ChartPage() {
                     )}
                   </button>
 
+                  {/* Soredex DIGORA Optime Ethernet Scanner Play / Strip Window Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      digoraSync?.armScanner('Op-1', 5);
+                      setShowDigoraModal(true);
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black shadow-2xs transition-all cursor-pointer border ${
+                      digoraSync?.isArmed
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white border-emerald-400 shadow-emerald-500/20'
+                        : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-300 hover:border-slate-400'
+                    }`}
+                    title={digoraSync?.isArmed ? `DIGORA Optime Active (${digoraSync.formattedRemainingTime}) • Click to Open Strip Window` : 'Soredex DIGORA Optime (Ethernet PSP) • Click to Arm 5m & Open Strip Window'}
+                    aria-label="Soredex DIGORA Optime Scanner"
+                  >
+                    <Play className="w-3 h-3 fill-current text-emerald-600" />
+                    <span>DIGORA Optime</span>
+                    {digoraSync?.isArmed ? (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[8px] font-black bg-emerald-300 text-emerald-950 animate-pulse">
+                        {digoraSync.formattedRemainingTime}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-slate-100 text-slate-500">
+                        LAN
+                      </span>
+                    )}
+                  </button>
+
                   {/* Print & PDF Patient Odontogram Report Icon-only Button */}
                   <button
                     type="button"
@@ -8162,9 +8229,12 @@ export default function ChartPage() {
                               className={`max-h-[360px] max-w-full object-contain rounded-lg shadow-sm transition-opacity duration-200 ${radiographImgLoading ? 'opacity-0' : 'opacity-100'}`}
                               onError={() => {
                                 const radId = selectedRadiograph.radiographID || selectedRadiograph.RadiographID;
-                                const directUrl = `https://dentist-api-dev.vitonta.com/api/radiographs/${radId}/image`;
-                                if (radiographBlobUrl && radiographBlobUrl !== directUrl) {
-                                  setRadiographBlobUrl(directUrl);
+                                const cached = typeof window !== 'undefined'
+                                  ? (localStorage.getItem(`dentia_radiograph_${radId}`) || localStorage.getItem('dentia_latest_radiograph'))
+                                  : null;
+                                if (cached && radiographBlobUrl !== cached) {
+                                  setRadiographBlobUrl(cached);
+                                  setRadiographImgError(false);
                                 } else {
                                   setRadiographImgError(true);
                                 }
@@ -8646,6 +8716,9 @@ export default function ChartPage() {
                           digoraSync={digoraSync}
                           patientId={patientId}
                           patientName={patient ? `${patient.firstName || ''} ${patient.lastName || ''}`.trim() : `Patient #${patientId}`}
+                          isDigoraModalOpen={showDigoraModal}
+                          onOpenDigoraModal={() => setShowDigoraModal(true)}
+                          onCloseDigoraModal={() => setShowDigoraModal(false)}
                         />
                       </div>
                     )}
@@ -9093,6 +9166,9 @@ export default function ChartPage() {
                           digoraSync={digoraSync}
                           patientId={patientId}
                           patientName={patient ? `${patient.firstName || ''} ${patient.lastName || ''}`.trim() : `Patient #${patientId}`}
+                          isDigoraModalOpen={showDigoraModal}
+                          onOpenDigoraModal={() => setShowDigoraModal(true)}
+                          onCloseDigoraModal={() => setShowDigoraModal(false)}
                         />
                       </div>
                     )}
@@ -11783,6 +11859,16 @@ export default function ChartPage() {
           setHighlightedTeeth([toothNum]);
         }}
         isApplying={isApplyingAiFindings}
+      />
+
+      {/* Soredex DIGORA Optime Ethernet PSP Scanner Window */}
+      <DigoraScannerModal
+        isOpen={showDigoraModal}
+        onClose={() => setShowDigoraModal(false)}
+        patientId={patientId}
+        patientName={patient ? `${patient.firstName || ''} ${patient.lastName || ''}`.trim() : `Patient #${patientId}`}
+        operatoryId="Op-1"
+        digoraSync={digoraSync}
       />
 
       <Footer />

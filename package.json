@@ -19,6 +19,7 @@
     "axios": "^1.19.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
+    "koffi": "^3.3.1",
     "lucide-react": "^1.33.0",
     "postcss": "^8.5.26",
     "react": "^19.2.8",

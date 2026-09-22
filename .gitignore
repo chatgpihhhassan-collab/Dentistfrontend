@@ -32,3 +32,6 @@ lerna-debug.log*
 # IDE
 .vscode/
 .idea/
+
+# Local Clinic Scans
+scans/

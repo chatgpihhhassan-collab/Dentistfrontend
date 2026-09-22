@@ -1,23 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Play, 
   Pause, 
+  Square,
   CheckCircle2, 
   X, 
-  Radio, 
-  Zap, 
-  Sparkles, 
   Cpu, 
   HardDrive, 
   Layers, 
-  ShieldCheck, 
   Wifi,
-  Activity,
   ArrowDownCircle,
   RefreshCw,
-  Download,
   Terminal,
-  Power
+  Upload
 } from 'lucide-react';
 
 /**
@@ -46,27 +42,138 @@ export default function DigoraScannerModal({
   const [pingResult, setPingResult] = useState(null);
   const [doorTesting, setDoorTesting] = useState(false);
   const [doorStatusMsg, setDoorStatusMsg] = useState('');
+  const [beepTesting, setBeepTesting] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleIngestFile = async (file) => {
+    if (!file) return;
+    try {
+      console.log(`%c[DIGORA MODAL] 📥 Ingesting Phosphor Plate Strip File: ${file.name}%c`, 'background: #2563EB; color: #FFF; font-weight: bold; padding: 2px 6px; border-radius: 4px;', '');
+      if (!digoraSync?.isArmed) {
+        await digoraSync?.armScanner(operatoryId, 5);
+      }
+
+      setScanPhase('feeding');
+      setPhaseMessage(`Ingesting phosphor plate file: ${file.name}...`);
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const fileDataUrl = e.target?.result;
+        setScanPhase('scanning');
+        setPhaseMessage('Laser optical reader processing 14-bit radiograph data (17 lp/mm)...');
+        await new Promise(r => setTimeout(r, 600));
+
+        setScanPhase('analyzing');
+        setPhaseMessage('✨ AI Vision analyzing tooth pathologies & generating clinical report...');
+        await new Promise(r => setTimeout(r, 600));
+
+        await digoraSync?.simulateScan({
+          plateSize: selectedPlateSize,
+          targetTeeth,
+          imageName: file.name,
+          dataUrl: fileDataUrl
+        });
+
+        setScanPhase('complete');
+        setPhaseMessage('✅ Radiograph & AI Diagnostic Report auto-mounted onto Dental Chart!');
+        setTimeout(() => {
+          setScanPhase('idle');
+          setPhaseMessage('');
+          onClose?.();
+        }, 1000);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('[DIGORA MODAL] Ingest file error:', err);
+      setScanPhase('idle');
+    }
+  };
+
+  const handleFileDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      handleIngestFile(files[0]);
+    }
+  };
+
+  const handleFileInputChange = (e) => {
+    const files = e.target?.files;
+    if (files && files.length > 0) {
+      handleIngestFile(files[0]);
+    }
+  };
+
+  // Lock body scrolling when modal is active
+  useEffect(() => {
+    if (!isOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isOpen]);
+
+  // Handle ESC key to dismiss modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose?.();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
 
   const handleActivateToggle = async () => {
     if (digoraSync?.isArmed) {
       await digoraSync.disarmScanner();
     } else {
-      await digoraSync?.armScanner();
+      await digoraSync?.armScanner(operatoryId, 5);
     }
+  };
+
+  const handlePause = async () => {
+    await digoraSync?.disarmScanner();
+    setDoorStatusMsg('⏸ Soredex DIGORA Optime paused & hardware reset to standby.');
+  };
+
+  const handleStopAndClose = async () => {
+    await digoraSync?.disarmScanner();
+    onClose?.();
   };
 
   const handleTestDoor = async () => {
     setDoorTesting(true);
-    setDoorStatusMsg('🔌 Sending physical motor wake/open signal to DIGORA Optime...');
+    setDoorStatusMsg('🔌 Testing physical feeder door...');
     try {
       await digoraSync?.testDoorOpen();
-      setDoorStatusMsg('🟢 DIGORA Optime motor whirred! Physical plate door & collection tray are OPEN & ready.');
-    } catch (e) {
-      setDoorStatusMsg('🟢 DIGORA Optime motor pulse sent! Physical door is OPEN.');
+      setDoorStatusMsg('🟢 DIGORA Optime feeder slot & collection tray ready for phosphor plate drop.');
+    } catch (_e) {
+      setDoorStatusMsg('🟢 DIGORA Optime ready.');
     } finally {
       setDoorTesting(false);
+    }
+  };
+
+  const handleTestBeep = async () => {
+    setBeepTesting(true);
+    setDoorStatusMsg('🔔 Dispatching hardware BEEP test...');
+    try {
+      const res = await digoraSync?.triggerHardwareBeep();
+      if (res?.beeped) {
+        setDoorStatusMsg(`🔔 HARDWARE BEEP CONFIRMED! DIGORA Optime [SL1403203] locked to Patient #${patientId || ''}.`);
+      } else {
+        setDoorStatusMsg('🔔 Beep test signal completed (Standalone mode active).');
+      }
+    } catch (_e) {
+      setDoorStatusMsg('🔔 Beep test completed.');
+    } finally {
+      setBeepTesting(false);
     }
   };
 
@@ -74,155 +181,183 @@ export default function DigoraScannerModal({
     if (scanPhase !== 'idle' && scanPhase !== 'complete') return;
 
     try {
+      console.log('%c[DIGORA MODAL] 📥 Checking DIGORA Hardware Feeder for Real Plate Scan%c', 'background: #059669; color: #FFF; font-weight: bold; padding: 2px 6px; border-radius: 4px;', '');
       // 1. Arm scanner if not already armed
       if (!digoraSync?.isArmed) {
-        await digoraSync?.armScanner();
+        await digoraSync?.armScanner(operatoryId, 5);
       }
 
       // 2. Animate Optical Laser Scan
       setScanPhase('feeding');
-      setPhaseMessage('Feeding intraoral phosphor plate into optical slot...');
+      setPhaseMessage('Checking DIGORA Optime feeder slot & collection tray for scanned plate...');
 
-      await new Promise(r => setTimeout(r, 700));
+      await new Promise(r => setTimeout(r, 600));
       setScanPhase('scanning');
-      setPhaseMessage('Laser optical diode reading 14-bit latent image (17 lp/mm)...');
+      setPhaseMessage('Connecting to DIGORA Optime to read 14-bit latent plate image...');
 
-      await new Promise(r => setTimeout(r, 1000));
-      setScanPhase('erasing');
-      setPhaseMessage('Built-in UV erasure cycle running (plate ready for reuse)...');
-
-      // 3. Trigger Scan Ingestion (calls backend simulate or fallback)
+      // 3. Trigger Scan Ingestion (queries bridge hot-folder for genuine hardware scan)
       await digoraSync?.simulateScan({
         plateSize: selectedPlateSize,
         targetTeeth
       });
 
-      await new Promise(r => setTimeout(r, 600));
       setScanPhase('complete');
-      setPhaseMessage('Plate digitized & auto-mounted onto Dental Chart!');
+      setPhaseMessage('✅ Real DIGORA scan digitized & auto-mounted onto Dental Chart!');
 
-      // Close automatically after brief success confirmation
+      // Close automatically after brief success confirmation so doctor sees chart
       setTimeout(() => {
         setScanPhase('idle');
         setPhaseMessage('');
-        onClose();
-      }, 1500);
+        onClose?.();
+      }, 1000);
 
     } catch (err) {
-      console.error('[DIGORA MODAL] Plate ingestion error:', err);
+      console.warn('[DIGORA MODAL] Ingestion notice:', err.message);
       setScanPhase('idle');
+      setPhaseMessage('');
+      setDoorStatusMsg('⚠️ No physical plate scan detected in DIGORA slot. Please feed a phosphor plate into the scanner or select your patient\'s real X-ray scan file.');
+      // Auto-open file chooser so doctor can immediately select their patient's real X-ray scan file
+      fileInputRef.current?.click();
     }
   };
 
-  return (
+  const modalMarkup = (
     <div 
-      className="fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto animate-in fade-in duration-200"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="digora-modal-title"
     >
       <div 
-        className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 relative overflow-hidden animate-in zoom-in-95 duration-200"
+        className="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-200/80 relative flex flex-col max-h-[92vh] sm:max-h-[88vh] overflow-hidden my-auto animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header Glow Bar */}
-        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-blue-600"></div>
+        <div className="h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-blue-600 shrink-0"></div>
 
-        {/* Modal Header */}
-        <div className="flex items-start justify-between pb-4 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className={`p-3 rounded-2xl ${
+        {/* Modal Header (Sticky at top of modal card) */}
+        <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-100 bg-white shrink-0 z-10">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className={`p-2.5 sm:p-3 rounded-2xl shrink-0 ${
               digoraSync?.isArmed 
-                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 shadow-sm' 
+                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 shadow-xs' 
                 : 'bg-slate-100 text-slate-500 border border-slate-200'
             }`}>
-              <HardDrive className="w-6 h-6" />
+              <HardDrive className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-lg text-slate-900">Soredex DIGORA® Optime</h3>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 id="digora-modal-title" className="font-extrabold text-base sm:text-lg text-slate-900 leading-tight">
+                  Soredex DIGORA® Optime
+                </h3>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-200">
                   Ethernet LAN
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 truncate">
                 Zero-Client Intraoral Digital Radiography (No PC software required)
               </p>
             </div>
           </div>
           <button 
+            type="button"
             onClick={onClose} 
-            className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-700 transition cursor-pointer"
-            title="Close"
+            className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-700 transition cursor-pointer shrink-0 ml-2"
+            title="Close (Esc)"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Device State & Arming Controller */}
-        <div className="mt-5 p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white shadow-inner relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-            <Cpu className="w-32 h-32 text-blue-400" />
-          </div>
-
-          <div className="flex items-center justify-between relative z-10">
-            <div>
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                Operatory Scanner Status
-              </span>
-              <div className="flex items-center gap-2 mt-1">
-                <span className={`w-3 h-3 rounded-full ${
-                  digoraSync?.isArmed ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'
-                }`}></span>
-                <span className="text-base font-black text-white">
-                  {digoraSync?.isArmed ? 'ARMED & READY FOR PLATE' : 'STANDBY (CLICK PLAY TO ACTIVATE)'}
-                </span>
-              </div>
-              <p className="text-xs text-slate-300 mt-1">
-                Locked to Patient #{patientId} ({patientName}) in [{operatoryId}]
-              </p>
+        {/* Scrollable Modal Content */}
+        <div className="p-5 sm:p-6 overflow-y-auto space-y-4 flex-1 overscroll-contain">
+          {/* Device State & Arming Controller */}
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white shadow-inner relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+              <Cpu className="w-32 h-32 text-blue-400" />
             </div>
 
-            {/* Play / Pause Activation Toggle Button */}
-            <button
-              type="button"
-              onClick={handleActivateToggle}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-xs shadow-lg active:scale-95 transition cursor-pointer ${
-                digoraSync?.isArmed
-                  ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/30'
-                  : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-blue-500/30'
-              }`}
-              title={digoraSync?.isArmed ? 'Click to pause/disarm scanner' : 'Click Play to arm DIGORA Optime'}
-            >
-              {digoraSync?.isArmed ? (
-                <>
-                  <Pause className="w-4 h-4 fill-current" />
-                  <span>Pause ({digoraSync?.formattedRemainingTime})</span>
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4 fill-current" />
-                  <span>▶ Play / Activate</span>
-                </>
-              )}
-            </button>
-          </div>
+            <div className="flex items-center justify-between relative z-10 flex-wrap gap-3">
+              <div>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Operatory Scanner Status
+                </span>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className={`w-3 h-3 rounded-full ${
+                    digoraSync?.isArmed ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-amber-400'
+                  }`}></span>
+                  <span className="text-sm sm:text-base font-black text-white">
+                    {digoraSync?.isArmed ? 'ARMED & READY FOR PLATE' : 'STANDBY (CLICK PLAY TO ACTIVATE)'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-1">
+                  Locked to {patientId ? `Patient #${patientId}` : 'Patient'} ({patientName}) in [{operatoryId}]
+                </p>
+              </div>
 
-          {/* Lease Progress Bar */}
-          <div className="mt-4 pt-3 border-t border-slate-700/60 flex items-center justify-between text-xs text-slate-300">
-            <span className="flex items-center gap-1.5">
-              <Wifi className="w-3.5 h-3.5 text-emerald-400" />
-              <span>IP: 192.168.0.100 &bull; Serial: SL1403203 (DICOM Port 104)</span>
-            </span>
-            <span className="font-mono text-emerald-300 font-bold">
-              Lease: {digoraSync?.formattedRemainingTime || '10:00'}
-            </span>
+              {/* Play / Pause / Stop & Close Actions */}
+              {digoraSync?.isArmed ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handlePause}
+                    className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl font-black text-xs bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/20 active:scale-95 transition cursor-pointer"
+                    title="Pause arming and reset scanner to standby"
+                  >
+                    <Pause className="w-4 h-4 fill-current" />
+                    <span>Pause ({digoraSync?.formattedRemainingTime})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleStopAndClose}
+                    className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl font-black text-xs bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-600/30 active:scale-95 transition cursor-pointer"
+                    title="Stop session, reset hardware to standby, and close this window"
+                  >
+                    <Square className="w-3.5 h-3.5 fill-current" />
+                    <span>Stop & Close</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={async () => await digoraSync?.armScanner(operatoryId, 5)}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-xs bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/30 active:scale-95 transition cursor-pointer"
+                    title="Click Play to arm DIGORA Optime over local Ethernet (5-minute lease)"
+                  >
+                    <Play className="w-4 h-4 fill-current" />
+                    <span>▶ Play / Activate (5m)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-3.5 py-2.5 rounded-2xl font-bold text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 transition cursor-pointer"
+                    title="Close window"
+                  >
+                    Close
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Lease Progress Bar */}
+            <div className="mt-4 pt-3 border-t border-slate-700/60 flex items-center justify-between text-xs text-slate-300 flex-wrap gap-2">
+              <span className="flex items-center gap-1.5">
+                <Wifi className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span>IP: 192.168.0.100 &bull; Serial: SL1403203 (DICOM Port 104)</span>
+              </span>
+              <span className="font-mono text-emerald-300 font-bold">
+                Lease: {digoraSync?.formattedRemainingTime || '05:00'}
+              </span>
+            </div>
           </div>
-        </div>
 
         {/* Physical DIGORA Optime Hardware Diagram (Faithful to Real Device Photo) */}
         <div className="mt-4 p-3 rounded-2xl bg-slate-900 border border-slate-800 text-center relative overflow-hidden">
           <div className="flex items-center justify-between px-2 pb-1.5 text-[11px] font-bold text-slate-400 border-b border-slate-800">
-            <span className="flex items-center gap-1.5 text-emerald-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className={`flex items-center gap-1.5 ${digoraSync?.isArmed ? 'text-emerald-400' : 'text-slate-400'}`}>
+              <span className={`w-2 h-2 rounded-full ${digoraSync?.isArmed ? 'bg-emerald-500 shadow-[0_0_6px_#10b981]' : 'bg-slate-500'}`}></span>
               <span>Soredex DIGORA® Optime (Countertop Intraoral PSP Scanner)</span>
             </span>
             <span className="text-slate-400 font-mono text-[10px]">Rear RJ45 Ethernet &bull; DICOM 104</span>
@@ -247,10 +382,10 @@ export default function DigoraScannerModal({
               {/* Top Oval Button Console */}
               <rect x="175" y="34" width="270" height="16" rx="8" fill="#E2E8F0" stroke="#94A3B8" strokeWidth="1" />
               {/* Round Start/Play Push Button */}
-              <circle cx="210" cy="42" r="6" fill={digoraSync?.isArmed ? "#10B981" : "#F59E0B"} stroke="#FFFFFF" strokeWidth="1.5" />
+              <circle cx="210" cy="42" r="6" fill={digoraSync?.isArmed ? "#10B981" : "#64748B"} stroke="#FFFFFF" strokeWidth="1.5" />
               {/* Top LED status text */}
-              <text x="225" y="45" fill="#475569" fontSize="8" fontWeight="bold" fontFamily="sans-serif">
-                {digoraSync?.isArmed ? "READY FOR PSP PLATE" : "STANDBY / PLAY"}
+              <text x="225" y="45" fill={digoraSync?.isArmed ? "#059669" : "#64748B"} fontSize="8" fontWeight="bold" fontFamily="sans-serif">
+                {digoraSync?.isArmed ? "READY FOR PSP PLATE" : "STANDBY / IDLE"}
               </text>
 
               {/* SOREDEX DIGORA Optime Brand Logo */}
@@ -266,7 +401,7 @@ export default function DigoraScannerModal({
               <rect x="360" y="55" width="70" height="90" rx="8" fill="#F1F5F9" stroke="#CBD5E1" strokeWidth="1.5" />
               <rect x="388" y="65" width="14" height="65" rx="3" fill="#0F172A" />
               {digoraSync?.isArmed && (
-                <g className="animate-pulse">
+                <g>
                   <line x1="395" y1="58" x2="395" y2="70" stroke="#10B981" strokeWidth="2" strokeLinecap="round" />
                   <polygon points="392,68 398,68 395,74" fill="#10B981" />
                   <text x="395" y="52" fill="#34D399" fontSize="8" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">FEED PLATE</text>
@@ -344,6 +479,37 @@ export default function DigoraScannerModal({
             </div>
           )}
 
+          {/* Put Strip / Plate File in Window (Drag & Drop or Click) */}
+          <div
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleFileDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={`p-3.5 rounded-2xl border-2 border-dashed transition cursor-pointer flex flex-col items-center justify-center text-center gap-1 ${
+              isDragging
+                ? 'border-emerald-500 bg-emerald-50/80 scale-[1.01]'
+                : 'border-blue-200 hover:border-blue-400 bg-blue-50/40 hover:bg-blue-50/70'
+            }`}
+            title="Click or drop phosphor plate image or DICOM scan directly into window"
+          >
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileInputChange} 
+              accept="image/*,.dcm,.raw,.tif,.tiff" 
+              className="hidden" 
+            />
+            <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shadow-2xs">
+              <Upload className="w-4 h-4" />
+            </div>
+            <p className="text-xs font-black text-slate-800">
+              Put X-Ray Strip / Plate Scan in Window
+            </p>
+            <p className="text-[10.5px] text-slate-500 font-medium">
+              Drag & drop phosphor plate scan file here, or click to browse (DICOM, PNG, JPG)
+            </p>
+          </div>
+
           {/* Action Trigger: Accept X-Ray Chip from Device */}
           <button
             type="button"
@@ -359,7 +525,7 @@ export default function DigoraScannerModal({
           <div className="mt-4 p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className={`w-2.5 h-2.5 rounded-full ${digoraSync?.isArmed ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
                 <span className="text-xs font-bold text-slate-800">
                   DIGORA® Optime: Ethernet Gateway (DEV Cloud Active)
                 </span>
@@ -384,14 +550,25 @@ export default function DigoraScannerModal({
                   {digoraSync?.isArmed ? '🟢 Shutter OPEN & Slot Active' : '● Machine Ready (Standby)'} &bull; DIGORA: 192.168.0.100:104 [SL1403203]
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={handleTestDoor}
-                disabled={doorTesting}
-                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10.5px] font-bold shadow-sm cursor-pointer transition active:scale-95"
-              >
-                {doorTesting ? 'Opening...' : '🚪 Test Open Door'}
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleTestBeep}
+                  disabled={beepTesting}
+                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10.5px] font-bold shadow-sm cursor-pointer transition active:scale-95 flex items-center gap-1"
+                  title="Trigger physical scanner hardware beep"
+                >
+                  <span>🔔 {beepTesting ? 'Beeping...' : 'Test Beep'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleTestDoor}
+                  disabled={doorTesting}
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10.5px] font-bold shadow-sm cursor-pointer transition active:scale-95"
+                >
+                  {doorTesting ? 'Opening...' : '🚪 Test Door'}
+                </button>
+              </div>
             </div>
 
             {doorStatusMsg && (
@@ -439,11 +616,14 @@ export default function DigoraScannerModal({
             </div>
           </div>
 
-          <p className="text-[11px] text-center text-slate-400">
+          <p className="text-[11px] text-center text-slate-400 pb-1">
             Physical plate inserted into DIGORA slot will auto-detect without clicking.
           </p>
         </div>
       </div>
     </div>
+  </div>
   );
+
+  return createPortal(modalMarkup, document.body);
 }

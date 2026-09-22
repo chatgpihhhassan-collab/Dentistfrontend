@@ -31,15 +31,32 @@ const CONFIG = {
   DIGORA_RAW_PORT: 2002,
   DIGORA_HTTP_PORT: 5000,
   DENTIA_API_URL: process.env.DENTIA_API_URL || 'https://dentist-api-dev.vitonta.com',
-  HOT_FOLDER: path.join(process.env.USERPROFILE || 'C:\\', 'Dentia', 'DigoraScans')
+const projectScansFolder = path.join(__dirname, '..', 'scans');
+const userProfileScansFolder = process.env.USERPROFILE 
+  ? path.join(process.env.USERPROFILE, 'Dentia', 'DigoraScans') 
+  : projectScansFolder;
+
+const CONFIG = {
+  BRIDGE_PORT: 5055,
+  DIGORA_IP: cliIp || process.env.DIGORA_IP || '192.168.0.100',
+  ALT_DIGORA_IP: '192.168.1.120',
+  DIGORA_UDP_PORT: 10000,
+  DIGORA_TCP_PORT: 104,
+  DIGORA_RAW_PORT: 2002,
+  DIGORA_HTTP_PORT: 5000,
+  DENTIA_API_URL: process.env.DENTIA_API_URL || 'https://dentist-api-dev.vitonta.com',
+  HOT_FOLDER: projectScansFolder,
+  ALT_HOT_FOLDER: userProfileScansFolder
 };
 
-// Ensure hot folder exists for automatic image drop
-try {
-  if (!fs.existsSync(CONFIG.HOT_FOLDER)) {
-    fs.mkdirSync(CONFIG.HOT_FOLDER, { recursive: true });
-  }
-} catch (e) {}
+// Ensure hot folders exist for automatic image drop
+[CONFIG.HOT_FOLDER, CONFIG.ALT_HOT_FOLDER].forEach(folder => {
+  try {
+    if (!fs.existsSync(folder)) {
+      fs.mkdirSync(folder, { recursive: true });
+    }
+  } catch (e) {}
+});
 
 let currentSession = {
   isArmed: false,
@@ -292,7 +309,7 @@ const server = http.createServer(async (req, res) => {
     req.on('end', async () => {
       try {
         const payload = JSON.parse(body || '{}');
-        const patientId = payload.patientId || 40;
+        const patientId = payload.patientId || null;
         const operatoryId = payload.operatoryId || 'Op-1';
         const targetIp = payload.scannerIp || CONFIG.DIGORA_IP;
 

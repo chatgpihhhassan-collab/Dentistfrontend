@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Image as ImageIcon, 
   Sparkles, 
@@ -20,6 +20,8 @@ import {
   CheckCircle2,
   Check,
   Play,
+  Pause,
+  Square,
   ArrowDownCircle
 } from 'lucide-react';
 import { extractAiFindingsFromReport, isTestRadiograph } from '../utils/aiRadiologyUtils.js';
@@ -58,11 +60,29 @@ export default function ChartRadiographFilmstrip({
   onWorkspaceModeChange = null,
   digoraSync = null,
   patientId = null,
-  patientName = 'Active Patient'
+  patientName = 'Active Patient',
+  isDigoraModalOpen = null,
+  onOpenDigoraModal = null,
+  onCloseDigoraModal = null
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showTestScans, setShowTestScans] = useState(false);
-  const [showDigoraModal, setShowDigoraModal] = useState(false);
+  const [internalShowDigoraModal, setInternalShowDigoraModal] = useState(false);
+
+  const showDigoraModal = (isDigoraModalOpen !== null && isDigoraModalOpen !== undefined)
+    ? isDigoraModalOpen
+    : internalShowDigoraModal;
+
+  const openDigoraModal = () => {
+    if (onOpenDigoraModal) onOpenDigoraModal();
+    else setInternalShowDigoraModal(true);
+  };
+
+  const closeDigoraModal = () => {
+    if (onCloseDigoraModal) onCloseDigoraModal();
+    else setInternalShowDigoraModal(false);
+  };
+
   const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'opg' | 'rvg' | 'diagnosed'
   const [zoom, setZoom] = useState(1);
   const [isInverted, setIsInverted] = useState(false);
@@ -73,6 +93,15 @@ export default function ChartRadiographFilmstrip({
 
   const fileInputRef = useRef(null);
   const carouselContainerRef = useRef(null);
+
+  // When DIGORA is disarmed, stopped, or 5-minute lease expires, auto-close scanner strip modal
+  const wasArmedRef = useRef(digoraSync?.isArmed);
+  useEffect(() => {
+    if (wasArmedRef.current && !digoraSync?.isArmed && showDigoraModal) {
+      closeDigoraModal();
+    }
+    wasArmedRef.current = digoraSync?.isArmed;
+  }, [digoraSync?.isArmed, showDigoraModal]);
 
   // Filter test scans unless explicitly enabled
   const testScansCount = useMemo(() => radiographs.filter(r => isTestRadiograph(r)).length, [radiographs]);
@@ -202,13 +231,18 @@ export default function ChartRadiographFilmstrip({
   const getImageUrl = (r) => {
     if (!r) return '';
     if (r.dataUrl) return r.dataUrl;
-    if (r.imageUrl) return r.imageUrl;
+    if (r.imageUrl && (r.imageUrl.startsWith('data:') || r.imageUrl.startsWith('blob:'))) return r.imageUrl;
     if (r.imageData && r.imageData.length > 50) {
       return r.imageData.startsWith('data:') 
         ? r.imageData 
-        : `data:${r.mimeType || 'image/jpeg'};base64,${r.imageData}`;
+        : `data:${r.mimeType || 'image/png'};base64,${r.imageData}`;
     }
     const id = r.radiographID || r.RadiographID;
+    if (id && typeof window !== 'undefined') {
+      const cached = localStorage.getItem(`dentia_radiograph_${id}`);
+      if (cached) return cached;
+    }
+    if (r.imageUrl) return r.imageUrl;
     if (!id) return '';
     return `https://dentist-api-dev.vitonta.com/api/radiographs/${id}/image`;
   };
@@ -300,22 +334,28 @@ export default function ChartRadiographFilmstrip({
                 {digoraSync?.isArmed ? (
                   <button
                     type="button"
-                    onClick={() => digoraSync.disarmScanner()}
+                    onClick={async () => {
+                      await digoraSync.disarmScanner();
+                      closeDigoraModal();
+                    }}
                     className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition cursor-pointer shadow-2xs"
-                    title={`Soredex DIGORA Optime is armed over Ethernet. Scan a phosphor plate in the machine to auto-load. Lease expires in ${digoraSync.formattedRemainingTime}. Click to disarm.`}
+                    title={`Soredex DIGORA Optime is armed over Ethernet. Click to disarm, reset hardware, and close window.`}
                   >
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                     <span className="font-extrabold text-[10px]">DIGORA Optime: Armed ({digoraSync.formattedRemainingTime})</span>
                   </button>
                 ) : (
                   <button
                     type="button"
-                    onClick={() => digoraSync?.armScanner()}
+                    onClick={() => {
+                      digoraSync?.armScanner('Op-1', 5);
+                      openDigoraModal();
+                    }}
                     className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition cursor-pointer shadow-2xs"
-                    title="Click to arm Soredex DIGORA Optime Ethernet scanner for this patient"
+                    title="Click to activate Soredex DIGORA Optime Ethernet scanner (5-minute lease) and open scanner window"
                   >
                     <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                    <span className="font-bold text-[10px]">DIGORA Optime: Ready (Click to Arm)</span>
+                    <span className="font-bold text-[10px]">DIGORA Optime: Ready (Click to Arm 5m)</span>
                   </button>
                 )}
 
@@ -347,31 +387,52 @@ export default function ChartRadiographFilmstrip({
           <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
             {digoraSync && (
               <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!digoraSync.isArmed) digoraSync.armScanner();
-                    setShowDigoraModal(true);
-                  }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-[11px] shadow-sm active:scale-95 transition cursor-pointer ${
-                    digoraSync.isArmed
-                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                      : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white'
-                  }`}
-                  title="Activate Soredex DIGORA Optime Ethernet Scanner with Play Button"
-                >
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>{digoraSync.isArmed ? `Active (${digoraSync.formattedRemainingTime})` : '▶ Play DIGORA'}</span>
-                </button>
+                {digoraSync.isArmed ? (
+                  <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-300 p-0.5 rounded-xl shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => openDigoraModal()}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] transition cursor-pointer"
+                      title="Soredex DIGORA Optime is armed. Click to open chairside console."
+                    >
+                      <Play className="w-3 h-3 fill-current" />
+                      <span>Active ({digoraSync.formattedRemainingTime})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await digoraSync.disarmScanner();
+                        closeDigoraModal();
+                      }}
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 font-extrabold text-[10.5px] transition cursor-pointer"
+                      title="Stop DIGORA Optime session, reset device to standby, and close scanner window"
+                    >
+                      <Square className="w-2.5 h-2.5 fill-current" />
+                      <span>Stop</span>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      digoraSync?.armScanner('Op-1', 5);
+                      openDigoraModal();
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-[11px] shadow-sm active:scale-95 transition cursor-pointer"
+                    title="Activate Soredex DIGORA Optime Ethernet Scanner (5-Minute Window)"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    <span>▶ Play DIGORA (5m)</span>
+                  </button>
+                )}
 
                 <button
                   type="button"
-                  onClick={() => setShowDigoraModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-[11px] font-black shadow-sm active:scale-95 transition cursor-pointer"
-                  title="Accept X-Ray Phosphor Plate (Chip) from DIGORA Optime into Dental Chart"
+                  onClick={() => digoraSync?.triggerHardwareBeep?.()}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-extrabold text-[11px] shadow-xs active:scale-95 transition cursor-pointer"
+                  title="Test physical Soredex DIGORA Optime hardware beep sound"
                 >
-                  <ArrowDownCircle className="w-3.5 h-3.5" />
-                  <span>Accept X-Ray Chip</span>
+                  <span>🔔 Beep</span>
                 </button>
               </>
             )}
@@ -677,9 +738,16 @@ export default function ChartRadiographFilmstrip({
                       }}
                       className="max-w-full max-h-full object-contain pointer-events-none"
                       onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                        const fallback = e.currentTarget.parentElement?.querySelector('.stage-fallback');
-                        if (fallback) fallback.classList.remove('hidden');
+                        const cached = (typeof window !== 'undefined' && currentScanId) 
+                          ? localStorage.getItem(`dentia_radiograph_${currentScanId}`)
+                          : null;
+                        if (cached && e.currentTarget.src !== cached) {
+                          e.currentTarget.src = cached;
+                        } else {
+                          e.currentTarget.style.display = 'none';
+                          const fallback = e.currentTarget.parentElement?.querySelector('.stage-fallback');
+                          if (fallback) fallback.classList.remove('hidden');
+                        }
                       }}
                     />
 
@@ -986,15 +1054,17 @@ export default function ChartRadiographFilmstrip({
         </div>
       )}
 
-      {/* Soredex DIGORA Optime Hardware Console Modal */}
-      <DigoraScannerModal
-        isOpen={showDigoraModal}
-        onClose={() => setShowDigoraModal(false)}
-        patientId={patientId}
-        patientName={patientName}
-        operatoryId="Op-1"
-        digoraSync={digoraSync}
-      />
+      {/* Soredex DIGORA Optime Hardware Console Modal (renders locally only if parent did not provide modal handler) */}
+      {!onOpenDigoraModal && (
+        <DigoraScannerModal
+          isOpen={showDigoraModal}
+          onClose={closeDigoraModal}
+          patientId={patientId}
+          patientName={patientName}
+          operatoryId="Op-1"
+          digoraSync={digoraSync}
+        />
+      )}
     </div>
   );
 }

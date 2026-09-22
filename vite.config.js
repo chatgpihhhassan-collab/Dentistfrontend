@@ -7,6 +7,13 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
+      '/digora': {
+        target: 'http://127.0.0.1:5055',
+        changeOrigin: true,
+        secure: false,
+        timeout: 10000,
+        proxyTimeout: 10000
+      },
       '/api': {
         target: 'https://dentist-api-dev.vitonta.com',
         changeOrigin: true,

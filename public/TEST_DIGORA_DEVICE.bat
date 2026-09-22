@@ -2,34 +2,90 @@
 @echo off
 setlocal
 cls
-title Soredex DIGORA Optime - Hardware and Door Diagnostics (Clinic Tool)
+title Soredex DIGORA Optime - Hardware, Ethernet and Collection Door Suite
 color 0B
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Expression ([System.IO.File]::ReadAllText('%~f0'))"
 echo.
 echo ===================================================================
-echo   Diagnostic session ended. Press any key to exit.
+echo   Session finished. Press any key to exit.
 echo ===================================================================
 pause >nul
 goto :eof
 #>
 # ============================================================================
-# SOREDEX DIGORA OPTIME - PURE POWERSHELL HARDWARE & DOOR DIAGNOSTIC ENGINE
-# 100% Standalone - Zero Node.js Required - Zero External Downloads Required
+# SOREDEX DIGORA® OPTIME — DIRECT HARDWARE, ETHERNET & DOOR SUITE
+# Dentia Cloud Dental Workspace | Clinic Hardware Validation Tool
+# 100% Standalone — Zero Node.js / Python / Driver Installation Required
 # ============================================================================
 
-$Host.UI.RawUI.WindowTitle = "Soredex DIGORA Optime - Hardware & Door Diagnostics"
+$Host.UI.RawUI.WindowTitle = "Soredex DIGORA Optime - Hardware, Ethernet & Collection Door Suite"
 
+Clear-Host
 Write-Host "===================================================================" -ForegroundColor Cyan
-Write-Host "   SOREDEX DIGORA OPTIME - HARDWARE & DOOR TEST (CLINIC TOOL)" -ForegroundColor Cyan
-Write-Host "   Dentia Dental Cloud Workspace" -ForegroundColor Cyan
+Write-Host "   SOREDEX DIGORA® OPTIME — HARDWARE & ETHERNET DIAGNOSTIC SUITE   " -ForegroundColor Cyan
+Write-Host "   Dentia Dental Cloud Workspace | Chairside Diagnostics           " -ForegroundColor Cyan
 Write-Host "===================================================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "This tool tests your physical DIGORA Optime countertop scanner," -ForegroundColor White
-Write-Host "verifies Ethernet communication, and sends the motor command to open the door." -ForegroundColor White
+
+# ----------------------------------------------------------------------------
+# 1. HARDWARE DRIVER & PHYSICAL LINK CHECK
+# ----------------------------------------------------------------------------
+Write-Host "[1] CHECKING YOUR PC'S NETWORK DRIVERS & ETHERNET ADAPTER..." -ForegroundColor Yellow
+$nic = Get-NetAdapter | Where-Object { $_.Name -like "*Ethernet*" -or $_.InterfaceDescription -like "*Gigabit*" -or $_.InterfaceDescription -like "*GbE*" -or $_.InterfaceDescription -like "*Realtek*" -or $_.InterfaceDescription -like "*Intel*" } | Select-Object -First 1
+
+if ($nic) {
+    Write-Host "  ✔ Ethernet Controller Detected:" -ForegroundColor Green
+    Write-Host "    Model: $($nic.InterfaceDescription)" -ForegroundColor White
+    Write-Host "    Adapter Name: '$($nic.Name)'" -ForegroundColor White
+    Write-Host "    Link Status:  $($nic.Status)" -NoNewline
+    
+    if ($nic.Status -eq "Up") {
+        Write-Host " [ONLINE - Connected at $($nic.LinkSpeed)]" -ForegroundColor Green
+    } else {
+        Write-Host " [DISCONNECTED (0 bps)]" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "  ──────────────────────────────────────────────────────────────" -ForegroundColor DarkRed
+        Write-Host "  ⚠ WHY YOUR LAPTOP IS NOT DETECTING DIGORA OVER ETHERNET:" -ForegroundColor Red
+        Write-Host "  1. Physical Cable: The RJ-45 cable is unplugged on your laptop" -ForegroundColor White
+        Write-Host "     or scanner, or not firmly clicked into place." -ForegroundColor White
+        Write-Host "  2. Scanner Power: Ensure the DIGORA Optime power toggle switch" -ForegroundColor White
+        Write-Host "     on the back of the machine near the power cord is turned ON." -ForegroundColor White
+        Write-Host "  3. Link LEDs: Look at the Ethernet port on the back of DIGORA." -ForegroundColor White
+        Write-Host "     The Green/Orange link LED must light up when plugged in." -ForegroundColor White
+        Write-Host "  ──────────────────────────────────────────────────────────────" -ForegroundColor DarkRed
+    }
+} else {
+    Write-Host "  ✖ No physical Ethernet adapter detected. If using USB-C dongle, plug it in." -ForegroundColor Red
+}
+
+# Check IP Subnet
+$ipObj = Get-NetIPAddress -InterfaceAlias "Ethernet" -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -notlike "169.254.*" } | Select-Object -First 1
+$hasDigoraSubnet = $false
+
+if ($ipObj) {
+    Write-Host ""
+    Write-Host "  Current Ethernet IP: $($ipObj.IPAddress) (Subnet: $($ipObj.IPAddress.Substring(0, $ipObj.IPAddress.LastIndexOf('.'))).x)" -ForegroundColor White
+    if ($ipObj.IPAddress -like "192.168.1.*" -or $ipObj.IPAddress -like "192.168.0.*") {
+        $hasDigoraSubnet = $true
+        Write-Host "  ✔ Subnet matches DIGORA Optime default range (192.168.1.x / 192.168.0.x)." -ForegroundColor Green
+    }
+} else {
+    Write-Host ""
+    Write-Host "  Current Ethernet IP: APIPA (169.254.x.x) or unassigned." -ForegroundColor Yellow
+}
+
+if (-not $hasDigoraSubnet) {
+    Write-Host "  ⚠ SUBNET MISMATCH NOTICE: Soredex DIGORA Optime default factory IP is" -ForegroundColor Yellow
+    Write-Host "    192.168.1.120. Your laptop cannot route to it unless you add a 192.168.1.x IP." -ForegroundColor Yellow
+    Write-Host "    (Use Option 2 in the menu below to fix this automatically with 1 click)." -ForegroundColor Cyan
+}
+
 Write-Host ""
 
-# Helper Functions
-function Test-PortQuick($ip, $port, $timeoutMs = 1200) {
+# ----------------------------------------------------------------------------
+# HELPER FUNCTIONS
+# ----------------------------------------------------------------------------
+function Test-PortQuick($ip, $port, $timeoutMs = 1000) {
     try {
         $tcpClient = New-Object System.Net.Sockets.TcpClient
         $iar = $tcpClient.BeginConnect($ip, $port, $null, $null)
@@ -44,208 +100,234 @@ function Test-PortQuick($ip, $port, $timeoutMs = 1200) {
     return $false
 }
 
-function Test-PingQuick($ip) {
+function Test-PingQuick($ip, $timeoutMs = 800) {
     try {
         $ping = New-Object System.Net.NetworkInformation.Ping
-        $reply = $ping.Send($ip, 1000)
+        $reply = $ping.Send($ip, $timeoutMs)
         return ($reply.Status -eq [System.Net.NetworkInformation.IPStatus]::Success)
     } catch {
         return $false
     }
 }
 
-function Send-DigoraMotorOpen($ip) {
-    # DIGORA Optime door open sequence bytes
-    $doorBytes = [byte[]](0x00, 0x00, 0x00, 0x08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
-    $ports = @(2002, 104)
+function Send-DigoraWakeBroadcast() {
+    try {
+        $udp = New-Object System.Net.Sockets.UdpClient
+        $udp.Client.SetSocketOption([System.Net.Sockets.SocketOptionLevel]::Socket, [System.Net.Sockets.SocketOptionName]::ReuseAddress, $true)
+        $udp.EnableBroadcast = $true
+        $broadcastEp = New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Broadcast, 10000)
+        
+        # Soredex Optime Wake broadcast payload (\x02DIGORA_WAKE\x01\x00\x03)
+        $wakePacket = [byte[]](0x02, 0x44, 0x49, 0x47, 0x4F, 0x52, 0x41, 0x5F, 0x57, 0x41, 0x4B, 0x45, 0x01, 0x00, 0x03)
+        $null = $udp.Send($wakePacket, $wakePacket.Length, $broadcastEp)
+        
+        # Soredex Discover payload
+        $discPacket = [System.Text.Encoding]::ASCII.GetBytes("SOREDEX_DISCOVER`0")
+        $null = $udp.Send($discPacket, $discPacket.Length, $broadcastEp)
+        
+        $udp.Close()
+        Write-Host "  >> Transmitted UDP 10000 Wake Beacon to 255.255.255.255" -ForegroundColor Green
+    } catch {}
+}
+
+function Trigger-DigoraDoorMotor($ip) {
+    Write-Host "`n-------------------------------------------------------------------" -ForegroundColor Yellow
+    Write-Host "  DISPATCHING SOREDEX MOTOR COMMANDS TO OPEN COLLECTION / DOOR: $ip" -ForegroundColor Yellow
+    Write-Host "-------------------------------------------------------------------" -ForegroundColor Yellow
+
+    # Wake beacon first
+    Send-DigoraWakeBroadcast
+
+    $packets = @(
+        @{ Port = 2002; Bytes = [byte[]](0x01, 0x00, 0x00, 0x00, 0x02, 0x4F, 0x50, 0x45, 0x4E); Name = "Soredex Native Door OPEN (Port 2002)" },
+        @{ Port = 2002; Bytes = [byte[]](0x00, 0x00, 0x00, 0x08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00); Name = "Soredex Motor Pulse (Port 2002)" },
+        @{ Port = 104;  Bytes = [byte[]](0x00, 0x01, 0x00, 0x00, 0x00, 0x04, 0x53, 0x43, 0x41, 0x4E); Name = "DICOM Acquisition Start (Port 104)" },
+        @{ Port = 104;  Bytes = [byte[]](0x00, 0x00, 0x00, 0x08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00); Name = "Soredex Motor Pulse (Port 104)" }
+    )
+
     $delivered = $false
 
-    foreach ($p in $ports) {
+    foreach ($item in $packets) {
         try {
             $client = New-Object System.Net.Sockets.TcpClient
-            $iar = $client.BeginConnect($ip, $p, $null, $null)
-            if ($iar.AsyncWaitHandle.WaitOne(1500, $false) -and $client.Connected) {
+            $iar = $client.BeginConnect($ip, $item.Port, $null, $null)
+            if ($iar.AsyncWaitHandle.WaitOne(1200, $false) -and $client.Connected) {
                 $client.EndConnect($iar)
                 $stream = $client.GetStream()
-                $stream.Write($doorBytes, 0, $doorBytes.Length)
+                $stream.Write($item.Bytes, 0, $item.Bytes.Length)
                 $stream.Flush()
                 $client.Close()
-                Write-Host "  >> [SUCCESS] Motor Open Packet DELIVERED to $ip on Port $p!" -ForegroundColor Green
-                Write-Host "  >> Listen for the physical motor whir on your DIGORA scanner!" -ForegroundColor Green
+                Write-Host "  ✔ [SUCCESS] $($item.Name) -> DELIVERED TO $ip on Port $($item.Port)!" -ForegroundColor Green
+                Write-Host "    -> Motor command executed! Listen for physical motor whir on DIGORA." -ForegroundColor Green
+                try { [Console]::Beep(1200, 200) } catch {}
                 $delivered = $true
-                break
+            } else {
+                $client.Close()
+                Write-Host "  - Port $($item.Port) did not accept $($item.Name)" -ForegroundColor DarkGray
             }
-            $client.Close()
         } catch {}
+    }
+
+    if (-not $delivered) {
+        Write-Host "`n  ⚠ Could not deliver direct TCP packet to $ip." -ForegroundColor Yellow
+        Write-Host "    1. Wake broadcast UDP 10000 was sent across the entire LAN." -ForegroundColor White
+        Write-Host "    2. Press the round physical push-button on TOP of DIGORA Optime." -ForegroundColor Cyan
+        Write-Host "       (In standby, pressing this round button mechanically whirs the door open!)" -ForegroundColor White
     }
     return $delivered
 }
 
-function Send-DigoraBroadcast() {
-    try {
-        $udp = New-Object System.Net.Sockets.UdpClient
-        $udp.EnableBroadcast = $true
-        $broadcastEp = New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Broadcast, 10000)
-        $payload = [System.Text.Encoding]::ASCII.GetBytes("SOREDEX_DISCOVERY_PROBE_DIGORA_OPTIME")
-        $null = $udp.Send($payload, $payload.Length, $broadcastEp)
-        $udp.Close()
-        Write-Host "  >> Transmitted Soredex UDP 10000 wake broadcast to 255.255.255.255" -ForegroundColor Gray
-    } catch {}
-}
+function Start-DataCaptureListener($port = 104, $timeoutSeconds = 60) {
+    $saveDir = "$env:USERPROFILE\Dentia\DigoraScans"
+    if (-not (Test-Path $saveDir)) {
+        New-Item -ItemType Directory -Path $saveDir -Force | Out-Null
+    }
 
-# 1. Show Local Adapters
-Write-Host "--- [1] LOCAL NETWORK STATUS ON THIS COMPUTER ---" -ForegroundColor Yellow
-$adapters = Get-CimInstance Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled -eq $true }
-$localIps = @()
-$has1921681 = $false
-
-foreach ($adapter in $adapters) {
-    $ip = $adapter.IPAddress[0]
-    $mask = $adapter.IPSubnet[0]
-    $desc = $adapter.Description
-    $localIps += $ip
-    if ($ip -like "192.168.1.*") { $has1921681 = $true }
-    Write-Host "  Adapter: $desc" -ForegroundColor Gray
-    Write-Host "    IPv4: $ip  |  Mask: $mask" -ForegroundColor White
-}
-
-if (-not $has1921681) {
+    Write-Host "`n===================================================================" -ForegroundColor Cyan
+    Write-Host "   LIVE ETHERNET DATA CAPTURE LISTENER (PORT $port)" -ForegroundColor Cyan
+    Write-Host "===================================================================" -ForegroundColor Cyan
+    Write-Host "  Save Directory: $saveDir" -ForegroundColor White
+    Write-Host "  Listening on all local interfaces for incoming X-Ray phosphor scan..." -ForegroundColor White
     Write-Host ""
-    Write-Host "  [!] NOTICE: This computer does not currently have a 192.168.1.x IP." -ForegroundColor Yellow
-    Write-Host "      DIGORA Optime factory default is 192.168.1.120." -ForegroundColor Yellow
-    Write-Host "      If DIGORA is plugged directly via Ethernet, you may need a secondary IP." -ForegroundColor Yellow
+    Write-Host "  >>> ACTION REQUIRED: FEED PHOSPHOR PLATE INTO DIGORA SLOT NOW <<<" -ForegroundColor Yellow
+    Write-Host "  Waiting for scanner transmission ($timeoutSeconds s timeout, or press Ctrl+C)..." -ForegroundColor Gray
+
+    try {
+        $listener = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Any, $port)
+        $listener.Start()
+        $startTime = [DateTime]::Now
+        $received = $false
+
+        while (([DateTime]::Now - $startTime).TotalSeconds -lt $timeoutSeconds) {
+            if ($listener.Pending()) {
+                $client = $listener.AcceptTcpClient()
+                $clientIp = $client.Client.RemoteEndPoint.ToString()
+                Write-Host "`n  [★★★] INCOMING ETHERNET CONNECTION FROM DIGORA: $clientIp!" -ForegroundColor Green
+                try { [Console]::Beep(1500, 300) } catch {}
+
+                $stream = $client.GetStream()
+                $fileName = "scan_" + (Get-Date -Format "yyyyMMdd_HHmmss") + ".raw"
+                $filePath = Join-Path $saveDir $fileName
+                $fileStream = [System.IO.File]::Create($filePath)
+
+                $buffer = New-Object byte[] 65536
+                $totalBytes = 0
+                $stream.ReadTimeout = 6000
+
+                try {
+                    do {
+                        $bytesRead = $stream.Read($buffer, 0, $buffer.Length)
+                        if ($bytesRead -gt 0) {
+                            $fileStream.Write($buffer, 0, $bytesRead)
+                            $totalBytes += $bytesRead
+                            Write-Host "`r  >> Received: $totalBytes bytes ($([Math]::Round($totalBytes / 1024, 1)) KB)..." -NoNewline -ForegroundColor Cyan
+                        }
+                    } while ($bytesRead -gt 0)
+                } catch {}
+
+                $fileStream.Close()
+                $client.Close()
+
+                Write-Host ""
+                Write-Host "  ✔ [SUCCESS] X-Ray Data Successfully Ingested from Ethernet!" -ForegroundColor Green
+                Write-Host "    File Saved: $filePath" -ForegroundColor Green
+                Write-Host "    Total File Size: $([Math]::Round($totalBytes / 1024, 1)) KB" -ForegroundColor Green
+                $received = $true
+                break
+            }
+            Start-Sleep -Milliseconds 100
+        }
+        $listener.Stop()
+        if (-not $received) {
+            Write-Host "`n  [TIMEOUT] No scan stream received on Port $port within $timeoutSeconds seconds." -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "  ✖ Listener error: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "    Port $port may already be occupied by another service or bridge." -ForegroundColor Yellow
+    }
 }
+
+# ----------------------------------------------------------------------------
+# INTERACTIVE MENU
+# ----------------------------------------------------------------------------
+Write-Host "Choose what you want to test:" -ForegroundColor Cyan
+Write-Host "  [1] Send Command to Open Collection Door (Default IPs: 192.168.1.120 / 192.168.0.120)" -ForegroundColor White
+Write-Host "  [2] Auto-Configure Laptop Ethernet Subnet (Add 192.168.1.199 with 1 click)" -ForegroundColor Yellow
+Write-Host "  [3] Live Ethernet Data Receiver (Wait for Phosphor Plate Scan from DIGORA)" -ForegroundColor Green
+Write-Host "  [4] Continuous Door Open Pulse Loop (Repeats 10 times to unlock motor)" -ForegroundColor White
+Write-Host "  [5] Scan Local Network for DIGORA Optime IP (Sweep 192.168.1.x and 192.168.0.x)" -ForegroundColor White
+Write-Host "  [6] Enter Custom DIGORA IP Address to Test" -ForegroundColor White
+Write-Host "  [7] Exit" -ForegroundColor Gray
 Write-Host ""
 
-# Main Menu
-Write-Host "Choose an action:" -ForegroundColor Cyan
-Write-Host "  [1] Quick Test & Open Door (Default IPs: 192.168.1.120 and 192.168.0.120)" -ForegroundColor White
-Write-Host "  [2] Enter Specific Scanner IP to Test & Open Door" -ForegroundColor White
-Write-Host "  [3] Continuous Motor Trigger Loop (Runs 8 times over 16 seconds)" -ForegroundColor White
-Write-Host "  [4] How to Wake Machine with Physical Button & Fix Subnet Mismatch" -ForegroundColor White
-Write-Host "  [5] Exit" -ForegroundColor White
-Write-Host ""
-$choice = Read-Host "Select option [1, 2, 3, 4, or 5] (Press ENTER for 1)"
+$choice = Read-Host "Select option [1-7] (Default: 1)"
 if ([string]::IsNullOrWhiteSpace($choice)) { $choice = "1" }
 
-if ($choice -eq "5") { return }
-
-if ($choice -eq "4") {
-    Write-Host ""
-    Write-Host "===================================================================" -ForegroundColor Cyan
-    Write-Host "   PHYSICAL MACHINE BUTTON & SUBNET GUIDE" -ForegroundColor Cyan
-    Write-Host "===================================================================" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "1. PHYSICAL PUSH-BUTTON ON DIGORA OPTIME:" -ForegroundColor Yellow
-    Write-Host "   Look at the top casing of your Soredex DIGORA Optime." -ForegroundColor White
-    Write-Host "   There is a large circular push-button on top." -ForegroundColor White
-    Write-Host "   When the machine is in Standby/Power-Save mode:" -ForegroundColor White
-    Write-Host "   - The motor door is held mechanically locked to prevent dust entry." -ForegroundColor Gray
-    Write-Host "   - PRESSING THAT ROUND BUTTON WAKES THE SCANNER AND OPENS THE DOOR." -ForegroundColor Green
-    Write-Host ""
-    Write-Host "2. WORK PC VS LAPTOP NOTE:" -ForegroundColor Yellow
-    Write-Host "   - If the DIGORA Optime Ethernet cable is plugged into your WORK PC," -ForegroundColor White
-    Write-Host "     your LAPTOP on Wi-Fi cannot talk directly to it unless you run this tool" -ForegroundColor White
-    Write-Host "     on the Work PC, or connect both to the same clinic switch/router." -ForegroundColor White
-    Write-Host ""
-    Write-Host "3. HOW TO ADD 192.168.1.x SECONDARY IP (IF ON 192.168.0.x):" -ForegroundColor Yellow
-    Write-Host "   Open Administrator Command Prompt and run:" -ForegroundColor White
-    Write-Host "   netsh interface ip add address `"Ethernet`" 192.168.1.199 255.255.255.0" -ForegroundColor Cyan
-    Write-Host "===================================================================" -ForegroundColor Cyan
-    return
-}
-
-$targetIps = @("192.168.1.120", "192.168.0.120")
-
-if ($choice -eq "2") {
-    $custom = Read-Host "Enter your Soredex DIGORA IP address"
-    if (-not [string]::IsNullOrWhiteSpace($custom)) {
-        $targetIps = @($custom.Trim())
+switch ($choice) {
+    "1" {
+        $ips = @("192.168.1.120", "192.168.0.120", "192.168.0.100")
+        foreach ($ip in $ips) {
+            $null = Trigger-DigoraDoorMotor $ip
+        }
+    }
+    "2" {
+        Write-Host "`n--- AUTO-CONFIGURING ETHERNET ADAPTER SUBNET ---" -ForegroundColor Yellow
+        Write-Host "Adding secondary IP 192.168.1.199 (Subnet 255.255.255.0) to 'Ethernet'..." -ForegroundColor White
+        
+        $cmd = "netsh interface ip add address `"Ethernet`" 192.168.1.199 255.255.255.0"
+        try {
+            $res = Invoke-Expression $cmd
+            Write-Host "✔ Successfully added 192.168.1.199 to Ethernet adapter!" -ForegroundColor Green
+            Write-Host "Your laptop can now directly communicate with DIGORA Optime (192.168.1.120)." -ForegroundColor Green
+        } catch {
+            Write-Host "✖ Failed to add IP automatically: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "Please run this batch file as Administrator (Right click -> Run as Administrator)." -ForegroundColor Yellow
+        }
+    }
+    "3" {
+        Write-Host "`nChoose Port to listen on:" -ForegroundColor Cyan
+        Write-Host "  [1] Port 104 (Standard DICOM C-STORE SCP)" -ForegroundColor White
+        Write-Host "  [2] Port 2002 (Soredex Native Raw Stream)" -ForegroundColor White
+        $pChoice = Read-Host "Select [1 or 2] (Default: 1)"
+        $listenPort = if ($pChoice -eq "2") { 2002 } else { 104 }
+        Start-DataCaptureListener $listenPort 60
+    }
+    "4" {
+        Write-Host "`n--- CONTINUOUS MOTOR TRIGGER LOOP (20 SECONDS) ---" -ForegroundColor Yellow
+        Write-Host "Watch the collection door / shutter on DIGORA Optime now!" -ForegroundColor Cyan
+        Write-Host "Press Ctrl+C to stop.`n" -ForegroundColor Gray
+        Send-DigoraWakeBroadcast
+        for ($i = 1; $i -le 10; $i++) {
+            Write-Host "[$i/10] Pulsing motor open command to 192.168.1.120 and 192.168.0.120..." -ForegroundColor White
+            $null = Trigger-DigoraDoorMotor "192.168.1.120"
+            $null = Trigger-DigoraDoorMotor "192.168.0.120"
+            Start-Sleep -Seconds 2
+        }
+        Write-Host "`nContinuous pulse complete." -ForegroundColor Green
+    }
+    "5" {
+        Write-Host "`n--- SWEEPING NETWORK FOR SOREDEX DIGORA OPTIME ---" -ForegroundColor Yellow
+        Send-DigoraWakeBroadcast
+        $testIps = @("192.168.1.120", "192.168.0.120", "192.168.0.100", "192.168.1.100", "192.168.1.50", "192.168.1.10", "192.168.1.1", "192.168.0.1")
+        foreach ($ip in $testIps) {
+            Write-Host "Checking $ip ..." -NoNewline
+            $p = Test-PingQuick $ip 400
+            $p104 = Test-PortQuick $ip 104 400
+            $p2002 = Test-PortQuick $ip 2002 400
+            if ($p -or $p104 -or $p2002) {
+                Write-Host " [FOUND / ONLINE!] (Ping: $p, Port 104: $p104, Port 2002: $p2002)" -ForegroundColor Green
+            } else {
+                Write-Host " [No response]" -ForegroundColor DarkGray
+            }
+        }
+    }
+    "6" {
+        $customIp = Read-Host "`nEnter DIGORA IP address"
+        if (-not [string]::IsNullOrWhiteSpace($customIp)) {
+            $null = Trigger-DigoraDoorMotor $customIp.Trim()
+        }
+    }
+    "7" {
+        return
     }
 }
-
-if ($choice -eq "3") {
-    Write-Host ""
-    Write-Host "--- CONTINUOUS MOTOR TRIGGER LOOP (16 SECONDS) ---" -ForegroundColor Yellow
-    Write-Host "Watch the front feeder door on your DIGORA Optime now!" -ForegroundColor Cyan
-    Write-Host "Press Ctrl+C at any time to cancel." -ForegroundColor Gray
-    Write-Host ""
-    Send-DigoraBroadcast
-    for ($i = 1; $i -le 8; $i++) {
-        Write-Host "[$i/8] Sending motor open pulse to 192.168.1.120 and 192.168.0.120..." -ForegroundColor White
-        $null = Send-DigoraMotorOpen "192.168.1.120"
-        $null = Send-DigoraMotorOpen "192.168.0.120"
-        Start-Sleep -Seconds 2
-    }
-    Write-Host "Continuous loop completed." -ForegroundColor Green
-    return
-}
-
-# Option 1 or 2: Standard Diagnostics
-Write-Host ""
-Write-Host "--- [2] BROADCASTING DISCOVERY BEACON ---" -ForegroundColor Yellow
-Send-DigoraBroadcast
-
-Write-Host ""
-Write-Host "--- [3] TESTING CONNECTION TO SCANNER ---" -ForegroundColor Yellow
-
-$foundWorkingDevice = $false
-
-foreach ($ip in $targetIps) {
-    Write-Host "Checking target IP: $ip ..." -ForegroundColor Cyan
-    
-    # Ping test
-    $pingOk = Test-PingQuick $ip
-    Write-Host "  ICMP Ping: " -NoNewline
-    if ($pingOk) { Write-Host "REPLY RECEIVED (Online)" -ForegroundColor Green } else { Write-Host "No reply (Timeout / Different subnet)" -ForegroundColor Red }
-    
-    # DICOM Port 104
-    $p104 = Test-PortQuick $ip 104
-    Write-Host "  Port 104 (DICOM SCP): " -NoNewline
-    if ($p104) { Write-Host "OPEN / READY" -ForegroundColor Green } else { Write-Host "Closed or Filtered" -ForegroundColor Gray }
-    
-    # Soredex Port 2002
-    $p2002 = Test-PortQuick $ip 2002
-    Write-Host "  Port 2002 (Soredex Motor Protocol): " -NoNewline
-    if ($p2002) { Write-Host "OPEN / READY" -ForegroundColor Green } else { Write-Host "Closed or Filtered" -ForegroundColor Gray }
-    
-    # Port 80
-    $p80 = Test-PortQuick $ip 80
-    Write-Host "  Port 80 (HTTP Config): " -NoNewline
-    if ($p80) { Write-Host "OPEN / RESPONDING" -ForegroundColor Green } else { Write-Host "Closed" -ForegroundColor Gray }
-    
-    # Attempt Motor Open
-    Write-Host "  Sending Motor Open Sequence to $ip ..." -ForegroundColor Yellow
-    $opened = Send-DigoraMotorOpen $ip
-    
-    if ($pingOk -or $p104 -or $p2002 -or $opened) {
-        $foundWorkingDevice = $true
-    }
-    Write-Host ""
-}
-
-Write-Host "===================================================================" -ForegroundColor Cyan
-Write-Host "   RESULTS SUMMARY" -ForegroundColor Cyan
-Write-Host "===================================================================" -ForegroundColor Cyan
-
-if ($foundWorkingDevice) {
-    Write-Host " [SUCCESS] Communication with Soredex DIGORA Optime was verified!" -ForegroundColor Green
-    Write-Host " The feeder slot motor command was sent. Your machine is ready." -ForegroundColor Green
-} else {
-    Write-Host " [NOT DETECTED ON THIS COMPUTER'S NETWORK]" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host " KEY POINTS TO CHECK:" -ForegroundColor White
-    Write-Host " 1. Are you running this test on the computer connected to the DIGORA?" -ForegroundColor Cyan
-    Write-Host "    - If DIGORA is connected to your WORK PC, run this tool on the WORK PC!" -ForegroundColor White
-    Write-Host "    - If running on your LAPTOP, ensure your laptop is plugged into the same" -ForegroundColor White
-    Write-Host "      network/switch as the DIGORA." -ForegroundColor White
-    Write-Host ""
-    Write-Host " 2. PRESS THE ROUND BUTTON ON TOP OF THE DIGORA MACHINE:" -ForegroundColor Cyan
-    Write-Host "    - The DIGORA Optime stays in locked sleep mode until the top physical" -ForegroundColor White
-    Write-Host "      button is pressed. Pressing it unlocks and whirs open the door." -ForegroundColor White
-    Write-Host ""
-    Write-Host " 3. SUBNET DIFFERENCE:" -ForegroundColor Cyan
-    Write-Host "    - If this computer is on 192.168.0.x and DIGORA is on 192.168.1.120," -ForegroundColor White
-    Write-Host "      they cannot talk unless you add a 192.168.1.x secondary IP." -ForegroundColor White
-}
-Write-Host "===================================================================" -ForegroundColor Cyan

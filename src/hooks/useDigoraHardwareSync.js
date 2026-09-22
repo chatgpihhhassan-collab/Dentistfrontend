@@ -23,7 +23,8 @@ export function useDigoraHardwareSync({
   patientId,
   operatoryId = 'Op-1',
   onRadiographAcquired,
-  autoArm = true
+  onSessionExpired,
+  autoArm = false
 }) {
   const [connectionState, setConnectionState] = useState('Connected');
   const [isArmed, setIsArmed] = useState(false);
@@ -40,6 +41,11 @@ export function useDigoraHardwareSync({
   useEffect(() => {
     onRadiographAcquiredRef.current = onRadiographAcquired;
   }, [onRadiographAcquired]);
+
+  const onSessionExpiredRef = useRef(onSessionExpired);
+  useEffect(() => {
+    onSessionExpiredRef.current = onSessionExpired;
+  }, [onSessionExpired]);
 
   const autoArmRef = useRef(autoArm);
   useEffect(() => {
@@ -59,7 +65,7 @@ export function useDigoraHardwareSync({
     );
 
     console.log(
-      `%c[SOREDEX DIGORA] STEP 2/7: Target Scanner%c Soredex DIGORA® Optime Countertop Scanner (192.168.1.120) | DICOM Port: 104 | Modality: IO PSP`,
+      `%c[SOREDEX DIGORA] STEP 2/7: Target Scanner%c Soredex DIGORA® Optime Countertop Scanner (192.168.0.100) | DICOM Port: 104 | Modality: IO PSP`,
       LOG_STEP,
       'color: #10244B;'
     );
@@ -122,7 +128,7 @@ export function useDigoraHardwareSync({
   }, []);
 
   // 4. Arm Scanner (Activated via Play Button or Auto-Arm)
-  const armScanner = useCallback(async (targetOp = operatoryId, durationMinutes = 10) => {
+  const armScanner = useCallback(async (targetOp = operatoryId, durationMinutes = 5) => {
     if (!patientId) {
       console.warn('%c[SOREDEX DIGORA]%c Cannot arm scanner: No active Patient ID provided.', LOG_WARN, '');
       return;
@@ -158,7 +164,41 @@ export function useDigoraHardwareSync({
 
     try {
       setHardwareError(null);
-      // Optional: Inform DEV API of arming lease if endpoint is present
+      // 1. Direct Local Hardware Bridge (triggers physical hardware BEEP & sets Patient ID on scanner!)
+      try {
+        const bridgeUrl = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+          ? '/digora/arm'
+          : 'http://127.0.0.1:5055/digora/arm';
+        const bridgeRes = await fetch(bridgeUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            operatoryId: targetOp,
+            patientId: Number(patientId),
+            scannerIp: '192.168.0.100',
+            durationMinutes
+          })
+        });
+        if (bridgeRes.ok) {
+          const bridgeData = await bridgeRes.json();
+          console.log(
+            `%c[SOREDEX DIGORA] 🔔 HARDWARE BEEP & ARM ACKNOWLEDGED!%c S/N: ${bridgeData.details?.login?.split('\\n')?.[2] || 'SL1403203'} | Top Slot ACTIVE`,
+            LOG_SUCCESS,
+            'color: #059669; font-weight: bold;',
+            bridgeData
+          );
+        }
+      } catch (bridgeErr) {
+        try {
+          await fetch('http://127.0.0.1:5055/digora/arm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ operatoryId: targetOp, patientId: Number(patientId), scannerIp: '192.168.0.100', durationMinutes })
+          });
+        } catch (_) {}
+      }
+
+      // 2. Optional: Inform DEV API of arming lease if endpoint is present
       try {
         await fetch(`${cleanBaseUrl}/api/hardware/digora/arm`, {
           method: 'POST',
@@ -178,13 +218,57 @@ export function useDigoraHardwareSync({
     }
   }, [cleanBaseUrl, operatoryId, patientId]);
 
-  // 5. Disarm Scanner
+  // 5. Disarm & Reset Scanner (Releases physical hardware and returns to standby)
   const disarmScanner = useCallback(async (targetOp = operatoryId) => {
-    console.log(`%c[SOREDEX DIGORA] Disarming Scanner%c for Operatory [${targetOp}]...`, LOG_STEP, '');
+    console.log(`%c[SOREDEX DIGORA] ⏹ DISARMING & RESETTING SCANNER%c for Operatory [${targetOp}]...`, LOG_STEP, '');
     setIsArmed(false);
     setRemainingSeconds(0);
-    console.log(`%c[SOREDEX DIGORA] Scanner Disarmed%c Operatory [${targetOp}] is now in idle standby mode.`, LOG_SUCCESS, '');
-  }, [operatoryId]);
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+    }
+
+    // A. Dispatch physical reset to Local Hardware Bridge (127.0.0.1:5055)
+    try {
+      const bridgeUrl = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+        ? '/digora/disarm'
+        : 'http://127.0.0.1:5055/digora/disarm';
+
+      await fetch(bridgeUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operatoryId: targetOp,
+          patientId: Number(patientId),
+          scannerIp: '192.168.0.100',
+          action: 'reset'
+        })
+      });
+    } catch (_) {
+      try {
+        await fetch('http://127.0.0.1:5055/digora/disarm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ operatoryId: targetOp, patientId: Number(patientId), action: 'reset' })
+        });
+      } catch (e) {}
+    }
+
+    // B. Dispatch reset to Cloud DEV API
+    try {
+      await fetch(`${cleanBaseUrl}/api/hardware/digora/disarm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operatoryId: targetOp,
+          patientId: Number(patientId),
+          scannerId: 'DIGORA_OPTIME_01'
+        })
+      });
+    } catch (_) {}
+
+    console.log(`%c[SOREDEX DIGORA] ✅ Scanner Disarmed & Physical Hardware Reset to Standby!%c Operatory [${targetOp}] ready.`, LOG_SUCCESS, '');
+    return { success: true, armed: false };
+  }, [cleanBaseUrl, operatoryId, patientId]);
 
   // 6. Fetch Unassigned Scans
   const fetchUnassignedScans = useCallback(async () => {
@@ -218,54 +302,107 @@ export function useDigoraHardwareSync({
     }
   }, [cleanBaseUrl, fetchUnassignedScans, patientId]);
 
-  // 8. Trigger Hardware Plate Feed / Ingest (Accept X-Ray Chip from Device)
+  // 8. Ingest Genuine Real-Time Radiograph Scan (From File or DIGORA Bridge)
   const simulateScan = useCallback(async (options = {}) => {
-    if (!patientId) return;
+    if (!patientId) {
+      console.warn('[SOREDEX DIGORA] Cannot ingest scan: No active patient ID.');
+      return;
+    }
     const plateSize = options.plateSize || 'Size 2';
-    const targetTeeth = options.targetTeeth || '#14, #15';
+
+    let realDataUrl = options.dataUrl || null;
+    let realFileName = options.imageName || null;
+
+    // 1. If no file was passed directly, query local hardware bridge hot-folder for physical scanner output
+    if (!realDataUrl) {
+      try {
+        const bridgeUrl = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+          ? '/digora/latest-scan'
+          : 'http://127.0.0.1:5055/digora/latest-scan';
+        const bridgeRes = await fetch(bridgeUrl);
+        if (bridgeRes.ok) {
+          const bridgeData = await bridgeRes.json();
+          if (bridgeData?.hasScan && bridgeData?.scan?.dataUrl) {
+            realDataUrl = bridgeData.scan.dataUrl;
+            realFileName = bridgeData.scan.imageName || bridgeData.scan.filename;
+            console.log(`%c[SOREDEX DIGORA] 📥 REAL HARDWARE SCAN FOUND IN BRIDGE:%c ${realFileName}`, LOG_SUCCESS, '');
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2. Reject mock data: If no real data exists, do NOT draw fake cartoon canvas teeth!
+    if (!realDataUrl) {
+      const msg = 'No radiograph image or physical plate scan detected. Please feed a phosphor plate into DIGORA Optime or select a real X-ray scan file.';
+      console.warn(`%c[SOREDEX DIGORA] ⚠️ ${msg}%c`, LOG_WARN, '');
+      throw new Error(msg);
+    }
 
     console.log(
-      `%c[SOREDEX DIGORA] STEP 6/7: ⚡ Ingesting X-Ray Plate (Chip)%c Size: ${plateSize} (${targetTeeth}) for Patient #${patientId} in [${operatoryId}]...`,
+      `%c[SOREDEX DIGORA] STEP 6/7: ⚡ Processing Real Radiograph Scan%c File: ${realFileName || 'Plate Scan'} for Patient #${patientId} in [${operatoryId}]...`,
       LOG_HEADER,
       'color: #7C3AED; font-weight: bold;'
-    );
-
-    console.log(
-      `%c[SOREDEX DIGORA] Optical Reading%c Laser diode scanning 14-bit latent image (17 lp/mm)... Automatic UV erasure running... Plate ejected into collection tray!`,
-      LOG_STEP,
-      'color: #7C3AED;'
     );
 
     try {
       setIsSimulating(true);
 
-      const nowStr = new Date().toLocaleTimeString().replace(/:/g, '-');
       const radId = Date.now();
-      const imgName = `DIGORA_OPTIME_PERIAPICAL_#14_${nowStr}.png`;
+      const imgName = realFileName || `DIGORA_SCAN_Patient_${patientId}_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
 
-      // Post real radiograph to DEV API
-      let devRecord = null;
-      try {
-        const svgContent = `<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600' viewBox='0 0 800 600' style='background:#0a0d14;font-family:system-ui,sans-serif;'><rect width='100%' height='100%' fill='#050811'/><g opacity='0.85'><path d='M60 490 Q220 440 400 450 T740 490 L740 590 L60 590 Z' fill='#334155'/><path d='M200 230 C200 170 250 150 280 170 C310 190 320 250 320 360 C320 430 260 490 250 490 C240 490 200 430 200 360 Z' fill='#cbd5e1' stroke='#64748b' stroke-width='2'/><text x='230' y='320' fill='#0f172a' font-size='14' font-weight='bold'>#13</text><path d='M350 200 C350 140 420 120 470 150 C520 170 530 240 530 370 C530 450 450 520 430 520 C410 520 350 450 350 370 Z' fill='#e2e8f0' stroke='#64748b' stroke-width='2'/><ellipse cx='435' cy='230' rx='28' ry='18' fill='#0f172a' stroke='#ef4444' stroke-width='2.5'/><text x='435' y='235' fill='#ef4444' font-size='11' font-weight='bold' text-anchor='middle'>CARIES</text><text x='425' y='360' fill='#0f172a' font-size='16' font-weight='bold'>#14</text><path d='M560 210 C560 160 610 140 650 170 C690 190 700 260 700 380 C700 450 640 510 620 510 C600 510 560 450 560 380 Z' fill='#cbd5e1' stroke='#64748b' stroke-width='2'/><rect x='575' y='210' width='35' height='20' rx='4' fill='#475569' stroke='#f59e0b' stroke-width='2'/><text x='620' y='350' fill='#0f172a' font-size='14' font-weight='bold'>#15</text></g><rect x='20' y='20' width='410' height='65' rx='12' fill='#0f172a' stroke='#334155'/><text x='35' y='42' fill='#38bdf8' font-size='13' font-weight='bold'>SOREDEX DIGORA® OPTIME PSP</text><text x='35' y='65' fill='#94a3b8' font-size='11'>Plate: ${plateSize} | 14-bit | Patient #${patientId} | DEV Cloud Gateway</text><rect x='610' y='20' width='170' height='36' rx='10' fill='#064e3b' stroke='#059669'/><text x='630' y='43' fill='#34d399' font-size='11' font-weight='bold'>● ETHERNET SYNC</text></svg>`;
-        const blob = new Blob([svgContent], { type: 'image/svg+xml' });
-        const formData = new FormData();
-        formData.append('file', blob, imgName);
-
-        const res = await fetch(`${cleanBaseUrl}/api/patients/${patientId}/radiographs`, {
-          method: 'POST',
-          body: formData
-        });
-        if (res.ok) {
-          devRecord = await res.json();
-          console.log(`%c[SOREDEX DIGORA] DEV API Ingest Success:%c Record #${devRecord.radiographID || devRecord.RadiographID} created in database`, LOG_SUCCESS, '', devRecord);
-        }
-      } catch (err) {
-        // Fallback to rich radiograph payload
+      // Cache locally for instant loading and page-reload persistence
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`dentia_radiograph_${radId}`, realDataUrl);
+          localStorage.setItem(`dentia_latest_radiograph`, realDataUrl);
+        } catch (_) {}
       }
 
+      // Post real radiograph blob to DEV API
+      let devRecord = null;
+      try {
+        const base64Content = realDataUrl.split(',')[1];
+        if (base64Content) {
+          const byteCharacters = atob(base64Content);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const pngBlob = new Blob([byteArray], { type: 'image/png' });
+
+          const formData = new FormData();
+          formData.append('file', pngBlob, imgName);
+
+          const res = await fetch(`${cleanBaseUrl}/api/patients/${patientId}/radiographs`, {
+            method: 'POST',
+            body: formData
+          });
+          if (res.ok) {
+            devRecord = await res.json();
+            console.log(`%c[SOREDEX DIGORA] DEV API Ingest Success:%c Record #${devRecord.radiographID || devRecord.RadiographID} created in database`, LOG_SUCCESS, '', devRecord);
+            const savedId = devRecord.radiographID || devRecord.RadiographID;
+            if (savedId && typeof window !== 'undefined') {
+              try {
+                localStorage.setItem(`dentia_radiograph_${savedId}`, realDataUrl);
+              } catch (_) {}
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[SOREDEX DIGORA] API post note:', err.message);
+      }
+
+      const finalId = devRecord?.radiographID || devRecord?.RadiographID || radId;
+      const finalSummary = devRecord?.analysisSummary || devRecord?.AnalysisSummary || `CLINICAL RADIOGRAPHIC EXAMINATION REPORT
+- Modality: Intraoral Periapical (IOPA) Phosphor Storage Plate (Soredex DIGORA® Optime ${plateSize})
+- Patient ID: #${patientId}
+- Source: Real-time Digitization (DIGORA Optime Ethernet)
+- Status: Acquired Chairside & Ready for Clinical Review`;
+
       const radiographPayload = {
-        RadiographID: devRecord?.radiographID || devRecord?.RadiographID || radId,
-        radiographID: devRecord?.radiographID || devRecord?.RadiographID || radId,
+        RadiographID: finalId,
+        radiographID: finalId,
         PatientID: Number(patientId),
         patientID: Number(patientId),
         ImageName: imgName,
@@ -277,24 +414,15 @@ export function useDigoraHardwareSync({
         mimeType: "image/png",
         UploadedAt: new Date().toISOString(),
         uploadedAt: new Date().toISOString(),
-        AnalysisSummary: devRecord?.analysisSummary || `CLINICAL RADIOGRAPHIC OVERVIEW:
-- Modality: Intraoral Periapical Radiograph (Soredex DIGORA Optime PSP ${plateSize})
-- Exposure: 65 kVp, 7 mA, 0.08s
-- Region: Maxillary Left Posterior Quadrant (Teeth #13, #14, #15)
-
-TOOTH-BY-TOOTH FINDINGS & PATHOLOGY:
-- Tooth 14: Deep coronal radiolucency on occlusal-distal surface extending into mid-dentin consistent with active dental caries. Periapical periodontal ligament space is intact. (Confidence: 96%)
-- Tooth 15: Overhanging amalgam restoration margin on the mesial interproximal surface with localized 2mm horizontal bone crest resorption. (Confidence: 94%)
-- Tooth 13: Normal crown anatomy and healthy alveolar bone levels. (Confidence: 99%)
-
-RECOMMENDATIONS:
-- Tooth 14: Caries excavation and resin composite restoration.
-- Tooth 15: Margin recontouring or crown replacement.`,
-        dataUrl: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600' viewBox='0 0 800 600' style='background:%230a0d14;font-family:system-ui,sans-serif;'><rect width='100%' height='100%' fill='%23050811'/><g opacity='0.85'><path d='M60 490 Q220 440 400 450 T740 490 L740 590 L60 590 Z' fill='%23334155'/><path d='M200 230 C200 170 250 150 280 170 C310 190 320 250 320 360 C320 430 260 490 250 490 C240 490 200 430 200 360 Z' fill='%23cbd5e1' stroke='%2364748b' stroke-width='2'/><text x='230' y='320' fill='%230f172a' font-size='14' font-weight='bold'>#13</text><path d='M350 200 C350 140 420 120 470 150 C520 170 530 240 530 370 C530 450 450 520 430 520 C410 520 350 450 350 370 Z' fill='%23e2e8f0' stroke='%2364748b' stroke-width='2'/><ellipse cx='435' cy='230' rx='28' ry='18' fill='%230f172a' stroke='%23ef4444' stroke-width='2.5'/><text x='435' y='235' fill='%23ef4444' font-size='11' font-weight='bold' text-anchor='middle'>CARIES</text><text x='425' y='360' fill='%230f172a' font-size='16' font-weight='bold'>#14</text><path d='M560 210 C560 160 610 140 650 170 C690 190 700 260 700 380 C700 450 640 510 620 510 C600 510 560 450 560 380 Z' fill='%23cbd5e1' stroke='%2364748b' stroke-width='2'/><rect x='575' y='210' width='35' height='20' rx='4' fill='%23475569' stroke='%23f59e0b' stroke-width='2'/><text x='620' y='350' fill='%230f172a' font-size='14' font-weight='bold'>#15</text></g><rect x='20' y='20' width='410' height='65' rx='12' fill='%230f172a' stroke='%23334155'/><text x='35' y='42' fill='%2338bdf8' font-size='13' font-weight='bold'>SOREDEX DIGORA® OPTIME PSP</text><text x='35' y='65' fill='%2394a3b8' font-size='11'>Plate: ${plateSize} | 14-bit | Patient #${patientId} | DEV Cloud Gateway</text><rect x='610' y='20' width='170' height='36' rx='10' fill='%23064e3b' stroke='%23059669'/><text x='630' y='43' fill='%2334d399' font-size='11' font-weight='bold'>● ETHERNET SYNC</text></svg>"
+        AnalysisSummary: finalSummary,
+        analysisSummary: finalSummary,
+        imageUrl: realDataUrl,
+        dataUrl: realDataUrl,
+        imageData: realDataUrl.split(',')[1] || ''
       };
 
       console.log(
-        `%c[SOREDEX DIGORA] STEP 7/7: ✅ Radiograph Ingested & Auto-Mounted into Patient #${patientId} Dental Chart!`,
+        `%c[SOREDEX DIGORA] STEP 7/7: ✅ Real Radiograph Ingested & Mounted for Patient #${patientId}!%c`,
         LOG_SUCCESS,
         'color: #059669; font-weight: 800;'
       );
@@ -305,33 +433,53 @@ RECOMMENDATIONS:
       return radiographPayload;
     } catch (err) {
       console.error('[SOREDEX DIGORA] Ingest error:', err);
+      throw err;
     } finally {
       setTimeout(() => setIsSimulating(false), 800);
     }
   }, [cleanBaseUrl, operatoryId, patientId]);
 
-  // 9. Countdown Timer Effect
+
+  // 9. Countdown Timer Effect (5-Minute Active Arming Lease)
+  const isRemainingActive = remainingSeconds > 0;
   useEffect(() => {
-    if (isArmed && remainingSeconds > 0) {
-      countdownIntervalRef.current = setInterval(() => {
-        setRemainingSeconds((prev) => {
-          if (prev <= 1) {
-            console.log('%c[SOREDEX DIGORA] Active Arming Lease Expired.%c Scanner reset to idle.', LOG_WARN, '');
-            setIsArmed(false);
-            clearInterval(countdownIntervalRef.current);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    if (!isArmed || !isRemainingActive) {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+      return;
     }
 
+    countdownIntervalRef.current = setInterval(() => {
+      setRemainingSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
     return () => {
-      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
     };
-  }, [isArmed, remainingSeconds]);
+  }, [isArmed, isRemainingActive]);
+
+  // Handle automatic physical reset when 5-minute lease expires
+  useEffect(() => {
+    if (isArmed && remainingSeconds === 0) {
+      console.log('%c[SOREDEX DIGORA] ⌛ Active Arming Lease Expired (5 minutes elapsed).%c Automatically resetting scanner to standby...', LOG_WARN, '');
+      disarmScanner(operatoryId);
+      if (onSessionExpiredRef.current) {
+        onSessionExpiredRef.current();
+      }
+    }
+  }, [isArmed, remainingSeconds, disarmScanner, operatoryId]);
 
   // 10. WebSocket Channel (With SkipNegotiation to prevent wildcard CORS blocks)
   useEffect(() => {
@@ -389,6 +537,67 @@ RECOMMENDATIONS:
     };
   }, [cleanBaseUrl, operatoryId, patientId]);
 
+  // 11. Auto-Arm on Patient Chart Load
+  const hasAutoArmedRef = useRef(false);
+  useEffect(() => {
+    if (autoArm && patientId && !hasAutoArmedRef.current) {
+      hasAutoArmedRef.current = true;
+      console.log(`%c[SOREDEX DIGORA] 🚀 Auto-Arming DIGORA Optime for Patient #${patientId}...`, LOG_HEADER, '');
+      armScanner(operatoryId, 5);
+    }
+  }, [patientId, autoArm, operatoryId, armScanner]);
+
+  // 12. Hardware Bridge Auto-Acquisition Poller (Polls for scans dropped by physical hardware / hot folder)
+  useEffect(() => {
+    if (!isArmed || !patientId) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const bridgeUrl = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+          ? '/digora/latest-scan'
+          : 'http://127.0.0.1:5055/digora/latest-scan';
+
+        const res = await fetch(bridgeUrl);
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.hasScan && data?.scan) {
+            console.log('%c[SOREDEX DIGORA] 📥 REAL HARDWARE SCAN RECEIVED FROM BRIDGE!%c', LOG_SUCCESS, '', data.scan);
+            await simulateScan({
+              dataUrl: data.scan.dataUrl,
+              imageName: data.scan.imageName || data.scan.filename,
+              plateSize: 'Size 2',
+              targetTeeth: '#14, #15'
+            });
+          }
+        }
+      } catch (_) {}
+    }, 2000);
+
+    return () => clearInterval(pollInterval);
+  }, [isArmed, patientId, simulateScan]);
+
+  // 12. Manual Hardware Beep Test
+  const triggerHardwareBeep = useCallback(async () => {
+    console.log('%c[SOREDEX DIGORA] 🔔 Triggering Hardware Beep Test on Local Bridge...', LOG_HEADER, '');
+    const pId = patientId;
+    const beepUrl = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+      ? `/digora/beep?patientId=${pId || ''}`
+      : `http://127.0.0.1:5055/digora/beep?patientId=${pId || ''}`;
+    try {
+      const res = await fetch(beepUrl);
+      const data = await res.json();
+      console.log('%c[SOREDEX DIGORA] 🔔 Hardware BEEP Response:%c', LOG_SUCCESS, '', data);
+      return data;
+    } catch (e) {
+      try {
+        const res2 = await fetch(`http://127.0.0.1:5055/digora/beep?patientId=${pId}`);
+        return await res2.json();
+      } catch (err2) {
+        console.warn('[SOREDEX DIGORA] Beep test error:', err2.message);
+      }
+    }
+  }, [patientId]);
+
   const formattedRemainingTime = remainingSeconds > 0 
     ? `${Math.floor(remainingSeconds / 60).toString().padStart(2, '0')}:${(remainingSeconds % 60).toString().padStart(2, '0')}`
     : '00:00';
@@ -406,11 +615,13 @@ RECOMMENDATIONS:
     gatewayOnline: true,
     armScanner,
     disarmScanner,
+    resetScanner: disarmScanner,
     simulateScan,
     fetchUnassignedScans,
     assignScan,
     checkEthernetLink,
-    testDoorOpen
+    testDoorOpen,
+    triggerHardwareBeep
   };
 }
 
