@@ -134,13 +134,44 @@ watchedFolders.forEach(folder => {
   }
 });
 
-// 1. Direct Physical Hardware BEEP & Arm Sequence
-function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '') {
+// Active Native Driver Session State (Holds Green LED & Unlocked Slot for 2 Minutes)
+let activeDriverSession = {
+  s2: null,
+  keepAliveTimer: null,
+  leaseExpiryTimer: null,
+  targetIp: CONFIG.DIGORA_IP
+};
+
+function cleanupActiveDriverSession() {
+  if (activeDriverSession.keepAliveTimer) {
+    clearInterval(activeDriverSession.keepAliveTimer);
+    activeDriverSession.keepAliveTimer = null;
+  }
+  if (activeDriverSession.leaseExpiryTimer) {
+    clearTimeout(activeDriverSession.leaseExpiryTimer);
+    activeDriverSession.leaseExpiryTimer = null;
+  }
+  if (activeDriverSession.s2 && s2Funcs) {
+    try {
+      const buf = Buffer.alloc(1024);
+      s2Funcs.s2Execute(activeDriverSession.s2, 'logout', buf);
+      s2Funcs.s2Close(activeDriverSession.s2);
+      console.log('[DIGORA HARDWARE] 🔒 Previous hardware session closed cleanly.');
+    } catch (_) {}
+    activeDriverSession.s2 = null;
+  }
+}
+
+// 1. Direct Physical Hardware BEEP & Arm Sequence (Maintains Green LED & Unlocked Slot for 2 Minutes)
+function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', durationMinutes = 2) {
   return new Promise((resolve) => {
     console.log(`\n=============================================================`);
-    console.log(`[DIGORA HARDWARE] 🔌 DISPATCHING HARDWARE BEEP & ARM SEQUENCE`);
-    console.log(`Target Scanner IP: ${targetIp} | Active Patient ID: #${patientId}`);
+    console.log(`[DIGORA HARDWARE] 🔌 DISPATCHING HARDWARE BEEP & ARM (2m LEASE)`);
+    console.log(`Target Scanner IP: ${targetIp} | Active Patient ID: #${patientId} | Duration: ${durationMinutes} min`);
     console.log(`=============================================================`);
+
+    // Clean up any existing session before starting a new lease
+    cleanupActiveDriverSession();
 
     let beepSuccess = false;
     let loginOutput = '';
@@ -148,98 +179,103 @@ function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '') {
 
     if (s2Funcs) {
       try {
-        const s2 = s2Funcs.s2CreateObject();
-        if (s2) {
-          // A. Send s2ConfigureDevice: Causes the scanner hardware to acknowledge and physically BEEP!
+        // A. Send s2ConfigureDevice: Causes the scanner hardware to acknowledge and physically BEEP!
+        const s2Beep = s2Funcs.s2CreateObject();
+        if (s2Beep) {
           const confStr = `${targetIp}:10000|255.255.255.0`;
-          const confRes = s2Funcs.s2ConfigureDevice(s2, confStr);
+          const confRes = s2Funcs.s2ConfigureDevice(s2Beep, confStr);
           beepSuccess = confRes === 1;
           console.log(`[DIGORA HARDWARE] 🔔 s2ConfigureDevice(${confStr}) => Result: ${confRes} (BEEP SENT!)`);
+          s2Funcs.s2Close(s2Beep);
+        }
 
-          // B. Open Hardware Session
+        // B. Open Hardware Session & Hold Open for Strip Insertion (Keeps Green LED Solid & Slot Unlocked)
+        const s2 = s2Funcs.s2CreateObject();
+        if (s2) {
           const openRes = s2Funcs.s2Open(s2, `${targetIp}:10000`);
           console.log(`[DIGORA HARDWARE] ⚡ s2Open(${targetIp}:10000) => Result: ${openRes}`);
 
-          // C. Firmware Login
-          const buf = Buffer.alloc(4096);
-          const loginRes = s2Funcs.s2Execute(s2, 'login', buf);
-          loginOutput = buf.toString('latin1').replace(/\0.*$/g, '').trim();
-          console.log(`[DIGORA HARDWARE] 🔑 Firmware Login:\n${loginOutput}`);
+          if (openRes === 1) {
+            // C. Firmware Login
+            const buf = Buffer.alloc(4096);
+            s2Funcs.s2Execute(s2, 'login', buf);
+            loginOutput = buf.toString('latin1').replace(/\0.*$/g, '').trim();
+            console.log(`[DIGORA HARDWARE] 🔑 Firmware Login:\n${loginOutput}`);
 
-          // D. Set Active Patient on Scanner Hardware
-          buf.fill(0);
-          const pRes = s2Funcs.s2Execute(s2, `fpname Patient-${patientId}`, buf);
-          console.log(`[DIGORA HARDWARE] 🏷️ Set Patient Name [Patient-${patientId}] => Result: ${pRes}`);
-
-          // E. Query Hardware State
-          buf.fill(0);
-          s2Funcs.s2Execute(s2, 'status ro', buf);
-          statusOutput = buf.toString('latin1').replace(/\0.*$/g, '').trim();
-          console.log(`[DIGORA HARDWARE] 🟢 Machine State: ${statusOutput}`);
-
-          // F. Clean Logout to release slot for next operation
-          try {
+            // D. Set Active Patient on Scanner Hardware
             buf.fill(0);
-            s2Funcs.s2Execute(s2, 'logout', buf);
-          } catch(e) {}
+            const pRes = s2Funcs.s2Execute(s2, `fpname Patient-${patientId}`, buf);
+            console.log(`[DIGORA HARDWARE] 🏷️ Set Patient Name [Patient-${patientId}] => Result: ${pRes}`);
 
-          // G. Close Session
-          s2Funcs.s2Close(s2);
-          console.log(`[DIGORA HARDWARE] ✅ Session closed cleanly. Device is ARMED for Plate Drop.`);
+            // E. Query Hardware State (Transitions to state 0x0046: ARMED & GREEN LED ON)
+            buf.fill(0);
+            s2Funcs.s2Execute(s2, 'status ro', buf);
+            statusOutput = buf.toString('latin1').replace(/\0.*$/g, '').trim();
+            console.log(`[DIGORA HARDWARE] 🟢 Machine State: ${statusOutput}`);
 
-          currentSession.isArmed = true;
-          currentSession.patientId = patientId;
-          currentSession.scannerStatus = 'Armed & Ready (Top Slot Active)';
-          currentSession.armedAt = new Date();
+            // F. Store active session and start Keepalive loop (Polls every 1.5s to keep Green LED lit)
+            activeDriverSession.s2 = s2;
+            activeDriverSession.targetIp = targetIp;
 
-          resolve({
-            success: true,
-            beeped: true,
-            armed: true,
-            targetIp,
-            patientId,
-            login: loginOutput,
-            state: statusOutput,
-            message: 'Physical DIGORA Optime BEEPED and ARMED successfully!'
-          });
-          return;
+            activeDriverSession.keepAliveTimer = setInterval(() => {
+              if (activeDriverSession.s2 && s2Funcs) {
+                try {
+                  const kBuf = Buffer.alloc(1024);
+                  s2Funcs.s2Execute(activeDriverSession.s2, 'status ro', kBuf);
+                  const currState = kBuf.toString('latin1').replace(/\0.*$/g, '').trim();
+                  // console.log(`[DIGORA HARDWARE KEEPALIVE] State: ${currState.replace(/\n/g, ' ')}`);
+                } catch (kErr) {
+                  console.warn('[DIGORA HARDWARE KEEPALIVE] Error:', kErr.message);
+                }
+              }
+            }, 1500);
+
+            // G. Set 2-minute lease auto-expiry timer (120 seconds)
+            const leaseMs = Math.max(1, durationMinutes) * 60 * 1000;
+            activeDriverSession.leaseExpiryTimer = setTimeout(() => {
+              console.log(`\n[DIGORA HARDWARE] ⌛ 2-Minute Strip Insertion Lease Expired. Returning to standby...`);
+              executeHardwareReset(targetIp);
+            }, leaseMs);
+
+            currentSession.isArmed = true;
+            currentSession.patientId = patientId;
+            currentSession.durationMinutes = durationMinutes;
+            currentSession.scannerStatus = 'Armed & Ready (Solid Green LED — Top Slot Active for 2m)';
+            currentSession.armedAt = new Date();
+
+            resolve({
+              success: true,
+              beeped: true,
+              armed: true,
+              targetIp,
+              patientId,
+              login: loginOutput,
+              state: statusOutput,
+              message: 'Physical DIGORA Optime BEEPED, Top LED is SOLID GREEN, and vertical slot is UNLOCKED for 2 minutes!'
+            });
+            return;
+          }
         }
       } catch (err) {
         console.error('[DIGORA HARDWARE] Native driver execution error:', err.message);
       }
     }
 
-    // A. Broadcast UDP Wake Beacons to Port 10000 (Wakes internal DIGORA optics)
+    // UDP & Raw socket fallback if native DLL is unavailable
     try {
       const udp = dgram.createSocket('udp4');
       udp.bind(() => {
         udp.setBroadcast(true);
         const wake1 = Buffer.from([0x02, 0x44, 0x49, 0x47, 0x4F, 0x52, 0x41, 0x5F, 0x57, 0x41, 0x4B, 0x45, 0x01, 0x00, 0x03]);
-        const wake2 = Buffer.from('SOREDEX_DISCOVERY_PROBE_DIGORA_OPTIME\0');
-        udp.send(wake1, CONFIG.DIGORA_UDP_PORT, targetIp);
-        udp.send(wake2, CONFIG.DIGORA_UDP_PORT, targetIp, () => {
+        udp.send(wake1, CONFIG.DIGORA_UDP_PORT, targetIp, () => {
           setTimeout(() => { try { udp.close(); } catch(e){} }, 300);
         });
       });
     } catch(e) {}
 
-    // B. Send Soredex Motor Open & Door Trigger over TCP Port 2002 & 104
-    [CONFIG.DIGORA_RAW_PORT, CONFIG.DIGORA_TCP_PORT].forEach(port => {
-      try {
-        const sock = net.createConnection({ host: targetIp, port, timeout: 1000 }, () => {
-          // Soredex Motor Door Open sequence bytes
-          const motorPacket = Buffer.from([0x00, 0x00, 0x00, 0x08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-          sock.write(motorPacket);
-          setTimeout(() => { try { sock.end(); sock.destroy(); } catch(e){} }, 300);
-        });
-        sock.on('error', () => {});
-        sock.on('timeout', () => { try { sock.destroy(); } catch(e){} });
-      } catch(e) {}
-    });
-
     currentSession.isArmed = true;
     currentSession.patientId = patientId;
-    currentSession.durationMinutes = 2;
+    currentSession.durationMinutes = durationMinutes;
     currentSession.scannerStatus = 'Armed & Ready (Top Slot Active — 2 Min Lease)';
     currentSession.armedAt = new Date();
 
@@ -331,10 +367,11 @@ const server = http.createServer(async (req, res) => {
         const operatoryId = payload.operatoryId || url.searchParams.get('operatoryId') || 'Op-1';
         const targetIp = payload.scannerIp || url.searchParams.get('ip') || CONFIG.DIGORA_IP;
 
+        const durationMinutes = payload.durationMinutes || 2;
         currentSession.operatoryId = operatoryId;
-        currentSession.durationMinutes = payload.durationMinutes || 10;
+        currentSession.durationMinutes = durationMinutes;
 
-        const result = await executeHardwareArm(targetIp, patientId);
+        const result = await executeHardwareArm(targetIp, patientId, durationMinutes);
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
@@ -361,6 +398,9 @@ const server = http.createServer(async (req, res) => {
     console.log(`[DIGORA HARDWARE] ⏹ DISPATCHING PHYSICAL HARDWARE RESET / RELEASE`);
     console.log(`Target Scanner IP: ${targetIp}`);
     console.log(`=============================================================`);
+
+    // Clean up active arming session & timers
+    cleanupActiveDriverSession();
 
     let resetSuccess = false;
     let finalState = 'state 0x0000 (IDLE)';

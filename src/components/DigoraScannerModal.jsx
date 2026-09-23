@@ -104,6 +104,13 @@ export default function DigoraScannerModal({
     }
   };
 
+  const mountTimeRef = useRef(Date.now());
+  useEffect(() => {
+    if (isOpen) {
+      mountTimeRef.current = Date.now();
+    }
+  }, [isOpen]);
+
   // Lock body scrolling when modal is active
   useEffect(() => {
     if (!isOpen) return;
@@ -212,7 +219,7 @@ export default function DigoraScannerModal({
     <div 
       className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto animate-in fade-in duration-200"
       onClick={(e) => {
-        if (e.target === e.currentTarget) {
+        if (e.target === e.currentTarget && (Date.now() - mountTimeRef.current > 400)) {
           onClose?.();
         }
       }}
@@ -614,7 +621,6 @@ export default function DigoraScannerModal({
         </div>
       </div>
     </div>
-  </div>
   );
 
   return createPortal(modalMarkup, document.body);

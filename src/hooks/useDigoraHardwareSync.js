@@ -440,6 +440,11 @@ export function useDigoraHardwareSync({
   }, [cleanBaseUrl, operatoryId, patientId]);
 
 
+  const disarmScannerRef = useRef(disarmScanner);
+  useEffect(() => {
+    disarmScannerRef.current = disarmScanner;
+  });
+
   // 9. Countdown Timer Effect (2-Minute Active Arming Lease)
   useEffect(() => {
     if (!isArmed || remainingSeconds <= 0) {
@@ -456,7 +461,9 @@ export function useDigoraHardwareSync({
           clearInterval(countdownIntervalRef.current);
           countdownIntervalRef.current = null;
           console.log('%c[SOREDEX DIGORA] ⌛ Active Arming Lease Expired (2 minutes elapsed).%c Resetting scanner to standby...', LOG_WARN, '');
-          disarmScanner(operatoryId);
+          if (disarmScannerRef.current) {
+            disarmScannerRef.current(operatoryId);
+          }
           if (onSessionExpiredRef.current) {
             onSessionExpiredRef.current();
           }
@@ -472,7 +479,7 @@ export function useDigoraHardwareSync({
         countdownIntervalRef.current = null;
       }
     };
-  }, [isArmed, remainingSeconds > 0, disarmScanner, operatoryId]);
+  }, [isArmed, remainingSeconds > 0, operatoryId]);
 
   // 10. WebSocket Channel (With SkipNegotiation to prevent wildcard CORS blocks)
   useEffect(() => {
