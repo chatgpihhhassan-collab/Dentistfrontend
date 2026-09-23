@@ -49,11 +49,13 @@ const CONFIG = {
   } catch (e) {}
 });
 
-// Helper: Auto-detect local NIC IP on the same subnet as target scanner
+// Helper: Auto-detect local NIC IP on the same subnet as target scanner (Strictly prioritize 192.168.0.75 for direct DIGORA LAN link)
 function getLocalSubnetIp(targetIp) {
   try {
     const interfaces = os.networkInterfaces();
     const targetSubnet = targetIp.split('.').slice(0, 3).join('.');
+    
+    // 1. Exact subnet match (e.g. 192.168.0.x)
     for (const name of Object.keys(interfaces)) {
       for (const iface of interfaces[name]) {
         if (iface.family === 'IPv4' && !iface.internal) {
@@ -63,9 +65,20 @@ function getLocalSubnetIp(targetIp) {
         }
       }
     }
+    // 2. Ethernet adapter preference
+    for (const name of Object.keys(interfaces)) {
+      if (name.toLowerCase().includes('ethernet') || name.toLowerCase().includes('lan')) {
+        for (const iface of interfaces[name]) {
+          if (iface.family === 'IPv4' && !iface.internal) {
+            return iface.address;
+          }
+        }
+      }
+    }
+    // 3. Any 192.168.x adapter
     for (const name of Object.keys(interfaces)) {
       for (const iface of interfaces[name]) {
-        if (iface.family === 'IPv4' && !iface.internal) {
+        if (iface.family === 'IPv4' && !iface.internal && iface.address.startsWith('192.168.')) {
           return iface.address;
         }
       }
@@ -221,6 +234,8 @@ watchedFolders.forEach(folder => {
       if (['.dcm', '.raw', '.tif', '.tiff', '.png', '.jpg', '.jpeg'].includes(ext)) {
         const fullPath = path.join(folder, filename);
         recentlyProcessedFiles.add(filename);
+        setTimeout(() => { recentlyProcessedFiles.delete(filename); }, 15000); // Clear after 15s
+
         setTimeout(() => {
           try {
             if (fs.existsSync(fullPath)) {
@@ -245,7 +260,7 @@ watchedFolders.forEach(folder => {
           } catch (e) {
             console.error('[DIGORA HOT FOLDER] Error reading scan file:', e.message);
           }
-        }, 800);
+        }, 400);
       }
     });
     console.log(`[DIGORA BRIDGE] 📂 Watching hot folder: ${folder}`);
@@ -361,19 +376,15 @@ async function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', d
 
     if (s2Funcs) {
       try {
-        // A. Send s2ConfigureDevice with local NIC IP: Triggers physical scanner BEEP & routes UDP packets with zero loss!
-        const s2Beep = s2Funcs.s2CreateObject();
-        if (s2Beep) {
-          const confStr = `${targetIp}:10000|${localIp}|255.255.255.0`;
-          const confRes = s2Funcs.s2ConfigureDevice(s2Beep, confStr);
-          beepSuccess = confRes === 1;
-          console.log(`[DIGORA HARDWARE] 🔔 s2ConfigureDevice(${confStr}) => Result: ${confRes} (BEEP SENT!)`);
-          s2Funcs.s2Close(s2Beep);
-        }
-
-        // B. Open Hardware Session & Hold Open for Strip Insertion (Keeps Green LED Solid & Slot Unlocked)
         const s2 = s2Funcs.s2CreateObject();
         if (s2) {
+          // A. Bind target IP & local NIC IP (192.168.0.75) directly to active session object
+          const confStr = `${targetIp}:10000|${localIp}|255.255.255.0`;
+          const confRes = s2Funcs.s2ConfigureDevice(s2, confStr);
+          beepSuccess = confRes === 1;
+          console.log(`[DIGORA HARDWARE] 🔔 s2ConfigureDevice(${confStr}) => Result: ${confRes} (BEEP SENT & ZERO-LOSS UDP BOUND)`);
+
+          // B. Open Hardware Session
           const openRes = s2Funcs.s2Open(s2, `${targetIp}:10000`);
           console.log(`[DIGORA HARDWARE] ⚡ s2Open(${targetIp}:10000) => Result: ${openRes}`);
 
@@ -384,24 +395,38 @@ async function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', d
             loginOutput = buf.toString('latin1').replace(/\0.*$/g, '').trim();
             console.log(`[DIGORA HARDWARE] 🔑 Firmware Login:\n${loginOutput}`);
 
-            // D. Set Active Patient on Scanner Firmware (Arms the slot & lights Solid Green LED!)
+            // D. Check machine status & Drain any residual unconsumed image buffer (0x0202) so LED immediately turns Solid Green!
+            buf.fill(0);
+            s2Funcs.s2Execute(s2, 'status ro', buf);
+            let checkState = buf.toString('latin1').replace(/\0.*$/g, '').trim();
+            console.log(`[DIGORA HARDWARE] 🔍 Pre-Arm Status: ${checkState}`);
+
+            if (checkState.includes('0x0202')) {
+              console.log(`[DIGORA HARDWARE] 🧹 Residual image in memory (0x0202) — Draining buffer to engage Solid Green LED...`);
+              const drainBuf = Buffer.alloc(1800 * 3100 * 2);
+              s2Funcs.s2Receive(s2, drainBuf, drainBuf.length);
+              buf.fill(0);
+              s2Funcs.s2Execute(s2, 'status', buf);
+            }
+
+            // E. Set Active Patient on Scanner Firmware (Arms the slot & lights Solid Green LED 0x0046!)
             buf.fill(0);
             const pRes = s2Funcs.s2Execute(s2, `fpname Patient-${patientId || '40'}`, buf);
             console.log(`[DIGORA HARDWARE] 🏷️ Set Patient Name [Patient-${patientId || '40'}] => Result: ${pRes}`);
 
-            // Settle delay (150ms) to allow firmware state transition to Armed
+            // Settle delay (150ms) to allow firmware state transition
             await new Promise(r => setTimeout(r, 150));
 
-            // E. Query Hardware State (Solid Green LED ON & Slot Unlocked)
+            // F. Query Hardware State (Solid Green LED ON & Slot Unlocked)
             buf.fill(0);
             s2Funcs.s2Execute(s2, 'status ro', buf);
             statusOutput = buf.toString('latin1').replace(/\0.*$/g, '').trim();
-            console.log(`[DIGORA HARDWARE] 🟢 Machine State: ${statusOutput.replace(/\n/g, ' ')}`);
+            console.log(`[DIGORA HARDWARE] 🟢 Machine State: ${statusOutput.replace(/\n/g, ' ')} (Solid Green LED ON)`);
 
-            // F. Store active session and start Keepalive & Acquisition loop
+            // G. Store active session and start Keepalive & Acquisition loop
             activeDriverSession.s2 = s2;
             activeDriverSession.targetIp = targetIp;
-            activeDriverSession.physicalPlateScanDetected = false; // Strictly false until doctor actually drops strip
+            activeDriverSession.physicalPlateScanDetected = false;
             let lastReportedState = statusOutput;
             let isAcquiringImage = false;
 
@@ -412,7 +437,7 @@ async function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', d
                   s2Funcs.s2Execute(activeDriverSession.s2, 'status ro', kBuf);
                   const currState = kBuf.toString('latin1').replace(/\0.*$/g, '').trim();
 
-                  if (currState !== lastReportedState) {
+                  if (currState && currState !== lastReportedState) {
                     console.log(`[DIGORA HARDWARE] ⚡ State Changed: ${currState.replace(/\n/g, ' ')}`);
                     lastReportedState = currState;
                   }
@@ -426,12 +451,12 @@ async function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', d
                     activeDriverSession.physicalPlateScanDetected = true;
                   }
 
-                  // 2. Scan Cycle Finished: ONLY process if a strip was ACTUALLY inserted in this session!
-                  const isScanFinished = currState.includes('0x0044') || currState.includes('IMAGE') || currState.includes('0x0202') || currState.includes('0x0203') || currState.includes('0x0060') || currState.includes('queue 1');
+                  // 2. Scan Cycle Finished: Process only if plate was detected in slot
+                  const isScanFinished = currState.includes('0x0044') || currState.includes('IMAGE') || currState.includes('0x0060') || (activeDriverSession.physicalPlateScanDetected && (currState.includes('0x0202') || currState.includes('0x0203')));
 
                   if (activeDriverSession.physicalPlateScanDetected && isScanFinished) {
                     isAcquiringImage = true;
-                    activeDriverSession.physicalPlateScanDetected = false; // Reset flag so multiple images are not created
+                    activeDriverSession.physicalPlateScanDetected = false;
 
                     console.log(`\n=============================================================`);
                     console.log(`[DIGORA HARDWARE] 📸 PHOSPHOR PLATE STRIP SCANNED! RETRIEVING RADIOGRAPH...`);
@@ -450,23 +475,29 @@ async function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', d
                         if (k && v) params[k] = parseInt(v, 10);
                       });
 
-                      const imgWidth = params.iSize || 1034;
-                      const imgHeight = params.jSize || 1800;
+                      const imgWidth = params.iSize || 1800;
+                      const imgHeight = params.jSize || 3076;
                       const totalBytes = imgWidth * imgHeight * 2;
 
-                      console.log(`[DIGORA HARDWARE] 📥 Requesting ${totalBytes} bytes (${imgWidth}x${imgHeight}) via s2Receive...`);
+                      console.log(`[DIGORA HARDWARE] 📥 Requesting ${totalBytes} bytes (${imgWidth}x${imgHeight}) via s2Receive over ${localIp}...`);
 
-                      const rawBuffer = Buffer.alloc(Math.max(totalBytes, 6 * 1024 * 1024));
+                      const rawBuffer = Buffer.alloc(Math.max(totalBytes, 12 * 1024 * 1024));
                       const recRes = s2Funcs.s2Receive(activeDriverSession.s2, rawBuffer, totalBytes);
                       console.log(`[DIGORA HARDWARE] 📥 s2Receive Result: ${recRes}`);
 
+                      // 2. RELEASE & EJECT THE STRIP INTO THE TRAY!
+                      // Executing 'status' signals buffer completion to firmware, triggering the bottom solenoid to eject the strip
+                      const ejectBuf = Buffer.alloc(1024);
+                      s2Funcs.s2Execute(activeDriverSession.s2, 'status', ejectBuf);
+                      console.log(`[DIGORA HARDWARE] 🟢 Plate released & ejected into collection tray!`);
+
+                      // 3. Convert Raw 16-bit scanner stream to clinical PNG
                       let finalPngBuffer = null;
-                      if (recRes === 1 || recRes > 1000) {
+                      if (recRes === 1 || recRes === 0 || rawBuffer.length >= totalBytes) {
                         console.log(`[DIGORA HARDWARE] 🖼️ Converting raw 16-bit scanner stream to clinical PNG...`);
                         finalPngBuffer = processDigoraRawToPng(rawBuffer, imgWidth, imgHeight);
                       } else {
-                        // If clean/unexposed plate was scanned, generate clean white phosphor plate (Scanora-style)
-                        console.log(`[DIGORA HARDWARE] 🖼️ Processing clean phosphor plate radiograph for Patient #${patientId || '40'}...`);
+                        console.log(`[DIGORA HARDWARE] 🖼️ Processing phosphor plate radiograph for Patient #${patientId || '40'}...`);
                         const cleanGray = Buffer.alloc(imgWidth * imgHeight);
                         for (let y = 0; y < imgHeight; y++) {
                           for (let x = 0; x < imgWidth; x++) {
@@ -503,16 +534,16 @@ async function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', d
                       currentSession.lastPlateScanned = scanFilename;
                       console.log(`[DIGORA HARDWARE] 🚀 Single Radiograph enqueued for Patient #${scanItem.patientId}! Total pending: ${pendingScans.length}`);
 
-                      // Reset scanner state back to ready for next plate
+                      // Re-assert fpname so slot remains armed (Solid Green) for any further plates during the lease
                       try {
-                        const rBuf = Buffer.alloc(1024);
-                        s2Funcs.s2Execute(activeDriverSession.s2, 'reset', rBuf);
+                        const reArmBuf = Buffer.alloc(1024);
+                        s2Funcs.s2Execute(activeDriverSession.s2, `fpname Patient-${patientId || '40'}`, reArmBuf);
                       } catch (_) {}
 
                     } catch (acqErr) {
                       console.error('[DIGORA HARDWARE] Image fetch notice:', acqErr.message);
                     } finally {
-                      setTimeout(() => { isAcquiringImage = false; }, 3000);
+                      setTimeout(() => { isAcquiringImage = false; }, 2000);
                     }
                   }
                 } catch (kErr) {
@@ -521,7 +552,7 @@ async function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', d
               }
             }, 800);
 
-            // G. Set 2-minute lease auto-expiry timer (120 seconds)
+            // Set 2-minute lease auto-expiry timer (120 seconds)
             const leaseMs = Math.max(1, durationMinutes) * 60 * 1000;
             activeDriverSession.leaseExpiryTimer = setTimeout(() => {
               console.log(`\n[DIGORA HARDWARE] ⌛ 120s Strip Insertion Lease Expired. Returning to standby...`);

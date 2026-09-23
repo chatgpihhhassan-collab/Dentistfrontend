@@ -210,11 +210,6 @@ export default function DigoraScannerModal({
   const modalMarkup = (
     <div 
       className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto animate-in fade-in duration-200"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && (Date.now() - mountTimeRef.current > 400)) {
-          onClose?.();
-        }
-      }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="digora-modal-title"

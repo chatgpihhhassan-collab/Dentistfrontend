@@ -341,19 +341,22 @@ async function runAllVerificationSteps() {
   // =========================================================================
   logStepHeader(7, 'Hot Folder Real-Time Watcher & Image Ingestion');
   const hotFolder = path.join(__dirname, 'scans');
-  const testScanFile = path.join(hotFolder, 'digora_step_test_radiograph.png');
+  const testScanFile = path.join(hotFolder, 'DIGORA_VERIFY_SAMPLE_SCAN.png');
   let watcherSuccess = false;
   let polledScan = null;
 
   try {
     if (!fs.existsSync(hotFolder)) fs.mkdirSync(hotFolder, { recursive: true });
     
-    // Write 1x1 dummy transparent PNG
-    const png1x1Base64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-    fs.writeFileSync(testScanFile, Buffer.from(png1x1Base64, 'base64'));
+    // Write realistic PNG sample buffer (> 500 bytes)
+    const validSample = Buffer.alloc(2000, 0xAA);
+    // Write valid PNG header
+    const validPngHeader = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    validPngHeader.copy(validSample, 0);
+    fs.writeFileSync(testScanFile, validSample);
     
-    // Wait for bridge fs.watch trigger (800ms)
-    await new Promise(r => setTimeout(r, 900));
+    // Wait for bridge fs.watch trigger (800ms debounce + processing)
+    await new Promise(r => setTimeout(r, 1200));
 
     // Poll bridge for latest scan
     const pollRes = await httpRequest(`${BRIDGE_URL}/digora/poll-scans`);

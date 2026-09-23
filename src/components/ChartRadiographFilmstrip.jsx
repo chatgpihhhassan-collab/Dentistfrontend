@@ -326,14 +326,13 @@ export default function ChartRadiographFilmstrip({
                 {digoraSync?.isArmed ? (
                   <button
                     type="button"
-                    onClick={async () => {
-                      await digoraSync.disarmScanner();
-                      closeDigoraModal();
+                    onClick={() => {
+                      openDigoraModal();
                     }}
                     className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition cursor-pointer shadow-2xs"
-                    title={`Soredex DIGORA Optime is armed over Ethernet. Click to disarm, reset hardware, and close window.`}
+                    title={`Soredex DIGORA Optime is armed over Ethernet. Click to view scanner console.`}
                   >
-                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                     <span className="font-extrabold text-[10px]">DIGORA Optime: Armed ({digoraSync.formattedRemainingTime})</span>
                   </button>
                 ) : (
