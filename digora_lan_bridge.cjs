@@ -1,5 +1,5 @@
 /**
- * Soredex DIGORA® Optime Ethernet LAN Bridge (Native PaloDEx Driver Engine v2.3)
+ * Soredex DIGORA® Optime Ethernet LAN Bridge (Native PaloDEx Driver Engine v2.4)
  * 
  * Connects Dentia Cloud Web Application (http://localhost:5173 / https://dentistfrontend.vercel.app)
  * with the physical Soredex DIGORA® Optime countertop scanner on the local clinic network.
@@ -7,8 +7,9 @@
  * Direct Hardware Control:
  * - Direct C-speed PaloDEx driver via Koffi.
  * - Arms vertical top slot for phosphor storage plates for 120s (2 minutes).
+ * - Holds Solid Green LED and Unlocked Slot without resetting.
  * - Physical Strip Detection: ONLY captures/generates an image when a plate is ACTUALLY inserted (0x0010 -> 0x0030 -> 0x0043 -> 0x0044).
- * - Zero duplicate images & zero fake scans on test/arm.
+ * - Zero premature resets, zero duplicate images & zero fake scans on test/arm.
  */
 
 const http = require('http');
@@ -39,7 +40,7 @@ const CONFIG = {
   ALT_HOT_FOLDER: userProfileScansFolder
 };
 
-// Ensure hot folders exist & clean any old test files
+// Ensure hot folders exist
 [CONFIG.HOT_FOLDER, CONFIG.ALT_HOT_FOLDER].forEach(folder => {
   try {
     if (!fs.existsSync(folder)) {
@@ -253,7 +254,7 @@ watchedFolders.forEach(folder => {
   }
 });
 
-// Active Native Driver Session State
+// Active Native Driver Session State (Holds connection & Green Light for 120s)
 let activeDriverSession = {
   s2: null,
   keepAliveTimer: null,
@@ -343,7 +344,7 @@ async function executeHardwareReset(targetIp = CONFIG.DIGORA_IP) {
   };
 }
 
-// 2. Direct Physical Hardware BEEP & Arm Sequence (Maintains Green LED & Unlocked Slot for 2 Minutes)
+// 2. Direct Physical Hardware BEEP & Arm Sequence (Maintains Solid Green LED & Unlocked Slot for 2 Minutes)
 async function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', durationMinutes = 2) {
   return new Promise(async (resolve) => {
     console.log(`\n=============================================================`);
@@ -377,25 +378,21 @@ async function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', d
           console.log(`[DIGORA HARDWARE] ⚡ s2Open(${targetIp}:10000) => Result: ${openRes}`);
 
           if (openRes === 1) {
-            // C. Firmware Login & Initial Reset to clear any prior scan buffer
+            // C. Firmware Login
             const buf = Buffer.alloc(4096);
             s2Funcs.s2Execute(s2, 'login', buf);
             loginOutput = buf.toString('latin1').replace(/\0.*$/g, '').trim();
             console.log(`[DIGORA HARDWARE] 🔑 Firmware Login:\n${loginOutput}`);
 
-            // Clear any prior scan leftovers
-            buf.fill(0);
-            s2Funcs.s2Execute(s2, 'reset', buf);
-
-            // D. Set Active Patient on Scanner Firmware
+            // D. Set Active Patient on Scanner Firmware (Arms the slot & lights Solid Green LED!)
             buf.fill(0);
             const pRes = s2Funcs.s2Execute(s2, `fpname Patient-${patientId || '40'}`, buf);
             console.log(`[DIGORA HARDWARE] 🏷️ Set Patient Name [Patient-${patientId || '40'}] => Result: ${pRes}`);
 
-            // Settle delay (150ms) to allow firmware state transition to Armed (0x0046)
+            // Settle delay (150ms) to allow firmware state transition to Armed
             await new Promise(r => setTimeout(r, 150));
 
-            // E. Query Hardware State (Transitions to state 0x0046: ARMED & SOLID GREEN LED)
+            // E. Query Hardware State (Solid Green LED ON & Slot Unlocked)
             buf.fill(0);
             s2Funcs.s2Execute(s2, 'status ro', buf);
             statusOutput = buf.toString('latin1').replace(/\0.*$/g, '').trim();
@@ -522,7 +519,7 @@ async function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', d
                   console.warn('[DIGORA HARDWARE KEEPALIVE] Error:', kErr.message);
                 }
               }
-            }, 600);
+            }, 800);
 
             // G. Set 2-minute lease auto-expiry timer (120 seconds)
             const leaseMs = Math.max(1, durationMinutes) * 60 * 1000;
@@ -613,7 +610,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       bridge: 'online',
-      version: 'Native-PaloDEx-v2.3',
+      version: 'Native-PaloDEx-v2.4',
       scannerIp: CONFIG.DIGORA_IP,
       localIp: getLocalSubnetIp(CONFIG.DIGORA_IP),
       hardwareSerial: currentSession.hardwareSerial,
@@ -740,13 +737,13 @@ server.listen(CONFIG.BRIDGE_PORT, '127.0.0.1', () => {
   console.log(`
 ┌──────────────────────────────────────────────────────────────────┐
 │                                                                  │
-│   SOREDEX DIGORA® OPTIME — NATIVE PALODEX DRIVER BRIDGE (v2.3)   │
+│   SOREDEX DIGORA® OPTIME — NATIVE PALODEX DRIVER BRIDGE (v2.4)   │
 │                                                                  │
 │   Target Scanner IP : ${CONFIG.DIGORA_IP} (S/N: ${currentSession.hardwareSerial})           │
 │   Local NIC IP      : ${getLocalSubnetIp(CONFIG.DIGORA_IP)}                                │
 │   Local Bridge Port : http://127.0.0.1:${CONFIG.BRIDGE_PORT}                 │
 │   Native s2 Driver  : ${s2Funcs ? 'ACTIVE & LOADED (s2_x64.dll)' : 'Simulated / Fallback'}       │
-│   Status            : READY (WAITING FOR STRIP INSERTION)        │
+│   Status            : READY (GREEN LED & UNLOCKED SLOT FOR 120s) │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
 `);
