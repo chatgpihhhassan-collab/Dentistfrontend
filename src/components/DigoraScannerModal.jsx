@@ -211,7 +211,11 @@ export default function DigoraScannerModal({
   const modalMarkup = (
     <div 
       className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto animate-in fade-in duration-200"
-      onClick={onClose}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose?.();
+        }
+      }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="digora-modal-title"
@@ -219,6 +223,7 @@ export default function DigoraScannerModal({
       <div 
         className="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-200/80 relative flex flex-col max-h-[92vh] sm:max-h-[88vh] overflow-hidden my-auto animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Top Header Glow Bar */}
         <div className="h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-blue-600 shrink-0"></div>

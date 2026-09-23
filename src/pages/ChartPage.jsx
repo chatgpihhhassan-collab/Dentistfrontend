@@ -7167,7 +7167,9 @@ export default function ChartPage() {
                   {/* Soredex DIGORA Optime Ethernet Scanner Play / Strip Window Button */}
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       digoraSync?.armScanner('Op-1', 2);
                       setShowDigoraModal(true);
                     }}

@@ -406,7 +406,9 @@ export default function ChartRadiographFilmstrip({
                 ) : (
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       digoraSync?.armScanner('Op-1', 2);
                       openDigoraModal();
                     }}
@@ -420,7 +422,11 @@ export default function ChartRadiographFilmstrip({
 
                 <button
                   type="button"
-                  onClick={() => digoraSync?.triggerHardwareBeep?.()}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    digoraSync?.triggerHardwareBeep?.();
+                  }}
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-extrabold text-[11px] shadow-xs active:scale-95 transition cursor-pointer"
                   title="Test physical Soredex DIGORA Optime hardware beep sound"
                 >
