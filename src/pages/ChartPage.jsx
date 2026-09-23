@@ -7168,7 +7168,7 @@ export default function ChartPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      digoraSync?.armScanner('Op-1', 5);
+                      digoraSync?.armScanner('Op-1', 2);
                       setShowDigoraModal(true);
                     }}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black shadow-2xs transition-all cursor-pointer border ${
@@ -7176,7 +7176,7 @@ export default function ChartPage() {
                         ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white border-emerald-400 shadow-emerald-500/20'
                         : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-300 hover:border-slate-400'
                     }`}
-                    title={digoraSync?.isArmed ? `DIGORA Optime Active (${digoraSync.formattedRemainingTime}) • Click to Open Strip Window` : 'Soredex DIGORA Optime (Ethernet PSP) • Click to Arm 5m & Open Strip Window'}
+                    title={digoraSync?.isArmed ? `DIGORA Optime Active (${digoraSync.formattedRemainingTime}) • Click to Open Strip Window` : 'Soredex DIGORA Optime (Ethernet PSP) • Click to Arm 2m & Open Strip Window'}
                     aria-label="Soredex DIGORA Optime Scanner"
                   >
                     <Play className="w-3 h-3 fill-current text-emerald-600" />

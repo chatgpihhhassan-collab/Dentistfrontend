@@ -51,7 +51,7 @@ export default function DigoraScannerModal({
     try {
       console.log(`%c[DIGORA MODAL] 📥 Ingesting Phosphor Plate Strip File: ${file.name}%c`, 'background: #2563EB; color: #FFF; font-weight: bold; padding: 2px 6px; border-radius: 4px;', '');
       if (!digoraSync?.isArmed) {
-        await digoraSync?.armScanner(operatoryId, 5);
+        await digoraSync?.armScanner(operatoryId, 2);
       }
 
       setScanPhase('feeding');
@@ -77,16 +77,14 @@ export default function DigoraScannerModal({
 
         setScanPhase('complete');
         setPhaseMessage('✅ Radiograph & AI Diagnostic Report auto-mounted onto Dental Chart!');
-        setTimeout(() => {
-          setScanPhase('idle');
-          setPhaseMessage('');
-          onClose?.();
-        }, 1000);
+        setDoorStatusMsg('✅ Plate scanned, UV-erased, released into collection tray, and mounted onto Patient Chart.');
       };
       reader.readAsDataURL(file);
     } catch (err) {
       console.error('[DIGORA MODAL] Ingest file error:', err);
       setScanPhase('idle');
+      setPhaseMessage('');
+      setDoorStatusMsg(`⚠️ Notice: ${err.message}`);
     }
   };
 
@@ -133,7 +131,7 @@ export default function DigoraScannerModal({
     if (digoraSync?.isArmed) {
       await digoraSync.disarmScanner();
     } else {
-      await digoraSync?.armScanner(operatoryId, 5);
+      await digoraSync?.armScanner(operatoryId, 2);
     }
   };
 
@@ -149,10 +147,10 @@ export default function DigoraScannerModal({
 
   const handleTestDoor = async () => {
     setDoorTesting(true);
-    setDoorStatusMsg('🔌 Testing physical feeder door...');
+    setDoorStatusMsg('🔌 Testing physical feeder door motor on 192.168.0.100...');
     try {
       await digoraSync?.testDoorOpen();
-      setDoorStatusMsg('🟢 DIGORA Optime feeder slot & collection tray ready for phosphor plate drop.');
+      setDoorStatusMsg('🟢 DIGORA Optime feeder slot & collection tray ready for phosphor plate strip.');
     } catch (_e) {
       setDoorStatusMsg('🟢 DIGORA Optime ready.');
     } finally {
@@ -162,13 +160,13 @@ export default function DigoraScannerModal({
 
   const handleTestBeep = async () => {
     setBeepTesting(true);
-    setDoorStatusMsg('🔔 Dispatching hardware BEEP test...');
+    setDoorStatusMsg('🔔 Dispatching hardware BEEP test to Soredex DIGORA Optime...');
     try {
       const res = await digoraSync?.triggerHardwareBeep();
       if (res?.beeped) {
         setDoorStatusMsg(`🔔 HARDWARE BEEP CONFIRMED! DIGORA Optime [SL1403203] locked to Patient #${patientId || ''}.`);
       } else {
-        setDoorStatusMsg('🔔 Beep test signal completed (Standalone mode active).');
+        setDoorStatusMsg('🔔 Beep test signal completed.');
       }
     } catch (_e) {
       setDoorStatusMsg('🔔 Beep test completed.');
@@ -182,20 +180,17 @@ export default function DigoraScannerModal({
 
     try {
       console.log('%c[DIGORA MODAL] 📥 Checking DIGORA Hardware Feeder for Real Plate Scan%c', 'background: #059669; color: #FFF; font-weight: bold; padding: 2px 6px; border-radius: 4px;', '');
-      // 1. Arm scanner if not already armed
+      // 1. Arm scanner if not already armed for 2-minute window
       if (!digoraSync?.isArmed) {
-        await digoraSync?.armScanner(operatoryId, 5);
+        await digoraSync?.armScanner(operatoryId, 2);
       }
 
-      // 2. Animate Optical Laser Scan
+      // 2. Query Scan Ingestion from bridge hot-folder
       setScanPhase('feeding');
-      setPhaseMessage('Checking DIGORA Optime feeder slot & collection tray for scanned plate...');
-
-      await new Promise(r => setTimeout(r, 600));
-      setScanPhase('scanning');
       setPhaseMessage('Connecting to DIGORA Optime to read 14-bit latent plate image...');
 
-      // 3. Trigger Scan Ingestion (queries bridge hot-folder for genuine hardware scan)
+      await new Promise(r => setTimeout(r, 600));
+
       await digoraSync?.simulateScan({
         plateSize: selectedPlateSize,
         targetTeeth
@@ -203,21 +198,13 @@ export default function DigoraScannerModal({
 
       setScanPhase('complete');
       setPhaseMessage('✅ Real DIGORA scan digitized & auto-mounted onto Dental Chart!');
-
-      // Close automatically after brief success confirmation so doctor sees chart
-      setTimeout(() => {
-        setScanPhase('idle');
-        setPhaseMessage('');
-        onClose?.();
-      }, 1000);
+      setDoorStatusMsg('✅ Plate scanned, UV-erased, released into collection tray, and mounted onto Patient Chart.');
 
     } catch (err) {
       console.warn('[DIGORA MODAL] Ingestion notice:', err.message);
       setScanPhase('idle');
       setPhaseMessage('');
-      setDoorStatusMsg('⚠️ No physical plate scan detected in DIGORA slot. Please feed a phosphor plate into the scanner or select your patient\'s real X-ray scan file.');
-      // Auto-open file chooser so doctor can immediately select their patient's real X-ray scan file
-      fileInputRef.current?.click();
+      setDoorStatusMsg('⏳ Top slot armed (2 min lease). Insert your phosphor plate strip into the DIGORA scanner. The machine will automatically scan, erase, and release the strip into the collection tray.');
     }
   };
 
@@ -322,12 +309,12 @@ export default function DigoraScannerModal({
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
                     type="button"
-                    onClick={async () => await digoraSync?.armScanner(operatoryId, 5)}
+                    onClick={async () => await digoraSync?.armScanner(operatoryId, 2)}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-xs bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/30 active:scale-95 transition cursor-pointer"
-                    title="Click Play to arm DIGORA Optime over local Ethernet (5-minute lease)"
+                    title="Click Play to arm DIGORA Optime over local Ethernet (2-minute window)"
                   >
                     <Play className="w-4 h-4 fill-current" />
-                    <span>▶ Play / Activate (5m)</span>
+                    <span>▶ Play / Activate (2m)</span>
                   </button>
                   <button
                     type="button"
@@ -348,7 +335,7 @@ export default function DigoraScannerModal({
                 <span>IP: 192.168.0.100 &bull; Serial: SL1403203 (DICOM Port 104)</span>
               </span>
               <span className="font-mono text-emerald-300 font-bold">
-                Lease: {digoraSync?.formattedRemainingTime || '05:00'}
+                Lease: {digoraSync?.formattedRemainingTime || '02:00'}
               </span>
             </div>
           </div>

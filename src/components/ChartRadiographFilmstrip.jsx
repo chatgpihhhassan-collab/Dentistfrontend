@@ -340,14 +340,14 @@ export default function ChartRadiographFilmstrip({
                   <button
                     type="button"
                     onClick={() => {
-                      digoraSync?.armScanner('Op-1', 5);
+                      digoraSync?.armScanner('Op-1', 2);
                       openDigoraModal();
                     }}
                     className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition cursor-pointer shadow-2xs"
-                    title="Click to activate Soredex DIGORA Optime Ethernet scanner (5-minute lease) and open scanner window"
+                    title="Click to activate Soredex DIGORA Optime Ethernet scanner (2-minute window) and open scanner window"
                   >
                     <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                    <span className="font-bold text-[10px]">DIGORA Optime: Ready (Click to Arm 5m)</span>
+                    <span className="font-bold text-[10px]">DIGORA Optime: Ready (Click to Arm 2m)</span>
                   </button>
                 )}
 
@@ -407,14 +407,14 @@ export default function ChartRadiographFilmstrip({
                   <button
                     type="button"
                     onClick={() => {
-                      digoraSync?.armScanner('Op-1', 5);
+                      digoraSync?.armScanner('Op-1', 2);
                       openDigoraModal();
                     }}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-[11px] shadow-sm active:scale-95 transition cursor-pointer"
-                    title="Activate Soredex DIGORA Optime Ethernet Scanner (5-Minute Window)"
+                    title="Activate Soredex DIGORA Optime Ethernet Scanner (2-Minute Window for Plate Insertion)"
                   >
                     <Play className="w-3.5 h-3.5 fill-current" />
-                    <span>▶ Play DIGORA (5m)</span>
+                    <span>▶ Play DIGORA (2m)</span>
                   </button>
                 )}
 

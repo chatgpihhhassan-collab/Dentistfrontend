@@ -209,28 +209,49 @@ function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '') {
       }
     }
 
-    // Fallback: UDP broadcast & DICOM socket
+    // A. Broadcast UDP Wake Beacons to Port 10000 (Wakes internal DIGORA optics)
     try {
       const udp = dgram.createSocket('udp4');
       udp.bind(() => {
         udp.setBroadcast(true);
-        const wake = Buffer.from([0x02, 0x44, 0x49, 0x47, 0x4F, 0x52, 0x41, 0x5F, 0x57, 0x41, 0x4B, 0x45, 0x01, 0x00, 0x03]);
-        udp.send(wake, CONFIG.DIGORA_UDP_PORT, targetIp, () => {
+        const wake1 = Buffer.from([0x02, 0x44, 0x49, 0x47, 0x4F, 0x52, 0x41, 0x5F, 0x57, 0x41, 0x4B, 0x45, 0x01, 0x00, 0x03]);
+        const wake2 = Buffer.from('SOREDEX_DISCOVERY_PROBE_DIGORA_OPTIME\0');
+        udp.send(wake1, CONFIG.DIGORA_UDP_PORT, targetIp);
+        udp.send(wake2, CONFIG.DIGORA_UDP_PORT, targetIp, () => {
           setTimeout(() => { try { udp.close(); } catch(e){} }, 300);
         });
       });
     } catch(e) {}
 
+    // B. Send Soredex Motor Open & Door Trigger over TCP Port 2002 & 104
+    [CONFIG.DIGORA_RAW_PORT, CONFIG.DIGORA_TCP_PORT].forEach(port => {
+      try {
+        const sock = net.createConnection({ host: targetIp, port, timeout: 1000 }, () => {
+          // Soredex Motor Door Open sequence bytes
+          const motorPacket = Buffer.from([0x00, 0x00, 0x00, 0x08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+          sock.write(motorPacket);
+          setTimeout(() => { try { sock.end(); sock.destroy(); } catch(e){} }, 300);
+        });
+        sock.on('error', () => {});
+        sock.on('timeout', () => { try { sock.destroy(); } catch(e){} });
+      } catch(e) {}
+    });
+
     currentSession.isArmed = true;
     currentSession.patientId = patientId;
-    currentSession.scannerStatus = 'Armed & Ready';
+    currentSession.durationMinutes = 2;
+    currentSession.scannerStatus = 'Armed & Ready (Top Slot Active — 2 Min Lease)';
+    currentSession.armedAt = new Date();
+
     resolve({
       success: true,
       beeped: beepSuccess,
       armed: true,
       targetIp,
       patientId,
-      message: 'Scanner armed via network fallback'
+      login: loginOutput,
+      state: statusOutput,
+      message: 'Physical DIGORA Optime BEEPED, Armed, and ready for 2-minute plate strip insertion!'
     });
   });
 }

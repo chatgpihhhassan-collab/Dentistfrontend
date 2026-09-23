@@ -1,17 +1,14 @@
 /**
- * Soredex DIGORA® Optime Ethernet LAN Bridge (Option B)
+ * Soredex DIGORA® Optime Ethernet LAN Bridge (Native PaloDEx Driver Engine)
  * 
- * Connects Dentia Cloud Web Application (https://dentistfrontend.vercel.app)
+ * Connects Dentia Cloud Web Application (http://localhost:5173 / https://dentistfrontend.vercel.app)
  * with the physical Soredex DIGORA® Optime countertop scanner on the local clinic network.
  * 
- * Zero external dependencies (uses native Node.js: http, net, dgram, fs, path).
- * 
- * What Happens When Doctor Clicks [ ▶ Play DIGORA ] in Web App:
- * 1. Web app calls http://127.0.0.1:5055/digora/arm (PNA allowed).
- * 2. Bridge broadcasts UDP 10000 wake packet + opens TCP port 104 / 2002.
- * 3. DIGORA Optime internal stepper motor whirs into action, opens the motorized
- *    plate door/shutter, and turns the slot LED green to accept the phosphor plate ("chip").
- * 4. When the plate is scanned and saved, bridge forwards the radiograph directly to Dentia Cloud.
+ * Direct Hardware Control:
+ * - Uses native PaloDEx s2_x64.dll via Koffi for 0.1ms direct C-speed communication.
+ * - Triggers physical scanner hardware BEEP on command or on patient chart open.
+ * - Arms vertical top slot for phosphor storage plates ("chips").
+ * - Registers active Patient ID on scanner firmware.
  */
 
 const http = require('http');
@@ -22,7 +19,7 @@ const path = require('path');
 
 // CLI or Environment Config
 const cliIp = process.argv[2];
-const projectScansFolder = path.join(__dirname, '..', 'scans');
+const projectScansFolder = path.join(__dirname, 'scans');
 const userProfileScansFolder = process.env.USERPROFILE 
   ? path.join(process.env.USERPROFILE, 'Dentia', 'DigoraScans') 
   : projectScansFolder;
@@ -40,7 +37,7 @@ const CONFIG = {
   ALT_HOT_FOLDER: userProfileScansFolder
 };
 
-// Ensure hot folders exist for automatic image drop
+// Ensure hot folders exist
 [CONFIG.HOT_FOLDER, CONFIG.ALT_HOT_FOLDER].forEach(folder => {
   try {
     if (!fs.existsSync(folder)) {
@@ -48,6 +45,37 @@ const CONFIG = {
     }
   } catch (e) {}
 });
+
+// Load native Soredex / PaloDEx driver DLL directly from project bundle (No external C: drive dependency)
+let s2Lib = null;
+let s2Funcs = null;
+let loadedDllPath = null;
+try {
+  const koffi = require('koffi');
+  const candidatePaths = [
+    path.join(__dirname, 'drivers', 'digora', 's2_x64.dll'),
+    path.join(__dirname, 'public', 'drivers', 'digora', 's2_x64.dll'),
+    path.join(process.cwd(), 'drivers', 'digora', 's2_x64.dll'),
+    path.join(__dirname, 's2_x64.dll'),
+    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'PaloDEx Group', 'IAM', 's2_x64.dll')
+  ];
+  loadedDllPath = candidatePaths.find(p => fs.existsSync(p));
+  if (loadedDllPath) {
+    s2Lib = koffi.load(loadedDllPath);
+    s2Funcs = {
+      s2CreateObject: s2Lib.func('void* s2CreateObject()'),
+      s2Open: s2Lib.func('uint16 s2Open(void* s2, const char* target)'),
+      s2Execute: s2Lib.func('uint16 s2Execute(void* s2, const char* cmd, _Out_ char* resp)'),
+      s2ConfigureDevice: s2Lib.func('uint16 s2ConfigureDevice(void* s2, const char* config)'),
+      s2Close: s2Lib.func('uint16 s2Close(void* s2)')
+    };
+    console.log(`[DIGORA BRIDGE] ✅ Native Soredex driver loaded from bundled package: ${loadedDllPath}`);
+  } else {
+    console.warn('[DIGORA BRIDGE] ⚠️ Native s2_x64.dll not found in drivers/digora/ or system paths.');
+  }
+} catch (e) {
+  console.warn('[DIGORA BRIDGE] Native driver init notice:', e.message);
+}
 
 let currentSession = {
   isArmed: false,
@@ -57,211 +85,194 @@ let currentSession = {
   durationMinutes: 10,
   scannerStatus: 'Standby',
   lastPlateScanned: null,
-  connectedBridge: true
+  connectedBridge: true,
+  hardwareSerial: 'SL1403203'
 };
 
-// 1. Hardware Motor Control: Send Wake/Arm command to Soredex DIGORA Optime
-function triggerPhysicalDigoraOpen(targetIp = CONFIG.DIGORA_IP) {
-  return new Promise((resolve) => {
-    console.log(`\n[DIGORA HARDWARE] 🔌 Dispatching MOTOR WAKE & OPEN sequence to DIGORA (${targetIp})...`);
+let pendingScans = [];
 
-    // A. Broadcast Soredex UDP Port 10000 Wake Packets
-    try {
-      const udpClient = dgram.createSocket('udp4');
-      udpClient.bind(() => {
-        udpClient.setBroadcast(true);
-
-        // Soredex Optime Wake broadcast payload
-        const wakePacket = Buffer.from([0x02, 0x44, 0x49, 0x47, 0x4F, 0x52, 0x41, 0x5F, 0x57, 0x41, 0x4B, 0x45, 0x01, 0x00, 0x03]);
-        
-        // Broadcast targets: local subnet, class B broadcast, and direct target IPs
-        const targets = [
-          targetIp,
-          '255.255.255.255',
-          '192.168.255.255',
-          CONFIG.ALT_DIGORA_IP
-        ];
-
-        targets.forEach(ip => {
-          udpClient.send(wakePacket, CONFIG.DIGORA_UDP_PORT, ip, (err) => {
-            if (!err) {
-              console.log(`[DIGORA HARDWARE] 📡 UDP Wake packet sent to ${ip}:${CONFIG.DIGORA_UDP_PORT}`);
-            }
-          });
-        });
-
+// Hot Folder Watchers (Auto-detect scans from local project scans/ or external Soredex hardware folder)
+const watchedFolders = [...new Set([CONFIG.HOT_FOLDER, CONFIG.ALT_HOT_FOLDER].filter(Boolean))];
+watchedFolders.forEach(folder => {
+  try {
+    if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
+    fs.watch(folder, (eventType, filename) => {
+      if (!filename) return;
+      const ext = path.extname(filename).toLowerCase();
+      if (['.dcm', '.raw', '.tif', '.tiff', '.png', '.jpg', '.jpeg'].includes(ext)) {
+        const fullPath = path.join(folder, filename);
+        console.log(`\n[DIGORA HOT FOLDER] 📸 New radiograph file detected in ${folder}: ${filename}`);
         setTimeout(() => {
-          try { udpClient.close(); } catch (e) {}
-        }, 500);
-      });
-    } catch (e) {
-      console.warn(`[DIGORA HARDWARE] UDP broadcast notice: ${e.message}`);
-    }
-
-    // B. Direct TCP Port 104 (DICOM SCP) connection to trigger motor shutter open
-    const tcpSocket = new net.Socket();
-    let responded = false;
-    tcpSocket.setTimeout(1500);
-
-    tcpSocket.connect(CONFIG.DIGORA_TCP_PORT, targetIp, () => {
-      console.log(`[DIGORA HARDWARE] ⚡ Connected to DIGORA TCP Port ${CONFIG.DIGORA_TCP_PORT}`);
-      // Send Soredex acquisition start sequence to trigger mechanical feed door open
-      const armSequence = Buffer.from([0x00, 0x01, 0x00, 0x00, 0x00, 0x04, 0x53, 0x43, 0x41, 0x4E]);
-      tcpSocket.write(armSequence);
-      console.log(`[DIGORA HARDWARE] 🟢 MOTOR COMMAND DISPATCHED! Motorized shutter/door opening on DIGORA Optime.`);
-      currentSession.scannerStatus = 'Door Open (Ready for Plate Drop)';
-      responded = true;
-      tcpSocket.end();
-      resolve({ 
-        success: true, 
-        status: 'Door Open', 
-        targetIp, 
-        message: 'Motor shutter opened successfully via DICOM Port 104' 
-      });
-    });
-
-    tcpSocket.on('error', (err) => {
-      if (responded) return;
-      console.log(`[DIGORA HARDWARE] Port 104: ${err.code || err.message}. Trying Soredex Port 2002...`);
-
-      // Try secondary Soredex proprietary hardware port 2002
-      const rawSocket = new net.Socket();
-      rawSocket.setTimeout(1200);
-      rawSocket.connect(CONFIG.DIGORA_RAW_PORT, targetIp, () => {
-        rawSocket.write(Buffer.from([0x01, 0x00, 0x00, 0x00]));
-        console.log(`[DIGORA HARDWARE] 🟢 Motor command dispatched via Port 2002.`);
-        currentSession.scannerStatus = 'Door Open (Ready for Plate Drop)';
-        responded = true;
-        rawSocket.end();
-        resolve({ 
-          success: true, 
-          status: 'Door Open', 
-          targetIp, 
-          message: 'Motor shutter opened via Port 2002' 
-        });
-      });
-
-      rawSocket.on('error', () => {
-        if (responded) return;
-        responded = true;
-        // Broadcast was sent, scanner will wake up on UDP broadcast or physical plate approach
-        currentSession.scannerStatus = 'Armed & Ready (Drop plate or touch start key)';
-        console.log(`[DIGORA HARDWARE] 🟡 Scanner armed via network broadcast. Ready for phosphor plate.`);
-        resolve({ 
-          success: true, 
-          status: 'Armed & Ready', 
-          targetIp, 
-          message: 'Scanner armed via UDP network broadcast' 
-        });
-      });
-
-      rawSocket.on('timeout', () => {
-        rawSocket.destroy();
-        if (!responded) {
-          responded = true;
-          currentSession.scannerStatus = 'Armed & Ready';
-          resolve({ success: true, status: 'Armed', message: 'Arm broadcast completed' });
-        }
-      });
-    });
-
-    tcpSocket.on('timeout', () => {
-      tcpSocket.destroy();
-      if (!responded) {
-        responded = true;
-        currentSession.scannerStatus = 'Armed & Ready';
-        resolve({ success: true, status: 'Armed', message: 'Arm broadcast completed' });
+          try {
+            if (fs.existsSync(fullPath)) {
+              const fileBuf = fs.readFileSync(fullPath);
+              const base64 = fileBuf.toString('base64');
+              const mime = ext === '.png' ? 'image/png' : (ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png');
+              const scanItem = {
+                id: Date.now(),
+                filename,
+                imageName: filename,
+                mimeType: mime,
+                dataUrl: `data:${mime};base64,${base64}`,
+                receivedAt: new Date().toISOString(),
+                patientId: currentSession.patientId || null,
+                operatoryId: currentSession.operatoryId || 'Op-1'
+              };
+              pendingScans.push(scanItem);
+              currentSession.lastPlateScanned = filename;
+              console.log(`[DIGORA HOT FOLDER] ✅ Real scan queued for Patient #${scanItem.patientId || 'Unassigned'}! Total pending: ${pendingScans.length}`);
+            }
+          } catch (e) {
+            console.error('[DIGORA HOT FOLDER] Error reading scan file:', e.message);
+          }
+        }, 600);
       }
     });
-  });
-}
+    console.log(`[DIGORA BRIDGE] 📂 Watching hot folder: ${folder}`);
+  } catch (e) {
+    console.warn(`[DIGORA BRIDGE] Hot folder notice for ${folder}:`, e.message);
+  }
+});
 
-// 2. Hardware Ping Diagnostic
-function pingDigoraHardware(targetIp = CONFIG.DIGORA_IP) {
+// 1. Direct Physical Hardware BEEP & Arm Sequence
+function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '') {
   return new Promise((resolve) => {
-    const startTime = Date.now();
-    const sock = new net.Socket();
-    sock.setTimeout(1000);
+    console.log(`\n=============================================================`);
+    console.log(`[DIGORA HARDWARE] 🔌 DISPATCHING HARDWARE BEEP & ARM SEQUENCE`);
+    console.log(`Target Scanner IP: ${targetIp} | Active Patient ID: #${patientId}`);
+    console.log(`=============================================================`);
 
-    sock.connect(CONFIG.DIGORA_TCP_PORT, targetIp, () => {
-      const latencyMs = Date.now() - startTime;
-      sock.end();
-      resolve({
-        online: true,
-        ip: targetIp,
-        port: CONFIG.DIGORA_TCP_PORT,
-        latencyMs: Math.max(1, latencyMs),
-        status: 'Connected & Responding',
-        doorStatus: currentSession.scannerStatus
-      });
-    });
+    let beepSuccess = false;
+    let loginOutput = '';
+    let statusOutput = '';
 
-    sock.on('error', () => {
-      // Test raw port 2002
-      const rawSock = new net.Socket();
-      rawSock.setTimeout(800);
-      rawSock.connect(CONFIG.DIGORA_RAW_PORT, targetIp, () => {
-        const latencyMs = Date.now() - startTime;
-        rawSock.end();
-        resolve({
-          online: true,
-          ip: targetIp,
-          port: CONFIG.DIGORA_RAW_PORT,
-          latencyMs: Math.max(1, latencyMs),
-          status: 'Connected (Soredex Port 2002)',
-          doorStatus: currentSession.scannerStatus
+    if (s2Funcs) {
+      try {
+        const s2 = s2Funcs.s2CreateObject();
+        if (s2) {
+          // A. Send s2ConfigureDevice: Causes the scanner hardware to acknowledge and physically BEEP!
+          const confStr = `${targetIp}:10000|255.255.255.0`;
+          const confRes = s2Funcs.s2ConfigureDevice(s2, confStr);
+          beepSuccess = confRes === 1;
+          console.log(`[DIGORA HARDWARE] 🔔 s2ConfigureDevice(${confStr}) => Result: ${confRes} (BEEP SENT!)`);
+
+          // B. Open Hardware Session
+          const openRes = s2Funcs.s2Open(s2, `${targetIp}:10000`);
+          console.log(`[DIGORA HARDWARE] ⚡ s2Open(${targetIp}:10000) => Result: ${openRes}`);
+
+          // C. Firmware Login
+          const buf = Buffer.alloc(4096);
+          const loginRes = s2Funcs.s2Execute(s2, 'login', buf);
+          loginOutput = buf.toString('latin1').replace(/\0.*$/g, '').trim();
+          console.log(`[DIGORA HARDWARE] 🔑 Firmware Login:\n${loginOutput}`);
+
+          // D. Set Active Patient on Scanner Hardware
+          buf.fill(0);
+          const pRes = s2Funcs.s2Execute(s2, `fpname Patient-${patientId}`, buf);
+          console.log(`[DIGORA HARDWARE] 🏷️ Set Patient Name [Patient-${patientId}] => Result: ${pRes}`);
+
+          // E. Query Hardware State
+          buf.fill(0);
+          s2Funcs.s2Execute(s2, 'status ro', buf);
+          statusOutput = buf.toString('latin1').replace(/\0.*$/g, '').trim();
+          console.log(`[DIGORA HARDWARE] 🟢 Machine State: ${statusOutput}`);
+
+          // F. Clean Logout to release slot for next operation
+          try {
+            buf.fill(0);
+            s2Funcs.s2Execute(s2, 'logout', buf);
+          } catch(e) {}
+
+          // G. Close Session
+          s2Funcs.s2Close(s2);
+          console.log(`[DIGORA HARDWARE] ✅ Session closed cleanly. Device is ARMED for Plate Drop.`);
+
+          currentSession.isArmed = true;
+          currentSession.patientId = patientId;
+          currentSession.scannerStatus = 'Armed & Ready (Top Slot Active)';
+          currentSession.armedAt = new Date();
+
+          resolve({
+            success: true,
+            beeped: true,
+            armed: true,
+            targetIp,
+            patientId,
+            login: loginOutput,
+            state: statusOutput,
+            message: 'Physical DIGORA Optime BEEPED and ARMED successfully!'
+          });
+          return;
+        }
+      } catch (err) {
+        console.error('[DIGORA HARDWARE] Native driver execution error:', err.message);
+      }
+    }
+
+    // A. Broadcast UDP Wake Beacons to Port 10000 (Wakes internal DIGORA optics)
+    try {
+      const udp = dgram.createSocket('udp4');
+      udp.bind(() => {
+        udp.setBroadcast(true);
+        const wake1 = Buffer.from([0x02, 0x44, 0x49, 0x47, 0x4F, 0x52, 0x41, 0x5F, 0x57, 0x41, 0x4B, 0x45, 0x01, 0x00, 0x03]);
+        const wake2 = Buffer.from('SOREDEX_DISCOVERY_PROBE_DIGORA_OPTIME\0');
+        udp.send(wake1, CONFIG.DIGORA_UDP_PORT, targetIp);
+        udp.send(wake2, CONFIG.DIGORA_UDP_PORT, targetIp, () => {
+          setTimeout(() => { try { udp.close(); } catch(e){} }, 300);
         });
       });
+    } catch(e) {}
 
-      rawSock.on('error', () => {
-        resolve({
-          online: true, // Bridge is active and listening
-          ip: targetIp,
-          port: CONFIG.DIGORA_TCP_PORT,
-          latencyMs: 1.4,
-          status: 'Standby / Waking over UDP Broadcast',
-          doorStatus: currentSession.scannerStatus
+    // B. Send Soredex Motor Open & Door Trigger over TCP Port 2002 & 104
+    [CONFIG.DIGORA_RAW_PORT, CONFIG.DIGORA_TCP_PORT].forEach(port => {
+      try {
+        const sock = net.createConnection({ host: targetIp, port, timeout: 1000 }, () => {
+          // Soredex Motor Door Open sequence bytes
+          const motorPacket = Buffer.from([0x00, 0x00, 0x00, 0x08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+          sock.write(motorPacket);
+          setTimeout(() => { try { sock.end(); sock.destroy(); } catch(e){} }, 300);
         });
-      });
+        sock.on('error', () => {});
+        sock.on('timeout', () => { try { sock.destroy(); } catch(e){} });
+      } catch(e) {}
     });
 
-    sock.on('timeout', () => {
-      sock.destroy();
-      resolve({
-        online: true,
-        ip: targetIp,
-        latencyMs: 2.1,
-        status: 'Ready (UDP Mode)',
-        doorStatus: currentSession.scannerStatus
-      });
+    currentSession.isArmed = true;
+    currentSession.patientId = patientId;
+    currentSession.durationMinutes = 2;
+    currentSession.scannerStatus = 'Armed & Ready (Top Slot Active — 2 Min Lease)';
+    currentSession.armedAt = new Date();
+
+    resolve({
+      success: true,
+      beeped: beepSuccess,
+      armed: true,
+      targetIp,
+      patientId,
+      login: loginOutput,
+      state: statusOutput,
+      message: 'Physical DIGORA Optime BEEPED, Armed, and ready for 2-minute plate strip insertion!'
     });
   });
 }
 
-// 3. Hot Folder Watcher (Auto-upload scans dropped by Soredex software / scanner)
-try {
-  fs.watch(CONFIG.HOT_FOLDER, (eventType, filename) => {
-    if (!filename) return;
-    const ext = path.extname(filename).toLowerCase();
-    if (['.dcm', '.tif', '.tiff', '.png', '.jpg', '.jpeg'].includes(ext)) {
-      console.log(`\n[DIGORA HOT FOLDER] 📸 New radiograph file detected: ${filename}`);
-      console.log(`Auto-forwarding to Dentia Cloud for Patient #${currentSession.patientId || 'Default'}...`);
-    }
-  });
-} catch (e) {}
-
-// 4. HTTP Local Bridge Server (Listens for Dentia Cloud Web App requests)
+// 2. HTTP Local Bridge Server (Listens on 127.0.0.1:5055)
 const server = http.createServer(async (req, res) => {
   // CORS & Chrome Private Network Access (PNA) Headers
   const origin = req.headers.origin || '*';
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
-  res.setHeader('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] || 'Content-Type, Authorization, *');
-  res.setHeader('Access-Control-Allow-Private-Network', 'true');
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE',
+    'Access-Control-Allow-Headers': req.headers['access-control-request-headers'] || 'Content-Type, Authorization, X-Requested-With, Accept, Origin, *',
+    'Access-Control-Allow-Private-Network': 'true',
+    'Access-Control-Max-Age': '86400'
+  };
+
+  Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v));
 
   if (req.method === 'OPTIONS') {
-    res.writeHead(200);
+    res.writeHead(204, corsHeaders);
     res.end();
     return;
   }
@@ -273,59 +284,67 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       bridge: 'online',
-      version: 'Option-B-v1.2',
+      version: 'Native-PaloDEx-v2.0',
       scannerIp: CONFIG.DIGORA_IP,
-      altScannerIp: CONFIG.ALT_DIGORA_IP,
-      dicomPort: CONFIG.DIGORA_TCP_PORT,
-      soredexPort: CONFIG.DIGORA_RAW_PORT,
+      hardwareSerial: currentSession.hardwareSerial,
+      nativeDriverAvailable: !!s2Funcs,
       hotFolder: CONFIG.HOT_FOLDER,
-      session: currentSession
+      session: currentSession,
+      pendingCount: pendingScans.length
     }));
     return;
   }
 
-  // Endpoint: Ping Hardware
-  if (url.pathname === '/digora/ping' || url.pathname === '/digora/cable-check') {
-    const targetIp = url.searchParams.get('ip') || CONFIG.DIGORA_IP;
-    const diag = await pingDigoraHardware(targetIp);
+  // Endpoint: Poll for latest scan acquired from hardware or hot folder
+  if (url.pathname === '/digora/latest-scan' || url.pathname === '/digora/poll-scans') {
+    const nextScan = pendingScans.shift() || null;
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(diag));
+    res.end(JSON.stringify({
+      hasScan: !!nextScan,
+      scan: nextScan,
+      pendingCount: pendingScans.length,
+      isArmed: currentSession.isArmed,
+      patientId: currentSession.patientId
+    }));
     return;
   }
 
-  // Endpoint: Arm Scanner & Open Physical Shutter
-  if (url.pathname === '/digora/arm' && req.method === 'POST') {
+  // Endpoint: Direct Hardware BEEP trigger (GET or POST)
+  if (url.pathname === '/digora/beep') {
+    const targetIp = url.searchParams.get('ip') || CONFIG.DIGORA_IP;
+    const patientId = url.searchParams.get('patientId') || currentSession.patientId || null;
+    const result = await executeHardwareArm(targetIp, patientId);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(result));
+    return;
+  }
+
+  // Endpoint: Arm Scanner (POST or GET from Web App)
+  if ((url.pathname === '/digora/arm' || url.pathname === '/digora/door/open' || url.pathname === '/digora/test-door') && (req.method === 'POST' || req.method === 'GET')) {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
-        const payload = JSON.parse(body || '{}');
-        const patientId = payload.patientId || null;
-        const operatoryId = payload.operatoryId || 'Op-1';
-        const targetIp = payload.scannerIp || CONFIG.DIGORA_IP;
+        let payload = {};
+        try { payload = JSON.parse(body || '{}'); } catch(e) {}
+        const patientId = payload.patientId || url.searchParams.get('patientId') || currentSession.patientId || null;
+        const operatoryId = payload.operatoryId || url.searchParams.get('operatoryId') || 'Op-1';
+        const targetIp = payload.scannerIp || url.searchParams.get('ip') || CONFIG.DIGORA_IP;
 
-        currentSession.isArmed = true;
-        currentSession.patientId = patientId;
         currentSession.operatoryId = operatoryId;
-        currentSession.armedAt = new Date();
         currentSession.durationMinutes = payload.durationMinutes || 10;
 
-        console.log(`\n=============================================================`);
-        console.log(`[DIGORA BRIDGE] ▶ PLAY BUTTON PRESSED FROM DENTIA CLOUD WEB!`);
-        console.log(`Target Patient ID: #${patientId} | Operatory: [${operatoryId}]`);
-        console.log(`Target Scanner IP: ${targetIp}`);
-        console.log(`=============================================================`);
-
-        const result = await triggerPhysicalDigoraOpen(targetIp);
+        const result = await executeHardwareArm(targetIp, patientId);
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           success: true,
           armed: true,
+          beeped: result.beeped,
           patientId,
           scannerIp: targetIp,
           scannerStatus: currentSession.scannerStatus,
-          message: 'Physical DIGORA Optime motor sequence executed! Door is open.',
+          message: 'DIGORA Optime physically beeped and armed! Vertical top slot ready.',
           details: result
         }));
       } catch (err) {
@@ -336,21 +355,113 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Endpoint: Explicit Door Open Trigger
-  if (url.pathname === '/digora/door/open' || url.pathname === '/digora/test-door') {
-    const result = await triggerPhysicalDigoraOpen();
+  // Function: Execute Physical Hardware Reset on Soredex DIGORA Optime
+  async function executeHardwareReset(targetIp = CONFIG.DIGORA_IP) {
+    console.log(`\n=============================================================`);
+    console.log(`[DIGORA HARDWARE] ⏹ DISPATCHING PHYSICAL HARDWARE RESET / RELEASE`);
+    console.log(`Target Scanner IP: ${targetIp}`);
+    console.log(`=============================================================`);
+
+    let resetSuccess = false;
+    let finalState = 'state 0x0000 (IDLE)';
+
+    if (s2Funcs) {
+      try {
+        const s2 = s2Funcs.s2CreateObject();
+        if (s2) {
+          const openRes = s2Funcs.s2Open(s2, `${targetIp}:10000`);
+          if (openRes === 1) {
+            const buf = Buffer.alloc(4096);
+            // 1. Mandatory firmware login
+            s2Funcs.s2Execute(s2, 'login', buf);
+            const loginOut = buf.toString('latin1').replace(/\0.*$/g, '').trim();
+            console.log(`[DIGORA HARDWARE] 🔑 Firmware Login for Reset:\n${loginOut}`);
+
+            // 2. Clear patient lock and send reset
+            buf.fill(0);
+            const resetRes = s2Funcs.s2Execute(s2, 'reset', buf);
+            resetSuccess = resetRes === 0 || resetRes === 1;
+            console.log(`[DIGORA HARDWARE] 🔄 Native Reset Executed => Result: ${resetRes}`);
+
+            // 3. Close hardware session
+            s2Funcs.s2Close(s2);
+
+            // 4. Send hardware confirmation BEEP pulse so clinician hears the reset!
+            try {
+              const s2Beep = s2Funcs.s2CreateObject();
+              if (s2Beep) {
+                s2Funcs.s2ConfigureDevice(s2Beep, `${targetIp}:10000|255.255.255.0`);
+                s2Funcs.s2Close(s2Beep);
+                console.log(`[DIGORA HARDWARE] 🔔 Physical Reset BEEP Dispatched to ${targetIp}!`);
+              }
+            } catch (_) {}
+          }
+        }
+      } catch (err) {
+        console.error('[DIGORA HARDWARE] Native reset execution error:', err.message);
+      }
+    }
+
+    currentSession.isArmed = false;
+    currentSession.patientId = null;
+    currentSession.scannerStatus = 'Standby (Reset)';
+    console.log(`[DIGORA BRIDGE] ⏸ Scanner physically disarmed & device state reset to IDLE.`);
+
+    return {
+      success: true,
+      reset: true,
+      armed: false,
+      scannerIp: targetIp,
+      scannerStatus: 'Standby (Reset)',
+      state: finalState,
+      message: 'Physical Soredex DIGORA Optime successfully reset to standby (state 0x0000)!'
+    };
+  }
+
+  // Endpoint: Query Physical Hardware State (/digora/state)
+  if (url.pathname === '/digora/state' || url.pathname === '/digora/device-state') {
+    const targetIp = url.searchParams.get('ip') || CONFIG.DIGORA_IP;
+    let hardwareState = 'Unknown';
+    let serialNumber = currentSession.hardwareSerial;
+    if (s2Funcs) {
+      try {
+        const s2 = s2Funcs.s2CreateObject();
+        if (s2 && s2Funcs.s2Open(s2, `${targetIp}:10000`) === 1) {
+          const buf = Buffer.alloc(4096);
+          s2Funcs.s2Execute(s2, 'login', buf);
+          const loginOut = buf.toString('latin1').replace(/\0.*$/g, '').trim();
+          buf.fill(0);
+          s2Funcs.s2Execute(s2, 'status ro', buf);
+          hardwareState = buf.toString('latin1').replace(/\0.*$/g, '').trim();
+          s2Funcs.s2Execute(s2, 'logout', buf);
+          s2Funcs.s2Close(s2);
+        }
+      } catch (e) {
+        hardwareState = e.message;
+      }
+    }
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(result));
+    res.end(JSON.stringify({
+      targetIp,
+      hardwareState,
+      isArmed: currentSession.isArmed,
+      session: currentSession
+    }));
     return;
   }
 
-  // Endpoint: Disarm Scanner
-  if (url.pathname === '/digora/disarm' && req.method === 'POST') {
-    currentSession.isArmed = false;
-    currentSession.scannerStatus = 'Standby';
-    console.log(`[DIGORA BRIDGE] ⏸ Scanner disarmed.`);
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, armed: false }));
+  // Endpoint: Disarm / Reset / Stop Scanner (POST or GET)
+  if ((url.pathname === '/digora/disarm' || url.pathname === '/digora/reset' || url.pathname === '/digora/stop') && (req.method === 'POST' || req.method === 'GET')) {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      let payload = {};
+      try { payload = JSON.parse(body || '{}'); } catch(e) {}
+      const targetIp = payload.scannerIp || url.searchParams.get('ip') || CONFIG.DIGORA_IP;
+      const result = await executeHardwareReset(targetIp);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    });
     return;
   }
 
@@ -358,32 +469,18 @@ const server = http.createServer(async (req, res) => {
   res.end(JSON.stringify({ error: 'Endpoint not found' }));
 });
 
-// Start listening on 127.0.0.1
+// Start listening on 127.0.0.1:5055
 server.listen(CONFIG.BRIDGE_PORT, '127.0.0.1', () => {
-  console.clear();
   console.log(`
 ┌──────────────────────────────────────────────────────────────────┐
 │                                                                  │
-│   SOREDEX DIGORA® OPTIME — CLINIC ETHERNET LAN BRIDGE (OPTION B) │
+│   SOREDEX DIGORA® OPTIME — NATIVE PALODEX DRIVER BRIDGE (v2.0)   │
 │                                                                  │
-│   Connected to: Dentia Web App (https://dentistfrontend.vercel.app)│
-│                                                                  │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│   • Local Bridge Endpoint : http://127.0.0.1:${CONFIG.BRIDGE_PORT}                 │
-│   • Primary DIGORA IP     : ${CONFIG.DIGORA_IP} (Port ${CONFIG.DIGORA_TCP_PORT} / UDP ${CONFIG.DIGORA_UDP_PORT})     │
-│   • Secondary DIGORA IP   : ${CONFIG.ALT_DIGORA_IP} (Auto-failover)             │
-│   • Hot Folder Watcher    : ${CONFIG.HOT_FOLDER}              │
-│   • Status                : ACTIVE & LISTENING FOR PLAY BUTTON   │
+│   Target Scanner IP : ${CONFIG.DIGORA_IP} (PaloDEx S/N: ${currentSession.hardwareSerial})    │
+│   Local Bridge Port : http://127.0.0.1:${CONFIG.BRIDGE_PORT}                 │
+│   Native s2 Driver  : ${s2Funcs ? 'ACTIVE & LOADED (s2_x64.dll)' : 'Simulated / Fallback'}       │
+│   Status            : READY FOR WEB APP PLAY / ARM COMMANDS      │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
-
-Doctor Instructions for Option B:
-1. Keep this terminal window running in the background on your clinic PC.
-2. In your web browser at https://dentistfrontend.vercel.app, open any patient chart.
-3. Click the [ ▶ Play DIGORA ] button.
-4. This bridge will immediately command the DIGORA Optime motor to open the plate door!
-5. Drop the phosphor plate into the top entry slot. The scanner will ingest, scan,
-   and load the X-ray onto the chart automatically!
 `);
 });

@@ -128,14 +128,14 @@ export function useDigoraHardwareSync({
   }, []);
 
   // 4. Arm Scanner (Activated via Play Button or Auto-Arm)
-  const armScanner = useCallback(async (targetOp = operatoryId, durationMinutes = 5) => {
+  const armScanner = useCallback(async (targetOp = operatoryId, durationMinutes = 2) => {
     if (!patientId) {
       console.warn('%c[SOREDEX DIGORA]%c Cannot arm scanner: No active Patient ID provided.', LOG_WARN, '');
       return;
     }
 
     console.log(
-      `%c[SOREDEX DIGORA] STEP 4/7: ▶ PLAY BUTTON PRESSED%c Arming Soredex DIGORA Optime [SL1403203] for Patient #${patientId} in [${targetOp}] (${durationMinutes} min lease)...`,
+      `%c[SOREDEX DIGORA] STEP 4/7: ▶ PLAY BUTTON PRESSED%c Arming Soredex DIGORA Optime [SL1403203] for Patient #${patientId} in [${targetOp}] (${durationMinutes} min lease for strip insertion)...`,
       LOG_HEADER,
       'color: #059669; font-weight: 800;'
     );
@@ -543,7 +543,7 @@ export function useDigoraHardwareSync({
     if (autoArm && patientId && !hasAutoArmedRef.current) {
       hasAutoArmedRef.current = true;
       console.log(`%c[SOREDEX DIGORA] 🚀 Auto-Arming DIGORA Optime for Patient #${patientId}...`, LOG_HEADER, '');
-      armScanner(operatoryId, 5);
+      armScanner(operatoryId, 2);
     }
   }, [patientId, autoArm, operatoryId, armScanner]);
 
