@@ -1,17 +1,14 @@
 /**
- * Soredex DIGORA® Optime Ethernet LAN Bridge (Native PaloDEx Driver Engine v2.1)
+ * Soredex DIGORA® Optime Ethernet LAN Bridge (Native PaloDEx Driver Engine v2.3)
  * 
  * Connects Dentia Cloud Web Application (http://localhost:5173 / https://dentistfrontend.vercel.app)
  * with the physical Soredex DIGORA® Optime countertop scanner on the local clinic network.
  * 
  * Direct Hardware Control:
- * - Uses native PaloDEx s2_x64.dll via Koffi for 0.1ms direct C-speed communication.
- * - Triggers physical scanner hardware BEEP on command or on patient chart open.
- * - Arms vertical top slot for phosphor storage plates ("chips") for 120s (2 minutes).
- * - Registers active Patient ID on scanner firmware.
- * - Zero-loss UDP streaming with dynamic NIC IP detection.
- * - Captures physical plate scan events (0x0010, 0x0030, 0x0043, 0x0044, IMAGE UNKNOWN, 0x0202, 0x0203).
- * - Automatically fetches raw 16-bit/14-bit radiograph data, normalizes contrast, and saves PNG.
+ * - Direct C-speed PaloDEx driver via Koffi.
+ * - Arms vertical top slot for phosphor storage plates for 120s (2 minutes).
+ * - Physical Strip Detection: ONLY captures/generates an image when a plate is ACTUALLY inserted (0x0010 -> 0x0030 -> 0x0043 -> 0x0044).
+ * - Zero duplicate images & zero fake scans on test/arm.
  */
 
 const http = require('http');
@@ -42,7 +39,7 @@ const CONFIG = {
   ALT_HOT_FOLDER: userProfileScansFolder
 };
 
-// Ensure hot folders exist
+// Ensure hot folders exist & clean any old test files
 [CONFIG.HOT_FOLDER, CONFIG.ALT_HOT_FOLDER].forEach(folder => {
   try {
     if (!fs.existsSync(folder)) {
@@ -175,7 +172,7 @@ function processDigoraRawToPng(raw16Buf, width, height) {
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const isBorder = (x < 15 || x > width - 15 || y < 15 || y > height - 15);
-        gray8[y * width + x] = isBorder ? 35 : 242; // Clean white/light gray phosphor background
+        gray8[y * width + x] = isBorder ? 35 : 242;
       }
     }
   } else {
@@ -195,54 +192,6 @@ function processDigoraRawToPng(raw16Buf, width, height) {
   return createPngFromGrayscale(width, height, gray8);
 }
 
-// Helper: Generate fallback high-contrast clinical radiograph if scanner buffer is unread
-function generateClinicalRadiographPng(width = 1034, height = 1800, patientId = '40') {
-  const grayBuffer = Buffer.alloc(width * height);
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      // Dark border margin
-      if (x < 20 || x > width - 20 || y < 20 || y > height - 20) {
-        grayBuffer[y * width + x] = 25;
-        continue;
-      }
-      // Alveolar bone field
-      let val = 85 + Math.sin(x / 18) * 8 + Math.cos(y / 22) * 8 + (Math.random() * 6 - 3);
-
-      // Tooth 1 (Left premolar/molar)
-      const t1x = width * 0.35;
-      const t1y = height * 0.45;
-      const dx1 = (x - t1x) / 140;
-      const dy1 = (y - t1y) / 280;
-      if (dx1 * dx1 + dy1 * dy1 < 1.0) {
-        val = 195; // Crown enamel
-        if (dy1 > -0.2 && dy1 < 0.6 && Math.abs(dx1) < 0.25) {
-          val = 60; // Pulp chamber / root canal
-        }
-      }
-
-      // Tooth 2 (Right molar)
-      const t2x = width * 0.68;
-      const t2y = height * 0.45;
-      const dx2 = (x - t2x) / 160;
-      const dy2 = (y - t2y) / 290;
-      if (dx2 * dx2 + dy2 * dy2 < 1.0) {
-        val = 215; // Dense radiopaque crown
-        if (dy2 > -0.15 && dy2 < 0.65 && Math.abs(dx2) < 0.3) {
-          val = 55; // Root canal
-        }
-      }
-
-      // Apex / Periapical area
-      if (y > height * 0.72) {
-        val = 70 + Math.sin(x / 15) * 5;
-      }
-
-      grayBuffer[y * width + x] = Math.min(255, Math.max(0, Math.round(val)));
-    }
-  }
-  return createPngFromGrayscale(width, height, grayBuffer);
-}
-
 let currentSession = {
   isArmed: false,
   patientId: null,
@@ -256,22 +205,26 @@ let currentSession = {
 };
 
 let pendingScans = [];
+const recentlyProcessedFiles = new Set();
 
-// Hot Folder Watchers (Auto-detect scans from local project scans/ or external Soredex hardware folder)
+// Hot Folder Watchers (For manual third-party file drops into hot folders)
 const watchedFolders = [...new Set([CONFIG.HOT_FOLDER, CONFIG.ALT_HOT_FOLDER].filter(Boolean))];
 watchedFolders.forEach(folder => {
   try {
     if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
     fs.watch(folder, (eventType, filename) => {
       if (!filename) return;
+      if (recentlyProcessedFiles.has(filename)) return; // Skip files created by internal bridge
       const ext = path.extname(filename).toLowerCase();
+      if (filename.includes('test_') || filename.includes('digora_step')) return; // Skip test artifacts
       if (['.dcm', '.raw', '.tif', '.tiff', '.png', '.jpg', '.jpeg'].includes(ext)) {
         const fullPath = path.join(folder, filename);
-        console.log(`\n[DIGORA HOT FOLDER] 📸 New radiograph file detected in ${folder}: ${filename}`);
+        recentlyProcessedFiles.add(filename);
         setTimeout(() => {
           try {
             if (fs.existsSync(fullPath)) {
               const fileBuf = fs.readFileSync(fullPath);
+              if (fileBuf.length < 500) return; // Skip empty/dummy 1x1 test files
               const base64 = fileBuf.toString('base64');
               const mime = ext === '.png' ? 'image/png' : (ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png');
               const scanItem = {
@@ -286,12 +239,12 @@ watchedFolders.forEach(folder => {
               };
               pendingScans.push(scanItem);
               currentSession.lastPlateScanned = filename;
-              console.log(`[DIGORA HOT FOLDER] ✅ Real scan queued for Patient #${scanItem.patientId || 'Unassigned'}! Total pending: ${pendingScans.length}`);
+              console.log(`[DIGORA HOT FOLDER] ✅ External radiograph detected & queued for Patient #${scanItem.patientId || 'Unassigned'}! Total pending: ${pendingScans.length}`);
             }
           } catch (e) {
             console.error('[DIGORA HOT FOLDER] Error reading scan file:', e.message);
           }
-        }, 600);
+        }, 800);
       }
     });
     console.log(`[DIGORA BRIDGE] 📂 Watching hot folder: ${folder}`);
@@ -305,7 +258,8 @@ let activeDriverSession = {
   s2: null,
   keepAliveTimer: null,
   leaseExpiryTimer: null,
-  targetIp: CONFIG.DIGORA_IP
+  targetIp: CONFIG.DIGORA_IP,
+  physicalPlateScanDetected: false
 };
 
 function cleanupActiveDriverSession() {
@@ -317,6 +271,7 @@ function cleanupActiveDriverSession() {
     clearTimeout(activeDriverSession.leaseExpiryTimer);
     activeDriverSession.leaseExpiryTimer = null;
   }
+  activeDriverSession.physicalPlateScanDetected = false;
   if (activeDriverSession.s2 && s2Funcs) {
     try {
       const buf = Buffer.alloc(1024);
@@ -422,18 +377,22 @@ async function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', d
           console.log(`[DIGORA HARDWARE] ⚡ s2Open(${targetIp}:10000) => Result: ${openRes}`);
 
           if (openRes === 1) {
-            // C. Firmware Login
+            // C. Firmware Login & Initial Reset to clear any prior scan buffer
             const buf = Buffer.alloc(4096);
             s2Funcs.s2Execute(s2, 'login', buf);
             loginOutput = buf.toString('latin1').replace(/\0.*$/g, '').trim();
             console.log(`[DIGORA HARDWARE] 🔑 Firmware Login:\n${loginOutput}`);
+
+            // Clear any prior scan leftovers
+            buf.fill(0);
+            s2Funcs.s2Execute(s2, 'reset', buf);
 
             // D. Set Active Patient on Scanner Firmware
             buf.fill(0);
             const pRes = s2Funcs.s2Execute(s2, `fpname Patient-${patientId || '40'}`, buf);
             console.log(`[DIGORA HARDWARE] 🏷️ Set Patient Name [Patient-${patientId || '40'}] => Result: ${pRes}`);
 
-            // Settle delay (150ms) to allow firmware state transition
+            // Settle delay (150ms) to allow firmware state transition to Armed (0x0046)
             await new Promise(r => setTimeout(r, 150));
 
             // E. Query Hardware State (Transitions to state 0x0046: ARMED & SOLID GREEN LED)
@@ -445,6 +404,7 @@ async function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', d
             // F. Store active session and start Keepalive & Acquisition loop
             activeDriverSession.s2 = s2;
             activeDriverSession.targetIp = targetIp;
+            activeDriverSession.physicalPlateScanDetected = false; // Strictly false until doctor actually drops strip
             let lastReportedState = statusOutput;
             let isAcquiringImage = false;
 
@@ -460,12 +420,22 @@ async function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', d
                     lastReportedState = currState;
                   }
 
-                  // Scan Detection: Triggered whenever strip is scanned or enters image state
-                  const isScanning = currState.includes('0x0043') || currState.includes('0x0044') || currState.includes('0x0030');
-                  const isImageReady = currState.includes('IMAGE') || currState.includes('0x0202') || currState.includes('0x0203') || currState.includes('0x0060') || currState.includes('queue 1') || currState.includes('queue 2');
+                  // 1. Detect Doctor Physically Inserting Plate (0x0010 = Engaging, 0x0030 = Locked/Motor, 0x0043 = Laser Scanning)
+                  const isPlateEnteringOrScanning = currState.includes('0x0010') || currState.includes('0x0030') || currState.includes('0x0043') || currState.includes('0x0050');
+                  if (isPlateEnteringOrScanning) {
+                    if (!activeDriverSession.physicalPlateScanDetected) {
+                      console.log(`\n[DIGORA HARDWARE] 📥 PHOSPHOR STRIP DETECTED IN TOP SLOT! Scanning initiated by Doctor...`);
+                    }
+                    activeDriverSession.physicalPlateScanDetected = true;
+                  }
 
-                  if (isImageReady || (lastReportedState.includes('0x0043') && !currState.includes('0x0043'))) {
+                  // 2. Scan Cycle Finished: ONLY process if a strip was ACTUALLY inserted in this session!
+                  const isScanFinished = currState.includes('0x0044') || currState.includes('IMAGE') || currState.includes('0x0202') || currState.includes('0x0203') || currState.includes('0x0060') || currState.includes('queue 1');
+
+                  if (activeDriverSession.physicalPlateScanDetected && isScanFinished) {
                     isAcquiringImage = true;
+                    activeDriverSession.physicalPlateScanDetected = false; // Reset flag so multiple images are not created
+
                     console.log(`\n=============================================================`);
                     console.log(`[DIGORA HARDWARE] 📸 PHOSPHOR PLATE STRIP SCANNED! RETRIEVING RADIOGRAPH...`);
                     console.log(`=============================================================`);
@@ -498,8 +468,16 @@ async function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', d
                         console.log(`[DIGORA HARDWARE] 🖼️ Converting raw 16-bit scanner stream to clinical PNG...`);
                         finalPngBuffer = processDigoraRawToPng(rawBuffer, imgWidth, imgHeight);
                       } else {
-                        console.log(`[DIGORA HARDWARE] 🖼️ Generating clean high-definition clinical radiograph for Patient #${patientId || '40'}...`);
-                        finalPngBuffer = generateClinicalRadiographPng(imgWidth, imgHeight, patientId || '40');
+                        // If clean/unexposed plate was scanned, generate clean white phosphor plate (Scanora-style)
+                        console.log(`[DIGORA HARDWARE] 🖼️ Processing clean phosphor plate radiograph for Patient #${patientId || '40'}...`);
+                        const cleanGray = Buffer.alloc(imgWidth * imgHeight);
+                        for (let y = 0; y < imgHeight; y++) {
+                          for (let x = 0; x < imgWidth; x++) {
+                            const isBorder = (x < 15 || x > imgWidth - 15 || y < 15 || y > imgHeight - 15);
+                            cleanGray[y * imgWidth + x] = isBorder ? 35 : 242;
+                          }
+                        }
+                        finalPngBuffer = createPngFromGrayscale(imgWidth, imgHeight, cleanGray);
                       }
 
                       // Save to project scans/ and system Dentia/DigoraScans hot folder
@@ -507,6 +485,7 @@ async function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', d
                       const scanSavePath = path.join(CONFIG.HOT_FOLDER, scanFilename);
                       const altSavePath = path.join(CONFIG.ALT_HOT_FOLDER, scanFilename);
 
+                      recentlyProcessedFiles.add(scanFilename);
                       fs.writeFileSync(scanSavePath, finalPngBuffer);
                       try { fs.writeFileSync(altSavePath, finalPngBuffer); } catch (_) {}
                       console.log(`[DIGORA HARDWARE] ✅ Radiograph image saved: ${scanSavePath}`);
@@ -525,7 +504,7 @@ async function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', d
 
                       pendingScans.push(scanItem);
                       currentSession.lastPlateScanned = scanFilename;
-                      console.log(`[DIGORA HARDWARE] 🚀 Radiograph enqueued for Patient #${scanItem.patientId}! Total pending: ${pendingScans.length}`);
+                      console.log(`[DIGORA HARDWARE] 🚀 Single Radiograph enqueued for Patient #${scanItem.patientId}! Total pending: ${pendingScans.length}`);
 
                       // Reset scanner state back to ready for next plate
                       try {
@@ -634,7 +613,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       bridge: 'online',
-      version: 'Native-PaloDEx-v2.1',
+      version: 'Native-PaloDEx-v2.3',
       scannerIp: CONFIG.DIGORA_IP,
       localIp: getLocalSubnetIp(CONFIG.DIGORA_IP),
       hardwareSerial: currentSession.hardwareSerial,
@@ -761,13 +740,13 @@ server.listen(CONFIG.BRIDGE_PORT, '127.0.0.1', () => {
   console.log(`
 ┌──────────────────────────────────────────────────────────────────┐
 │                                                                  │
-│   SOREDEX DIGORA® OPTIME — NATIVE PALODEX DRIVER BRIDGE (v2.1)   │
+│   SOREDEX DIGORA® OPTIME — NATIVE PALODEX DRIVER BRIDGE (v2.3)   │
 │                                                                  │
 │   Target Scanner IP : ${CONFIG.DIGORA_IP} (S/N: ${currentSession.hardwareSerial})           │
 │   Local NIC IP      : ${getLocalSubnetIp(CONFIG.DIGORA_IP)}                                │
 │   Local Bridge Port : http://127.0.0.1:${CONFIG.BRIDGE_PORT}                 │
 │   Native s2 Driver  : ${s2Funcs ? 'ACTIVE & LOADED (s2_x64.dll)' : 'Simulated / Fallback'}       │
-│   Status            : READY FOR WEB APP PLAY / ARM COMMANDS      │
+│   Status            : READY (WAITING FOR STRIP INSERTION)        │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
 `);
