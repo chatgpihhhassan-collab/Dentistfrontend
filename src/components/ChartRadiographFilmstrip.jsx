@@ -22,7 +22,10 @@ import {
   Play,
   Pause,
   Square,
-  ArrowDownCircle
+  ArrowDownCircle,
+  Activity,
+  Radio,
+  Eye
 } from 'lucide-react';
 import { extractAiFindingsFromReport, isTestRadiograph } from '../utils/aiRadiologyUtils.js';
 import DigoraScannerModal from './DigoraScannerModal';
@@ -31,15 +34,18 @@ import DigoraScannerModal from './DigoraScannerModal';
  * ChartRadiographFilmstrip (Interactive Radiograph Diagnostic Console)
  * 
  * A comprehensive clinical radiology workstation embedded directly alongside the Dental Chart.
+ * Clean, modern, high-end Apple / Linear aesthetic with zero clutter and 100% functionality preserved.
+ * 
  * Key Features:
- * - In-place High-Definition Diagnostic Viewer (no modal required to inspect scans)
- * - Greyscale Invert (Negative Mode) for apical/caries examination
+ * - Clean dual-row Header with Hardware Status Capsule & Segmented Modality Filter
+ * - One-click DIGORA Optime Ethernet Arming (120s lease) & Sensor Ingestion
+ * - In-place High-Definition Diagnostic Viewer with floating precision tool palette
+ * - Grayscale Invert (Negative Mode) for apical/caries examination
  * - Contrast & Brightness adjustments with quick diagnostic presets (Normal, High Contrast, Bone Density)
  * - In-place Zoom & Pan (100% - 300%)
- * - Interactive Diagnosed Tooth Chips (#14, #19, #30) with 1-click chart synchronization
+ * - Interactive Diagnosed Tooth Chips with 1-click chart synchronization
  * - 1-Click "Apply to Chart" and "AI SOAP Note" triggers
  * - Scans Carousel Filmstrip with Modality Filters (All, OPG, RVG, Diagnosed)
- * - Hardware Sensor Acquisition (Nano-Pix / Dicora USB RVG) and File Upload
  */
 export default function ChartRadiographFilmstrip({
   radiographs = [],
@@ -93,7 +99,6 @@ export default function ChartRadiographFilmstrip({
 
   const fileInputRef = useRef(null);
   const carouselContainerRef = useRef(null);
-
 
   // Filter test scans unless explicitly enabled
   const testScansCount = useMemo(() => radiographs.filter(r => isTestRadiograph(r)).length, [radiographs]);
@@ -284,8 +289,8 @@ export default function ChartRadiographFilmstrip({
   const isRadiologyFullMode = workspaceMode === 'radiology';
 
   return (
-    <div className={`w-full bg-white rounded-3xl border border-light-teal/50 shadow-sm overflow-hidden flex flex-col transition-all duration-300 ${
-      isRadiologyFullMode ? 'ring-2 ring-cyan-500/30' : ''
+    <div className={`w-full bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col transition-all duration-300 ${
+      isRadiologyFullMode ? 'ring-2 ring-blue-500/30' : ''
     }`}>
       {/* Hidden File Input */}
       <input 
@@ -297,94 +302,119 @@ export default function ChartRadiographFilmstrip({
       />
 
       {/* ========================================================================= */}
-      {/* 1. CONSOLE HEADER BAR (Harmonized with website theme: luminous white/light-teal gradient) */}
+      {/* 1. REFINED CONSOLE HEADER (Sleek Apple/Linear Architecture)               */}
       {/* ========================================================================= */}
-      <div className="p-3 bg-gradient-to-r from-white via-[#F8FAFC] to-[#EAF0FC]/80 text-slate-800 flex flex-col gap-2.5 select-none border-b border-light-teal/50 shadow-2xs">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          {/* Title & Hardware Status */}
+      <div className="p-3.5 bg-gradient-to-b from-[#F8FAFC] to-white text-slate-800 flex flex-col gap-3 select-none border-b border-slate-200/70">
+        
+        {/* ROW 1: Identity & Hardware Status & Window Controls */}
+        <div className="flex items-center justify-between gap-2.5 flex-wrap">
+          {/* Console Identity */}
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#4A7CD2] to-[#3665B7] flex items-center justify-center text-white shadow-xs shadow-blue-500/15 shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#10244B] to-[#2563EB] flex items-center justify-center text-white shadow-xs shrink-0">
               <Layers className="w-4 h-4" />
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-black text-xs text-[#10244B] tracking-wider uppercase">
-                  Radiograph Diagnostic Console
+            <div className="flex items-center gap-2 min-w-0 flex-wrap">
+              <h3 className="font-extrabold text-xs sm:text-sm text-[#10244B] tracking-tight">
+                Radiograph Diagnostic Console
+              </h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-50 text-[#2563EB] border border-blue-200/80 shadow-2xs">
+                {activeRadiographs.length} Scans
+              </span>
+              {isCurrentlySpotlighted && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#2563EB] text-white flex items-center gap-1 shadow-2xs animate-pulse">
+                  <Zap className="w-3 h-3 fill-current" /> Live Chart Sync
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-50 text-[#4A7CD2] border border-blue-200 shadow-2xs">
-                  {activeRadiographs.length} Scans
-                </span>
-                {isCurrentlySpotlighted && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#4A7CD2] text-white flex items-center gap-1 shadow-xs animate-pulse">
-                    <Zap className="w-3 h-3 fill-current" /> Live Chart Sync
-                  </span>
-                )}
-              </div>
-              
-              {/* Soredex DIGORA Optime & Sensor Status Line */}
-              <div className="flex items-center gap-2 text-[10.5px] text-slate-500 mt-0.5 flex-wrap">
-                {digoraSync?.isArmed ? (
+              )}
+            </div>
+          </div>
+
+          {/* Right Header Capsule: DIGORA Live Status + Maximize/Collapse */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* DIGORA Hardware Capsule */}
+            {digoraSync && (
+              <div className="flex items-center">
+                {digoraSync.isArmed ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      openDigoraModal();
-                    }}
-                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition cursor-pointer shadow-2xs"
-                    title={`Soredex DIGORA Optime is armed over Ethernet. Click to view scanner console.`}
+                    onClick={openDigoraModal}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition cursor-pointer shadow-2xs"
+                    title="DIGORA Optime is armed over Ethernet. Click to open hardware console."
                   >
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span className="font-extrabold text-[10px]">DIGORA Optime: Armed ({digoraSync.formattedRemainingTime})</span>
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <span className="font-black text-[10.5px]">Armed ({digoraSync.formattedRemainingTime})</span>
                   </button>
                 ) : (
                   <button
                     type="button"
-                    onClick={() => {
-                      digoraSync?.armScanner('Op-1', 2);
-                      openDigoraModal();
-                    }}
-                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition cursor-pointer shadow-2xs"
-                    title="Click to activate Soredex DIGORA Optime Ethernet scanner (2-minute window) and open scanner window"
+                    onClick={openDigoraModal}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-100 transition cursor-pointer shadow-2xs"
+                    title="DIGORA Optime Ethernet Link Active. Click to view console."
                   >
-                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                    <span className="font-bold text-[10px]">DIGORA Optime: Ready (Click to Arm 2m)</span>
-                  </button>
-                )}
-
-                <span className="text-slate-300">•</span>
-                <span className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  <span className="text-slate-600 font-semibold text-[10px]">Ethernet LAN (Zero-Install)</span>
-                </span>
-
-                {digoraSync?.unassignedCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (digoraSync.unassignedScans[0]?.id) {
-                        digoraSync.assignScan(digoraSync.unassignedScans[0].id);
-                      }
-                    }}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-300 hover:bg-blue-200 text-[10px] font-black animate-pulse cursor-pointer"
-                    title="Click to assign waiting scan to current patient"
-                  >
-                    <span>🔔 {digoraSync.unassignedCount} Waiting (Assign)</span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span className="font-extrabold text-[10.5px] text-slate-700">DIGORA: Ready</span>
+                    <span className="text-[9.5px] text-slate-400 font-mono hidden sm:inline">(LAN)</span>
                   </button>
                 )}
               </div>
-            </div>
-          </div>
+            )}
 
-          {/* Quick Actions (DIGORA Play & Accept Chip / Sensor / Upload / Tests) */}
-          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+            {/* Waiting Scans Pill */}
+            {digoraSync?.unassignedCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (digoraSync.unassignedScans[0]?.id) {
+                    digoraSync.assignScan(digoraSync.unassignedScans[0].id);
+                  }
+                }}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-100 text-[#1D4ED8] border border-blue-300 hover:bg-blue-200 text-[10px] font-black animate-pulse cursor-pointer shadow-2xs"
+                title="Click to assign waiting scan to current patient"
+              >
+                <span>🔔 {digoraSync.unassignedCount} Waiting</span>
+              </button>
+            )}
+
+            {/* Maximize to Full Radiology Studio */}
+            {onWorkspaceModeChange && (
+              <button
+                type="button"
+                onClick={() => onWorkspaceModeChange(workspaceMode === 'radiology' ? 'split' : 'radiology')}
+                className="p-1.5 rounded-xl bg-white hover:bg-blue-50 text-slate-600 hover:text-[#2563EB] border border-slate-200 shadow-2xs transition cursor-pointer hidden sm:flex items-center justify-center"
+                title={workspaceMode === 'radiology' ? "Switch to Split View" : "Maximize Radiology Studio"}
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {/* Collapse/Expand */}
+            <button
+              type="button"
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="p-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200 shadow-2xs transition cursor-pointer"
+              title={isCollapsed ? "Expand Console" : "Collapse Console"}
+            >
+              {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        </div>
+
+        {/* ROW 2: Primary Action Bar & Segmented Filter Hub */}
+        <div className="flex items-center justify-between gap-3 pt-1 border-t border-slate-100 flex-wrap">
+          {/* Left: Unified Capture Tools */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Primary DIGORA Trigger */}
             {digoraSync && (
               <>
                 {digoraSync.isArmed ? (
                   <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-300 p-0.5 rounded-xl shadow-2xs">
                     <button
                       type="button"
-                      onClick={() => openDigoraModal()}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] transition cursor-pointer"
-                      title="Soredex DIGORA Optime is armed. Click to open chairside console."
+                      onClick={openDigoraModal}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs transition cursor-pointer shadow-xs"
+                      title="DIGORA Optime is active. Click to view console."
                     >
                       <Play className="w-3 h-3 fill-current" />
                       <span>Active ({digoraSync.formattedRemainingTime})</span>
@@ -395,8 +425,8 @@ export default function ChartRadiographFilmstrip({
                         await digoraSync.disarmScanner();
                         closeDigoraModal();
                       }}
-                      className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 font-extrabold text-[10.5px] transition cursor-pointer"
-                      title="Stop DIGORA Optime session, reset device to standby, and close scanner window"
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 font-extrabold text-[11px] transition cursor-pointer"
+                      title="Stop DIGORA Optime session and return device to standby"
                     >
                       <Square className="w-2.5 h-2.5 fill-current" />
                       <span>Stop</span>
@@ -411,14 +441,15 @@ export default function ChartRadiographFilmstrip({
                       digoraSync?.armScanner('Op-1', 2);
                       openDigoraModal();
                     }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-[11px] shadow-sm active:scale-95 transition cursor-pointer"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs shadow-xs active:scale-95 transition cursor-pointer"
                     title="Activate Soredex DIGORA Optime Ethernet Scanner (2-Minute Window for Plate Insertion)"
                   >
                     <Play className="w-3.5 h-3.5 fill-current" />
-                    <span>▶ Play DIGORA (2m)</span>
+                    <span>▶ Arm DIGORA (2m)</span>
                   </button>
                 )}
 
+                {/* Quick Hardware Beep Pulse */}
                 <button
                   type="button"
                   onClick={(e) => {
@@ -426,127 +457,127 @@ export default function ChartRadiographFilmstrip({
                     e.stopPropagation();
                     digoraSync?.triggerHardwareBeep?.();
                   }}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-extrabold text-[11px] shadow-xs active:scale-95 transition cursor-pointer"
-                  title="Test physical Soredex DIGORA Optime hardware beep sound"
+                  className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-amber-50/80 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-xs shadow-2xs active:scale-95 transition cursor-pointer flex items-center gap-1"
+                  title="Trigger physical scanner acoustic BEEP pulse"
                 >
-                  <span>🔔 Beep</span>
+                  <span>🔔</span>
+                  <span className="hidden sm:inline text-[11px]">Beep</span>
                 </button>
               </>
             )}
 
+            {/* RVG Sensor Capture */}
             <button
               type="button"
               onClick={onTriggerSensorCapture}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-[11px] font-black shadow-xs active:scale-95 transition cursor-pointer"
-              title="Acquire intraoral frame from Eighteeth Nano-Pix or Dicora Sensor"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-teal-50 text-teal-800 border border-teal-300 hover:border-teal-400 text-xs font-bold shadow-2xs active:scale-95 transition cursor-pointer"
+              title="Acquire intraoral frame from Eighteeth Nano-Pix or Dicora USB Sensor"
             >
-              <Camera className="w-3.5 h-3.5" />
+              <Camera className="w-3.5 h-3.5 text-teal-600" />
               <span>Sensor</span>
             </button>
 
+            {/* Upload File */}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isAnalyzing}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#4A7CD2] hover:bg-[#3665B7] text-white text-[11px] font-black shadow-xs active:scale-95 transition cursor-pointer disabled:opacity-50"
-              title="Upload dental radiograph (OPG, Bitewing, Periapical)"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-blue-50 text-slate-700 hover:text-[#2563EB] border border-slate-200 hover:border-blue-300 text-xs font-bold shadow-2xs active:scale-95 transition cursor-pointer disabled:opacity-50"
+              title="Upload dental radiograph (OPG, Bitewing, Periapical, DICOM)"
             >
-              <Upload className="w-3.5 h-3.5" />
+              <Upload className="w-3.5 h-3.5 text-blue-600" />
               <span>Upload</span>
             </button>
 
+            {/* Test Scans Filter Toggle */}
             {testScansCount > 0 && (
               <button
                 type="button"
                 onClick={() => setShowTestScans(!showTestScans)}
-                className={`px-2 py-1.5 rounded-xl text-[10px] font-black transition cursor-pointer border ${
+                className={`px-2 py-1 rounded-xl text-[10.5px] font-bold transition cursor-pointer border ${
                   showTestScans 
-                    ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-xs' 
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900 shadow-2xs'
+                    ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-2xs' 
+                    : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
                 }`}
                 title={showTestScans ? "Hide test images" : `Include ${testScansCount} test images`}
               >
-                <span>{showTestScans ? `🧪 Tests (${testScansCount})` : `🧪 +${testScansCount}`}</span>
+                <span>🧪 {showTestScans ? `Tests (${testScansCount})` : `+${testScansCount}`}</span>
               </button>
             )}
-
-            {onWorkspaceModeChange && (
-              <button
-                type="button"
-                onClick={() => onWorkspaceModeChange(workspaceMode === 'radiology' ? 'split' : 'radiology')}
-                className="p-1.5 rounded-xl bg-white hover:bg-blue-50 text-slate-700 hover:text-[#4A7CD2] border border-slate-200 shadow-2xs transition cursor-pointer hidden sm:flex items-center gap-1 text-[10px] font-bold"
-                title={workspaceMode === 'radiology' ? "Switch to Split View" : "Maximize Radiology Studio"}
-              >
-                <Maximize2 className="w-3.5 h-3.5 text-[#4A7CD2]" />
-                <span>{workspaceMode === 'radiology' ? 'Split View' : 'Full Studio'}</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="p-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200 shadow-2xs transition cursor-pointer"
-              title={isCollapsed ? "Expand Console" : "Collapse Console"}
-            >
-              {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
-            </button>
           </div>
-        </div>
 
-        {/* Filter Pills Row */}
-        <div className="flex items-center gap-1.5 pt-0.5 overflow-x-auto no-scrollbar">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mr-1">Filter:</span>
-          {[
-            { id: 'all', label: `All (${radiographs.length})` },
-            { id: 'opg', label: `Panoramic OPG (${opgCount})` },
-            { id: 'rvg', label: `RVG / Bitewing (${radiographs.length - opgCount})` },
-            { id: 'diagnosed', label: `AI Diagnosed (${diagnosedCount})` }
-          ].map(tab => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveFilter(tab.id)}
-              className={`px-2.5 py-1 rounded-lg text-[10px] transition-all cursor-pointer shrink-0 border ${
-                activeFilter === tab.id
-                  ? 'bg-[#4A7CD2] text-white border-[#4A7CD2] shadow-xs font-black'
-                  : 'bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-slate-200 shadow-2xs font-bold'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          {/* Right: Modern Segmented Filter Track */}
+          <div className="flex items-center bg-slate-100/90 p-0.5 rounded-xl border border-slate-200/80 overflow-x-auto no-scrollbar">
+            {[
+              { id: 'all', label: 'All', count: radiographs.length },
+              { id: 'opg', label: 'OPG', count: opgCount },
+              { id: 'rvg', label: 'RVG', count: radiographs.length - opgCount },
+              { id: 'diagnosed', label: 'Diagnosed', count: diagnosedCount }
+            ].map(tab => {
+              const isActive = activeFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveFilter(tab.id)}
+                  className={`px-2.5 py-1 rounded-lg text-xs transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                    isActive
+                      ? 'bg-white text-[#10244B] shadow-2xs font-extrabold border border-slate-200/60'
+                      : 'text-slate-600 hover:text-slate-900 font-semibold'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                    isActive ? 'bg-blue-50 text-[#2563EB] font-bold' : 'bg-slate-200/60 text-slate-500'
+                  }`}>
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. CONSOLE BODY                                                           */}
+      {/* 2. CONSOLE BODY & ACTIVE STAGE                                            */}
       {/* ========================================================================= */}
       {!isCollapsed && (
-        <div className="p-3 bg-[#F8FAFC] flex flex-col gap-3">
+        <div className="p-3.5 bg-[#F8FAFC] flex flex-col gap-3.5">
           {activeRadiographs.length === 0 ? (
             /* Empty State */
-            <div className="py-12 px-4 text-center flex flex-col items-center justify-center bg-white rounded-2xl border border-slate-200">
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#4A7CD2] mb-3 shadow-2xs">
+            <div className="py-12 px-4 text-center flex flex-col items-center justify-center bg-white rounded-2xl border border-slate-200 shadow-2xs">
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#2563EB] mb-3 shadow-2xs">
                 <ImageIcon className="w-6 h-6 opacity-60" />
               </div>
               <p className="text-sm font-black text-slate-800">No Patient Radiographs Found</p>
               <p className="text-xs text-slate-500 mt-1 max-w-sm">
-                Capture chairside RVG images using your sensor or upload OPG / Bitewing files to run AI diagnostics.
+                Arm the DIGORA Optime to scan intraoral phosphor plates, acquire frames with your RVG sensor, or upload image files.
               </p>
-              <div className="flex items-center gap-2 mt-4">
+              <div className="flex items-center gap-2 mt-4 flex-wrap justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    digoraSync?.armScanner('Op-1', 2);
+                    openDigoraModal();
+                  }}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" /> Arm DIGORA Optime
+                </button>
                 <button
                   type="button"
                   onClick={onTriggerSensorCapture}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 >
-                  <Camera className="w-4 h-4" /> Trigger RVG Sensor
+                  <Camera className="w-4 h-4 text-teal-600" /> Sensor Capture
                 </button>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-4 py-2 rounded-xl bg-[#4A7CD2] hover:bg-[#3665B7] text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 >
-                  <Upload className="w-4 h-4" /> Upload Scan File
+                  <Upload className="w-4 h-4 text-blue-600" /> Upload Scan
                 </button>
               </div>
             </div>
@@ -557,30 +588,31 @@ export default function ChartRadiographFilmstrip({
               {/* ========================================================================= */}
               {currentRadiograph && (
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col">
-                  {/* Stage Top Bar: Active Scan Metadata & Quick Tools */}
-                  <div className="px-3.5 py-2 bg-gradient-to-r from-slate-100 via-white to-slate-100 border-b border-slate-200 flex items-center justify-between gap-2 flex-wrap">
+                  {/* Stage Top Bar: Active Scan Metadata & Quick Tools Palette */}
+                  <div className="px-3.5 py-2.5 bg-gradient-to-r from-slate-100/90 via-white to-slate-100/90 border-b border-slate-200/80 flex items-center justify-between gap-2 flex-wrap">
+                    {/* Active Modality & Scan Title */}
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-black bg-[#10244B] text-cyan-300">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-black bg-[#10244B] text-cyan-300 tracking-wider">
                         {currentMeta.modality}
                       </span>
                       <span className="text-xs font-black text-slate-900 truncate max-w-[200px]" title={currentRadiograph.imageName}>
                         {currentRadiograph.imageName || `Scan #${currentScanId}`}
                       </span>
-                      <span className="text-[10.5px] text-slate-500 font-mono hidden sm:inline">
-                        via {currentMeta.device}
+                      <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">
+                        • {currentMeta.device}
                       </span>
                     </div>
 
-                    {/* Stage Diagnostic Toolbar */}
-                    <div className="flex items-center gap-1 shrink-0">
+                    {/* Integrated Medical Imaging Tool Palette */}
+                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
                       {/* Negative / Invert Greyscale Toggle */}
                       <button
                         type="button"
                         onClick={() => setIsInverted(!isInverted)}
-                        className={`px-2 py-1 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition cursor-pointer border ${
+                        className={`px-2 py-1 rounded-lg text-[10.5px] font-extrabold flex items-center gap-1 transition cursor-pointer border ${
                           isInverted 
-                            ? 'bg-purple-700 text-white border-purple-800 shadow-xs' 
-                            : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+                            ? 'bg-purple-700 text-white border-purple-800 shadow-2xs' 
+                            : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300 shadow-2xs'
                         }`}
                         title="Invert Greyscale (Negative Mode) — Essential for examining pulp & caries"
                       >
@@ -588,38 +620,26 @@ export default function ChartRadiographFilmstrip({
                         <span>Invert</span>
                       </button>
 
-                      {/* Diagnostic Presets */}
+                      {/* Diagnostic Contrast Presets */}
                       <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px]">
-                        <button
-                          type="button"
-                          onClick={() => applyContrastPreset('normal')}
-                          className={`px-1.5 py-0.5 rounded font-bold transition cursor-pointer ${
-                            contrastPreset === 'normal' ? 'bg-white text-[#10244B] shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                          title="Normal diagnostic contrast"
-                        >
-                          Norm
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => applyContrastPreset('high')}
-                          className={`px-1.5 py-0.5 rounded font-bold transition cursor-pointer ${
-                            contrastPreset === 'high' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                          title="High contrast for caries inspection"
-                        >
-                          Hi-Con
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => applyContrastPreset('bone')}
-                          className={`px-1.5 py-0.5 rounded font-bold transition cursor-pointer ${
-                            contrastPreset === 'bone' ? 'bg-white text-cyan-800 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                          title="Bone & Trabecular density enhancement"
-                        >
-                          Bone
-                        </button>
+                        {[
+                          { id: 'normal', label: 'Norm' },
+                          { id: 'high', label: 'Hi-Con' },
+                          { id: 'bone', label: 'Bone' }
+                        ].map(p => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => applyContrastPreset(p.id)}
+                            className={`px-1.5 py-0.5 rounded font-bold transition cursor-pointer ${
+                              contrastPreset === p.id 
+                                ? 'bg-white text-[#10244B] shadow-2xs font-black' 
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
                       </div>
 
                       {/* Zoom Controls */}
@@ -662,7 +682,7 @@ export default function ChartRadiographFilmstrip({
                         className={`p-1.5 rounded-lg border transition cursor-pointer ${
                           showAdjustmentSliders 
                             ? 'bg-blue-100 text-[#2563EB] border-blue-300' 
-                            : 'bg-white text-slate-600 hover:text-slate-900 border-slate-300'
+                            : 'bg-white text-slate-600 hover:text-slate-900 border-slate-300 shadow-2xs'
                         }`}
                         title="Fine-tune Brightness & Contrast"
                       >
@@ -675,17 +695,17 @@ export default function ChartRadiographFilmstrip({
                         onClick={() => {
                           if (onInspectScan) onInspectScan(currentRadiograph, activeFindings);
                         }}
-                        className="p-1.5 rounded-lg bg-[#4A7CD2] hover:bg-[#3665B7] text-white shadow-2xs transition cursor-pointer"
-                        title="Open Deep Zoom Inspector (PiP)"
+                        className="p-1.5 rounded-lg bg-[#10244B] hover:bg-[#1E3A8A] text-white shadow-2xs transition cursor-pointer"
+                        title="Open Deep Zoom Inspector (Picture-in-Picture)"
                       >
-                        <Maximize2 className="w-3.5 h-3.5" />
+                        <Maximize2 className="w-3 h-3" />
                       </button>
                     </div>
                   </div>
 
                   {/* Fine-tune Sliders Row */}
                   {showAdjustmentSliders && (
-                    <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-4 text-xs">
+                    <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-4 text-xs animate-in fade-in duration-150">
                       <div className="flex items-center gap-2 flex-1">
                         <Sun className="w-3.5 h-3.5 text-amber-500" />
                         <span className="text-[10px] font-bold text-slate-600 w-16">Bright: {brightness}%</span>
@@ -713,7 +733,7 @@ export default function ChartRadiographFilmstrip({
                       <button
                         type="button"
                         onClick={handleResetZoom}
-                        className="text-[10px] font-bold text-slate-500 hover:text-slate-800 underline"
+                        className="text-[10px] font-bold text-slate-500 hover:text-slate-800 underline cursor-pointer"
                       >
                         Reset
                       </button>
@@ -755,51 +775,53 @@ export default function ChartRadiographFilmstrip({
                       <p className="text-[10px] text-slate-500 mt-1">Image preview unavailable or processing.</p>
                     </div>
 
-                    {/* Live Sync Status Overlay Badge */}
+                    {/* Floating Spotlight Action Overlay */}
                     <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
                       {isCurrentlySpotlighted ? (
-                        <span className="px-2.5 py-1 rounded-lg text-[10.5px] font-black bg-[#4A7CD2] text-white flex items-center gap-1 shadow-md">
-                          <Zap className="w-3.5 h-3.5 fill-current" /> Live Spotlighted on 3D Arch & 2D Chart
-                        </span>
+                        <div className="px-3 py-1 rounded-xl text-[10.5px] font-black bg-[#2563EB] text-white flex items-center gap-1.5 shadow-lg border border-blue-400/40 backdrop-blur-xs animate-pulse">
+                          <Zap className="w-3.5 h-3.5 fill-current text-cyan-300" />
+                          <span>Live Synced on 3D Arch & Chart</span>
+                        </div>
                       ) : (
                         <button
                           type="button"
                           onClick={() => {
                             if (onSelectScan) onSelectScan(currentRadiograph, activeFindings);
                           }}
-                          className="px-2.5 py-1 rounded-lg text-[10.5px] font-black bg-[#4A7CD2] hover:bg-[#3665B7] text-white flex items-center gap-1 shadow-md cursor-pointer transition active:scale-95"
-                          title="Spotlight diagnosed teeth on 3D Jaw & 2D Chart"
+                          className="px-3 py-1.5 rounded-xl text-[11px] font-black bg-slate-900/80 hover:bg-[#2563EB] text-white flex items-center gap-1.5 shadow-lg border border-white/20 hover:border-blue-400 backdrop-blur-xs cursor-pointer transition active:scale-95"
+                          title="Spotlight diagnosed teeth on 3D Jaw Arch & 2D Chart"
                         >
-                          <Zap className="w-3.5 h-3.5" /> Click to Spotlight on Chart
+                          <Zap className="w-3.5 h-3.5 text-blue-300" />
+                          <span>Spotlight on Chart</span>
                         </button>
                       )}
                     </div>
 
                     {/* Modality & Date Tag */}
-                    <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded bg-slate-900/85 text-slate-300 text-[9.5px] font-mono border border-slate-700 shadow-sm">
+                    <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md bg-slate-900/85 text-slate-300 text-[9.5px] font-mono border border-slate-700 shadow-sm">
                       {currentRadiograph.uploadedAt ? new Date(currentRadiograph.uploadedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent Scan'}
                     </div>
                   </div>
 
-                  {/* Diagnosed Teeth & Action Bar */}
-                  <div className="p-3 bg-white border-t border-slate-200 flex flex-col gap-2.5">
-                    {/* Diagnosed Teeth Pathology Header & Smart Filter Tabs */}
+                  {/* Diagnosed Findings Tray & Clinical Actions Bar */}
+                  <div className="p-3.5 bg-white border-t border-slate-200 flex flex-col gap-3">
+                    {/* Findings Header & Filter Tabs */}
                     {activeFindings.length > 0 ? (
-                      <div className="flex flex-col gap-2">
+                      <div className="flex flex-col gap-2.5">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-black text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-lg border border-rose-200 flex items-center gap-1 shadow-2xs">
+                            <span className="text-[11px] font-black text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 flex items-center gap-1.5 shadow-2xs">
                               <span>⚡</span>
                               <span>{activeFindings.length} AI Findings Detected</span>
                             </span>
                             {isCurrentlySpotlighted && (
-                              <span className="text-[10px] font-black text-[#4A7CD2] bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 animate-pulse">
+                              <span className="text-[10px] font-black text-[#2563EB] bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
                                 Live Chart Sync Active
                               </span>
                             )}
                           </div>
 
-                          {/* Quick Clinical Category Filter Tabs */}
+                          {/* Category Filter Tabs */}
                           <div className="flex items-center gap-1 text-[10px] bg-slate-100 p-0.5 rounded-lg border border-slate-200">
                             {[
                               { id: 'all', label: `All (${activeFindings.length})` },
@@ -823,7 +845,7 @@ export default function ChartRadiographFilmstrip({
                           </div>
                         </div>
 
-                        {/* Interactive Tooth Chips Tray (Compact & Scrollable to prevent screen overflow) */}
+                        {/* Interactive Tooth Chips Tray */}
                         <div className="max-h-[85px] overflow-y-auto pr-1 flex flex-wrap gap-1.5">
                           {displayedFindings.length === 0 ? (
                             <div className="text-[11px] text-slate-400 italic py-1">
@@ -839,20 +861,20 @@ export default function ChartRadiographFilmstrip({
                                   onClick={() => {
                                     if (onSelectTooth) onSelectTooth(parseInt(f.toothNumber, 10));
                                   }}
-                                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border shadow-2xs ${
+                                  className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border shadow-2xs ${
                                     isThisToothActive 
-                                      ? 'ring-2 ring-[#4A7CD2] ring-offset-1 scale-105 shadow-xs bg-blue-50 font-black' 
+                                      ? 'ring-2 ring-[#2563EB] ring-offset-1 scale-105 shadow-xs bg-blue-50 font-black' 
                                       : 'hover:scale-102 hover:shadow-xs bg-white'
                                   }`}
                                   style={{
-                                    borderColor: isThisToothActive ? '#4A7CD2' : `${f.color || '#4A7CD2'}50`
+                                    borderColor: isThisToothActive ? '#2563EB' : `${f.color || '#2563EB'}50`
                                   }}
                                   title={`Click to focus Tooth #${f.toothNumber}: ${f.condition} (${f.severity})`}
                                 >
                                   <span 
                                     className="font-mono font-black text-[10.5px] px-1 py-0.2 rounded"
                                     style={{
-                                      backgroundColor: `${f.color || '#4A7CD2'}20`,
+                                      backgroundColor: `${f.color || '#2563EB'}20`,
                                       color: f.color || '#10244B'
                                     }}
                                   >
@@ -868,15 +890,15 @@ export default function ChartRadiographFilmstrip({
                         </div>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                         <span>Normal Radiographic Presentation — No active caries, bone loss, or lesions detected.</span>
                       </div>
                     )}
 
-                    {/* Direct Clinical Workflow Actions Row (Permanently visible above the fold) */}
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-2">
+                    {/* Direct Clinical Action Buttons Row */}
+                    <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {activeFindings.length > 0 && (
                           <button
                             type="button"
@@ -897,7 +919,7 @@ export default function ChartRadiographFilmstrip({
                           onClick={() => {
                             if (onSyncAiNotes) onSyncAiNotes(currentRadiograph, activeFindings);
                           }}
-                          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#4A7CD2] hover:bg-[#3665B7] text-white text-xs font-black shadow-xs transition cursor-pointer active:scale-95"
+                          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#10244B] hover:bg-[#1E3A8A] text-white text-xs font-black shadow-xs transition cursor-pointer active:scale-95"
                           title="Generate and persist AI SOAP Progress Note"
                         >
                           <FileText className="w-3.5 h-3.5" />
@@ -910,7 +932,7 @@ export default function ChartRadiographFilmstrip({
                             onClick={() => {
                               if (onSelectScan) onSelectScan(currentRadiograph, activeFindings);
                             }}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#4A7CD2] border border-blue-200 text-xs font-bold transition cursor-pointer"
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#2563EB] border border-blue-200 text-xs font-bold transition cursor-pointer"
                             title="Spotlight all diagnosed teeth on 3D Arch and 2D Chart"
                           >
                             <Zap className="w-3 h-3" />
@@ -938,13 +960,13 @@ export default function ChartRadiographFilmstrip({
               {/* ========================================================================= */}
               {/* 2B. SMART SCANS CAROUSEL / FILMSTRIP DOCK                                */}
               {/* ========================================================================= */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-2.5 flex flex-col gap-2 shadow-2xs">
+              <div className="bg-white rounded-2xl border border-slate-200/80 p-3 flex flex-col gap-2.5 shadow-2xs">
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[11px] font-black text-slate-800 uppercase tracking-wider">
                       Patient Imaging Archive
                     </span>
-                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.2 rounded-full border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
                       {activeRadiographs.length} Available
                     </span>
                   </div>
@@ -956,7 +978,7 @@ export default function ChartRadiographFilmstrip({
                 {/* Horizontal Scrolling Thumbnails Tray */}
                 <div 
                   ref={carouselContainerRef}
-                  className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 overflow-y-auto max-h-[190px] pr-1"
+                  className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 overflow-y-auto max-h-[190px] pr-1"
                 >
                   {activeRadiographs.map((r) => {
                     const rId = r.radiographID || r.RadiographID;
@@ -970,13 +992,12 @@ export default function ChartRadiographFilmstrip({
                         key={rId}
                         onClick={() => {
                           if (onSelectScan) onSelectScan(r, findings);
-                          // Reset viewport zoom when switching scans
                           setZoom(1);
                         }}
                         className={`relative rounded-xl border transition-all duration-200 cursor-pointer overflow-hidden flex flex-col group bg-white ${
                           isSelected 
-                            ? 'border-[#4A7CD2] ring-2 ring-[#4A7CD2]/40 shadow-xs bg-blue-50/20' 
-                            : 'border-slate-200 hover:border-[#4A7CD2]/80 hover:shadow-2xs'
+                            ? 'border-[#2563EB] ring-2 ring-[#2563EB]/30 shadow-xs bg-blue-50/20' 
+                            : 'border-slate-200 hover:border-[#2563EB]/70 hover:shadow-2xs'
                         }`}
                       >
                         {/* Thumbnail Viewport */}
@@ -1021,8 +1042,8 @@ export default function ChartRadiographFilmstrip({
 
                           {/* Selected Active Ring */}
                           {isSelected && (
-                            <div className="absolute inset-0 border-2 border-[#4A7CD2] rounded-xl pointer-events-none flex items-end justify-end p-1">
-                              <span className="p-0.5 rounded-full bg-[#4A7CD2] text-white shadow-xs">
+                            <div className="absolute inset-0 border-2 border-[#2563EB] rounded-xl pointer-events-none flex items-end justify-end p-1">
+                              <span className="p-0.5 rounded-full bg-[#2563EB] text-white shadow-xs">
                                 <Check className="w-2.5 h-2.5 stroke-[3]" />
                               </span>
                             </div>
@@ -1036,7 +1057,7 @@ export default function ChartRadiographFilmstrip({
                           </span>
                           <div className="flex items-center justify-between text-[9px] text-slate-400 font-mono">
                             <span>{r.uploadedAt ? new Date(r.uploadedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}</span>
-                            <span className="font-sans font-bold text-[#4A7CD2]">
+                            <span className="font-sans font-bold text-[#2563EB]">
                               {isSelected ? 'Active' : 'Inspect'}
                             </span>
                           </div>
@@ -1051,7 +1072,7 @@ export default function ChartRadiographFilmstrip({
         </div>
       )}
 
-      {/* Soredex DIGORA Optime Hardware Console Modal (renders locally only if parent did not provide modal handler) */}
+      {/* Soredex DIGORA Optime Hardware Console Modal */}
       {!onOpenDigoraModal && (
         <DigoraScannerModal
           isOpen={showDigoraModal}
