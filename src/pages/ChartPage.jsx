@@ -2897,6 +2897,25 @@ export default function ChartPage() {
           return next;
         });
 
+        if (activeScanImpact && (activeScanImpact.scanId === radId || (activeScanImpact.radiograph?.radiographID || activeScanImpact.radiograph?.RadiographID) === radId)) {
+          setActiveScanImpact(null);
+          setHighlightedTeeth([]);
+          setHighlightInfo(null);
+        }
+
+        try {
+          localStorage.removeItem(`dentia_radiograph_${radId}`);
+          const latestCached = localStorage.getItem('dentia_latest_radiograph');
+          if (latestCached) {
+            try {
+              const parsed = JSON.parse(latestCached);
+              if ((parsed?.radiographID || parsed?.RadiographID) === radId) {
+                localStorage.removeItem('dentia_latest_radiograph');
+              }
+            } catch (_) {}
+          }
+        } catch (_) {}
+
         if (selectedRadiograph && ((selectedRadiograph.radiographID || selectedRadiograph.RadiographID) === radId)) {
           if (radiographBlobUrl && radiographBlobUrl.startsWith('blob:')) {
             try { URL.revokeObjectURL(radiographBlobUrl); } catch (_) {}
@@ -8694,6 +8713,7 @@ export default function ChartPage() {
                           onInspectScan={(r, findings) => handleInspectScan(r, findings)}
                           onTriggerSensorCapture={() => setShowNanoPixModal(true)}
                           onUploadFile={(file) => handleUploadXray({ target: { files: [file] } })}
+                          onDeleteRadiograph={(radId, e) => handleDeleteRadiograph(radId, e)}
                           onClearScanImpact={() => handleClearScanImpact()}
                           onApplyAiFindings={(findings, r) => handleApplyAiFindingsToChart(findings, r)}
                           onSyncAiNotes={(r, findings) => handleSyncRadiographToAiNotes(r, findings)}
@@ -9144,6 +9164,7 @@ export default function ChartPage() {
                           onInspectScan={(r, findings) => handleInspectScan(r, findings)}
                           onTriggerSensorCapture={() => setShowNanoPixModal(true)}
                           onUploadFile={(file) => handleUploadXray({ target: { files: [file] } })}
+                          onDeleteRadiograph={(radId, e) => handleDeleteRadiograph(radId, e)}
                           onClearScanImpact={() => handleClearScanImpact()}
                           onApplyAiFindings={(findings, r) => handleApplyAiFindingsToChart(findings, r)}
                           onSyncAiNotes={(r, findings) => handleSyncRadiographToAiNotes(r, findings)}

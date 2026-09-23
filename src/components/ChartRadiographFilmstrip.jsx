@@ -25,7 +25,8 @@ import {
   ArrowDownCircle,
   Activity,
   Radio,
-  Eye
+  Eye,
+  Trash2
 } from 'lucide-react';
 import { extractAiFindingsFromReport, isTestRadiograph } from '../utils/aiRadiologyUtils.js';
 import DigoraScannerModal from './DigoraScannerModal';
@@ -56,6 +57,7 @@ export default function ChartRadiographFilmstrip({
   onInspectScan,
   onTriggerSensorCapture,
   onUploadFile,
+  onDeleteRadiograph,
   onClearScanImpact,
   onApplyAiFindings,
   onSyncAiNotes,
@@ -700,6 +702,21 @@ export default function ChartRadiographFilmstrip({
                       >
                         <Maximize2 className="w-3 h-3" />
                       </button>
+
+                      {/* Delete Active Radiograph */}
+                      {onDeleteRadiograph && currentScanId && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteRadiograph(currentScanId, e);
+                          }}
+                          className="p-1.5 rounded-lg bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-300 hover:border-rose-300 shadow-2xs transition cursor-pointer"
+                          title="Permanently delete active radiograph"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -941,17 +958,34 @@ export default function ChartRadiographFilmstrip({
                         )}
                       </div>
 
-                      {isCurrentlySpotlighted && (
-                        <button
-                          type="button"
-                          onClick={onClearScanImpact}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition cursor-pointer"
-                          title="Clear chart highlights"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                          <span>Clear Spotlight</span>
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {onDeleteRadiograph && currentScanId && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteRadiograph(currentScanId, e);
+                            }}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 text-xs font-bold transition cursor-pointer"
+                            title="Delete this radiograph"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Delete Scan</span>
+                          </button>
+                        )}
+
+                        {isCurrentlySpotlighted && (
+                          <button
+                            type="button"
+                            onClick={onClearScanImpact}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition cursor-pointer"
+                            title="Clear chart highlights"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            <span>Clear Spotlight</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1048,13 +1082,43 @@ export default function ChartRadiographFilmstrip({
                               </span>
                             </div>
                           )}
+
+                          {/* Hover Overlay Delete Button */}
+                          {onDeleteRadiograph && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteRadiograph(rId, e);
+                              }}
+                              className="absolute top-1 right-1 p-1 rounded-md bg-slate-950/80 hover:bg-rose-600 text-white/70 hover:text-white backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-all duration-150 cursor-pointer shadow-xs z-20"
+                              title={`Delete ${r.imageName || 'scan'}`}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
                         </div>
 
                         {/* Thumbnail Footer Info */}
                         <div className="p-1.5 bg-white flex flex-col gap-0.5">
-                          <span className="text-[10.5px] font-bold text-slate-900 truncate" title={r.imageName}>
-                            {r.imageName || `Scan #${rId}`}
-                          </span>
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-[10.5px] font-bold text-slate-900 truncate flex-1" title={r.imageName}>
+                              {r.imageName || `Scan #${rId}`}
+                            </span>
+                            {onDeleteRadiograph && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDeleteRadiograph(rId, e);
+                                }}
+                                className="p-0.5 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer shrink-0 opacity-70 group-hover:opacity-100"
+                                title={`Delete ${r.imageName || 'scan'}`}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
                           <div className="flex items-center justify-between text-[9px] text-slate-400 font-mono">
                             <span>{r.uploadedAt ? new Date(r.uploadedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}</span>
                             <span className="font-sans font-bold text-[#2563EB]">
