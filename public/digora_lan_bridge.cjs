@@ -22,15 +22,6 @@ const path = require('path');
 
 // CLI or Environment Config
 const cliIp = process.argv[2];
-const CONFIG = {
-  BRIDGE_PORT: 5055,
-  DIGORA_IP: cliIp || process.env.DIGORA_IP || '192.168.1.120',
-  ALT_DIGORA_IP: '192.168.0.120',
-  DIGORA_UDP_PORT: 10000,
-  DIGORA_TCP_PORT: 104,
-  DIGORA_RAW_PORT: 2002,
-  DIGORA_HTTP_PORT: 5000,
-  DENTIA_API_URL: process.env.DENTIA_API_URL || 'https://dentist-api-dev.vitonta.com',
 const projectScansFolder = path.join(__dirname, '..', 'scans');
 const userProfileScansFolder = process.env.USERPROFILE 
   ? path.join(process.env.USERPROFILE, 'Dentia', 'DigoraScans') 

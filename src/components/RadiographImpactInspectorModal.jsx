@@ -37,14 +37,14 @@ export default function RadiographImpactInspectorModal({
   onSelectTooth,
   isApplying = false
 }) {
-  if (!isOpen || !radiograph) return null;
-
   const [zoom, setZoom] = useState(1);
   const [isInverted, setIsInverted] = useState(false);
   const [brightness, setBrightness] = useState(100);
   const [contrast, setContrast] = useState(100);
   const [activeFindingTab, setActiveFindingTab] = useState('findings'); // 'findings' | 'soap' | 'narrative'
   const [copiedState, setCopiedState] = useState(false);
+
+  if (!isOpen || !radiograph) return null;
 
   const findings = extractAiFindingsFromReport(radiograph.analysisSummary);
   const rId = radiograph.radiographID || radiograph.RadiographID;
