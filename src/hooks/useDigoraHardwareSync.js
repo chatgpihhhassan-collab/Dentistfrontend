@@ -549,7 +549,7 @@ export function useDigoraHardwareSync({
 
   // 12. Hardware Bridge Auto-Acquisition Poller (Polls for scans dropped by physical hardware / hot folder)
   useEffect(() => {
-    if (!isArmed || !patientId) return;
+    if (!patientId) return;
 
     const pollInterval = setInterval(async () => {
       try {
@@ -571,10 +571,10 @@ export function useDigoraHardwareSync({
           }
         }
       } catch (_) {}
-    }, 2000);
+    }, 1500);
 
     return () => clearInterval(pollInterval);
-  }, [isArmed, patientId, simulateScan]);
+  }, [patientId, simulateScan]);
 
   // 12. Manual Hardware Beep Test
   const triggerHardwareBeep = useCallback(async () => {
