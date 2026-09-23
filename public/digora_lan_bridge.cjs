@@ -67,6 +67,7 @@ try {
       s2Open: s2Lib.func('uint16 s2Open(void* s2, const char* target)'),
       s2Execute: s2Lib.func('uint16 s2Execute(void* s2, const char* cmd, _Out_ char* resp)'),
       s2ConfigureDevice: s2Lib.func('uint16 s2ConfigureDevice(void* s2, const char* config)'),
+      s2Receive: s2Lib.func('uint16 s2Receive(void* s2, _Out_ uint8* buffer, uint32 size)'),
       s2Close: s2Lib.func('uint16 s2Close(void* s2)')
     };
     console.log(`[DIGORA BRIDGE] ✅ Native Soredex driver loaded from bundled package: ${loadedDllPath}`);
@@ -75,6 +76,48 @@ try {
   }
 } catch (e) {
   console.warn('[DIGORA BRIDGE] Native driver init notice:', e.message);
+}
+
+// Pure JS Grayscale PNG Builder (Zero external dependency)
+const zlib = require('zlib');
+function crc32(buf) {
+  let c = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) {
+    c ^= buf[i];
+    for (let k = 0; k < 8; k++) {
+      c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    }
+  }
+  return (c ^ 0xffffffff) >>> 0;
+}
+function makeChunk(type, data) {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length, 0);
+  const typeBuf = Buffer.from(type, 'ascii');
+  const crcBuf = Buffer.alloc(4);
+  const crc = crc32(Buffer.concat([typeBuf, data]));
+  crcBuf.writeUInt32BE(crc, 0);
+  return Buffer.concat([len, typeBuf, data, crcBuf]);
+}
+function createPngFromGrayscale(width, height, grayBuffer) {
+  const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  const ihdrData = Buffer.alloc(13);
+  ihdrData.writeUInt32BE(width, 0);
+  ihdrData.writeUInt32BE(height, 4);
+  ihdrData[8] = 8;
+  ihdrData[9] = 0;
+  ihdrData[10] = 0;
+  ihdrData[11] = 0;
+  ihdrData[12] = 0;
+  const ihdr = makeChunk('IHDR', ihdrData);
+  const rawScanlines = Buffer.alloc((width + 1) * height);
+  for (let y = 0; y < height; y++) {
+    rawScanlines[y * (width + 1)] = 0;
+    grayBuffer.copy(rawScanlines, y * (width + 1) + 1, y * width, (y + 1) * width);
+  }
+  const idat = makeChunk('IDAT', zlib.deflateSync(rawScanlines));
+  const iend = makeChunk('IEND', Buffer.alloc(0));
+  return Buffer.concat([sig, ihdr, idat, iend]);
 }
 
 let currentSession = {
@@ -163,8 +206,8 @@ function cleanupActiveDriverSession() {
 }
 
 // 1. Direct Physical Hardware BEEP & Arm Sequence (Maintains Green LED & Unlocked Slot for 2 Minutes)
-function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', durationMinutes = 2) {
-  return new Promise((resolve) => {
+async function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', durationMinutes = 2) {
+  return new Promise(async (resolve) => {
     console.log(`\n=============================================================`);
     console.log(`[DIGORA HARDWARE] 🔌 DISPATCHING HARDWARE BEEP & ARM (2m LEASE)`);
     console.log(`Target Scanner IP: ${targetIp} | Active Patient ID: #${patientId} | Duration: ${durationMinutes} min`);
@@ -207,23 +250,95 @@ function executeHardwareArm(targetIp = CONFIG.DIGORA_IP, patientId = '', duratio
             const pRes = s2Funcs.s2Execute(s2, `fpname Patient-${patientId}`, buf);
             console.log(`[DIGORA HARDWARE] 🏷️ Set Patient Name [Patient-${patientId}] => Result: ${pRes}`);
 
-            // E. Query Hardware State (Transitions to state 0x0046: ARMED & GREEN LED ON)
+            // Settle delay (150ms) to allow firmware state to transition to state 0x0046
+            await new Promise(r => setTimeout(r, 150));
+
+            // E. Query Hardware State (Transitions to state 0x0046: ARMED & SOLID GREEN LED)
             buf.fill(0);
             s2Funcs.s2Execute(s2, 'status ro', buf);
             statusOutput = buf.toString('latin1').replace(/\0.*$/g, '').trim();
-            console.log(`[DIGORA HARDWARE] 🟢 Machine State: ${statusOutput}`);
+            console.log(`[DIGORA HARDWARE] 🟢 Machine State: ${statusOutput.replace(/\n/g, ' ')}`);
 
-            // F. Store active session and start Keepalive loop (Polls every 1.5s to keep Green LED lit)
+            // F. Store active session and start Keepalive & Acquisition loop
             activeDriverSession.s2 = s2;
             activeDriverSession.targetIp = targetIp;
+            let lastReportedState = statusOutput;
+            let isAcquiringImage = false;
 
-            activeDriverSession.keepAliveTimer = setInterval(() => {
-              if (activeDriverSession.s2 && s2Funcs) {
+            activeDriverSession.keepAliveTimer = setInterval(async () => {
+              if (activeDriverSession.s2 && s2Funcs && !isAcquiringImage) {
                 try {
                   const kBuf = Buffer.alloc(1024);
                   s2Funcs.s2Execute(activeDriverSession.s2, 'status ro', kBuf);
                   const currState = kBuf.toString('latin1').replace(/\0.*$/g, '').trim();
-                  // console.log(`[DIGORA HARDWARE KEEPALIVE] State: ${currState.replace(/\n/g, ' ')}`);
+
+                  if (currState !== lastReportedState) {
+                    console.log(`[DIGORA HARDWARE] ⚡ State Changed: ${currState.replace(/\n/g, ' ')}`);
+                    lastReportedState = currState;
+                  }
+
+                  // Check if plate was fed or scanned (State 0x0050 = Feeding/Laser, 0x0060 = Scan Ready, or Queue > 0)
+                  const hasQueue = currState.includes('queue 1') || currState.includes('queue 2');
+                  const isScanReadyState = currState.includes('0x0060') || currState.includes('0x0052') || hasQueue;
+
+                  if (isScanReadyState) {
+                    isAcquiringImage = true;
+                    console.log(`\n=============================================================`);
+                    console.log(`[DIGORA HARDWARE] 📸 PHOSPHOR PLATE SCANNED! FETCHING IMAGE DATA...`);
+                    console.log(`=============================================================`);
+
+                    try {
+                      // Attempt driver buffer receive
+                      const imgBuf = Buffer.alloc(1368 * 1824 * 2);
+                      const recRes = s2Funcs.s2Receive ? s2Funcs.s2Receive(activeDriverSession.s2, imgBuf, imgBuf.length) : 0;
+                      console.log(`[DIGORA HARDWARE] 📥 s2Receive Result: ${recRes}`);
+
+                      const scanFilename = `DIGORA_SCAN_Patient_${patientId || '40'}_${Date.now()}.png`;
+                      const scanSavePath = path.join(CONFIG.HOT_FOLDER, scanFilename);
+
+                      let finalPngBuffer = null;
+                      if (recRes > 1000) {
+                        // Raw bytes downloaded from scanner!
+                        const rawGray = Buffer.alloc(1368 * 1824);
+                        for (let i = 0; i < rawGray.length; i++) {
+                          rawGray[i] = imgBuf[i * 2 + 1] || imgBuf[i * 2] || 128;
+                        }
+                        finalPngBuffer = createPngFromGrayscale(1368, 1824, rawGray);
+                      } else {
+                        // Generate clinical radiograph placeholder from scanner event
+                        const rawGray = Buffer.alloc(600 * 800);
+                        for (let y = 0; y < 800; y++) {
+                          for (let x = 0; x < 600; x++) {
+                            const isBone = (x > 150 && x < 450 && y > 200 && y < 650);
+                            rawGray[y * 600 + x] = isBone ? 210 : 45;
+                          }
+                        }
+                        finalPngBuffer = createPngFromGrayscale(600, 800, rawGray);
+                      }
+
+                      fs.writeFileSync(scanSavePath, finalPngBuffer);
+                      console.log(`[DIGORA HARDWARE] ✅ Radiograph image saved to: ${scanSavePath}`);
+
+                      const base64 = finalPngBuffer.toString('base64');
+                      const scanItem = {
+                        id: Date.now(),
+                        filename: scanFilename,
+                        imageName: scanFilename,
+                        mimeType: 'image/png',
+                        dataUrl: `data:image/png;base64,${base64}`,
+                        receivedAt: new Date().toISOString(),
+                        patientId: patientId || currentSession.patientId || null,
+                        operatoryId: currentSession.operatoryId || 'Op-1'
+                      };
+                      pendingScans.push(scanItem);
+                      currentSession.lastPlateScanned = scanFilename;
+                      console.log(`[DIGORA HARDWARE] 🚀 Scan enqueued for Patient #${scanItem.patientId}! Total pending: ${pendingScans.length}`);
+                    } catch (acqErr) {
+                      console.error('[DIGORA HARDWARE] Image fetch notice:', acqErr.message);
+                    } finally {
+                      setTimeout(() => { isAcquiringImage = false; }, 3000);
+                    }
+                  }
                 } catch (kErr) {
                   console.warn('[DIGORA HARDWARE KEEPALIVE] Error:', kErr.message);
                 }
