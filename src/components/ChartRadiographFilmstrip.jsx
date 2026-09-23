@@ -94,14 +94,6 @@ export default function ChartRadiographFilmstrip({
   const fileInputRef = useRef(null);
   const carouselContainerRef = useRef(null);
 
-  // When DIGORA is disarmed, stopped, or 5-minute lease expires, auto-close scanner strip modal
-  const wasArmedRef = useRef(digoraSync?.isArmed);
-  useEffect(() => {
-    if (wasArmedRef.current && !digoraSync?.isArmed && showDigoraModal) {
-      closeDigoraModal();
-    }
-    wasArmedRef.current = digoraSync?.isArmed;
-  }, [digoraSync?.isArmed, showDigoraModal]);
 
   // Filter test scans unless explicitly enabled
   const testScansCount = useMemo(() => radiographs.filter(r => isTestRadiograph(r)).length, [radiographs]);
