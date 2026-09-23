@@ -104,7 +104,7 @@ export default function DigoraScannerModal({
     }
   };
 
-  const mountTimeRef = useRef(Date.now());
+  const mountTimeRef = useRef(0);
   useEffect(() => {
     if (isOpen) {
       mountTimeRef.current = Date.now();
@@ -133,14 +133,6 @@ export default function DigoraScannerModal({
 
   if (!isOpen) return null;
   if (typeof document === 'undefined') return null;
-
-  const handleActivateToggle = async () => {
-    if (digoraSync?.isArmed) {
-      await digoraSync.disarmScanner();
-    } else {
-      await digoraSync?.armScanner(operatoryId, 2);
-    }
-  };
 
   const handlePause = async () => {
     await digoraSync?.disarmScanner();
@@ -621,6 +613,7 @@ export default function DigoraScannerModal({
         </div>
       </div>
     </div>
+  </div>
   );
 
   return createPortal(modalMarkup, document.body);
