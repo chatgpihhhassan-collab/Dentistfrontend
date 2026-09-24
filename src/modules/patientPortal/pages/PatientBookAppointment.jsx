@@ -26,9 +26,11 @@ import {
     RefreshCw,
     Layers,
     Tag,
-    Info
+    Info,
+    Printer
 } from 'lucide-react';
 import API_BASE_URL from '../../../config/apiConfig';
+import { generateInvoicePdf } from '../../../utils/InvoicePdfGenerator';
 
 // Color themes tailored for clinical dental procedure categories
 const categoryBadgeColors = {
@@ -733,6 +735,41 @@ export default function PatientBookAppointment() {
 
                     {/* Direct Links */}
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const pObj = JSON.parse(localStorage.getItem('patient') || '{}');
+                                generateInvoicePdf({
+                                    patient: {
+                                        ...pObj,
+                                        referenceNumber: pObj.referenceNumber || (pObj.referenceNo || `DEN-2026-${String(pObj.patientID || pObj.id || '00000').padStart(5, '0')}`),
+                                        name: pObj.name || (pObj.firstName ? `${pObj.firstName} ${pObj.lastName || ''}`.trim() : 'Patient')
+                                    },
+                                    doctor: { name: bookingSuccess.doctor },
+                                    invoice: {
+                                        invoiceNumber: bookingSuccess.invoiceNumber,
+                                        status: bookingSuccess.invoiceStatus,
+                                        totalAmount: bookingSuccess.fee,
+                                        paidAmount: bookingSuccess.invoiceStatus === 'Paid' ? bookingSuccess.fee : 0,
+                                        balanceAmount: bookingSuccess.invoiceStatus === 'Paid' ? 0 : bookingSuccess.fee,
+                                        currency: bookingSuccess.currency,
+                                        items: (bookingSuccess.procedures || []).map(p => ({
+                                            procedureCode: p.procedureCode || 'CDT',
+                                            description: p.procedureName || p.label || bookingSuccess.service,
+                                            unitPrice: p.fee || p.standardFee || bookingSuccess.fee,
+                                            totalPrice: p.fee || p.standardFee || bookingSuccess.fee,
+                                            quantity: 1
+                                        }))
+                                    },
+                                    voucherCode: !isCardPaid ? bookingSuccess.receiptOrVoucherNumber : null
+                                });
+                            }}
+                            className="w-full sm:w-auto px-4 py-2.5 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-800 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                            title="Download official PDF invoice and clinical pass"
+                        >
+                            <Printer className="w-3.5 h-3.5 text-teal-600" />
+                            <span>Print Invoice & Pass</span>
+                        </button>
                         <button
                             type="button"
                             onClick={downloadIcs}

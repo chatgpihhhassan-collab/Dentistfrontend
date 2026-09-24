@@ -13,6 +13,7 @@ import {
     Download
 } from 'lucide-react';
 import API_BASE_URL from '../../../config/apiConfig';
+import { generateInvoicePdf } from '../../../utils/InvoicePdfGenerator';
 
 export default function DualPaymentModal({ isOpen, invoice, onClose, onPaymentSuccess }) {
     const [paymentMethod, setPaymentMethod] = useState('card'); // 'card' | 'cash'
@@ -219,17 +220,48 @@ export default function DualPaymentModal({ isOpen, invoice, onClose, onPaymentSu
                             </div>
                         )}
 
-                        <div className="pt-2 flex items-center justify-center gap-3">
+                        {/* Patient Portal Credentials Slip */}
+                        <div className="p-3 rounded-2xl bg-teal-50/90 border border-teal-200/80 text-left text-xs space-y-1">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-extrabold uppercase text-teal-800 bg-teal-100 px-2 py-0.5 rounded">
+                                    Patient Portal Access Credentials
+                                </span>
+                                <span className="font-mono font-bold text-dark-slate">
+                                    Ref: {patient.referenceNumber || (patient.referenceNo || `DEN-2026-${String(patient.patientID || patient.id || '00000').padStart(5, '0')}`)}
+                                </span>
+                            </div>
+                            <p className="text-[11px] text-teal-900">
+                                <strong>Online Portal:</strong> https://dentistfrontend.vercel.app/portal/login • <strong>Password / Access:</strong> Verify with DOB ({patient.dob ? new Date(patient.dob).toLocaleDateString('en-GB') : 'on file'}) or registered password.
+                            </p>
+                        </div>
+
+                        <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
                             <button
-                                onClick={() => window.print()}
-                                className="px-4 py-2.5 rounded-xl border border-light-teal text-xs font-bold text-dark-slate hover:bg-light-teal/50 transition-colors flex items-center gap-1.5 cursor-pointer"
+                                type="button"
+                                onClick={() => generateInvoicePdf({
+                                    patient: {
+                                        ...patient,
+                                        referenceNumber: patient.referenceNumber || (patient.referenceNo || `DEN-2026-${String(patient.patientID || patient.id || '00000').padStart(5, '0')}`),
+                                        name: patient.name || (patient.firstName ? `${patient.firstName} ${patient.lastName || ''}`.trim() : 'Patient')
+                                    },
+                                    doctor: { name: invoice.doctorName },
+                                    invoice: {
+                                        ...invoice,
+                                        status: paymentResult.type === 'card' ? 'Paid' : 'Pending Cash Settlement',
+                                        paidAmount: paymentResult.type === 'card' ? paymentResult.amount : (invoice.paidAmount || 0),
+                                        balanceAmount: paymentResult.type === 'card' ? 0 : paymentResult.amount
+                                    },
+                                    voucherCode: paymentResult.voucherCode
+                                })}
+                                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
                             >
-                                <Printer className="w-4 h-4 text-primary-teal" />
-                                <span>Print Slip</span>
+                                <Download className="w-4 h-4" />
+                                <span>Download Official PDF Receipt / Voucher</span>
                             </button>
                             <button
+                                type="button"
                                 onClick={onClose}
-                                className="px-6 py-2.5 rounded-xl bg-primary-teal text-white text-xs font-bold hover:bg-primary-hover transition-colors shadow-sm cursor-pointer"
+                                className="w-full sm:w-auto px-6 py-2.5 rounded-xl border border-light-teal text-dark-slate text-xs font-bold hover:bg-light-teal/50 transition-colors shadow-2xs cursor-pointer"
                             >
                                 Done
                             </button>

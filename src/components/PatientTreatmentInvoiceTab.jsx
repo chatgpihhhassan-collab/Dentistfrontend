@@ -8,6 +8,7 @@ import {
     Edit3, Save, Sparkles, CheckSquare, Square
 } from 'lucide-react';
 import API_BASE_URL from '../config/apiConfig';
+import { generateInvoicePdf } from '../utils/InvoicePdfGenerator';
 
 export const TOOTH_NAMES = {
     1: 'Maxillary Right 3rd Molar',
@@ -1399,6 +1400,32 @@ export default function PatientTreatmentInvoiceTab({ patientId, patient, teethSt
                                                 </button>
                                             )}
 
+                                            <button
+                                                type="button"
+                                                onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    await generateInvoicePdf({
+                                                        patient: {
+                                                            ...patient,
+                                                            name: patient ? `${patient.firstName || ''} ${patient.lastName || ''}`.trim() : 'Patient',
+                                                            referenceNumber: patient?.referenceNumber || `DEN-2026-${String(patientId || '00000').padStart(5, '0')}`,
+                                                            dob: patient?.dob,
+                                                            phone: patient?.phone
+                                                        },
+                                                        doctor: {
+                                                            name: inv.doctorName || 'Dr. Dentia Dental Practice'
+                                                        },
+                                                        invoice: inv,
+                                                        payments: inv.payments || []
+                                                    });
+                                                }}
+                                                className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer border border-slate-200"
+                                                title="Print Official Tax Invoice & Portal Slip"
+                                            >
+                                                <Printer className="w-3.5 h-3.5 text-slate-600" />
+                                                <span>Print Slip</span>
+                                            </button>
+
                                             <div className="text-slate-400">
                                                 {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                                             </div>
@@ -1497,6 +1524,44 @@ export default function PatientTreatmentInvoiceTab({ patientId, patient, teethSt
                                                     )}
                                                 </div>
 
+                                            </div>
+
+                                            {/* Patient Portal Health Access Credentials Footer Slip */}
+                                            <div className="p-3.5 rounded-2xl bg-teal-50/70 border border-teal-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-teal-800 bg-teal-100 px-2 py-0.5 rounded-md border border-teal-200">
+                                                            Patient Self-Service Access Credentials
+                                                        </span>
+                                                        <span className="text-xs font-bold text-dark-slate font-mono">
+                                                            {patient?.referenceNumber || `DEN-2026-${String(patientId || '00000').padStart(5, '0')}`}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-[11px] text-teal-900">
+                                                        <strong>Portal URL:</strong> <a href="https://dentistfrontend.vercel.app/portal/login" target="_blank" rel="noreferrer" className="underline font-semibold hover:text-teal-700">https://dentistfrontend.vercel.app/portal/login</a> • <strong>Password / Access:</strong> Verify with DOB ({patient?.dob ? new Date(patient.dob).toLocaleDateString('en-GB') : 'on file'}) or registered password.
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => generateInvoicePdf({
+                                                        patient: {
+                                                            ...patient,
+                                                            name: patient ? `${patient.firstName || ''} ${patient.lastName || ''}`.trim() : 'Patient',
+                                                            referenceNumber: patient?.referenceNumber || `DEN-2026-${String(patientId || '00000').padStart(5, '0')}`,
+                                                            dob: patient?.dob,
+                                                            phone: patient?.phone
+                                                        },
+                                                        doctor: {
+                                                            name: inv.doctorName || 'Dr. Dentia Dental Practice'
+                                                        },
+                                                        invoice: inv,
+                                                        payments: inv.payments || []
+                                                    })}
+                                                    className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm shrink-0 cursor-pointer"
+                                                >
+                                                    <Printer className="w-3.5 h-3.5" />
+                                                    <span>Print Invoice & Credentials Slip</span>
+                                                </button>
                                             </div>
 
                                         </div>

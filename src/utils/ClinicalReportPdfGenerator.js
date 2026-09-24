@@ -242,22 +242,34 @@ export const generateClinicalReportPdf = async ({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(...primaryTeal);
-  doc.text('PATIENT SELF-SERVICE HEALTH PORTAL ACCESS', margin + 4, footerBoxY + 5.5);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(...darkSlate);
+  doc.text('PATIENT SELF-SERVICE HEALTH PORTAL ACCESS CREDENTIALS', margin + 4, footerBoxY + 5.5);
 
   // Line 1: Portal URL & Username
   const portalUrl = 'https://dentistfrontend.vercel.app/portal/login';
-  doc.text(`• Portal URL: ${portalUrl}`, margin + 4, footerBoxY + 11);
-  doc.text(`• Username / Reference #: ${refNo}`, margin + 105, footerBoxY + 11);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...darkSlate);
+  doc.text('• Online Portal URL:', margin + 4, footerBoxY + 11);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...primaryTeal);
+  doc.text(portalUrl, margin + 35, footerBoxY + 11);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...darkSlate);
+  doc.text('• Patient Reference #:', margin + 110, footerBoxY + 11);
+  doc.setTextColor(...primaryTeal);
+  doc.text(refNo, margin + 144, footerBoxY + 11);
 
   // Line 2: Password / Security Instructions
   const dobText = patient.dob ? new Date(patient.dob).toLocaleDateString('en-GB') : 'Verified DOB on file';
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...darkSlate);
+  doc.text('• Account Password / Access Key:', margin + 4, footerBoxY + 16.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...darkSlate);
   doc.text(
-    `• Password / Access: Use your Reference Number & Date of Birth (${dobText}) to activate your account or reset password at any time.`,
-    margin + 4,
+    `Initial access password is your verified Date of Birth (${dobText}) or your chosen password. Reset anytime at portal/activate.`,
+    margin + 52,
     footerBoxY + 16.5
   );
 

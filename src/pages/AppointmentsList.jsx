@@ -5,7 +5,7 @@ import {
     ListFilter, ChevronLeft, ChevronRight, ChevronDown, Download, Plus, 
     ExternalLink, CalendarDays, Eye, RefreshCw, Check, X, ShieldAlert,
     Share2, CalendarCheck, Stethoscope, ArrowRight, UserCheck, 
-    FileText, Activity, MapPin, Volume2, VolumeX
+    FileText, Activity, MapPin, Volume2, VolumeX, Printer
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import Navigation from '../components/Navigation';
@@ -47,6 +47,209 @@ export const downloadIcsFile = (appointment, clinicName = "DENTIA Dental Care") 
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+};
+
+// Helper: Print Patient Appointment Slip with Portal Credentials
+export const handlePrintAppointmentSlip = (appt) => {
+    if (!appt) return;
+    try {
+        const doc = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+        });
+
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const margin = 14;
+        const contentWidth = pageWidth - margin * 2;
+
+        const primaryTeal = [11, 79, 74];
+        const darkSlate = [15, 23, 42];
+        const lightBg = [248, 250, 252];
+        const borderGray = [226, 232, 240];
+        const textMuted = [100, 116, 139];
+
+        let y = margin;
+
+        // Clinic Header
+        doc.setFillColor(...primaryTeal);
+        doc.rect(margin, y, contentWidth, 22, 'F');
+
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.text('DENTIA DENTAL CLINICAL PRACTICE', margin + 6, y + 9);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.text('Official Appointment Confirmation & Patient Clinic Pass', margin + 6, y + 16);
+
+        const apptId = appt.appointmentID || appt.appointmentId || appt.id || '0000';
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.text(`APPT #${apptId}`, pageWidth - margin - 6, y + 9, { align: 'right' });
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, pageWidth - margin - 6, y + 16, { align: 'right' });
+
+        y += 28;
+
+        // Title
+        doc.setTextColor(...darkSlate);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.text('PATIENT APPOINTMENT PASS & CLINICAL SLIP', margin, y);
+        y += 4;
+        doc.setDrawColor(...primaryTeal);
+        doc.setLineWidth(0.6);
+        doc.line(margin, y, pageWidth - margin, y);
+        y += 6;
+
+        // Two Column Cards
+        const colW = (contentWidth - 6) / 2;
+        const boxH = 34;
+
+        // Patient Card
+        doc.setFillColor(...lightBg);
+        doc.setDrawColor(...borderGray);
+        doc.roundedRect(margin, y, colW, boxH, 2, 2, 'FD');
+
+        const pRefNo = appt.referenceNumber || (appt.patientID ? `DEN-2026-${String(appt.patientID).padStart(5, '0')}` : 'DEN-2026-PATIENT');
+        const pDob = appt.dob ? new Date(appt.dob).toLocaleDateString('en-GB') : 'Verified on File';
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(...primaryTeal);
+        doc.text('PATIENT INFORMATION', margin + 4, y + 6);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(...darkSlate);
+        doc.text(`Patient Name: ${appt.fullName || 'Patient'}`, margin + 4, y + 13);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Reference #: ${pRefNo}`, margin + 4, y + 19);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Contact: ${appt.phone || 'Phone on record'}`, margin + 4, y + 25);
+        doc.text(`DOB: ${pDob}`, margin + 4, y + 30);
+
+        // Appointment Card
+        const rightX = margin + colW + 6;
+        doc.setFillColor(...lightBg);
+        doc.setDrawColor(...borderGray);
+        doc.roundedRect(rightX, y, colW, boxH, 2, 2, 'FD');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(...primaryTeal);
+        doc.text('APPOINTMENT DETAILS', rightX + 4, y + 6);
+
+        const apptDate = appt.preferredDate ? new Date(appt.preferredDate).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : 'Scheduled';
+        const apptTime = appt.preferredDate ? new Date(appt.preferredDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'Scheduled';
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(...darkSlate);
+        doc.text(`Scheduled Date: ${apptDate}`, rightX + 4, y + 13);
+        doc.text(`Scheduled Time: ${apptTime}`, rightX + 4, y + 19);
+        doc.text(`Attending Doctor: ${appt.doctorName || 'Dr. Dentia Specialist'}`, rightX + 4, y + 25);
+        doc.text(`Clinical Reason: ${appt.reason || 'General Consultation'}`, rightX + 4, y + 30);
+
+        y += boxH + 8;
+
+        // Visit Guidance Box
+        doc.setFillColor(...lightBg);
+        doc.setDrawColor(...borderGray);
+        doc.roundedRect(margin, y, contentWidth, 26, 2, 2, 'FD');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(...primaryTeal);
+        doc.text('CLINIC VISITATION GUIDANCE & ADDRESS', margin + 4, y + 6);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(...darkSlate);
+        doc.text('• Facility Location: Dentia Dental Clinical Center, 100 Queen Street, Auckland CBD (Level 4)', margin + 4, y + 12);
+        doc.text('• Arrival Time: Please arrive 10 minutes prior to your allocated slot for preoperative registration.', margin + 4, y + 17);
+        doc.text('• Rescheduling / Cancellation: Call +64 9 888 1234 at least 24 hours in advance if changes are required.', margin + 4, y + 22);
+
+        y += 34;
+
+        // Invoice / Fee Details if available
+        if (appt.invoiceNumber || appt.totalAmount) {
+            doc.setFillColor(241, 245, 249);
+            doc.setDrawColor(...borderGray);
+            doc.roundedRect(margin, y, contentWidth, 18, 2, 2, 'FD');
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.setTextColor(...primaryTeal);
+            doc.text('FINANCIAL & INVOICE REFERENCE', margin + 4, y + 6);
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+            doc.setTextColor(...darkSlate);
+            const invText = appt.invoiceNumber ? `Invoice #${appt.invoiceNumber}` : 'Consultation Booking';
+            const statusText = appt.invoiceStatus ? `Status: ${appt.invoiceStatus}` : 'Registered';
+            const feeText = appt.totalAmount ? `Total Fee: ${appt.currency || 'NZD'} ${appt.totalAmount}` : '';
+            doc.text(`• ${invText}  |  ${statusText}  |  ${feeText}`, margin + 4, y + 12);
+
+            y += 24;
+        }
+
+        // 🌟 PATIENT PORTAL ACCESS CREDENTIALS (FOOTER SLIP)
+        const footerBoxY = pageHeight - 34;
+
+        doc.setFillColor(240, 253, 250);
+        doc.setDrawColor(153, 246, 228);
+        doc.roundedRect(margin, footerBoxY, contentWidth, 24, 2, 2, 'FD');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...primaryTeal);
+        doc.text('PATIENT SELF-SERVICE HEALTH PORTAL ACCESS CREDENTIALS', margin + 4, footerBoxY + 5.5);
+
+        const portalUrl = 'https://dentistfrontend.vercel.app/portal/login';
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(...darkSlate);
+        doc.text('• Online Portal URL:', margin + 4, footerBoxY + 11);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...primaryTeal);
+        doc.text(portalUrl, margin + 35, footerBoxY + 11);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...darkSlate);
+        doc.text('• Patient Reference #:', margin + 110, footerBoxY + 11);
+        doc.setTextColor(...primaryTeal);
+        doc.text(pRefNo, margin + 144, footerBoxY + 11);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...darkSlate);
+        doc.text('• Account Password / Access Key:', margin + 4, footerBoxY + 16.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...darkSlate);
+        doc.text(
+            `Initial access password is your verified Date of Birth (${pDob}) or your chosen password. Reset anytime at portal/activate.`,
+            margin + 52,
+            footerBoxY + 16.5
+        );
+
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(7);
+        doc.setTextColor(...textMuted);
+        doc.text(
+            'Visit the portal link 24/7 to review your clinical reports, 3D tooth chart, digital X-rays, invoices, and schedule future visits.',
+            margin + 4,
+            footerBoxY + 21.5
+        );
+
+        const cleanName = (appt.fullName || 'Patient').replace(/[^a-zA-Z0-9]/g, '_');
+        doc.save(`Appointment_Slip_${cleanName}_#${apptId}.pdf`);
+    } catch (err) {
+        console.error('Failed to print appointment slip:', err);
+    }
 };
 
 // Helper: Get robust YYYY-MM-DD local key for date matching regardless of client timezone
@@ -1723,6 +1926,14 @@ export default function AppointmentsList() {
                             >
                                 <CalendarCheck className="w-4 h-4 text-[#4A7CD2]" />
                                 Download .ics
+                            </button>
+                            <button
+                                onClick={() => handlePrintAppointmentSlip(selectedAppointment)}
+                                className="flex-1 py-2.5 px-4 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl text-xs font-bold text-teal-800 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                                title="Print Patient Appointment Slip with Portal Credentials"
+                            >
+                                <Printer className="w-4 h-4 text-teal-600" />
+                                Print Slip
                             </button>
                             <a
                                 href={getGoogleCalendarUrl(selectedAppointment)}

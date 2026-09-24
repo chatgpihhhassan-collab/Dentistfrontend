@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import API_BASE_URL from '../../../config/apiConfig';
 import DualPaymentModal from '../components/DualPaymentModal';
+import { generateInvoicePdf } from '../../../utils/InvoicePdfGenerator';
 
 export default function PatientBilling() {
     const [invoices, setInvoices] = useState([]);
@@ -231,6 +232,25 @@ export default function PatientBilling() {
                                                 </p>
                                             </div>
 
+                                            <button
+                                                type="button"
+                                                onClick={() => generateInvoicePdf({
+                                                    patient: {
+                                                        ...patient,
+                                                        referenceNumber: patient.referenceNumber || (patient.referenceNo || `DEN-2026-${String(patient.patientID || patient.id || '00000').padStart(5, '0')}`),
+                                                        name: patient.name || (patient.firstName ? `${patient.firstName} ${patient.lastName || ''}`.trim() : 'Patient')
+                                                    },
+                                                    doctor: { name: inv.doctorName },
+                                                    invoice: inv,
+                                                    payments
+                                                })}
+                                                className="px-3.5 py-2.5 rounded-xl border border-light-teal text-xs font-bold text-dark-slate hover:bg-light-teal/50 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                                title="Download & Print Official Tax Invoice / Receipt"
+                                            >
+                                                <Printer className="w-3.5 h-3.5 text-primary-teal" />
+                                                <span>Print Slip</span>
+                                            </button>
+
                                             {!isPaid && (
                                                 <button
                                                     onClick={() => setSelectedInvoiceForPay(inv)}
@@ -290,6 +310,40 @@ export default function PatientBilling() {
                                             Note: {inv.notes}
                                         </p>
                                     )}
+
+                                    {/* Self-Service Health Portal Access Slip */}
+                                    <div className="p-3 rounded-2xl bg-teal-50/70 border border-teal-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                                        <div className="space-y-0.5">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-teal-800 bg-teal-100 px-2 py-0.5 rounded-md border border-teal-200">
+                                                    Self-Service Portal Access
+                                                </span>
+                                                <span className="font-mono font-bold text-dark-slate">
+                                                    Ref: {patient.referenceNumber || (patient.referenceNo || `DEN-2026-${String(patient.patientID || patient.id || '00000').padStart(5, '0')}`)}
+                                                </span>
+                                            </div>
+                                            <p className="text-[11px] text-teal-900">
+                                                <strong>URL:</strong> https://dentistfrontend.vercel.app/portal/login • <strong>Password:</strong> Use Reference # & DOB ({patient.dob ? new Date(patient.dob).toLocaleDateString('en-GB') : 'on file'}) to sign in or reset.
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => generateInvoicePdf({
+                                                patient: {
+                                                    ...patient,
+                                                    referenceNumber: patient.referenceNumber || (patient.referenceNo || `DEN-2026-${String(patient.patientID || patient.id || '00000').padStart(5, '0')}`),
+                                                    name: patient.name || (patient.firstName ? `${patient.firstName} ${patient.lastName || ''}`.trim() : 'Patient')
+                                                },
+                                                doctor: { name: inv.doctorName },
+                                                invoice: inv,
+                                                payments
+                                            })}
+                                            className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs shrink-0 cursor-pointer"
+                                        >
+                                            <Download className="w-3.5 h-3.5" />
+                                            <span>Download PDF Receipt</span>
+                                        </button>
+                                    </div>
                                 </div>
                             );
                         })
