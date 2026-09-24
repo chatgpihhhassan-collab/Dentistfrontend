@@ -138,12 +138,21 @@ export default function PatientActivate() {
             {/* ========================================================================= */}
             {/* LEFT COLUMN: BRAND HERO & CLINICAL SECURITY SHOWCASE                      */}
             {/* ========================================================================= */}
+            {/* ========================================================================= */}
+            {/* LEFT COLUMN: BRAND HERO & CLINICAL SECURITY SHOWCASE                      */}
+            {/* ========================================================================= */}
             <div 
-                className="hidden lg:flex w-[50%] relative flex-col justify-between p-12 overflow-hidden border-r border-light-teal bg-cover bg-center"
-                style={{ backgroundImage: `url('/premium_ai_dental_login.png')` }}
+                className="hidden lg:flex w-[50%] relative flex-col justify-between p-12 overflow-hidden border-r border-light-teal bg-cover bg-center transition-all duration-700"
+                style={{ 
+                    backgroundImage: `url('${mode === 'reset' ? '/reset_password_bg.jpg' : '/activate_account_bg.jpg'}')` 
+                }}
             >
                 {/* Gradient Contrast Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-b from-dark-slate/85 via-dark-slate/65 to-dark-slate/90" />
+                <div className={`absolute inset-0 transition-opacity duration-700 ${
+                    mode === 'reset' 
+                        ? 'bg-gradient-to-b from-dark-slate/85 via-slate-900/70 to-dark-slate/90' 
+                        : 'bg-gradient-to-b from-dark-slate/80 via-dark-slate/60 to-dark-slate/90'
+                }`} />
 
                 {/* Brand Header */}
                 <div className="relative z-10 flex items-center space-x-3">
@@ -155,7 +164,7 @@ export default function PatientActivate() {
                             DENTIA <span className="font-sans font-light text-white/80">PATIENT PORTAL</span>
                         </h1>
                         <p className="text-[11px] font-medium tracking-widest text-light-teal uppercase">
-                            Patient Health Hub & Digital Records
+                            {mode === 'reset' ? 'Security Recovery & Access Control' : 'Patient Health Hub & Digital Records'}
                         </p>
                     </div>
                 </div>
@@ -174,26 +183,51 @@ export default function PatientActivate() {
                     </h2>
 
                     <p className="text-white/85 font-medium text-sm leading-relaxed">
-                        Securely connect to your clinic records using your clinic-issued Reference Number and verified Date of Birth on file.
+                        {mode === 'reset'
+                            ? 'Establish a new password using your clinic-issued Reference Number and registered Date of Birth. All cryptographic security tokens are verified against your official clinic file.'
+                            : 'Welcome to your clinic self-service portal. Enter your clinic Reference Number and Date of Birth to complete first-time registration and set your secure password.'}
                     </p>
 
                     <div className="grid grid-cols-2 gap-3 pt-3 text-xs font-medium text-white/90">
-                        <div className="flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4 text-light-teal shrink-0" />
-                            <span>Chairside Consultation Notes</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4 text-light-teal shrink-0" />
-                            <span>Digital Radiographs & X-Rays</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4 text-light-teal shrink-0" />
-                            <span>Interactive 32-Tooth Chart</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4 text-light-teal shrink-0" />
-                            <span>Online Appointment Scheduling</span>
-                        </div>
+                        {mode === 'reset' ? (
+                            <>
+                                <div className="flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4 text-sky-300 shrink-0" />
+                                    <span>256-Bit PII Security</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4 text-sky-300 shrink-0" />
+                                    <span>Instant Token Recovery</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4 text-sky-300 shrink-0" />
+                                    <span>Full Audit-Log Verification</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4 text-sky-300 shrink-0" />
+                                    <span>Automatic Dashboard Login</span>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4 text-light-teal shrink-0" />
+                                    <span>Chairside Consultation Notes</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4 text-light-teal shrink-0" />
+                                    <span>Digital Radiographs & X-Rays</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4 text-light-teal shrink-0" />
+                                    <span>Interactive 32-Tooth Chart</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4 text-light-teal shrink-0" />
+                                    <span>Online Appointment Scheduling</span>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
 

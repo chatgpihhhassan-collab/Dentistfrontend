@@ -67,8 +67,8 @@ export default function PatientLogin() {
         <div className="min-h-screen bg-warm-cream flex font-sans">
             {/* Left Hero Graphic Column */}
             <div 
-                className="hidden lg:flex w-[50%] relative flex-col justify-between p-12 overflow-hidden border-r border-light-teal bg-cover bg-center"
-                style={{ backgroundImage: `url('/premium_ai_dental_login.png')` }}
+                className="hidden lg:flex w-[50%] relative flex-col justify-between p-12 overflow-hidden border-r border-light-teal bg-cover bg-center transition-all duration-500"
+                style={{ backgroundImage: `url('/patient_login_bg.jpg')` }}
             >
                 <div className="absolute inset-0 bg-gradient-to-b from-dark-slate/80 via-dark-slate/50 to-dark-slate/90" />
 
