@@ -166,17 +166,11 @@ export default function Auth() {
         <div className="min-h-screen bg-warm-cream flex font-sans">
             {/* Left Column (Adaptive Brand & Feature Showcase) */}
             <div 
-                className="hidden lg:flex w-[52%] relative flex-col justify-between p-12 overflow-hidden border-r border-light-teal bg-cover bg-center transition-all duration-700"
-                style={{ 
-                    backgroundImage: `url('${activeRole === 'patient' ? '/patient_login_bg.jpg' : '/premium_ai_dental_login.png'}')` 
-                }}
+                className="hidden lg:flex w-[52%] relative flex-col justify-between p-12 overflow-hidden border-r border-light-teal bg-cover bg-center"
+                style={{ backgroundImage: `url('/premium_ai_dental_login.png')` }}
             >
                 {/* Contrast overlay */}
-                <div className={`absolute inset-0 transition-opacity duration-700 ${
-                    activeRole === 'patient'
-                        ? 'bg-gradient-to-b from-dark-slate/80 via-dark-slate/55 to-dark-slate/90'
-                        : 'bg-gradient-to-b from-dark-slate/75 via-dark-slate/50 to-dark-slate/85'
-                }`} />
+                <div className="absolute inset-0 bg-gradient-to-b from-dark-slate/75 via-dark-slate/50 to-dark-slate/85" />
                 
                 {/* Brand Header */}
                 <div className="relative z-10 flex items-center space-x-3">
