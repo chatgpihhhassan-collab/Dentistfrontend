@@ -319,16 +319,46 @@ export const handlePrintCompletePatientReport = (patientArg, teethListArg = [], 
         
         .patient-card { 
           background: #F8FAFC; 
-          border: 1px solid #E2E8F0; 
+          border: 1.5px solid #CBD5E1; 
           border-radius: 8px; 
-          padding: 8px 12px; 
           margin-bottom: 10px; 
-          display: grid; 
-          grid-template-columns: 1.8fr 1.4fr 0.9fr 1.1fr 1.4fr; 
-          gap: 8px; 
+          overflow: hidden;
         }
-        .field-label { font-size: 7.5px; font-weight: 800; color: #64748B; text-transform: uppercase; }
+        .patient-card-main {
+          padding: 8px 12px;
+          display: grid; 
+          grid-template-columns: 1.6fr 1.4fr 0.8fr 1.1fr 1.4fr; 
+          gap: 8px; 
+          align-items: center;
+        }
+        .field-label { font-size: 7.5px; font-weight: 800; color: #64748B; text-transform: uppercase; letter-spacing: 0.3px; }
         .field-val { font-size: 10.5px; font-weight: 700; color: #0F172A; margin-top: 1px; }
+        .patient-portal-bar {
+          background: #F0FDF4;
+          border-top: 1px solid #CCFBF1;
+          padding: 5px 12px;
+          display: grid;
+          grid-template-columns: auto 1.3fr 1.1fr 1.6fr;
+          gap: 10px;
+          align-items: center;
+          font-size: 8px;
+        }
+        .portal-bar-badge {
+          background: #CCFBF1;
+          color: #0F766E;
+          font-weight: 900;
+          font-size: 7px;
+          padding: 2px 6px;
+          border-radius: 4px;
+          letter-spacing: 0.4px;
+          white-space: nowrap;
+          text-transform: uppercase;
+        }
+        .portal-bar-cell {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
         
         .metrics-bar { display: flex; gap: 6px; margin-bottom: 10px; }
         .metric-pill { flex: 1; padding: 5px 6px; border-radius: 6px; border: 1px solid #E2E8F0; background: #FFF; text-align: center; }
@@ -471,39 +501,46 @@ export const handlePrintCompletePatientReport = (patientArg, teethListArg = [], 
         </div>
       </div>
 
-      <!-- Patient Information Card -->
+      <!-- Patient Information & Portal Access Card -->
       <div class="patient-card">
-        <div>
-          <div class="field-label">Patient Full Name</div>
-          <div class="field-val" style="font-size: 11px; color: #1E3A8A;">${pName}</div>
+        <div class="patient-card-main">
+          <div>
+            <div class="field-label">Patient Full Name</div>
+            <div class="field-val" style="font-size: 11px; font-weight: 800; color: #1E3A8A;">${pName}</div>
+          </div>
+          <div>
+            <div class="field-label">Reference Number</div>
+            <div class="field-val" style="font-family: monospace; font-size: 10.5px; font-weight: 900; color: #0F766E;">${pRefNo}</div>
+          </div>
+          <div>
+            <div class="field-label">Patient ID</div>
+            <div class="field-val" style="font-weight: 800; color: #334155;">#${patient?.patientID || patient?.id || '40'}</div>
+          </div>
+          <div>
+            <div class="field-label">Age & Gender</div>
+            <div class="field-val">${patient?.age ? `${patient.age} Yrs` : '25 Yrs'} (${patient?.gender || 'Female'})</div>
+          </div>
+          <div>
+            <div class="field-label">Dentition Category</div>
+            <div class="field-val" style="font-weight: 700; color: #6D28D9;">${isPed ? '👶 Pediatric Primary (A–T)' : '🦷 Adult Permanent (1–32)'}</div>
+          </div>
         </div>
-        <div>
-          <div class="field-label">Reference Number</div>
-          <div class="field-val" style="font-family: monospace; font-size: 11px; font-weight: 900; color: #0F766E;">${pRefNo}</div>
-        </div>
-        <div>
-          <div class="field-label">Patient ID</div>
-          <div class="field-val">#${patient?.patientID || patient?.id || '40'}</div>
-        </div>
-        <div>
-          <div class="field-label">Age & Gender</div>
-          <div class="field-val">${patient?.age ? `${patient.age} Yrs` : '25 Yrs'} (${patient?.gender || 'Female'})</div>
-        </div>
-        <div>
-          <div class="field-label">Dentition Category</div>
-          <div class="field-val" style="color: #6D28D9;">${isPed ? '👶 Pediatric Primary (A–T)' : '🦷 Adult Permanent (1–32)'}</div>
-        </div>
-      </div>
 
-      <!-- Online Health Portal Quick Access Credentials Banner -->
-      <div style="background: #F0FDF4; border: 1.5px solid #99F6E4; border-radius: 6px; padding: 5px 10px; margin-bottom: 9px; display: flex; justify-content: space-between; align-items: center; font-size: 8px;">
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <span style="font-weight: 900; color: #0F766E; text-transform: uppercase;">🌐 Online Patient Portal:</span>
-          <a href="https://dentistfrontend.vercel.app/portal/login" target="_blank" style="color: #0F766E; font-weight: 800; text-decoration: underline;">https://dentistfrontend.vercel.app/portal/login</a>
-        </div>
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <span><strong>Username / Ref #:</strong> <span style="font-family: monospace; font-weight: 900; color: #0F766E;">${pRefNo}</span></span>
-          <span><strong>Password / Key:</strong> Initial DOB (<strong style="color: #0F766E;">${pDob}</strong>) or registered password</span>
+        <!-- Integrated Portal Access Sub-bar -->
+        <div class="patient-portal-bar">
+          <div class="portal-bar-badge">🌐 PATIENT PORTAL</div>
+          <div class="portal-bar-cell">
+            <strong style="color: #475569;">URL:</strong> 
+            <a href="https://dentistfrontend.vercel.app/portal/login" target="_blank" style="color: #0F766E; font-weight: 800; text-decoration: underline;">dentistfrontend.vercel.app/portal/login</a>
+          </div>
+          <div class="portal-bar-cell">
+            <strong style="color: #475569;">Username:</strong> 
+            <span style="font-family: monospace; font-weight: 900; color: #0F766E;">${pRefNo}</span>
+          </div>
+          <div class="portal-bar-cell">
+            <strong style="color: #475569;">Password:</strong> 
+            <span>Verified DOB (<strong style="color: #0F766E;">${pDob}</strong>) or Account Password</span>
+          </div>
         </div>
       </div>
 
