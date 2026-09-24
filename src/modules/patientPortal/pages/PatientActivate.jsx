@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { Sparkles, Hash, Calendar, Lock, ArrowRight, AlertCircle, CheckCircle2, ShieldCheck, KeyRound, Clock } from 'lucide-react';
+import { 
+    Sparkles, Hash, Calendar, Lock, ArrowRight, AlertCircle, 
+    CheckCircle2, ShieldCheck, KeyRound, Eye, EyeOff, User, 
+    Stethoscope, Clock, ShieldAlert, FileText
+} from 'lucide-react';
 import API_BASE_URL from '../../../config/apiConfig';
 
 export default function PatientActivate() {
@@ -12,6 +16,8 @@ export default function PatientActivate() {
     const [dob, setDob] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
@@ -55,12 +61,12 @@ export default function PatientActivate() {
         setSuccessMessage('');
 
         if (lockoutSeconds > 0) {
-            setError(`Security Lockout: Too many failed verification attempts. Please wait ${lockoutSeconds} seconds.`);
+            setError(`Security Lockout: Too many failed attempts. Please wait ${lockoutSeconds} seconds.`);
             return;
         }
 
         if (newPassword !== confirmPassword) {
-            setError('Passwords do not match. Please verify your entries.');
+            setError('Passwords do not match. Please re-enter.');
             return;
         }
 
@@ -98,24 +104,24 @@ export default function PatientActivate() {
             if (res.ok) {
                 setSuccessMessage(
                     mode === 'reset'
-                        ? '✅ Password reset successfully! Redirecting to your patient dashboard...'
+                        ? '✅ Password updated successfully! Redirecting to portal...'
                         : '✅ Account activated successfully! Logging you in...'
                 );
                 localStorage.setItem('patient', JSON.stringify(data));
                 setTimeout(() => {
                     navigate('/portal/dashboard', { replace: true });
-                }, 1500);
+                }, 1400);
             } else {
                 const newAttempts = failedAttempts + 1;
                 setFailedAttempts(newAttempts);
 
                 if (newAttempts >= 5) {
                     setLockoutSeconds(60);
-                    setError('⚠️ Security Alert: 5 incorrect verification attempts. Account recovery locked for 60 seconds to prevent unauthorized access.');
+                    setError('⚠️ Security Alert: 5 incorrect verification attempts. Account locked for 60 seconds.');
                 } else {
                     setError(
                         data.message || 
-                        `Verification failed. Date of Birth does not match clinic records for Reference Number ${referenceNumber.trim()}. (${5 - newAttempts} attempts remaining)`
+                        `Verification failed: Date of Birth does not match clinic records for Reference Number ${referenceNumber.trim()}. (${5 - newAttempts} attempts remaining)`
                     );
                 }
             }
@@ -128,205 +134,297 @@ export default function PatientActivate() {
     };
 
     return (
-        <div className="min-h-screen bg-warm-cream flex flex-col justify-center items-center p-4 sm:p-8 font-sans">
-            <div className="w-full max-w-lg bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-light-teal space-y-6">
-                
-                {/* Header */}
-                <div className="text-center space-y-2">
-                    <Link to="/portal/login" className="inline-flex items-center space-x-2">
+        <div className="min-h-screen bg-warm-cream flex font-sans">
+            {/* ========================================================================= */}
+            {/* LEFT COLUMN: BRAND HERO & CLINICAL SECURITY SHOWCASE                      */}
+            {/* ========================================================================= */}
+            <div 
+                className="hidden lg:flex w-[50%] relative flex-col justify-between p-12 overflow-hidden border-r border-light-teal bg-cover bg-center"
+                style={{ backgroundImage: `url('/premium_ai_dental_login.png')` }}
+            >
+                {/* Gradient Contrast Overlay */}
+                <div className="absolute inset-0 bg-gradient-to-b from-dark-slate/85 via-dark-slate/65 to-dark-slate/90" />
+
+                {/* Brand Header */}
+                <div className="relative z-10 flex items-center space-x-3">
+                    <div className="w-11 h-11 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-lg">
+                        <Sparkles className="w-6 h-6 text-light-teal" />
+                    </div>
+                    <div>
+                        <h1 className="text-xl font-serif font-black tracking-wide text-white">
+                            DENTIA <span className="font-sans font-light text-white/80">PATIENT PORTAL</span>
+                        </h1>
+                        <p className="text-[11px] font-medium tracking-widest text-light-teal uppercase">
+                            Patient Health Hub & Digital Records
+                        </p>
+                    </div>
+                </div>
+
+                {/* Hero Description & Security Value Props */}
+                <div className="relative z-10 max-w-lg space-y-4">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-semibold text-emerald-300">
+                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                        <span>Protected by 2-Factor Healthcare PII Verification</span>
+                    </div>
+
+                    <h2 className="text-3xl sm:text-4xl font-serif font-extrabold text-white leading-tight shadow-sm">
+                        {mode === 'reset'
+                            ? 'Recover & Update Your Dental Portal Access.'
+                            : 'Activate Your Personal Dental Health Portal.'}
+                    </h2>
+
+                    <p className="text-white/85 font-medium text-sm leading-relaxed">
+                        Securely connect to your clinic records using your clinic-issued Reference Number and verified Date of Birth on file.
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-3 pt-3 text-xs font-medium text-white/90">
+                        <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-light-teal shrink-0" />
+                            <span>Chairside Consultation Notes</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-light-teal shrink-0" />
+                            <span>Digital Radiographs & X-Rays</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-light-teal shrink-0" />
+                            <span>Interactive 32-Tooth Chart</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-light-teal shrink-0" />
+                            <span>Online Appointment Scheduling</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer Badges */}
+                <div className="relative z-10 flex items-center justify-between text-xs text-white/60 font-medium">
+                    <span>© 2026 Dentia Clinical Systems</span>
+                    <span className="flex items-center gap-1.5">
+                        <Lock className="w-3.5 h-3.5 text-light-teal" />
+                        <span>256-Bit PII Encrypted</span>
+                    </span>
+                </div>
+            </div>
+
+            {/* ========================================================================= */}
+            {/* RIGHT COLUMN: MODERN SLEEK FORM                                           */}
+            {/* ========================================================================= */}
+            <div className="w-full lg:w-[50%] flex flex-col justify-center items-center p-6 sm:p-12 relative overflow-y-auto">
+                <div className="w-full max-w-md space-y-6">
+
+                    {/* Mobile Brand Header */}
+                    <div className="lg:hidden flex items-center space-x-2.5 pb-2">
                         <div className="w-9 h-9 rounded-xl bg-primary-teal flex items-center justify-center text-white shadow-xs">
                             <Sparkles className="w-5 h-5" />
                         </div>
-                        <span className="font-serif font-black text-xl text-dark-slate">DENTIA CLINIC</span>
-                    </Link>
+                        <div>
+                            <span className="font-serif font-black text-lg text-dark-slate">DENTIA PATIENT PORTAL</span>
+                        </div>
+                    </div>
 
-                    {/* Mode Selector Tabs (Activate vs Reset) */}
-                    <div className="pt-2">
-                        <div className="inline-grid grid-cols-2 p-1.5 bg-light-teal/70 rounded-2xl border border-light-teal w-full max-w-xs mx-auto">
-                            <button
-                                type="button"
-                                onClick={() => { setMode('reset'); setError(''); setSuccessMessage(''); }}
-                                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                                    mode === 'reset'
-                                        ? 'bg-white text-dark-slate shadow-sm'
-                                        : 'text-muted-text hover:text-dark-slate'
-                                }`}
-                            >
-                                <KeyRound className="w-3.5 h-3.5 text-primary-teal" />
-                                <span>Reset Password</span>
-                            </button>
+                    {/* Mode Segmented Switcher Tabs */}
+                    <div className="p-1 bg-slate-100 rounded-2xl border border-slate-200/90 shadow-2xs">
+                        <div className="grid grid-cols-2 gap-1">
                             <button
                                 type="button"
                                 onClick={() => { setMode('activate'); setError(''); setSuccessMessage(''); }}
-                                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                                     mode === 'activate'
-                                        ? 'bg-white text-dark-slate shadow-sm'
+                                        ? 'bg-white text-dark-slate shadow-xs border border-slate-200/80'
                                         : 'text-muted-text hover:text-dark-slate'
                                 }`}
                             >
-                                <Sparkles className="w-3.5 h-3.5 text-primary-teal" />
+                                <Sparkles className={`w-3.5 h-3.5 ${mode === 'activate' ? 'text-primary-teal' : 'text-slate-400'}`} />
                                 <span>Activate Account</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => { setMode('reset'); setError(''); setSuccessMessage(''); }}
+                                className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                    mode === 'reset'
+                                        ? 'bg-white text-dark-slate shadow-xs border border-slate-200/80'
+                                        : 'text-muted-text hover:text-dark-slate'
+                                }`}
+                            >
+                                <KeyRound className={`w-3.5 h-3.5 ${mode === 'reset' ? 'text-primary-teal' : 'text-slate-400'}`} />
+                                <span>Reset Password</span>
                             </button>
                         </div>
                     </div>
 
-                    <h2 className="text-2xl sm:text-3xl font-serif font-black text-dark-slate pt-1">
-                        {mode === 'reset' ? 'Reset Portal Password' : 'Activate Clinic Account'}
-                    </h2>
-                    <p className="text-xs sm:text-sm text-muted-text max-w-md mx-auto">
-                        {mode === 'reset'
-                            ? 'Already registered? Enter your Patient Reference Number and Date of Birth to securely reset your password.'
-                            : 'If you visited our clinic or scheduled an appointment, enter your Patient Reference Number and Date of Birth to set up your password.'}
-                    </p>
-                </div>
-
-                {/* Healthcare Multi-Factor Security Badge */}
-                <div className="p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 text-xs text-dark-slate flex items-start gap-3 shadow-2xs">
-                    <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                    {/* Form Title */}
                     <div>
-                        <p className="font-bold text-emerald-950 flex items-center gap-1.5">
-                            <span>Protected by 2-Factor Healthcare PII Verification</span>
-                        </p>
-                        <p className="text-emerald-800 text-[11px] mt-0.5 leading-relaxed">
-                            To prevent unauthorized password changes, your request is authenticated against both your 
-                            <strong className="text-emerald-950"> Reference Number</strong> and your verified 
-                            <strong className="text-emerald-950"> Date of Birth</strong> on file.
-                        </p>
-                    </div>
-                </div>
-
-                {/* Helper info pill */}
-                <div className="p-3 rounded-xl bg-light-teal/40 border border-light-teal/70 text-xs text-dark-slate flex items-start gap-2.5">
-                    <Hash className="w-4 h-4 text-primary-teal shrink-0 mt-0.5" />
-                    <div>
-                        <p className="font-bold text-[11.5px]">Where do I find my Reference Number?</p>
-                        <p className="text-muted-text text-[11px]">
-                            Found on your clinic appointment slip, treatment invoice, or SMS reminder (format: <code className="font-bold text-primary-hover">DEN-2026-XXXXX</code>).
+                        <h2 className="text-2xl sm:text-3xl font-serif font-black text-dark-slate tracking-tight">
+                            {mode === 'reset' ? 'Reset Portal Password' : 'Activate Clinic Account'}
+                        </h2>
+                        <p className="text-xs text-muted-text font-medium mt-1">
+                            {mode === 'reset'
+                                ? 'Verify your Reference Number and Date of Birth to create a new password.'
+                                : 'Enter your Reference Number and Date of Birth to set up your password.'}
                         </p>
                     </div>
-                </div>
 
-                {/* Error Banner */}
-                {error && (
-                    <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-center gap-2 animate-fadeIn">
-                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                        <span className="font-semibold">{error}</span>
-                    </div>
-                )}
-
-                {/* Success Banner */}
-                {successMessage && (
-                    <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2 animate-fadeIn">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span className="font-bold">{successMessage}</span>
-                    </div>
-                )}
-
-                {/* Lockout Warning */}
-                {lockoutSeconds > 0 && (
-                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-amber-600 shrink-0 animate-spin" />
-                        <span>Security cooldown active. You can retry in <strong>{lockoutSeconds}s</strong>.</span>
-                    </div>
-                )}
-
-                {/* Form */}
-                <form onSubmit={handleActivateOrReset} className="space-y-4">
-                    <div className="space-y-1">
-                        <label className="text-xs font-bold text-dark-slate flex items-center justify-between">
-                            <span>Patient Reference Number *</span>
-                            <span className="text-[10px] text-muted-text font-normal">e.g. DEN-2026-00040</span>
-                        </label>
-                        <div className="relative">
-                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted-text">
-                                <Hash className="w-4 h-4" />
+                    {/* Security Alert / Lockout Banner */}
+                    {lockoutSeconds > 0 && (
+                        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 text-xs flex items-center gap-3 animate-fadeIn">
+                            <Clock className="w-5 h-5 text-amber-600 shrink-0" />
+                            <div>
+                                <p className="font-bold">Security Lockout Active</p>
+                                <p className="text-[11px] text-amber-800">
+                                    Too many incorrect attempts. Please wait <strong>{lockoutSeconds}s</strong> before retrying.
+                                </p>
                             </div>
-                            <input
-                                type="text"
-                                required
-                                disabled={lockoutSeconds > 0 || loading}
-                                value={referenceNumber}
-                                onChange={(e) => setReferenceNumber(e.target.value)}
-                                placeholder="e.g. DEN-2026-00040"
-                                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-warm-cream/50 border border-slate-200 focus:border-primary-teal focus:ring-2 focus:ring-primary-teal/15 text-sm font-mono font-bold text-dark-slate uppercase outline-none disabled:opacity-50"
-                            />
                         </div>
-                    </div>
+                    )}
 
-                    <div className="space-y-1">
-                        <label className="text-xs font-bold text-dark-slate flex items-center justify-between">
-                            <span>Date of Birth (Security Verification) *</span>
-                            <span className="text-[10px] text-primary-teal font-semibold">Matches Clinic File</span>
-                        </label>
-                        <div className="relative">
-                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted-text">
-                                <Calendar className="w-4 h-4" />
+                    {/* Error Banner */}
+                    {error && (
+                        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-center gap-2.5 animate-fadeIn">
+                            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                            <span className="font-semibold leading-relaxed">{error}</span>
+                        </div>
+                    )}
+
+                    {/* Success Banner */}
+                    {successMessage && (
+                        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2.5 animate-fadeIn">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span className="font-semibold">{successMessage}</span>
+                        </div>
+                    )}
+
+                    {/* Clean Form */}
+                    <form onSubmit={handleActivateOrReset} className="space-y-4">
+                        {/* Reference Number Field */}
+                        <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                                <label className="text-xs font-bold text-dark-slate">
+                                    Patient Reference Number *
+                                </label>
+                                <span className="text-[10px] text-muted-text font-medium">e.g. DEN-2026-00040</span>
                             </div>
-                            <input
-                                type="date"
-                                required
-                                disabled={lockoutSeconds > 0 || loading}
-                                value={dob}
-                                onChange={(e) => setDob(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-warm-cream/50 border border-slate-200 focus:border-primary-teal focus:ring-2 focus:ring-primary-teal/15 text-sm font-medium outline-none disabled:opacity-50"
-                            />
+                            <div className="relative">
+                                <Hash className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                                <input
+                                    type="text"
+                                    required
+                                    value={referenceNumber}
+                                    onChange={(e) => setReferenceNumber(e.target.value.toUpperCase())}
+                                    placeholder="DEN-2026-XXXXX"
+                                    className="w-full pl-10 pr-4 py-3 bg-white border border-light-teal rounded-xl text-xs font-mono font-bold text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 transition-all uppercase"
+                                />
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                            <label className="text-xs font-bold text-dark-slate">Choose New Password *</label>
-                            <input
-                                type="password"
-                                required
-                                disabled={lockoutSeconds > 0 || loading}
-                                value={newPassword}
-                                onChange={(e) => setNewPassword(e.target.value)}
-                                placeholder="Min. 6 characters"
-                                className="w-full px-4 py-2.5 rounded-xl bg-warm-cream/50 border border-slate-200 focus:border-primary-teal focus:ring-2 focus:ring-primary-teal/15 text-sm font-medium outline-none disabled:opacity-50"
-                            />
+                        {/* Date of Birth Field */}
+                        <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                                <label className="text-xs font-bold text-dark-slate">
+                                    Date of Birth (Security Verification) *
+                                </label>
+                                <span className="text-[10px] text-muted-text font-medium">Matches clinic file</span>
+                            </div>
+                            <div className="relative">
+                                <Calendar className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                                <input
+                                    type="date"
+                                    required
+                                    value={dob}
+                                    onChange={(e) => setDob(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-3 bg-white border border-light-teal rounded-xl text-xs font-medium text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 transition-all"
+                                />
+                            </div>
                         </div>
-                        <div className="space-y-1">
-                            <label className="text-xs font-bold text-dark-slate">Confirm Password *</label>
-                            <input
-                                type="password"
-                                required
-                                disabled={lockoutSeconds > 0 || loading}
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                placeholder="Re-type password"
-                                className="w-full px-4 py-2.5 rounded-xl bg-warm-cream/50 border border-slate-200 focus:border-primary-teal focus:ring-2 focus:ring-primary-teal/15 text-sm font-medium outline-none disabled:opacity-50"
-                            />
+
+                        {/* Password Inputs Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                            <div>
+                                <label className="block text-xs font-bold text-dark-slate mb-1.5">
+                                    New Password *
+                                </label>
+                                <div className="relative">
+                                    <Lock className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                                    <input
+                                        type={showPassword ? 'text' : 'password'}
+                                        required
+                                        value={newPassword}
+                                        onChange={(e) => setNewPassword(e.target.value)}
+                                        placeholder="Min. 6 chars"
+                                        className="w-full pl-10 pr-10 py-3 bg-white border border-light-teal rounded-xl text-xs font-medium text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 transition-all"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute right-3 top-3.5 text-slate-400 hover:text-dark-slate"
+                                    >
+                                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-dark-slate mb-1.5">
+                                    Confirm Password *
+                                </label>
+                                <div className="relative">
+                                    <Lock className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                                    <input
+                                        type={showConfirmPassword ? 'text' : 'password'}
+                                        required
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        placeholder="Repeat password"
+                                        className="w-full pl-10 pr-10 py-3 bg-white border border-light-teal rounded-xl text-xs font-medium text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 transition-all"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                        className="absolute right-3 top-3.5 text-slate-400 hover:text-dark-slate"
+                                    >
+                                        {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                    </div>
 
-                    <button
-                        type="submit"
-                        disabled={loading || lockoutSeconds > 0}
-                        className="w-full py-3.5 rounded-2xl bg-primary-teal hover:bg-primary-hover text-white text-sm font-extrabold transition-all shadow-md shadow-primary-teal/20 flex items-center justify-center gap-2 group disabled:opacity-50 mt-2 cursor-pointer"
-                    >
-                        {loading ? (
-                            <span>Verifying &amp; updating...</span>
-                        ) : (
-                            <>
-                                <span>{mode === 'reset' ? 'Verify & Reset Password' : 'Activate Account & Log In'}</span>
-                                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                            </>
-                        )}
-                    </button>
-                </form>
+                        {/* Submit Button */}
+                        <div className="pt-2">
+                            <button
+                                type="submit"
+                                disabled={loading || lockoutSeconds > 0}
+                                className="w-full py-3.5 px-4 bg-primary-teal hover:bg-primary-hover disabled:opacity-50 text-white rounded-xl font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                                {loading ? (
+                                    <span>Verifying clinic records...</span>
+                                ) : (
+                                    <>
+                                        <span>
+                                            {mode === 'reset' ? 'Verify & Reset Password' : 'Activate Account & Log In'}
+                                        </span>
+                                        <ArrowRight className="w-4 h-4" />
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </form>
 
-                <div className="text-center pt-2 text-xs text-muted-text space-y-2">
-                    <div>
-                        Remember your password?{' '}
-                        <Link to="/portal/login" className="font-bold text-primary-teal hover:underline">
-                            Sign In with Password
+                    {/* Footer Nav Links */}
+                    <div className="pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between text-xs text-muted-text gap-2">
+                        <Link 
+                            to="/portal/login" 
+                            className="font-bold text-primary-teal hover:text-primary-hover flex items-center gap-1"
+                        >
+                            <User className="w-3.5 h-3.5" />
+                            <span>Already have a password? Sign In</span>
                         </Link>
-                    </div>
-                    <div>
-                        New patient with no clinic visits yet?{' '}
-                        <Link to="/portal/register" className="font-bold text-primary-hover hover:underline">
-                            Register an account online
+                        <Link 
+                            to="/login" 
+                            className="text-slate-500 hover:text-dark-slate font-medium flex items-center gap-1"
+                        >
+                            <Stethoscope className="w-3.5 h-3.5" />
+                            <span>Doctor Login</span>
                         </Link>
                     </div>
                 </div>

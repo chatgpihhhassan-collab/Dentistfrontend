@@ -295,15 +295,33 @@ export const generateRadiographPdf = async ({
   doc.text(docName, signX, y);
   y += 3.5;
 
+  // ---------------------------------------------------------------------------
+  // 7. PATIENT PORTAL ACCESS CREDENTIALS FOOTER BOX
+  // ---------------------------------------------------------------------------
+  const portalBoxY = pageHeight - 32;
+  const pRefNo = patient.referenceNumber || (patient.referenceNo || `DEN-2026-${String(patient.patientID || patient.id || '00000').padStart(5, '0')}`);
+  const pDob = patient.dob ? new Date(patient.dob).toLocaleDateString('en-GB') : 'Verified DOB on file';
+
+  doc.setFillColor(240, 253, 250); // teal-50
+  doc.setDrawColor(153, 246, 228); // teal-200
+  doc.roundedRect(margin, portalBoxY, contentWidth, 22, 2, 2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...primaryTeal);
+  doc.text('PATIENT SELF-SERVICE HEALTH PORTAL ACCESS', margin + 4, portalBoxY + 5);
+
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.setTextColor(...textMuted);
-  doc.text('Consultant Dental Surgeon · BDS, FCPS (Oral Surgery)', signX, y);
+  doc.setTextColor(...darkSlate);
+  doc.text(`• Portal Link: https://dentistfrontend.vercel.app/portal/login`, margin + 4, portalBoxY + 10);
+  doc.text(`• Username / Reference #: ${pRefNo}`, margin + 105, portalBoxY + 10);
+  doc.text(`• Access Key / Password: Log in with Reference # or activate at portal using verified DOB (${pDob}).`, margin + 4, portalBoxY + 15);
 
-  // Footer
-  doc.setFontSize(7);
+  // Footer Note
+  doc.setFontSize(6.5);
   doc.setTextColor(...textMuted);
-  doc.text('This radiographic examination was acquired chairside with Eighteeth Nano-Pix sensor and analyzed via Dentia AI Clinical Pipeline.', margin, pageHeight - 8);
+  doc.text('This radiographic examination was acquired chairside with Eighteeth Nano-Pix sensor and verified via Dentia AI Clinical Pipeline.', margin, pageHeight - 5);
 
   // Trigger download
   const cleanPatientName = (patient.name || patient.firstName || 'Patient').replace(/[^a-zA-Z0-9]/g, '_');

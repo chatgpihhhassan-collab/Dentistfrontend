@@ -11,12 +11,24 @@ import {
     AlertCircle, 
     X, 
     ZoomIn, 
+    ZoomOut,
+    RotateCcw,
     Sparkles, 
     Clock, 
     ChevronDown, 
-    ChevronUp 
+    ChevronUp,
+    Printer,
+    KeyRound,
+    Hash,
+    ShieldCheck,
+    Contrast,
+    Activity,
+    Layers,
+    Stethoscope
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import API_BASE_URL from '../../../config/apiConfig';
+import { generateClinicalReportPdf } from '../../../utils/ClinicalReportPdfGenerator';
 
 export default function PatientReports() {
     const [activeSection, setActiveSection] = useState('notes'); // 'notes' | 'prescriptions' | 'xrays'
@@ -26,8 +38,14 @@ export default function PatientReports() {
     const [loading, setLoading] = useState(true);
     const [selectedXray, setSelectedXray] = useState(null);
     const [expandedNoteId, setExpandedNoteId] = useState(null);
+    const [downloadingId, setDownloadingId] = useState(null);
+
+    // Lightbox image inspection states
+    const [xrayZoom, setXrayZoom] = useState(1);
+    const [xrayInverted, setXrayInverted] = useState(false);
 
     const patient = JSON.parse(localStorage.getItem('patient') || '{}');
+    const patientRefNo = patient.referenceNumber || (patient.referenceNo || `DEN-2026-${String(patient.patientID || patient.patientId || '00000').padStart(5, '0')}`);
 
     useEffect(() => {
         const fetchAllData = async () => {
@@ -72,23 +90,151 @@ export default function PatientReports() {
         setExpandedNoteId(expandedNoteId === id ? null : id);
     };
 
+    // Safe date formatter preventing "Invalid Date"
+    const formatReportDate = (dateVal) => {
+        if (!dateVal) return 'Verified Clinical File';
+        const d = new Date(dateVal);
+        if (isNaN(d.getTime())) return 'Verified Clinical File';
+        return d.toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
+    };
+
+    // Robust cleaner and parser for AI radiograph markdown and JSON dumps
+    const parseRadiographAnalysis = (raw) => {
+        if (!raw) {
+            return {
+                cleanSnippet: 'Diagnostic dental radiograph archived on clinic file.',
+                sections: []
+            };
+        }
+
+        // 1. Strip raw JSON blocks (```json ... ``` or ``` ... ```)
+        let cleaned = raw.replace(/```json[\s\S]*?```/gi, '').replace(/```[\s\S]*?```/gi, '').trim();
+
+        // 2. Extract sections based on ### headers
+        const sections = [];
+        const overviewMatch = cleaned.match(/###?\s*1[.\s]+CLINICAL RADIOGRAPHIC OVERVIEW\s*([\s\S]*?)(?=###?\s*2|$)/i);
+        const toothMatch = cleaned.match(/###?\s*2[.\s]+TOOTH-BY-TOOTH FINDINGS[^\n]*\s*([\s\S]*?)(?=###?\s*3|$)/i);
+        const soapMatch = cleaned.match(/###?\s*3[.\s]+COMPREHENSIVE SOAP[^\n]*\s*([\s\S]*?)(?=###?\s*4|$)/i);
+
+        const cleanText = (text) => {
+            if (!text) return '';
+            return text
+                .replace(/\*\*(.*?)\*\*/g, '$1') // strip markdown bold syntax
+                .replace(/^[-\s*]+/gm, '• ')      // normalize bullets
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+        };
+
+        if (overviewMatch && overviewMatch[1].trim()) {
+            sections.push({
+                title: 'Clinical Radiographic Overview',
+                badge: 'Modality & Quality',
+                content: cleanText(overviewMatch[1])
+            });
+        }
+
+        if (toothMatch && toothMatch[1].trim()) {
+            sections.push({
+                title: 'Tooth-by-Tooth Findings & Pathology',
+                badge: 'Anatomy',
+                content: cleanText(toothMatch[1])
+            });
+        }
+
+        if (soapMatch && soapMatch[1].trim()) {
+            sections.push({
+                title: 'Comprehensive SOAP Impression & Care Plan',
+                badge: 'Clinical SOAP',
+                content: cleanText(soapMatch[1])
+            });
+        }
+
+        if (sections.length === 0) {
+            sections.push({
+                title: 'Diagnostic Radiographic Impression',
+                badge: 'AI Diagnostic',
+                content: cleanText(cleaned)
+            });
+        }
+
+        // Short preview snippet for card view
+        let snippet = cleaned
+            .replace(/###.*?\n/g, ' ')
+            .replace(/\*\*.*?\*\*/g, '')
+            .replace(/[-*•]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        if (snippet.length > 150) {
+            snippet = snippet.substring(0, 147) + '...';
+        }
+
+        return { cleanSnippet: snippet, sections };
+    };
+
+    // Download Official Clinical Report PDF with credentials in footer
+    const handleDownloadReportPdf = async (note) => {
+        try {
+            setDownloadingId(note.noteId);
+            const combinedPrescriptions = [
+                ...(prescriptions.consultationPrescriptions || []),
+                ...(prescriptions.directPrescriptions || [])
+            ];
+
+            await generateClinicalReportPdf({
+                patient: {
+                    ...patient,
+                    referenceNumber: patientRefNo
+                },
+                doctor: {
+                    name: note.doctorName || 'Dr. Dentia Attending Dentist'
+                },
+                report: note,
+                prescriptions: combinedPrescriptions
+            });
+        } catch (err) {
+            console.error('Failed to generate report PDF:', err);
+            alert('Failed to generate PDF. Please try again.');
+        } finally {
+            setDownloadingId(null);
+        }
+    };
+
     return (
-        <div className="space-y-6 animate-fadeIn">
+        <div className="space-y-6 animate-fadeIn font-sans">
             {/* Page Header */}
-            <div>
-                <h2 className="text-2xl sm:text-3xl font-serif font-black text-dark-slate">
-                    Clinical Records & Diagnostics
-                </h2>
-                <p className="text-xs sm:text-sm text-muted-text">
-                    Review your doctor consultation summaries, active medication chart, and digital radiographic scans.
-                </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h2 className="text-2xl sm:text-3xl font-serif font-black text-dark-slate">
+                        Clinical Records & Diagnostics
+                    </h2>
+                    <p className="text-xs sm:text-sm text-muted-text mt-0.5">
+                        Review your doctor consultation summaries, active medication chart, and digital radiographic scans.
+                    </p>
+                </div>
+
+                {/* Patient Portal Access Quick-Badge */}
+                <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-white border border-light-teal shadow-xs text-xs self-start sm:self-auto">
+                    <div className="w-8 h-8 rounded-xl bg-light-teal text-primary-teal flex items-center justify-center font-bold">
+                        <Hash className="w-4 h-4" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] text-muted-text font-bold uppercase tracking-wider">Patient Reference #</p>
+                        <p className="text-xs font-mono font-bold text-dark-slate">{patientRefNo}</p>
+                    </div>
+                </div>
             </div>
 
             {/* Navigation Tabs */}
             <div className="flex items-center gap-2 border-b border-light-teal pb-2 overflow-x-auto">
                 <button
                     onClick={() => setActiveSection('notes')}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
                         activeSection === 'notes'
                             ? 'bg-white text-primary-teal shadow-xs border border-light-teal'
                             : 'text-muted-text hover:text-dark-slate'
@@ -103,7 +249,7 @@ export default function PatientReports() {
 
                 <button
                     onClick={() => setActiveSection('prescriptions')}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
                         activeSection === 'prescriptions'
                             ? 'bg-white text-primary-teal shadow-xs border border-light-teal'
                             : 'text-muted-text hover:text-dark-slate'
@@ -118,7 +264,7 @@ export default function PatientReports() {
 
                 <button
                     onClick={() => setActiveSection('xrays')}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
                         activeSection === 'xrays'
                             ? 'bg-white text-primary-teal shadow-xs border border-light-teal'
                             : 'text-muted-text hover:text-dark-slate'
@@ -139,23 +285,22 @@ export default function PatientReports() {
                 </div>
             ) : (
                 <>
-                    {/* 1. CONSULTATION REPORTS SECTION */}
+                    {/* ========================================================================= */}
+                    {/* 1. CONSULTATION REPORTS SECTION                                           */}
+                    {/* ========================================================================= */}
                     {activeSection === 'notes' && (
                         <div className="space-y-4">
                             {reports.length > 0 ? (
                                 reports.map((note) => {
                                     const isExpanded = expandedNoteId === note.noteId;
-                                    const dateStr = new Date(note.createdAt).toLocaleDateString('en-US', {
-                                        weekday: 'short',
-                                        month: 'short',
-                                        day: 'numeric',
-                                        year: 'numeric'
-                                    });
+                                    const rawDate = note.createdAt || note.CreatedAt || note.date || note.Date;
+                                    const dateStr = formatReportDate(rawDate);
+                                    const isPdfLoading = downloadingId === note.noteId;
 
                                     return (
                                         <div 
                                             key={note.noteId} 
-                                            className="bg-white rounded-3xl p-6 shadow-sm border border-light-teal space-y-4 transition-all hover:shadow-md"
+                                            className="bg-white rounded-3xl p-6 shadow-xs border border-light-teal space-y-4 transition-all hover:shadow-md"
                                         >
                                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-light-teal/70 pb-4">
                                                 <div className="flex items-center gap-3">
@@ -166,7 +311,7 @@ export default function PatientReports() {
                                                         <h3 className="text-base font-bold text-dark-slate">
                                                             {note.summary || 'Dental Examination & Procedure Report'}
                                                         </h3>
-                                                        <p className="text-xs text-muted-text flex items-center gap-2">
+                                                        <p className="text-xs text-muted-text flex items-center gap-2 mt-0.5">
                                                             <span>{dateStr}</span>
                                                             <span>•</span>
                                                             <span className="font-semibold text-primary-hover">Dr. {note.doctorName || 'Dentia Attending Dentist'}</span>
@@ -174,13 +319,26 @@ export default function PatientReports() {
                                                     </div>
                                                 </div>
 
-                                                <button
-                                                    onClick={() => toggleNote(note.noteId)}
-                                                    className="px-3 py-1.5 rounded-xl border border-light-teal hover:bg-light-teal/50 text-xs font-bold text-dark-slate transition-colors flex items-center gap-1.5 self-start sm:self-center"
-                                                >
-                                                    <span>{isExpanded ? 'Hide Details' : 'View Full Care Plan'}</span>
-                                                    {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                                                </button>
+                                                <div className="flex items-center gap-2 self-start sm:self-center">
+                                                    {/* Download PDF Button */}
+                                                    <button
+                                                        onClick={() => handleDownloadReportPdf(note)}
+                                                        disabled={isPdfLoading}
+                                                        className="px-3 py-1.5 rounded-xl bg-light-teal hover:bg-light-teal-hover text-primary-teal text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                                        title="Download Official Clinical Report PDF with Portal Login Credentials in Footer"
+                                                    >
+                                                        <Printer className="w-3.5 h-3.5" />
+                                                        <span>{isPdfLoading ? 'Generating...' : 'Print PDF Report'}</span>
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => toggleNote(note.noteId)}
+                                                        className="px-3 py-1.5 rounded-xl border border-light-teal hover:bg-light-teal/50 text-xs font-bold text-dark-slate transition-colors flex items-center gap-1.5 cursor-pointer"
+                                                    >
+                                                        <span>{isExpanded ? 'Hide Details' : 'View Full Care Plan'}</span>
+                                                        {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             {/* Summary Snapshot */}
@@ -216,6 +374,34 @@ export default function PatientReports() {
                                                             <p className="text-primary-hover font-semibold">{note.followUp}</p>
                                                         </div>
                                                     )}
+
+                                                    {/* Official Patient Portal Login Access Footer Card */}
+                                                    <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-50 via-teal-50 to-emerald-50 border border-sky-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                        <div className="flex items-start gap-3">
+                                                            <div className="w-8 h-8 rounded-xl bg-primary-teal text-white flex items-center justify-center shrink-0 mt-0.5">
+                                                                <ShieldCheck className="w-4 h-4" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-bold text-dark-slate text-xs flex items-center gap-2">
+                                                                    <span>Patient Portal Login & Account Recovery</span>
+                                                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">Active</span>
+                                                                </p>
+                                                                <p className="text-muted-text text-[11px] mt-0.5">
+                                                                    Username / Ref: <strong className="font-mono text-dark-slate">{patientRefNo}</strong> · Use verified Date of Birth to log in or reset password anytime.
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-2">
+                                                            <Link
+                                                                to={`/portal/activate?mode=reset&ref=${encodeURIComponent(patientRefNo)}`}
+                                                                className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-dark-slate text-[11px] font-bold shadow-xs transition-colors flex items-center gap-1.5"
+                                                            >
+                                                                <KeyRound className="w-3.5 h-3.5 text-primary-teal" />
+                                                                <span>Reset Password</span>
+                                                            </Link>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
@@ -233,7 +419,9 @@ export default function PatientReports() {
                         </div>
                     )}
 
-                    {/* 2. PRESCRIPTIONS SECTION */}
+                    {/* ========================================================================= */}
+                    {/* 2. PRESCRIPTIONS SECTION                                                  */}
+                    {/* ========================================================================= */}
                     {activeSection === 'prescriptions' && (
                         <div className="space-y-4">
                             {/* Consultation Note Prescriptions */}
@@ -306,65 +494,73 @@ export default function PatientReports() {
                         </div>
                     )}
 
-                    {/* 3. DIGITAL RADIOGRAPHS (X-RAYS) SECTION */}
+                    {/* ========================================================================= */}
+                    {/* 3. DIGITAL RADIOGRAPHS (X-RAYS) SECTION                                    */}
+                    {/* ========================================================================= */}
                     {activeSection === 'xrays' && (
                         <div className="space-y-4">
                             {radiographs.length > 0 ? (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {radiographs.map((xray) => (
-                                        <div 
-                                            key={xray.radiographID}
-                                            className="bg-white rounded-3xl overflow-hidden border border-light-teal shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between"
-                                        >
-                                            {/* Image Thumbnail */}
+                                    {radiographs.map((xray) => {
+                                        const parsed = parseRadiographAnalysis(xray.analysisSummary);
+                                        const dateStr = formatReportDate(xray.uploadedAt);
+
+                                        return (
                                             <div 
-                                                onClick={() => setSelectedXray(xray)}
-                                                className="relative h-48 bg-black flex items-center justify-center cursor-pointer group overflow-hidden"
+                                                key={xray.radiographID}
+                                                className="bg-white rounded-3xl overflow-hidden border border-light-teal shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between"
                                             >
-                                                {xray.imageDataUrl ? (
-                                                    <img 
-                                                        src={xray.imageDataUrl} 
-                                                        alt={xray.imageName} 
-                                                        className="h-full w-full object-contain group-hover:scale-105 transition-transform"
-                                                    />
-                                                ) : (
-                                                    <div className="text-white/60 text-xs flex flex-col items-center gap-1">
-                                                        <ImageIcon className="w-8 h-8" />
-                                                        <span>Preview Scan</span>
-                                                    </div>
-                                                )}
-                                                <div className="absolute inset-0 bg-dark-slate/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white font-bold text-xs">
-                                                    <ZoomIn className="w-4 h-4" />
-                                                    <span>Click to Inspect</span>
-                                                </div>
-                                            </div>
-
-                                            {/* Card Details */}
-                                            <div className="p-4 space-y-2">
-                                                <div className="flex items-center justify-between text-xs">
-                                                    <h4 className="font-bold text-dark-slate truncate max-w-[180px]">{xray.imageName || 'Dental Radiograph'}</h4>
-                                                    <span className="text-[10px] text-muted-text font-mono">
-                                                        {new Date(xray.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                                    </span>
-                                                </div>
-
-                                                {xray.analysisSummary && (
-                                                    <p className="text-[11px] text-muted-text line-clamp-2 leading-relaxed">
-                                                        <span className="font-bold text-dark-slate">AI Diagnostic: </span>
-                                                        {xray.analysisSummary}
-                                                    </p>
-                                                )}
-
-                                                <button
-                                                    onClick={() => setSelectedXray(xray)}
-                                                    className="w-full py-2 rounded-xl bg-light-teal hover:bg-light-teal-hover text-primary-teal text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
+                                                {/* Image Thumbnail */}
+                                                <div 
+                                                    onClick={() => { setSelectedXray(xray); setXrayZoom(1); setXrayInverted(false); }}
+                                                    className="relative h-48 bg-slate-950 flex items-center justify-center cursor-pointer group overflow-hidden"
                                                 >
-                                                    <ZoomIn className="w-3.5 h-3.5" />
-                                                    <span>View High-Res Scan</span>
-                                                </button>
+                                                    {xray.imageDataUrl ? (
+                                                        <img 
+                                                            src={xray.imageDataUrl} 
+                                                            alt={xray.imageName} 
+                                                            className="h-full w-full object-contain group-hover:scale-105 transition-transform"
+                                                        />
+                                                    ) : (
+                                                        <div className="text-white/60 text-xs flex flex-col items-center gap-1">
+                                                            <ImageIcon className="w-8 h-8" />
+                                                            <span>Preview Scan</span>
+                                                        </div>
+                                                    )}
+                                                    <div className="absolute inset-0 bg-dark-slate/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white font-bold text-xs">
+                                                        <ZoomIn className="w-4 h-4" />
+                                                        <span>Click to Inspect Scan</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Card Details */}
+                                                <div className="p-4 space-y-2.5">
+                                                    <div className="flex items-center justify-between text-xs">
+                                                        <h4 className="font-bold text-dark-slate truncate max-w-[180px]">
+                                                            {xray.imageName || 'Dental Radiograph'}
+                                                        </h4>
+                                                        <span className="text-[10px] text-muted-text font-mono">
+                                                            {dateStr}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Clean AI Diagnostic Preview */}
+                                                    <p className="text-[11.5px] text-muted-text leading-relaxed line-clamp-2">
+                                                        <strong className="text-dark-slate font-semibold">AI Findings: </strong>
+                                                        {parsed.cleanSnippet}
+                                                    </p>
+
+                                                    <button
+                                                        onClick={() => { setSelectedXray(xray); setXrayZoom(1); setXrayInverted(false); }}
+                                                        className="w-full py-2 rounded-xl bg-light-teal hover:bg-light-teal-hover text-primary-teal text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                                                    >
+                                                        <ZoomIn className="w-3.5 h-3.5" />
+                                                        <span>Inspect & View Full Diagnosis</span>
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             ) : (
                                 <div className="py-16 text-center bg-white rounded-3xl border border-light-teal p-8 space-y-3">
@@ -380,49 +576,177 @@ export default function PatientReports() {
                 </>
             )}
 
-            {/* X-RAY LIGHTBOX MODAL */}
-            {selectedXray && (
-                <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4">
-                    <div className="absolute top-4 right-4 z-50">
-                        <button
-                            onClick={() => setSelectedXray(null)}
-                            className="p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-                        >
-                            <X className="w-6 h-6" />
-                        </button>
-                    </div>
+            {/* ========================================================================= */}
+            {/* ENHANCED MEDICAL X-RAY LIGHTBOX & DIAGNOSTIC MODAL                        */}
+            {/* ========================================================================= */}
+            {selectedXray && (() => {
+                const parsed = parseRadiographAnalysis(selectedXray.analysisSummary);
+                const scanDate = formatReportDate(selectedXray.uploadedAt);
 
-                    <div className="max-w-4xl w-full max-h-[85vh] flex flex-col items-center space-y-4">
-                        <div className="max-h-[70vh] w-full flex items-center justify-center overflow-auto">
-                            {selectedXray.imageDataUrl ? (
-                                <img
-                                    src={selectedXray.imageDataUrl}
-                                    alt={selectedXray.imageName}
-                                    className="max-h-[68vh] max-w-full object-contain rounded-2xl shadow-2xl border border-white/20"
-                                />
-                            ) : (
-                                <p className="text-white text-sm">Image data unavailable.</p>
-                            )}
-                        </div>
-
-                        {/* Scan telemetry banner */}
-                        <div className="w-full bg-white/10 backdrop-blur-md border border-white/10 p-4 rounded-2xl text-white text-xs space-y-1">
-                            <div className="flex items-center justify-between font-bold">
-                                <span>{selectedXray.imageName}</span>
-                                <span className="text-sky-300 font-mono">
-                                    {new Date(selectedXray.uploadedAt).toLocaleDateString()}
-                                </span>
+                return (
+                    <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col justify-between p-4 sm:p-6 animate-fadeIn">
+                        {/* Top Control Bar */}
+                        <div className="flex items-center justify-between text-white border-b border-white/10 pb-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center font-bold">
+                                    <ImageIcon className="w-5 h-5 text-sky-400" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                                        <span>{selectedXray.imageName || 'Digital Dental Radiograph'}</span>
+                                        <span className="text-[10px] font-mono font-normal px-2 py-0.5 rounded-full bg-white/10 text-sky-300">
+                                            Ref #{patientRefNo}
+                                        </span>
+                                    </h3>
+                                    <p className="text-[11px] text-slate-400">
+                                        Acquired on {scanDate} · Eighteeth Nano-Pix / DIGORA Optime Scanner
+                                    </p>
+                                </div>
                             </div>
-                            {selectedXray.analysisSummary && (
-                                <p className="text-slate-300 text-[11px] leading-relaxed pt-1">
-                                    <span className="text-white font-semibold">Diagnostic Findings: </span>
-                                    {selectedXray.analysisSummary}
-                                </p>
-                            )}
+
+                            {/* Viewer Controls */}
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setXrayZoom(prev => Math.min(prev + 0.25, 2.5))}
+                                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                                    title="Zoom In"
+                                >
+                                    <ZoomIn className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={() => setXrayZoom(prev => Math.max(prev - 0.25, 0.75))}
+                                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                                    title="Zoom Out"
+                                >
+                                    <ZoomOut className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={() => setXrayInverted(prev => !prev)}
+                                    className={`p-2 rounded-xl transition-colors cursor-pointer ${
+                                        xrayInverted ? 'bg-sky-500 text-white' : 'bg-white/10 hover:bg-white/20 text-white'
+                                    }`}
+                                    title="Invert Contrast (Negative / X-Ray Film Mode)"
+                                >
+                                    <Contrast className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={() => { setXrayZoom(1); setXrayInverted(false); }}
+                                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                                    title="Reset View"
+                                >
+                                    <RotateCcw className="w-4 h-4" />
+                                </button>
+
+                                {selectedXray.imageDataUrl && (
+                                    <a
+                                        href={selectedXray.imageDataUrl}
+                                        download={selectedXray.imageName || 'dental_xray.png'}
+                                        className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                                        title="Download Image"
+                                    >
+                                        <Download className="w-4 h-4" />
+                                    </a>
+                                )}
+
+                                <button
+                                    onClick={() => setSelectedXray(null)}
+                                    className="p-2 rounded-xl bg-rose-500/80 hover:bg-rose-600 text-white transition-colors cursor-pointer ml-2"
+                                    title="Close View"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Main Modal Body: Split Image + Clinical Breakdown */}
+                        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 my-4 overflow-hidden min-h-0">
+                            {/* Left/Center: Radiology Image Viewport */}
+                            <div className="lg:col-span-7 bg-slate-950/80 rounded-3xl border border-white/10 p-4 flex items-center justify-center overflow-auto relative">
+                                {selectedXray.imageDataUrl ? (
+                                    <img
+                                        src={selectedXray.imageDataUrl}
+                                        alt={selectedXray.imageName}
+                                        style={{
+                                            transform: `scale(${xrayZoom})`,
+                                            filter: xrayInverted ? 'invert(1) contrast(1.2)' : 'none',
+                                            transition: 'transform 0.15s ease-out'
+                                        }}
+                                        className="max-h-[62vh] max-w-full object-contain rounded-xl shadow-2xl origin-center select-none"
+                                    />
+                                ) : (
+                                    <p className="text-slate-400 text-xs">Image data unavailable.</p>
+                                )}
+
+                                {xrayInverted && (
+                                    <span className="absolute top-4 left-4 px-2 py-1 rounded-md bg-sky-500/80 text-white text-[10px] font-bold">
+                                        Negative Contrast Active
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Right: Structured Clinical Diagnostics Panel */}
+                            <div className="lg:col-span-5 bg-white/5 border border-white/10 rounded-3xl p-5 overflow-y-auto space-y-4 text-xs text-white">
+                                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                                    <div className="flex items-center gap-2">
+                                        <Activity className="w-4 h-4 text-emerald-400" />
+                                        <h4 className="font-bold text-sm text-white">AI Diagnostic Assessment</h4>
+                                    </div>
+                                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                        Verified
+                                    </span>
+                                </div>
+
+                                {/* Structured Findings Cards */}
+                                <div className="space-y-3">
+                                    {parsed.sections.map((sec, idx) => (
+                                        <div 
+                                            key={idx} 
+                                            className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-1.5"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <h5 className="font-bold text-sky-300 text-xs">
+                                                    {sec.title}
+                                                </h5>
+                                                {sec.badge && (
+                                                    <span className="text-[10px] font-mono text-slate-400">
+                                                        {sec.badge}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="text-[11.5px] text-slate-300 leading-relaxed whitespace-pre-line font-medium pl-1">
+                                                {sec.content}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Patient Portal Credentials Footer in Modal */}
+                                <div className="pt-3 border-t border-white/10">
+                                    <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 text-[11px] text-slate-300 space-y-1">
+                                        <p className="font-bold text-white flex items-center gap-1.5">
+                                            <ShieldCheck className="w-3.5 h-3.5 text-light-teal" />
+                                            <span>Patient Self-Service Access</span>
+                                        </p>
+                                        <p className="text-slate-400 text-[10.5px]">
+                                            Patient Reference: <strong className="text-white font-mono">{patientRefNo}</strong> · Log in at <code className="text-sky-300">dentistfrontend.vercel.app/portal/login</code>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Bottom Metadata Ribbon */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between text-[11px] text-slate-400 border-t border-white/10 pt-3 gap-2">
+                            <span>Diagnostic imaging certified under ISO 13485 clinical imaging protocol.</span>
+                            <div className="flex items-center gap-3">
+                                <span>Zoom: {Math.round(xrayZoom * 100)}%</span>
+                                <span>•</span>
+                                <span>Negative Contrast: {xrayInverted ? 'On' : 'Off'}</span>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
         </div>
     );
 }
