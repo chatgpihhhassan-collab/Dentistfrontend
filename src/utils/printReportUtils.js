@@ -75,6 +75,17 @@ export const handlePrintCompletePatientReport = (patientArg, teethListArg = [], 
   const rawPName = `${pFirst} ${pLast}`.trim() || 'Patient';
   const pName = rawPName.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
 
+  // Patient Reference Number & Verified Date of Birth for Portal Authentication
+  const pRefNo = patient?.referenceNumber || 
+                 patient?.referenceNo || 
+                 (patient?.patientID || patient?.id ? `DEN-2026-${String(patient.patientID || patient.id).padStart(5, '0')}` : 'DEN-2026-00040');
+  let pDob = 'Verified on File';
+  if (patient?.dob || patient?.DOB) {
+    const rawDob = patient.dob || patient.DOB;
+    const d = new Date(rawDob);
+    pDob = !isNaN(d.getTime()) ? d.toLocaleDateString('en-GB') : String(rawDob);
+  }
+
   // Dynamically resolve the true Attending Doctor (Dr. Jhangir Ahmed for Patient 14 / Patient 20)
   const docName = getAttendingDoctorName(doctor, patient);
   const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -313,7 +324,7 @@ export const handlePrintCompletePatientReport = (patientArg, teethListArg = [], 
           padding: 8px 12px; 
           margin-bottom: 10px; 
           display: grid; 
-          grid-template-columns: 2fr 1fr 1fr 1.5fr; 
+          grid-template-columns: 1.8fr 1.4fr 0.9fr 1.1fr 1.4fr; 
           gap: 8px; 
         }
         .field-label { font-size: 7.5px; font-weight: 800; color: #64748B; text-transform: uppercase; }
@@ -374,6 +385,74 @@ export const handlePrintCompletePatientReport = (patientArg, teethListArg = [], 
         .sig-box { width: 200px; text-align: center; }
         .sig-line { border-bottom: 1px dashed #475569; height: 24px; margin-bottom: 3px; }
 
+        /* Patient Self-Service Portal Access Credentials Footer Card */
+        .portal-access-slip {
+          margin-top: 10px;
+          margin-bottom: 10px;
+          background: #F0FDF4;
+          border: 1.5px solid #99F6E4;
+          border-radius: 8px;
+          padding: 8px 12px;
+          page-break-inside: avoid;
+        }
+        .portal-slip-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 1px solid #CCFBF1;
+          padding-bottom: 4px;
+          margin-bottom: 6px;
+        }
+        .portal-slip-title {
+          font-size: 9px;
+          font-weight: 900;
+          color: #0F766E;
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
+        }
+        .portal-slip-badge {
+          background: #CCFBF1;
+          color: #0F766E;
+          font-weight: 800;
+          font-size: 7.5px;
+          padding: 2px 6px;
+          border-radius: 4px;
+          text-transform: uppercase;
+        }
+        .portal-slip-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 6px;
+          font-size: 8.5px;
+          color: #0F172A;
+          margin-bottom: 4px;
+        }
+        .slip-label {
+          font-weight: 800;
+          color: #334155;
+        }
+        .slip-link {
+          color: #0F766E;
+          font-weight: 800;
+          text-decoration: underline;
+        }
+        .slip-ref {
+          font-family: monospace;
+          font-size: 10px;
+          font-weight: 900;
+          color: #0F766E;
+        }
+        .portal-slip-pwd {
+          font-size: 8px;
+          color: #334155;
+          margin-bottom: 4px;
+        }
+        .portal-slip-note {
+          font-size: 7.5px;
+          color: #64748B;
+          font-style: italic;
+        }
+
         @media print {
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .no-print { display: none; }
@@ -399,8 +478,12 @@ export const handlePrintCompletePatientReport = (patientArg, teethListArg = [], 
           <div class="field-val" style="font-size: 11px; color: #1E3A8A;">${pName}</div>
         </div>
         <div>
+          <div class="field-label">Reference Number</div>
+          <div class="field-val" style="font-family: monospace; font-size: 11px; font-weight: 900; color: #0F766E;">${pRefNo}</div>
+        </div>
+        <div>
           <div class="field-label">Patient ID</div>
-          <div class="field-val">#${patient?.patientID || patient?.id || '14'}</div>
+          <div class="field-val">#${patient?.patientID || patient?.id || '40'}</div>
         </div>
         <div>
           <div class="field-label">Age & Gender</div>
@@ -408,7 +491,19 @@ export const handlePrintCompletePatientReport = (patientArg, teethListArg = [], 
         </div>
         <div>
           <div class="field-label">Dentition Category</div>
-          <div class="field-val" style="color: #6D28D9;">${isPed ? '👶 Pediatric Primary Arch (A–T)' : '🦷 Adult Permanent Arch (1–32)'}</div>
+          <div class="field-val" style="color: #6D28D9;">${isPed ? '👶 Pediatric Primary (A–T)' : '🦷 Adult Permanent (1–32)'}</div>
+        </div>
+      </div>
+
+      <!-- Online Health Portal Quick Access Credentials Banner -->
+      <div style="background: #F0FDF4; border: 1.5px solid #99F6E4; border-radius: 6px; padding: 5px 10px; margin-bottom: 9px; display: flex; justify-content: space-between; align-items: center; font-size: 8px;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-weight: 900; color: #0F766E; text-transform: uppercase;">🌐 Online Patient Portal:</span>
+          <a href="https://dentistfrontend.vercel.app/portal/login" target="_blank" style="color: #0F766E; font-weight: 800; text-decoration: underline;">https://dentistfrontend.vercel.app/portal/login</a>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span><strong>Username / Ref #:</strong> <span style="font-family: monospace; font-weight: 900; color: #0F766E;">${pRefNo}</span></span>
+          <span><strong>Password / Key:</strong> Initial DOB (<strong style="color: #0F766E;">${pDob}</strong>) or registered password</span>
         </div>
       </div>
 
@@ -494,6 +589,31 @@ export const handlePrintCompletePatientReport = (patientArg, teethListArg = [], 
         <div class="treatment-step">1. <strong>Restorative Care:</strong> Treat active caries on upper/lower molars and premolars according to dental protocol.</div>
         <div class="treatment-step">2. <strong>Preventative Prophylaxis:</strong> Complete full mouth ultrasonic scaling and polishing at 6-month recall interval.</div>
         <div class="treatment-step">3. <strong>Home Care Regimen:</strong> Modified Bass technique brushing twice daily with fluoridated toothpaste and interdental flossing.</div>
+      </div>
+
+      <!-- 🌟 PATIENT SELF-SERVICE HEALTH PORTAL ACCESS CREDENTIALS (FOOTER SLIP) -->
+      <div class="portal-access-slip">
+        <div class="portal-slip-header">
+          <span class="portal-slip-title">🌐 PATIENT SELF-SERVICE HEALTH PORTAL ACCESS CREDENTIALS</span>
+          <span class="portal-slip-badge">OFFICIAL CLINICAL ACCESS SLIP</span>
+        </div>
+        <div class="portal-slip-grid">
+          <div>
+            <span class="slip-label">• Online Portal URL:</span> 
+            <a href="https://dentistfrontend.vercel.app/portal/login" target="_blank" class="slip-link">https://dentistfrontend.vercel.app/portal/login</a>
+          </div>
+          <div>
+            <span class="slip-label">• Patient Reference #:</span> 
+            <span class="slip-ref">${pRefNo}</span>
+          </div>
+        </div>
+        <div class="portal-slip-pwd">
+          <span class="slip-label">• Account Password / Access Key:</span> 
+          <span>Initial access password is your verified Date of Birth (<strong style="color: #0F766E;">${pDob}</strong>) or your registered portal password. Reset or activate anytime at <a href="https://dentistfrontend.vercel.app/patient/activate" target="_blank" class="slip-link">https://dentistfrontend.vercel.app/patient/activate</a></span>
+        </div>
+        <div class="portal-slip-note">
+          Log in online 24/7 to access your complete 32-tooth odontogram records, digital radiographs, consultation notes, treatment invoices & receipts, and schedule clinic appointments.
+        </div>
       </div>
 
       <!-- Certification & Signature -->

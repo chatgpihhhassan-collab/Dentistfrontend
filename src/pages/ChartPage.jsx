@@ -2960,6 +2960,13 @@ export default function ChartPage() {
     const imgUrl = radiographBlobUrl || `https://dentist-api-dev.vitonta.com/api/radiographs/${rId}/image`;
     const base64Img = await getBase64FromImageUrl(imgUrl);
     const pName = `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim() || 'Patient';
+    const pRefNo = patient?.referenceNumber || patient?.referenceNo || (patient?.patientID || patient?.id ? `DEN-2026-${String(patient.patientID || patient.id).padStart(5, '0')}` : 'DEN-2026-PATIENT');
+    let pDob = 'Verified on File';
+    if (patient?.dob || patient?.DOB) {
+      const rawDob = patient.dob || patient.DOB;
+      const d = new Date(rawDob);
+      pDob = !isNaN(d.getTime()) ? d.toLocaleDateString('en-GB') : String(rawDob);
+    }
     const docName = `Dr. ${doctor?.firstName || doctor?.name || 'Ahmed'}`;
     const scanName = selectedRadiograph.imageName || selectedRadiograph.ImageName || 'Radiograph Scan';
     const rawReportSource = isEditingXrayAnalysis && editingXrayText 
@@ -2996,7 +3003,7 @@ export default function ChartPage() {
           .report-section { margin-bottom: 24px; page-break-inside: auto; }
           .section-title { font-size: 12px; font-weight: 800; color: #10244B; background: #EAF0FC; border-left: 4px solid #4A7CD2; padding: 6px 10px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
           .report-body { font-size: 11px; line-height: 1.6; color: #334155; }
-          .footer-section { margin-top: 30px; border-top: 1px solid #E2E8F0; padding-top: 14px; display: flex; justify-content: space-between; align-items: flex-end; page-break-inside: avoid; }
+          .footer-section { margin-top: 24px; border-top: 1px solid #E2E8F0; padding-top: 14px; display: flex; justify-content: space-between; align-items: flex-end; page-break-inside: avoid; }
           .sig-box { text-align: center; }
           .sig-line { width: 170px; border-bottom: 1px dashed #64748B; margin-bottom: 6px; }
           .sig-name { font-size: 11px; font-weight: 700; color: #10244B; }
@@ -3021,16 +3028,24 @@ export default function ChartPage() {
             <span class="meta-val">${pName} (ID #${patient?.patientID || 'N/A'})</span>
           </div>
           <div class="meta-item">
+            <span class="meta-label">Patient Reference #</span>
+            <span class="meta-val" style="font-family: monospace; font-size: 12px; font-weight: 900; color: #0F766E;">${pRefNo}</span>
+          </div>
+          <div class="meta-item">
             <span class="meta-label">Attending Doctor</span>
             <span class="meta-val">${docName}</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Date of Birth / Gender</span>
-            <span class="meta-val">${patient?.dob || 'N/A'} · ${patient?.gender || 'Unspecified'}</span>
+            <span class="meta-val">${pDob} · ${patient?.gender || 'Unspecified'}</span>
           </div>
           <div class="meta-item">
             <span class="meta-label">Radiograph Modality</span>
             <span class="meta-val">${scanName}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Online Health Portal URL</span>
+            <span class="meta-val"><a href="https://dentistfrontend.vercel.app/portal/login" target="_blank" style="color: #0F766E; font-weight: 800; text-decoration: underline;">https://dentistfrontend.vercel.app/portal/login</a></span>
           </div>
         </div>
 
@@ -3043,6 +3058,31 @@ export default function ChartPage() {
         <div class="report-section">
           <div class="section-title">AI Diagnostic Findings & Clinical Impression</div>
           <div class="report-body">${formattedHtml}</div>
+        </div>
+
+        <!-- Patient Self-Service Portal Access Credentials Slip -->
+        <div style="background: #F0FDF4; border: 1.5px solid #99F6E4; border-radius: 8px; padding: 10px 14px; margin-top: 20px; margin-bottom: 20px; page-break-inside: avoid;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #CCFBF1; padding-bottom: 4px; margin-bottom: 8px;">
+            <span style="font-size: 10px; font-weight: 900; color: #0F766E; letter-spacing: 0.5px; text-transform: uppercase;">🌐 PATIENT SELF-SERVICE HEALTH PORTAL ACCESS CREDENTIALS</span>
+            <span style="background: #CCFBF1; color: #0F766E; font-weight: 800; font-size: 8px; padding: 2px 6px; border-radius: 4px;">OFFICIAL CLINICAL ACCESS SLIP</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 10px; color: #0F172A; margin-bottom: 6px;">
+            <div>
+              <span style="font-weight: 800; color: #334155;">• Online Portal URL:</span> 
+              <a href="https://dentistfrontend.vercel.app/portal/login" target="_blank" style="color: #0F766E; font-weight: 800; text-decoration: underline;">https://dentistfrontend.vercel.app/portal/login</a>
+            </div>
+            <div>
+              <span style="font-weight: 800; color: #334155;">• Patient Reference #:</span> 
+              <span style="font-family: monospace; font-size: 11px; font-weight: 900; color: #0F766E;">${pRefNo}</span>
+            </div>
+          </div>
+          <div style="font-size: 9.5px; color: #334155; margin-bottom: 6px;">
+            <span style="font-weight: 800; color: #334155;">• Account Password / Access Key:</span> 
+            <span>Initial access password is your verified Date of Birth (<strong style="color: #0F766E;">${pDob}</strong>) or registered portal password. Reset or activate anytime at <a href="https://dentistfrontend.vercel.app/patient/activate" target="_blank" style="color: #0F766E; font-weight: 800; text-decoration: underline;">https://dentistfrontend.vercel.app/patient/activate</a></span>
+          </div>
+          <div style="font-size: 8.5px; color: #64748B; font-style: italic;">
+            Log in online 24/7 to access your digital radiographs, clinical diagnosis notes, 32-tooth odontogram records, treatment invoices & receipts, and schedule clinic appointments.
+          </div>
         </div>
 
         <div class="footer-section">
