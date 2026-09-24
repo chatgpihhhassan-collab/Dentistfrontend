@@ -128,10 +128,19 @@ export default function App() {
             <Route path="/portal/login" element={<PatientLogin />} />
             <Route path="/portal-login" element={<PatientLogin />} />
             <Route path="/patient-login" element={<PatientLogin />} />
+            <Route path="/patient/login" element={<PatientLogin />} />
+
             <Route path="/portal/register" element={<PatientRegister />} />
             <Route path="/portal-register" element={<PatientRegister />} />
+            <Route path="/patient/register" element={<PatientRegister />} />
+            <Route path="/patient-register" element={<PatientRegister />} />
+
             <Route path="/portal/activate" element={<PatientActivate />} />
             <Route path="/portal-activate" element={<PatientActivate />} />
+            <Route path="/patient/activate" element={<PatientActivate />} />
+            <Route path="/patient-activate" element={<PatientActivate />} />
+            <Route path="/portal/reset-password" element={<PatientActivate />} />
+            <Route path="/patient/reset-password" element={<PatientActivate />} />
 
             {/* 🌟 Patient Portal Protected Workspace */}
             <Route path="/portal" element={

@@ -225,7 +225,12 @@ export default function PatientLogin() {
                         <div className="space-y-1.5">
                             <div className="flex items-center justify-between text-xs">
                                 <label className="font-bold text-dark-slate">Portal Password</label>
-                                <span className="text-muted-text hover:text-primary-teal cursor-pointer">Forgot?</span>
+                                <Link
+                                    to={`/portal/activate?mode=reset${identifier ? `&ref=${encodeURIComponent(identifier.trim())}` : ''}`}
+                                    className="text-primary-teal hover:text-primary-hover font-bold hover:underline cursor-pointer"
+                                >
+                                    Forgot Password?
+                                </Link>
                             </div>
                             <div className="relative">
                                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted-text">
@@ -261,19 +266,32 @@ export default function PatientLogin() {
 
                     {/* Secondary Actions: Activation and Registration */}
                     <div className="pt-4 border-t border-light-teal/80 space-y-3 text-center">
-                        <div className="p-3.5 rounded-2xl bg-white border border-light-teal text-xs text-dark-slate space-y-1">
-                            <p className="font-bold">Have a Reference Number from your clinic visit?</p>
-                            <p className="text-muted-text text-[11px]">Activate your online portal account in 30 seconds.</p>
-                            <Link
-                                to="/portal/activate"
-                                className="inline-block mt-1 font-extrabold text-primary-hover hover:underline"
-                            >
-                                Activate Clinic Account ➔
-                            </Link>
+                        <div className="p-3.5 rounded-2xl bg-white border border-light-teal text-xs text-dark-slate space-y-1.5 shadow-xs">
+                            <div className="flex items-center justify-center gap-1.5 text-primary-teal font-extrabold text-[12px]">
+                                <KeyRound className="w-3.5 h-3.5" />
+                                <span>Already registered at our clinic?</span>
+                            </div>
+                            <p className="text-muted-text text-[11px]">
+                                Use your Reference Number &amp; Date of Birth to activate your portal or reset your password.
+                            </p>
+                            <div className="flex items-center justify-center gap-2 pt-1 flex-wrap">
+                                <Link
+                                    to="/portal/activate?mode=activate"
+                                    className="px-3 py-1.5 rounded-xl bg-light-teal text-primary-hover text-[11px] font-extrabold hover:bg-primary-teal hover:text-white transition-all shadow-2xs"
+                                >
+                                    ✨ First-Time Activation
+                                </Link>
+                                <Link
+                                    to="/portal/activate?mode=reset"
+                                    className="px-3 py-1.5 rounded-xl bg-slate-100 text-dark-slate text-[11px] font-extrabold hover:bg-dark-slate hover:text-white transition-all shadow-2xs"
+                                >
+                                    🔑 Reset Password
+                                </Link>
+                            </div>
                         </div>
 
                         <p className="text-xs text-muted-text">
-                            New patient?{' '}
+                            New patient with no prior visit?{' '}
                             <Link to="/portal/register" className="font-bold text-primary-teal hover:text-primary-hover underline">
                                 Register an account online
                             </Link>
