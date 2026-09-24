@@ -12,6 +12,19 @@ const isRemoteHostNeeded = typeof window !== 'undefined' &&
   window.location.hostname !== 'localhost' && 
   window.location.hostname !== '127.0.0.1';
 
+// Auto-recover from dynamic chunk load failures when a new version is deployed to Vercel
+if (typeof window !== 'undefined') {
+  window.addEventListener('vite:preloadError', (event) => {
+    console.warn('[Vite] Dynamic chunk preload failed due to a new deployment. Auto-refreshing page...');
+    event.preventDefault();
+    const reloadKey = 'dentia_chunk_reload_' + window.location.pathname;
+    if (!sessionStorage.getItem(reloadKey)) {
+      sessionStorage.setItem(reloadKey, Date.now().toString());
+      window.location.reload();
+    }
+  });
+}
+
 if (isRemoteHostNeeded) {
   axios.defaults.baseURL = API_HOST;
 }

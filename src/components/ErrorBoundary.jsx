@@ -17,6 +17,23 @@ export default class ErrorBoundary extends React.Component {
     console.error('Component Stack:', errorInfo.componentStack);
     console.groupEnd();
     this.setState({ errorInfo });
+
+    // Auto-reload on dynamic import / chunk load failure due to new deployment
+    const errorStr = (error?.message || error?.toString() || '').toLowerCase();
+    const isChunkFailure = errorStr.includes('failed to fetch dynamically imported module') ||
+                           errorStr.includes('importing a module script failed') ||
+                           errorStr.includes('loading chunk') ||
+                           error?.name === 'ChunkLoadError';
+
+    if (isChunkFailure && typeof window !== 'undefined') {
+      const reloadKey = 'dentia_err_reload_' + window.location.pathname;
+      const lastReload = sessionStorage.getItem(reloadKey);
+      if (!lastReload || (Date.now() - parseInt(lastReload, 10)) > 30000) {
+        sessionStorage.setItem(reloadKey, Date.now().toString());
+        console.warn('[ErrorBoundary] New deployment detected. Reloading page automatically...');
+        window.location.reload();
+      }
+    }
   }
 
   handleReset = () => {
@@ -43,10 +60,20 @@ export default class ErrorBoundary extends React.Component {
               </div>
             </div>
 
+            {/* Error Message Box */}
             <div className="bg-rose-50/70 border border-rose-200/80 rounded-2xl p-4 space-y-2">
-              <p className="text-xs font-black text-rose-800 font-mono break-words">
-                {this.state.error?.toString() || 'Unknown Error'}
-              </p>
+              {this.state.error?.toString()?.toLowerCase()?.includes('dynamically imported module') ? (
+                <div className="text-xs text-rose-900 space-y-1">
+                  <p className="font-extrabold text-sm text-dark-slate">🔄 New Version Available</p>
+                  <p className="text-muted-text">
+                    A new update was deployed to the clinic platform. Your browser needs to refresh to load the latest security and portal modules.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs font-black text-rose-800 font-mono break-words">
+                  {this.state.error?.toString() || 'Unknown Error'}
+                </p>
+              )}
               {this.state.errorInfo?.componentStack && (
                 <details className="text-[10px] text-slate-600 font-mono mt-2 cursor-pointer">
                   <summary className="font-bold text-rose-700 hover:underline">View Component Stack Trace</summary>
