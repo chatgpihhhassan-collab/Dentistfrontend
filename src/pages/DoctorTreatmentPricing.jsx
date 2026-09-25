@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import API_BASE_URL from '../config/apiConfig';
 import { STANDARD_DENTAL_PROCEDURES, DENTAL_CATEGORIES } from '../data/standardProcedures';
+import { saveCustomProcedure, syncCustomProceduresFromBackend } from '../services/customProceduresService';
 
 // Color themes tailored for the 15 clinical categories
 const categoryBadgeColors = {
@@ -164,6 +165,7 @@ export default function DoctorTreatmentPricing() {
                 setCurrency(data.currency || (doctor.region === 'PK' ? 'PKR' : 'NZD'));
                 setProcedures(data.procedures || []);
                 setHasUnsavedChanges(false);
+                syncCustomProceduresFromBackend(doctorId).catch(() => {});
             } else {
                 setFeedback({ type: 'error', message: 'Failed to load clinic fee schedule.' });
             }
@@ -532,6 +534,9 @@ export default function DoctorTreatmentPricing() {
             description: newCustomProc.description.trim() || null,
             isActive: true
         };
+
+        // Persist immediately to clinic custom procedures service & local cache
+        saveCustomProcedure(created);
 
         setProcedures(prev => [created, ...prev]);
         setHasUnsavedChanges(true);

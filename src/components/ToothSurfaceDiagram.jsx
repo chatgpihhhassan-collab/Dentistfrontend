@@ -496,7 +496,8 @@ export const CLINICAL_CATEGORIES = [
   { id: 'Pathology',     icon: '🔬', title: 'Pathology',     color: 'from-amber-600 to-stone-700' },
   { id: 'Periodontal',   icon: '🩸', title: 'Periodontal',   color: 'from-emerald-500 to-teal-600' },
   { id: 'Developmental', icon: '📐', title: 'Developmental', color: 'from-cyan-500 to-sky-600' },
-  { id: 'Appliance',     icon: '🦷', title: 'Appliance',     color: 'from-slate-500 to-zinc-600' }
+  { id: 'Appliance',     icon: '🦷', title: 'Appliance',     color: 'from-slate-500 to-zinc-600' },
+  { id: 'Custom',        icon: '✨', title: 'Custom Clinic', color: 'from-amber-500 to-indigo-600' }
 ];
 
 /**
@@ -587,6 +588,9 @@ export default function ToothSurfaceDiagram({
     }
     if (lower.includes('miss') || lower.includes('extract') || lower.includes('exfoliat') || lower.includes('absent')) {
       return { fill: '#DC2626', stroke: '#991B1B', textFill: '#FFFFFF' };
+    }
+    if (lower.includes('cust') || lower.includes('custom') || lower.includes('splint') || lower.includes('laser') || lower.includes('mock')) {
+      return { fill: '#8B5CF6', stroke: '#6D28D9', textFill: '#FFFFFF' };
     }
 
     return { fill: '#2563EB', stroke: '#1D4ED8', textFill: '#FFFFFF' };

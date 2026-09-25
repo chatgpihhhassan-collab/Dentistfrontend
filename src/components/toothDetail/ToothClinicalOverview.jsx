@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Microscope, Sparkles, CheckCircle2, ChevronRight, Activity, Clock, ShieldCheck } from 'lucide-react';
+import { FileText, Microscope, Sparkles, CheckCircle2, ChevronRight, Activity, Clock, ShieldCheck, Tag } from 'lucide-react';
 import ToothCrossSectionDiagram from './ToothCrossSectionDiagram';
 import { API_BASE_URL } from '../../config/apiConfig';
+import { getCustomProcedures } from '../../services/customProceduresService';
 
 export default function ToothClinicalOverview({
   patientId,
@@ -86,8 +87,52 @@ export default function ToothClinicalOverview({
 
   const activeAligner = alignerPlans[0];
 
+  // Detect if tooth has an active custom clinic procedure recorded
+  const customProcedures = getCustomProcedures();
+  const toothStatusStr = String(toothData?.status || '').toLowerCase();
+  const toothCommentsStr = String(toothData?.comments || '').toLowerCase();
+  const activeCustomProc = customProcedures.find(cp => 
+    toothStatusStr.includes(cp.procedureName.toLowerCase()) || 
+    toothCommentsStr.includes(cp.procedureName.toLowerCase()) ||
+    toothCommentsStr.includes(cp.procedureCode.toLowerCase())
+  );
+
   return (
     <div className="space-y-4 animate-fade-in">
+      {/* Active Custom Procedure Ribbon (if tooth has a custom procedure) */}
+      {activeCustomProc && (
+        <div className="bg-gradient-to-r from-purple-50 via-indigo-50/50 to-white border border-purple-200/90 rounded-3xl p-4 flex items-center justify-between shadow-2xs animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-2xl bg-purple-100 border border-purple-200 text-purple-700 flex items-center justify-center text-lg shrink-0 shadow-2xs">
+              ✨
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-black text-purple-950">
+                  {activeCustomProc.procedureName}
+                </span>
+                <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                  Custom Clinic Procedure ({activeCustomProc.procedureCode})
+                </span>
+              </div>
+              <p className="text-[11px] font-semibold text-slate-600 mt-0.5 line-clamp-1">
+                {activeCustomProc.description || 'Clinic proprietary treatment scheduled and synchronized to patient EHR & billing.'}
+              </p>
+            </div>
+          </div>
+          {activeCustomProc.standardFee && (
+            <div className="text-right shrink-0 pl-3">
+              <span className="text-xs font-black text-emerald-700 block">
+                {activeCustomProc.currency || 'PKR'} {Number(activeCustomProc.standardFee).toLocaleString()}
+              </span>
+              <span className="text-[9.5px] text-slate-500 font-bold block">
+                {activeCustomProc.estimatedDuration || '45 mins'}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Doctor Clinical Observation Notes & Dictation Log */}
       <div className="bg-white rounded-3xl border border-light-teal/40 p-5 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
