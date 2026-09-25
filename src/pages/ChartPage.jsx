@@ -8505,220 +8505,239 @@ export default function ChartPage() {
               return (
                 <div className="flex flex-col gap-3 flex-grow py-1 relative">
                 
-                  {/* Studio Header Controls: Clinical Workspace View Modes, 3D Density & Nav (Zero-Scroll Single Row) */}
-                  <div className="flex items-center justify-between w-full px-1 gap-1.5 flex-nowrap overflow-x-auto no-scrollbar py-0.5">
-                    {/* Left: Mode Switcher & Sizing Controls */}
-                    <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
-                      {/* Clinical Workspace Modes */}
-                      <div className="flex items-center gap-1 bg-[#F8FAFC] p-1 rounded-xl border border-slate-200/80 shadow-2xs">
-                        <button
-                          type="button"
-                          onClick={() => setWorkspaceMode('split')}
-                          className={`flex items-center gap-1 text-[11px] font-black px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                            workspaceMode === 'split'
-                              ? 'bg-[#4A7CD2] text-white shadow-xs'
-                              : 'text-[#10244B]/70 hover:text-[#10244B] hover:bg-white/80'
-                          }`}
-                          title="Split Operatory: Dental Chart + Live Radiograph Diagnostic Console"
-                        >
-                          <Sparkles className="w-3.5 h-3.5" />
-                          <span>Split Operatory</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setWorkspaceMode('radiology')}
-                          className={`flex items-center gap-1 text-[11px] font-black px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                            workspaceMode === 'radiology'
-                              ? 'bg-[#4A7CD2] text-white shadow-xs'
-                              : 'text-[#10244B]/70 hover:text-[#10244B] hover:bg-white/80'
-                          }`}
-                          title="Radiology AI Studio: Full width optical inspection & AI findings"
-                        >
-                          <Layers className="w-3.5 h-3.5" />
-                          <span>Radiology Studio</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setWorkspaceMode('chart')}
-                          className={`flex items-center gap-1 text-[11px] font-black px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                            workspaceMode === 'chart'
-                              ? 'bg-[#4A7CD2] text-white shadow-xs'
-                              : 'text-[#10244B]/70 hover:text-[#10244B] hover:bg-white/80'
-                          }`}
-                          title="Dental Chart Focus: Full width 3D Arch and 2D Odontogram"
-                        >
-                          <ToothDetailAllIcon className="w-3.5 h-3.5" />
-                          <span>Chart Focus</span>
-                        </button>
+                  {/* Studio Header Controls: 2-Tier Balanced Clinical Operatory Bar (Zero-Scroll & Guaranteed Specialty Visibility) */}
+                  <div className="flex flex-col gap-2 w-full px-1 py-0.5">
+                    {/* Tier 1: Clinical Workspace View Modes & Primary Odontogram Navigation */}
+                    <div className="flex items-center justify-between w-full gap-2 flex-wrap sm:flex-nowrap">
+                      {/* Left: View Modes & Jaw Selector */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Clinical Workspace Modes */}
+                        <div className="flex items-center gap-1 bg-[#F8FAFC] p-1 rounded-xl border border-slate-200/80 shadow-2xs">
+                          <button
+                            type="button"
+                            onClick={() => setWorkspaceMode('split')}
+                            className={`flex items-center gap-1 text-[11px] font-black px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                              workspaceMode === 'split'
+                                ? 'bg-[#4A7CD2] text-white shadow-xs'
+                                : 'text-[#10244B]/70 hover:text-[#10244B] hover:bg-white/80'
+                            }`}
+                            title="Split Operatory: Dental Chart + Live Radiograph Diagnostic Console"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>Split Operatory</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setWorkspaceMode('radiology')}
+                            className={`flex items-center gap-1 text-[11px] font-black px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                              workspaceMode === 'radiology'
+                                ? 'bg-[#4A7CD2] text-white shadow-xs'
+                                : 'text-[#10244B]/70 hover:text-[#10244B] hover:bg-white/80'
+                            }`}
+                            title="Radiology AI Studio: Full width optical inspection & AI findings"
+                          >
+                            <Layers className="w-3.5 h-3.5" />
+                            <span>Radiology Studio</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setWorkspaceMode('chart')}
+                            className={`flex items-center gap-1 text-[11px] font-black px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                              workspaceMode === 'chart'
+                                ? 'bg-[#4A7CD2] text-white shadow-xs'
+                                : 'text-[#10244B]/70 hover:text-[#10244B] hover:bg-white/80'
+                            }`}
+                            title="Dental Chart Focus: Full width 3D Arch and 2D Odontogram"
+                          >
+                            <ToothDetailAllIcon className="w-3.5 h-3.5" />
+                            <span>Chart Focus</span>
+                          </button>
+                        </div>
+
+                        {/* Jaw Selector */}
+                        {workspaceMode !== 'radiology' && (
+                          <div className="flex items-center gap-1 bg-[#F8FAFC] p-1 rounded-xl border border-slate-200/80 shadow-2xs">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedJawView('both')}
+                              className={`text-[10.5px] font-black px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                                selectedJawView === 'both'
+                                  ? 'bg-[#4A7CD2] text-white shadow-xs'
+                                  : 'text-[#10244B]/70 hover:text-[#10244B]'
+                              }`}
+                            >
+                              Dual Jaws
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedJawView('maxilla')}
+                              className={`text-[10.5px] font-black px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                                selectedJawView === 'maxilla'
+                                  ? 'bg-[#4A7CD2] text-white shadow-xs'
+                                  : 'text-[#10244B]/70 hover:text-[#10244B]'
+                              }`}
+                            >
+                              Maxilla
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedJawView('mandible')}
+                              className={`text-[10.5px] font-black px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                                selectedJawView === 'mandible'
+                                  ? 'bg-[#4A7CD2] text-white shadow-xs'
+                                  : 'text-[#10244B]/70 hover:text-[#10244B]'
+                              }`}
+                            >
+                              Mandible
+                            </button>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Jaw Selector */}
-                      {workspaceMode !== 'radiology' && (
-                        <div className="flex items-center gap-1 bg-[#F8FAFC] p-1 rounded-xl border border-slate-200/80">
+                      {/* Right: Primary Patient Chart Actions */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {highlightedTeeth.length > 0 && (
                           <button
                             type="button"
-                            onClick={() => setSelectedJawView('both')}
-                            className={`text-[10.5px] font-black px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                              selectedJawView === 'both'
-                                ? 'bg-[#4A7CD2] text-white shadow-xs'
-                                : 'text-[#10244B]/70 hover:text-[#10244B]'
-                            }`}
+                            onClick={() => {
+                              setHighlightedTeeth([]);
+                              setHighlightInfo(null);
+                            }}
+                            className="text-[10px] font-bold bg-blue-50 hover:bg-blue-100 text-[#4A7CD2] px-2.5 py-1.5 rounded-xl border border-blue-200 flex items-center gap-1 transition-all cursor-pointer shadow-2xs shrink-0"
                           >
-                            Dual Jaws
+                            <span>Clear Spotlight ({highlightedTeeth.length})</span>
+                            <X className="w-3 h-3" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedJawView('maxilla')}
-                            className={`text-[10.5px] font-black px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                              selectedJawView === 'maxilla'
-                                ? 'bg-[#4A7CD2] text-white shadow-xs'
-                                : 'text-[#10244B]/70 hover:text-[#10244B]'
-                            }`}
-                          >
-                            Maxilla
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedJawView('mandible')}
-                            className={`text-[10.5px] font-black px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                              selectedJawView === 'mandible'
-                                ? 'bg-[#4A7CD2] text-white shadow-xs'
-                                : 'text-[#10244B]/70 hover:text-[#10244B]'
-                            }`}
-                          >
-                            Mandible
-                          </button>
-                        </div>
-                      )}
+                        )}
 
-                      {/* 3D Arch Size Density Selector */}
-                      {workspaceMode !== 'radiology' && (
-                        <div className="hidden xl:flex items-center gap-1 bg-[#F8FAFC] p-1 rounded-xl border border-slate-200/80 text-[10px]">
-                          <span className="text-[9.5px] font-extrabold text-slate-400 uppercase px-1">3D Size:</span>
-                          <button
-                            type="button"
-                            onClick={() => setJawDensity('standard')}
-                            className={`px-2 py-1 rounded-md font-bold transition cursor-pointer ${
-                              jawDensity === 'standard' ? 'bg-white text-[#10244B] shadow-2xs' : 'text-slate-500 hover:text-slate-800'
-                            }`}
-                          >
-                            Standard
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setJawDensity('compact')}
-                            className={`px-2 py-1 rounded-md font-bold transition cursor-pointer ${
-                              jawDensity === 'compact' ? 'bg-white text-[#10244B] shadow-2xs' : 'text-slate-500 hover:text-slate-800'
-                            }`}
-                          >
-                            Compact
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setJawDensity('2d_only')}
-                            className={`px-2 py-1 rounded-md font-bold transition cursor-pointer ${
-                              jawDensity === '2d_only' ? 'bg-white text-[#10244B] shadow-2xs' : 'text-slate-500 hover:text-slate-800'
-                            }`}
-                          >
-                            2D Only
-                          </button>
-                        </div>
-                      )}
+                        <button
+                          type="button"
+                          onClick={() => setShowObservationsDrawer(true)}
+                          className="text-[10.5px] font-bold bg-white hover:bg-blue-50/50 text-[#10244B] px-2.5 py-1.5 rounded-xl border border-slate-200/90 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs shrink-0"
+                        >
+                          <span className="w-2 h-2 rounded-full bg-[#4A7CD2] animate-pulse" />
+                          <span>Observations</span>
+                          <span className="text-[9.5px] font-black bg-blue-50 text-[#4A7CD2] px-1.5 py-0.2 rounded-full border border-blue-200/50">
+                            {dentitionMode === 'pediatric' ? '20 Teeth' : '32 Teeth'}
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/chart/${patient?.patientID || patientId}/tooth`)}
+                          className="text-[10.5px] font-bold bg-white hover:bg-blue-50/50 text-[#10244B] px-2.5 py-1.5 rounded-xl border border-slate-200/90 shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer group shrink-0"
+                          title="Open Tooth Detailed View (/chart/tooth)"
+                          aria-label="Open Tooth All Pages"
+                        >
+                          <ToothDetailAllIcon className="w-3.5 h-3.5 text-[#4A7CD2] group-hover:scale-110 transition-transform" />
+                          <span>Tooth Detail</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => window.open('/clinical-guide', '_blank')}
+                          className="text-[10.5px] font-bold bg-white hover:bg-blue-50/50 text-[#10244B] px-2.5 py-1.5 rounded-xl border border-slate-200/90 flex items-center gap-1 transition-all cursor-pointer shadow-2xs group shrink-0"
+                          title="Open Clinical Voice & Charting Guidelines in a new tab"
+                        >
+                          <span className="text-xs">📖</span>
+                          <span>Clinical Guide</span>
+                          <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-[#4A7CD2]" />
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Right action group: Clear Spotlight & Nav Actions & Specialties Dock */}
-                    <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
-                      {highlightedTeeth.length > 0 && (
+                    {/* Tier 2: Dedicated Clinical Specialties & 3D Arch Density Suite (Guaranteed 100% visible, Zero-Scroll) */}
+                    <div className="flex items-center justify-between w-full px-2.5 py-1.5 bg-gradient-to-r from-slate-50/90 via-blue-50/40 to-slate-50/90 rounded-2xl border border-slate-200/80 shadow-2xs gap-2">
+                      {/* Left: 3D Arch Size Density Selector */}
+                      <div className="flex items-center gap-2">
+                        {workspaceMode !== 'radiology' ? (
+                          <div className="flex items-center gap-1 bg-white px-2 py-0.5 rounded-xl border border-slate-200/80 shadow-2xs text-[10px]">
+                            <span className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider mr-1">3D Size:</span>
+                            <button
+                              type="button"
+                              onClick={() => setJawDensity('standard')}
+                              className={`px-2 py-1 rounded-lg font-black transition cursor-pointer ${
+                                jawDensity === 'standard' ? 'bg-[#4A7CD2] text-white shadow-xs' : 'text-slate-600 hover:text-[#10244B]'
+                              }`}
+                            >
+                              Standard
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setJawDensity('compact')}
+                              className={`px-2 py-1 rounded-lg font-black transition cursor-pointer ${
+                                jawDensity === 'compact' ? 'bg-[#4A7CD2] text-white shadow-xs' : 'text-slate-600 hover:text-[#10244B]'
+                              }`}
+                            >
+                              Compact
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setJawDensity('2d_only')}
+                              className={`px-2 py-1 rounded-lg font-black transition cursor-pointer ${
+                                jawDensity === '2d_only' ? 'bg-[#4A7CD2] text-white shadow-xs' : 'text-slate-600 hover:text-[#10244B]'
+                              }`}
+                            >
+                              2D Only
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                            <span className="text-sm">🔬</span>
+                            <span className="font-extrabold text-[#10244B]">Radiology Diagnostic Studio Active</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right: Clinical Procedure Specialties (Ortho & TMJ, Implant, Biopsy, Aligners) */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {/* Ortho & TMJ Suite */}
                         <button
                           type="button"
-                          onClick={() => {
-                            setHighlightedTeeth([]);
-                            setHighlightInfo(null);
-                          }}
-                          className="text-[10px] font-bold bg-blue-50 hover:bg-blue-100 text-[#4A7CD2] px-2.5 py-1.5 rounded-xl border border-blue-200 flex items-center gap-1 transition-all cursor-pointer shadow-2xs shrink-0"
+                          onClick={() => setShowOrthoTmjModal(true)}
+                          className="bg-[#4A7CD2] hover:bg-[#3665B7] text-white px-3 py-1.5 rounded-xl shadow-xs flex items-center gap-1.5 text-[11px] font-black transition-all cursor-pointer group shrink-0 active:scale-95"
+                          title="Ortho, Occlusion, Wisdom Impaction & TMJ Diagnostic Suite (12 Diagrams)"
+                          aria-label="Open Ortho & TMJ Diagnostic Suite"
                         >
-                          <span>Clear Spotlight ({highlightedTeeth.length})</span>
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => setShowObservationsDrawer(true)}
-                        className="text-[10.5px] font-bold bg-white hover:bg-blue-50/50 text-[#10244B] px-2.5 py-1.5 rounded-xl border border-slate-200/90 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs shrink-0"
-                      >
-                        <span className="w-2 h-2 rounded-full bg-[#4A7CD2] animate-pulse" />
-                        <span>Observations</span>
-                        <span className="text-[9.5px] font-black bg-blue-50 text-[#4A7CD2] px-1.5 py-0.2 rounded-full border border-blue-200/50">
-                          {dentitionMode === 'pediatric' ? '20 Teeth' : '32 Teeth'}
-                        </span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/chart/${patient?.patientID || patientId}/tooth`)}
-                        className="text-[10.5px] font-bold bg-white hover:bg-blue-50/50 text-[#10244B] px-2.5 py-1.5 rounded-xl border border-slate-200/90 shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer group shrink-0"
-                        title="Open Tooth Detailed View (/chart/tooth)"
-                        aria-label="Open Tooth All Pages"
-                      >
-                        <ToothDetailAllIcon className="w-3.5 h-3.5 text-[#4A7CD2] group-hover:scale-110 transition-transform" />
-                        <span>Tooth Detail</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => window.open('/clinical-guide', '_blank')}
-                        className="text-[10.5px] font-bold bg-white hover:bg-blue-50/50 text-[#10244B] px-2.5 py-1.5 rounded-xl border border-slate-200/90 flex items-center gap-1 transition-all cursor-pointer shadow-2xs group shrink-0"
-                        title="Open Clinical Voice & Charting Guidelines in a new tab"
-                      >
-                        <span className="text-xs">📖</span>
-                        <span>Clinical Guide</span>
-                        <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-[#4A7CD2]" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setShowOrthoTmjModal(true)}
-                        className="bg-[#4A7CD2] hover:bg-[#3665B7] text-white px-2.5 py-1.5 rounded-xl shadow-2xs flex items-center gap-1.5 text-[10.5px] font-bold transition-all cursor-pointer group shrink-0 active:scale-95"
-                        title="Ortho, Occlusion, Wisdom Impaction & TMJ Diagnostic Suite (12 Diagrams)"
-                        aria-label="Open Ortho & TMJ Diagnostic Suite"
-                      >
-                        <Sparkles className="w-3.5 h-3.5 text-blue-200" />
-                        <span>Ortho & TMJ Suite</span>
-                        <span className="text-[9px] font-black bg-white/20 text-white px-1.5 py-0.2 rounded-full">12</span>
-                      </button>
-
-                      {/* Clinical Specialty Segmented Dock (Ultra-compact, zero-scroll) */}
-                      <div className="flex items-center bg-slate-100/90 p-0.5 rounded-xl border border-slate-200/90 shadow-2xs gap-0.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => setShowImplantModal(true)}
-                          className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-2 py-1 rounded-lg shadow-2xs flex items-center gap-1 text-[10px] font-extrabold transition-all cursor-pointer shrink-0"
-                          title="Implant Planning & 3D Surgical Guide"
-                        >
-                          <span className="text-[11px]">🔩</span>
-                          <span>Implant</span>
+                          <Sparkles className="w-3.5 h-3.5 text-blue-200" />
+                          <span>Ortho & TMJ Suite</span>
+                          <span className="text-[9.5px] font-black bg-white/20 text-white px-1.5 py-0.2 rounded-full">12</span>
                         </button>
 
-                        <button
-                          type="button"
-                          onClick={() => setShowBiopsyModal(true)}
-                          className="bg-purple-600 hover:bg-purple-700 active:scale-95 text-white px-2 py-1 rounded-lg shadow-2xs flex items-center gap-1 text-[10px] font-extrabold transition-all cursor-pointer shrink-0"
-                          title="Biopsy & Oral Pathology Requisition"
-                        >
-                          <span className="text-[11px]">🔬</span>
-                          <span>Biopsy</span>
-                        </button>
+                        <div className="h-4 w-px bg-slate-200/90 mx-0.5 hidden sm:block" />
 
-                        <button
-                          type="button"
-                          onClick={() => setShowAlignerModal(true)}
-                          className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-2 py-1 rounded-lg shadow-2xs flex items-center gap-1 text-[10px] font-extrabold transition-all cursor-pointer shrink-0"
-                          title="Clear Aligner Digital Orthodontics"
-                        >
-                          <span className="text-[11px]">✨</span>
-                          <span>Aligners</span>
-                        </button>
+                        {/* Dedicated Clinical Specialty Buttons */}
+                        <div className="flex items-center bg-white p-0.5 rounded-xl border border-slate-200/90 shadow-2xs gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setShowImplantModal(true)}
+                            className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-2.5 py-1.5 rounded-lg shadow-xs flex items-center gap-1.5 text-[11px] font-black transition-all cursor-pointer shrink-0"
+                            title="Implant Planning & 3D Surgical Guide"
+                          >
+                            <span className="text-xs">🔩</span>
+                            <span>Implant</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setShowBiopsyModal(true)}
+                            className="bg-purple-600 hover:bg-purple-700 active:scale-95 text-white px-2.5 py-1.5 rounded-lg shadow-xs flex items-center gap-1.5 text-[11px] font-black transition-all cursor-pointer shrink-0"
+                            title="Biopsy & Oral Pathology Requisition"
+                          >
+                            <span className="text-xs">🔬</span>
+                            <span>Biopsy</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setShowAlignerModal(true)}
+                            className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-2.5 py-1.5 rounded-lg shadow-xs flex items-center gap-1.5 text-[11px] font-black transition-all cursor-pointer shrink-0"
+                            title="Clear Aligner Digital Orthodontics"
+                          >
+                            <span className="text-xs">✨</span>
+                            <span>Aligners</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
