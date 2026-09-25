@@ -1079,31 +1079,34 @@ export default function ToothDetailPage() {
                     FDI #{fdiNum}
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => setShowImplantModal(true)}
-                    className="px-2.5 py-1 rounded-xl text-xs font-black bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors flex items-center gap-1 cursor-pointer"
-                    title="Implant Planning (Length, Diameter, Bone Quality, 3D Guided Surgery)"
-                  >
-                    <span>🔩</span> Implant Plan
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowBiopsyModal(true)}
-                    className="px-2.5 py-1 rounded-xl text-xs font-black bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors flex items-center gap-1 cursor-pointer"
-                    title="Biopsy & Oral Pathology (Incisional/Excisional, Anatomical Site)"
-                  >
-                    <span>🔬</span> Biopsy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowAlignerModal(true)}
-                    className="px-2.5 py-1 rounded-xl text-xs font-black bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1 cursor-pointer"
-                    title="Clear Aligners (Brand, Stages, Attachments, IPR, Wear Schedule)"
-                  >
-                    <span>✨</span> Aligners
-                  </button>
+                {/* Clinical Specialty Segmented Dock */}
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center bg-slate-100/90 p-0.5 rounded-xl border border-slate-200/90 shadow-2xs gap-0.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowImplantModal(true)}
+                      className="px-2 py-1 rounded-lg text-[10.5px] font-extrabold bg-blue-600 hover:bg-blue-700 active:scale-95 text-white transition-all flex items-center gap-1 cursor-pointer shrink-0 shadow-2xs"
+                      title="Implant Planning (Length, Diameter, Bone Quality, 3D Guided Surgery)"
+                    >
+                      <span className="text-[11px]">🔩</span> Implant
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowBiopsyModal(true)}
+                      className="px-2 py-1 rounded-lg text-[10.5px] font-extrabold bg-purple-600 hover:bg-purple-700 active:scale-95 text-white transition-all flex items-center gap-1 cursor-pointer shrink-0 shadow-2xs"
+                      title="Biopsy & Oral Pathology (Incisional/Excisional, Anatomical Site)"
+                    >
+                      <span className="text-[11px]">🔬</span> Biopsy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAlignerModal(true)}
+                      className="px-2 py-1 rounded-lg text-[10.5px] font-extrabold bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white transition-all flex items-center gap-1 cursor-pointer shrink-0 shadow-2xs"
+                      title="Clear Aligners (Brand, Stages, Attachments, IPR, Wear Schedule)"
+                    >
+                      <span className="text-[11px]">✨</span> Aligners
+                    </button>
+                  </div>
                   <span className="text-[11px] font-extrabold text-slate-500 ml-1">
                     Today, 2026
                   </span>
@@ -1229,16 +1232,19 @@ export default function ToothDetailPage() {
         isPediatric={isPediatric}
       />
 
-      {/* Clinical Specialty Modals */}
+      {/* Clinical Specialty Modals (Fully Integrated with Tooth Observations & DB) */}
       <ImplantPlanningModal
         isOpen={showImplantModal}
         onClose={() => setShowImplantModal(false)}
         patientId={patientId}
         toothNumber={tNum}
         toothKey={tKey}
-        onPlanSaved={() => {
-          setToast({ visible: true, message: `Implant plan for Tooth #${tKey} saved successfully.` });
-          setTimeout(() => setToast({ visible: false, message: '' }), 3000);
+        onPlanSaved={async (plan) => {
+          const targetTooth = plan?.toothKey || plan?.toothNumber || tKey;
+          const implantDesc = `Implant Plan: ${plan?.implantBrand || 'Straumann'} ${plan?.implantLength || 10}mm x ${plan?.implantDiameter || 4.3}mm, Bone ${plan?.boneQuality || 'D2'}${plan?.guidedSurgeryFlag ? ', 3D Guided' : ''}`;
+          await handleSaveObservation('Dental Implant', implantDesc, '#0E8A80');
+          setToast({ visible: true, message: `Tooth #${targetTooth} updated with Dental Implant plan.` });
+          setTimeout(() => setToast({ visible: false, message: '' }), 3500);
         }}
       />
 
@@ -1248,9 +1254,12 @@ export default function ToothDetailPage() {
         patientId={patientId}
         toothNumber={tNum}
         toothKey={tKey}
-        onBiopsySaved={() => {
-          setToast({ visible: true, message: `Biopsy record saved successfully.` });
-          setTimeout(() => setToast({ visible: false, message: '' }), 3000);
+        onBiopsySaved={async (biopsy) => {
+          const targetTooth = biopsy?.toothKey || biopsy?.toothNumber || tKey;
+          const biopsyDesc = `Biopsy Requisition: ${biopsy?.biopsyType || 'Incisional'} at ${biopsy?.siteOfBiopsy || `Tooth #${tKey}`} (${biopsy?.clinicalImpression || 'Oral Pathology'})`;
+          await handleSaveObservation('Biopsy / Pathology', biopsyDesc, '#8B5CF6');
+          setToast({ visible: true, message: `Tooth #${targetTooth} updated with Biopsy requisition.` });
+          setTimeout(() => setToast({ visible: false, message: '' }), 3500);
         }}
       />
 
@@ -1258,9 +1267,11 @@ export default function ToothDetailPage() {
         isOpen={showAlignerModal}
         onClose={() => setShowAlignerModal(false)}
         patientId={patientId}
-        onPlanSaved={() => {
-          setToast({ visible: true, message: `Clear aligner treatment plan saved.` });
-          setTimeout(() => setToast({ visible: false, message: '' }), 3000);
+        onPlanSaved={async (plan) => {
+          const alignerDesc = `Clear Aligners: ${plan?.alignerBrand || 'Invisalign'} (${plan?.totalStages || 24} Trays, ${plan?.wearSchedule || '10 Days/Tray'})`;
+          await handleSaveObservation('Clear Aligners Active', alignerDesc, '#0284C7');
+          setToast({ visible: true, message: `Clear Aligner treatment plan applied.` });
+          setTimeout(() => setToast({ visible: false, message: '' }), 3500);
         }}
       />
 

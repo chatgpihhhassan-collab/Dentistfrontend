@@ -201,8 +201,11 @@ export default function ImplantPlanningModal({
       const result = await res.json();
       setToast({ show: true, message: 'Implant Plan saved successfully to database.', type: 'success' });
       await loadPatientImplantPlans();
-      if (onPlanSaved) onPlanSaved(result.plan);
-      setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3500);
+      if (onPlanSaved) onPlanSaved(result.plan || payload);
+      setTimeout(() => {
+        setToast({ show: false, message: '', type: 'success' });
+        if (onClose) onClose();
+      }, 700);
     } catch (err) {
       console.error('Save error:', err);
       setToast({ show: true, message: err.message || 'Error saving implant plan', type: 'error' });
@@ -329,21 +332,44 @@ export default function ImplantPlanningModal({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
             {/* Left 8 Cols: Form Fields */}
-            <form onSubmit={handleSave} className="lg:col-span-8 space-y-6">
+            <form id="implantPlanForm" onSubmit={handleSave} className="lg:col-span-8 space-y-4">
               
               {/* Row 1: Brand & Status & Target Tooth */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
                 <div>
-                  <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1.5">
-                    Target Tooth #
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-black text-slate-700 uppercase tracking-wider">
+                      Target Tooth #
+                    </label>
+                    <span className="text-[10px] font-extrabold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
+                      #{formData.toothKey}
+                    </span>
+                  </div>
                   <input
                     type="text"
                     value={formData.toothKey}
                     onChange={(e) => setFormData({ ...formData, toothKey: e.target.value, toothNumber: parseInt(e.target.value) || 19 })}
-                    className="w-full px-3 py-2 text-sm font-black text-[#10244B] bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-3 py-1.5 text-sm font-black text-[#10244B] bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     placeholder="e.g. 19"
                   />
+                  {/* Quick Select Tooth Pills */}
+                  <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                    <span className="text-[9px] font-extrabold text-slate-400">Quick:</span>
+                    {['19', '30', '14', '3', '4', '5', '12', '20'].map((tk) => (
+                      <button
+                        key={tk}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, toothKey: tk, toothNumber: parseInt(tk) })}
+                        className={`text-[9.5px] font-black px-1.5 py-0.5 rounded transition-colors ${
+                          String(formData.toothKey) === tk
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'
+                        }`}
+                      >
+                        #{tk}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div>
@@ -684,33 +710,6 @@ export default function ImplantPlanningModal({
                 </div>
               </div>
 
-              {/* Form Action Buttons */}
-              <div className="flex items-center justify-between pt-2">
-                <button
-                  type="button"
-                  onClick={handleResetForm}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
-                >
-                  Clear / New Plan
-                </button>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-xl text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                  >
-                    <Check className="w-4 h-4" />
-                    {saving ? 'Saving Plan...' : formData.implantPlanId ? 'Update Implant Plan' : 'Save Implant Plan'}
-                  </button>
-                </div>
-              </div>
             </form>
 
             {/* Right 4 Cols: Existing Patient Implant Plans */}
@@ -802,6 +801,40 @@ export default function ImplantPlanningModal({
               </div>
             </div>
 
+          </div>
+        </div>
+
+        {/* Sticky Action Footer - Always visible, ZERO SCROLL required */}
+        <div className="flex items-center justify-between px-6 py-3 bg-slate-50 border-t border-slate-200 shrink-0 sticky bottom-0 z-20 shadow-sm">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleResetForm}
+              className="px-3.5 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 rounded-xl border border-slate-300 transition-colors cursor-pointer"
+            >
+              Reset / New Plan
+            </button>
+            <span className="text-[11px] font-semibold text-slate-500 hidden sm:inline">
+              Target: <strong className="text-blue-700">Tooth #{formData.toothKey}</strong> ({formData.implantLength}mm × Ø{formData.implantDiameter}mm, {formData.boneQuality})
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="implantPlanForm"
+              disabled={saving}
+              className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-xl text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+            >
+              <Check className="w-4 h-4" />
+              {saving ? 'Saving Plan...' : formData.implantPlanId ? 'Update & Apply to Chart' : 'Save & Apply to Chart'}
+            </button>
           </div>
         </div>
 

@@ -46,6 +46,9 @@ export default function ClearAlignerModal({
             patientId={patientId}
             onPlanSaved={(plan) => {
               if (onPlanSaved) onPlanSaved(plan);
+              setTimeout(() => {
+                if (onClose) onClose();
+              }, 700);
             }}
           />
         </div>

@@ -600,10 +600,10 @@ export default function ClearAlignerOrthoTab({
               <button
                 type="submit"
                 disabled={saving}
-                className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
               >
                 <Check className="w-4 h-4" />
-                {saving ? 'Saving...' : formData.orthoAlignerId ? 'Update Aligner Plan' : 'Save Aligner Treatment'}
+                {saving ? 'Saving...' : formData.orthoAlignerId ? 'Update & Apply to Chart' : 'Save & Apply to Chart'}
               </button>
             </div>
           </div>

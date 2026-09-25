@@ -152,8 +152,11 @@ export default function BiopsyPathologyModal({
       const result = await res.json();
       setToast({ show: true, message: 'Biopsy specimen record saved successfully.', type: 'success' });
       await loadBiopsyRecords();
-      if (onBiopsySaved) onBiopsySaved(result.biopsy);
-      setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3500);
+      if (onBiopsySaved) onBiopsySaved(result.biopsy || payload);
+      setTimeout(() => {
+        setToast({ show: false, message: '', type: 'success' });
+        if (onClose) onClose();
+      }, 700);
     } catch (err) {
       console.error('Save error:', err);
       setToast({ show: true, message: err.message || 'Error saving biopsy record', type: 'error' });
@@ -274,7 +277,7 @@ export default function BiopsyPathologyModal({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
             {/* Left 8 Cols: Form */}
-            <form onSubmit={handleSave} className="lg:col-span-8 space-y-6">
+            <form id="biopsyForm" onSubmit={handleSave} className="lg:col-span-8 space-y-4">
               
               {/* Field 1: Biopsy Type (Single-Select: Incisional vs Excisional) */}
               <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
@@ -545,33 +548,6 @@ export default function BiopsyPathologyModal({
                 </div>
               </div>
 
-              {/* Form Action Buttons */}
-              <div className="flex items-center justify-between pt-2">
-                <button
-                  type="button"
-                  onClick={handleResetForm}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
-                >
-                  Clear / New Biopsy
-                </button>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="px-6 py-2.5 bg-gradient-to-r from-purple-700 to-indigo-800 hover:from-purple-800 hover:to-indigo-900 text-white rounded-xl text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                  >
-                    <Check className="w-4 h-4" />
-                    {saving ? 'Saving...' : formData.biopsyId ? 'Update Biopsy Record' : 'Save Biopsy Record'}
-                  </button>
-                </div>
-              </div>
             </form>
 
             {/* Right 4 Cols: Existing Patient Biopsies */}
@@ -667,6 +643,40 @@ export default function BiopsyPathologyModal({
               </div>
             </div>
 
+          </div>
+        </div>
+
+        {/* Sticky Action Footer - Always visible, ZERO SCROLL required */}
+        <div className="flex items-center justify-between px-6 py-3 bg-slate-50 border-t border-slate-200 shrink-0 sticky bottom-0 z-20 shadow-sm">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleResetForm}
+              className="px-3.5 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 rounded-xl border border-slate-300 transition-colors cursor-pointer"
+            >
+              Reset / New Biopsy
+            </button>
+            <span className="text-[11px] font-semibold text-slate-500 hidden sm:inline">
+              Technique: <strong className="text-purple-700">{formData.biopsyType}</strong> {formData.siteOfBiopsy ? `at ${formData.siteOfBiopsy}` : ''} {formData.toothKey ? `(Tooth #${formData.toothKey})` : ''}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="biopsyForm"
+              disabled={saving}
+              className="px-6 py-2.5 bg-gradient-to-r from-purple-700 to-indigo-800 hover:from-purple-800 hover:to-indigo-900 text-white rounded-xl text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+            >
+              <Check className="w-4 h-4" />
+              {saving ? 'Saving...' : formData.biopsyId ? 'Update & Apply to Chart' : 'Save & Apply to Chart'}
+            </button>
           </div>
         </div>
 

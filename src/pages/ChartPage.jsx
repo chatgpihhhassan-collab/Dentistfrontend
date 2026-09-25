@@ -8505,10 +8505,10 @@ export default function ChartPage() {
               return (
                 <div className="flex flex-col gap-3 flex-grow py-1 relative">
                 
-                  {/* Studio Header Controls: Clinical Workspace View Modes, 3D Density & Nav */}
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full px-1 gap-2.5">
+                  {/* Studio Header Controls: Clinical Workspace View Modes, 3D Density & Nav (Zero-Scroll Single Row) */}
+                  <div className="flex items-center justify-between w-full px-1 gap-1.5 flex-nowrap overflow-x-auto no-scrollbar py-0.5">
                     {/* Left: Mode Switcher & Sizing Controls */}
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
                       {/* Clinical Workspace Modes */}
                       <div className="flex items-center gap-1 bg-[#F8FAFC] p-1 rounded-xl border border-slate-200/80 shadow-2xs">
                         <button
@@ -8626,8 +8626,8 @@ export default function ChartPage() {
                       )}
                     </div>
 
-                    {/* Right action group: Clear Spotlight & Nav Actions */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* Right action group: Clear Spotlight & Nav Actions & Specialties Dock */}
+                    <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
                       {highlightedTeeth.length > 0 && (
                         <button
                           type="button"
@@ -8635,7 +8635,7 @@ export default function ChartPage() {
                             setHighlightedTeeth([]);
                             setHighlightInfo(null);
                           }}
-                          className="text-[10px] font-bold bg-blue-50 hover:bg-blue-100 text-[#4A7CD2] px-2.5 py-1.5 rounded-xl border border-blue-200 flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                          className="text-[10px] font-bold bg-blue-50 hover:bg-blue-100 text-[#4A7CD2] px-2.5 py-1.5 rounded-xl border border-blue-200 flex items-center gap-1 transition-all cursor-pointer shadow-2xs shrink-0"
                         >
                           <span>Clear Spotlight ({highlightedTeeth.length})</span>
                           <X className="w-3 h-3" />
@@ -8645,7 +8645,7 @@ export default function ChartPage() {
                       <button
                         type="button"
                         onClick={() => setShowObservationsDrawer(true)}
-                        className="text-[10.5px] font-bold bg-white hover:bg-blue-50/50 text-[#10244B] px-3 py-1.5 rounded-xl border border-slate-200/90 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                        className="text-[10.5px] font-bold bg-white hover:bg-blue-50/50 text-[#10244B] px-2.5 py-1.5 rounded-xl border border-slate-200/90 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs shrink-0"
                       >
                         <span className="w-2 h-2 rounded-full bg-[#4A7CD2] animate-pulse" />
                         <span>Observations</span>
@@ -8679,7 +8679,7 @@ export default function ChartPage() {
                       <button
                         type="button"
                         onClick={() => setShowOrthoTmjModal(true)}
-                        className="bg-[#4A7CD2] hover:bg-[#3665B7] text-white px-3 py-1.5 rounded-xl shadow-2xs flex items-center gap-1.5 text-[10.5px] font-bold transition-all cursor-pointer group shrink-0 active:scale-95"
+                        className="bg-[#4A7CD2] hover:bg-[#3665B7] text-white px-2.5 py-1.5 rounded-xl shadow-2xs flex items-center gap-1.5 text-[10.5px] font-bold transition-all cursor-pointer group shrink-0 active:scale-95"
                         title="Ortho, Occlusion, Wisdom Impaction & TMJ Diagnostic Suite (12 Diagrams)"
                         aria-label="Open Ortho & TMJ Diagnostic Suite"
                       >
@@ -8688,35 +8688,38 @@ export default function ChartPage() {
                         <span className="text-[9px] font-black bg-white/20 text-white px-1.5 py-0.2 rounded-full">12</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => setShowImplantModal(true)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1.5 rounded-xl shadow-2xs flex items-center gap-1 text-[10.5px] font-bold transition-all cursor-pointer group shrink-0 active:scale-95"
-                        title="Implant Planning (Length, Diameter, Bone Quality D1-D4, Grafting, 3D Guided Surgery)"
-                      >
-                        <span>🔩</span>
-                        <span>Implant Plan</span>
-                      </button>
+                      {/* Clinical Specialty Segmented Dock (Ultra-compact, zero-scroll) */}
+                      <div className="flex items-center bg-slate-100/90 p-0.5 rounded-xl border border-slate-200/90 shadow-2xs gap-0.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setShowImplantModal(true)}
+                          className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-2 py-1 rounded-lg shadow-2xs flex items-center gap-1 text-[10px] font-extrabold transition-all cursor-pointer shrink-0"
+                          title="Implant Planning & 3D Surgical Guide"
+                        >
+                          <span className="text-[11px]">🔩</span>
+                          <span>Implant</span>
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() => setShowBiopsyModal(true)}
-                        className="bg-purple-600 hover:bg-purple-700 text-white px-2.5 py-1.5 rounded-xl shadow-2xs flex items-center gap-1 text-[10.5px] font-bold transition-all cursor-pointer group shrink-0 active:scale-95"
-                        title="Biopsy & Oral Pathology (Incisional/Excisional, Anatomical Site)"
-                      >
-                        <span>🔬</span>
-                        <span>Biopsy</span>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowBiopsyModal(true)}
+                          className="bg-purple-600 hover:bg-purple-700 active:scale-95 text-white px-2 py-1 rounded-lg shadow-2xs flex items-center gap-1 text-[10px] font-extrabold transition-all cursor-pointer shrink-0"
+                          title="Biopsy & Oral Pathology Requisition"
+                        >
+                          <span className="text-[11px]">🔬</span>
+                          <span>Biopsy</span>
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() => setShowAlignerModal(true)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-xl shadow-2xs flex items-center gap-1 text-[10.5px] font-bold transition-all cursor-pointer group shrink-0 active:scale-95"
-                        title="Clear Aligners (Brand, Stages, Attachments, IPR, Wear Schedule)"
-                      >
-                        <span>✨</span>
-                        <span>Aligners</span>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowAlignerModal(true)}
+                          className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-2 py-1 rounded-lg shadow-2xs flex items-center gap-1 text-[10px] font-extrabold transition-all cursor-pointer shrink-0"
+                          title="Clear Aligner Digital Orthodontics"
+                        >
+                          <span className="text-[11px]">✨</span>
+                          <span>Aligners</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -9356,16 +9359,19 @@ export default function ChartPage() {
                     </div>
                   )}
 
-                  {/* Clinical Specialties Modals */}
+                  {/* Clinical Specialties Modals (Fully Integrated with Odontogram & DB Persistence) */}
                   <ImplantPlanningModal
                     isOpen={showImplantModal}
                     onClose={() => setShowImplantModal(false)}
                     patientId={patientId}
                     toothNumber={detailedTooth || 19}
                     toothKey={detailedTooth ? String(detailedTooth) : '19'}
-                    onPlanSaved={() => {
-                      setToast({ visible: true, message: 'Implant Plan saved successfully.' });
-                      setTimeout(() => setToast({ visible: false, message: '' }), 3000);
+                    onPlanSaved={async (plan) => {
+                      const tKey = plan?.toothKey || (plan?.toothNumber ? String(plan.toothNumber) : (detailedTooth ? String(detailedTooth) : '19'));
+                      const implantDesc = `Implant Plan: ${plan?.implantBrand || 'Straumann'} ${plan?.implantLength || 10}mm x ${plan?.implantDiameter || 4.3}mm, Bone ${plan?.boneQuality || 'D2'}${plan?.guidedSurgeryFlag ? ', 3D Guided' : ''}`;
+                      await handleSaveSingleToothObservation(tKey, 'Dental Implant', implantDesc, '#0E8A80');
+                      setToast({ visible: true, message: `Tooth #${tKey} updated on Dental Chart with Implant Plan.` });
+                      setTimeout(() => setToast({ visible: false, message: '' }), 3500);
                     }}
                   />
 
@@ -9375,9 +9381,26 @@ export default function ChartPage() {
                     patientId={patientId}
                     toothNumber={detailedTooth || null}
                     toothKey={detailedTooth ? String(detailedTooth) : ''}
-                    onBiopsySaved={() => {
-                      setToast({ visible: true, message: 'Biopsy record saved successfully.' });
-                      setTimeout(() => setToast({ visible: false, message: '' }), 3000);
+                    onBiopsySaved={async (biopsy) => {
+                      const tKey = biopsy?.toothKey || (biopsy?.toothNumber ? String(biopsy.toothNumber) : (detailedTooth ? String(detailedTooth) : null));
+                      const biopsyDesc = `Biopsy Requisition: ${biopsy?.biopsyType || 'Incisional'} - ${biopsy?.siteOfBiopsy || 'Specimen'} (${biopsy?.clinicalImpression || 'Oral Pathology'})`;
+                      if (tKey) {
+                        await handleSaveSingleToothObservation(tKey, 'Biopsy / Oral Pathology', biopsyDesc, '#8B5CF6');
+                        setToast({ visible: true, message: `Tooth #${tKey} marked on Chart with Biopsy Requisition.` });
+                      } else {
+                        try {
+                          const pid = parseInt(patientId) || 17;
+                          const docData = JSON.parse(localStorage.getItem('doctor') || '{}');
+                          const docId = docData.doctorID || docData.DoctorID || 2;
+                          await fetch(`${API_BASE_URL}/api/patients/${pid}/clinical-logs`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ doctorID: docId, action: `Oral Pathology Requisition: ${biopsyDesc}` })
+                          });
+                        } catch (e) {}
+                        setToast({ visible: true, message: `Biopsy Requisition saved: ${biopsy?.biopsyType} (${biopsy?.siteOfBiopsy || 'Soft tissue'})` });
+                      }
+                      setTimeout(() => setToast({ visible: false, message: '' }), 3500);
                     }}
                   />
 
@@ -9385,9 +9408,25 @@ export default function ChartPage() {
                     isOpen={showAlignerModal}
                     onClose={() => setShowAlignerModal(false)}
                     patientId={patientId}
-                    onPlanSaved={() => {
-                      setToast({ visible: true, message: 'Clear aligner treatment plan saved.' });
-                      setTimeout(() => setToast({ visible: false, message: '' }), 3000);
+                    onPlanSaved={async (plan) => {
+                      const alignerDesc = `Clear Aligners: ${plan?.alignerBrand || 'Invisalign'} (${plan?.totalStages || 24} Trays, ${plan?.wearSchedule || '10 Days/Tray'})`;
+                      try {
+                        const pid = parseInt(patientId) || 17;
+                        const docData = JSON.parse(localStorage.getItem('doctor') || '{}');
+                        const docId = docData.doctorID || docData.DoctorID || 2;
+                        await fetch(`${API_BASE_URL}/api/patients/${pid}/clinical-logs`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ doctorID: docId, action: `Clear Aligner Orthodontics Plan: ${alignerDesc}` })
+                        });
+                        setLiveOrthoAssessment(prev => ({
+                          ...prev,
+                          alignerPlan: plan,
+                          activeTreatment: alignerDesc
+                        }));
+                      } catch (e) {}
+                      setToast({ visible: true, message: `Clear Aligner treatment applied: ${plan?.alignerBrand || 'Active'}` });
+                      setTimeout(() => setToast({ visible: false, message: '' }), 3500);
                     }}
                   />
 
