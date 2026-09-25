@@ -41,7 +41,7 @@ export default function ClearAlignerModal({
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-3.5 sm:p-4">
           <ClearAlignerOrthoTab
             patientId={patientId}
             onPlanSaved={(plan) => {

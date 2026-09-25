@@ -365,8 +365,8 @@ export default function ImplantPlanningModal({
         )}
 
         {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="flex-1 overflow-y-auto p-3.5 sm:p-4">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
             
             {/* Left 8 Cols: Form Fields */}
             <form id="implantPlanForm" onSubmit={handleSave} className="lg:col-span-8 space-y-3">
@@ -473,8 +473,8 @@ export default function ImplantPlanningModal({
               </div>
 
               {/* Row 2: 1. Implant Length & 2. Implant Diameter */}
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="p-3 sm:p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2.5">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
                   <div className="flex items-center gap-2">
                     <Ruler className="w-4 h-4 text-blue-600" />
                     <h4 className="text-xs font-black text-[#10244B] uppercase tracking-wider">
@@ -580,8 +580,8 @@ export default function ImplantPlanningModal({
               </div>
 
               {/* Row 3: 3. Bone Quality (Lekholm & Zarb Classification) */}
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <div className="p-3 sm:p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
                   <div className="flex items-center gap-2">
                     <Layers className="w-4 h-4 text-indigo-600" />
                     <h4 className="text-xs font-black text-[#10244B] uppercase tracking-wider">
