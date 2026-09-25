@@ -3,6 +3,7 @@ import { Layers, Activity, Sparkles, AlertCircle, FileText, CheckCircle2 } from 
 import OcclusionBiteVisualizer from './OcclusionBiteVisualizer';
 import ImpactedTeethXRayVisualizer from './ImpactedTeethXRayVisualizer';
 import TMJJointArticulationViewer from './TMJJointArticulationViewer';
+import ClearAlignerOrthoTab from './ClearAlignerOrthoTab';
 
 export default function OrthoTmjDiagnosticSuite({
   patientId,
@@ -11,7 +12,7 @@ export default function OrthoTmjDiagnosticSuite({
   liveOrthoAssessment = null,
   onSaveAssessment
 }) {
-  const [activeSuiteTab, setActiveSuiteTab] = useState(() => liveOrthoAssessment?.suite_category || 'occlusion'); // 'occlusion', 'impactions', 'tmj'
+  const [activeSuiteTab, setActiveSuiteTab] = useState(() => liveOrthoAssessment?.suite_category || 'occlusion'); // 'occlusion', 'impactions', 'tmj', 'aligners'
 
   useEffect(() => {
     if (liveOrthoAssessment?.suite_category) {
@@ -65,6 +66,12 @@ export default function OrthoTmjDiagnosticSuite({
       label: isPediatric ? '3. Pediatric TMJ & Jaw Articulation' : '3. TMJ & Jaw Articulation / Clicking', 
       icon: '🦴', 
       count: '3 Diagrams' 
+    },
+    { 
+      id: 'aligners', 
+      label: isPediatric ? '4. Clear Aligners & Early Ortho' : '4. Clear Aligners & Aligner Stages', 
+      icon: '✨', 
+      count: 'Stages & IPR' 
     }
   ];
 
@@ -175,6 +182,13 @@ export default function OrthoTmjDiagnosticSuite({
           initialJointState={liveOrthoAssessment?.tmj_state || 'clicking'}
           initialMouthOpening={liveOrthoAssessment?.mouth_opening_mm || 42.0}
           onSaveAssessment={onSaveAssessment}
+        />
+      )}
+
+      {activeSuiteTab === 'aligners' && (
+        <ClearAlignerOrthoTab
+          patientId={patientId}
+          onPlanSaved={onSaveAssessment}
         />
       )}
     </div>

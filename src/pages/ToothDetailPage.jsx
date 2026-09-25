@@ -25,6 +25,9 @@ import ToothMultiSurfaceMatrix from '../components/toothDetail/ToothMultiSurface
 import ToothClinicalOverview from '../components/toothDetail/ToothClinicalOverview';
 import ToothDentitionGuardModal from '../components/toothDetail/ToothDentitionGuardModal';
 import OrthoTmjDiagnosticSuite from '../components/orthoTmjSuite/OrthoTmjDiagnosticSuite';
+import ImplantPlanningModal from '../components/clinicalSpecialties/ImplantPlanningModal';
+import BiopsyPathologyModal from '../components/clinicalSpecialties/BiopsyPathologyModal';
+import ClearAlignerModal from '../components/clinicalSpecialties/ClearAlignerModal';
 
 // Re-export for compatibility with other pages
 export { parseSurfacesFromRecord, calculatePatientAge, TOOTH_NAMES, PEDIATRIC_TOOTH_NAMES };
@@ -42,6 +45,9 @@ export default function ToothDetailPage() {
   const [toast, setToast] = useState({ visible: false, message: '' });
   const [showGuardModal, setShowGuardModal] = useState(false);
   const [liveOrthoAssessment, setLiveOrthoAssessment] = useState(null);
+  const [showImplantModal, setShowImplantModal] = useState(false);
+  const [showBiopsyModal, setShowBiopsyModal] = useState(false);
+  const [showAlignerModal, setShowAlignerModal] = useState(false);
 
   // Surface Matrix State
   const [surfaceData, setSurfaceData] = useState({
@@ -1073,9 +1079,35 @@ export default function ToothDetailPage() {
                     FDI #{fdiNum}
                   </span>
                 </div>
-                <span className="text-[11px] font-extrabold text-slate-500">
-                  Last Evaluated: Today, 2026
-                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setShowImplantModal(true)}
+                    className="px-2.5 py-1 rounded-xl text-xs font-black bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Implant Planning (Length, Diameter, Bone Quality, 3D Guided Surgery)"
+                  >
+                    <span>🔩</span> Implant Plan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowBiopsyModal(true)}
+                    className="px-2.5 py-1 rounded-xl text-xs font-black bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Biopsy & Oral Pathology (Incisional/Excisional, Anatomical Site)"
+                  >
+                    <span>🔬</span> Biopsy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAlignerModal(true)}
+                    className="px-2.5 py-1 rounded-xl text-xs font-black bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Clear Aligners (Brand, Stages, Attachments, IPR, Wear Schedule)"
+                  >
+                    <span>✨</span> Aligners
+                  </button>
+                  <span className="text-[11px] font-extrabold text-slate-500 ml-1">
+                    Today, 2026
+                  </span>
+                </div>
               </div>
 
               {/* Explicit Affected Zone Display */}
@@ -1195,6 +1227,41 @@ export default function ToothDetailPage() {
         patient={patient}
         patientAge={patientAge}
         isPediatric={isPediatric}
+      />
+
+      {/* Clinical Specialty Modals */}
+      <ImplantPlanningModal
+        isOpen={showImplantModal}
+        onClose={() => setShowImplantModal(false)}
+        patientId={patientId}
+        toothNumber={tNum}
+        toothKey={tKey}
+        onPlanSaved={() => {
+          setToast({ visible: true, message: `Implant plan for Tooth #${tKey} saved successfully.` });
+          setTimeout(() => setToast({ visible: false, message: '' }), 3000);
+        }}
+      />
+
+      <BiopsyPathologyModal
+        isOpen={showBiopsyModal}
+        onClose={() => setShowBiopsyModal(false)}
+        patientId={patientId}
+        toothNumber={tNum}
+        toothKey={tKey}
+        onBiopsySaved={() => {
+          setToast({ visible: true, message: `Biopsy record saved successfully.` });
+          setTimeout(() => setToast({ visible: false, message: '' }), 3000);
+        }}
+      />
+
+      <ClearAlignerModal
+        isOpen={showAlignerModal}
+        onClose={() => setShowAlignerModal(false)}
+        patientId={patientId}
+        onPlanSaved={() => {
+          setToast({ visible: true, message: `Clear aligner treatment plan saved.` });
+          setTimeout(() => setToast({ visible: false, message: '' }), 3000);
+        }}
       />
 
       {/* Floating Toast Notification (Top Right Corner) */}

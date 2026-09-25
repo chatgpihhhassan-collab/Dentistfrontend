@@ -32,6 +32,9 @@ import { extractAiFindingsFromReport, extractSoapFromReport, compressImageForUpl
 import { useDigoraHardwareSync } from '../hooks/useDigoraHardwareSync';
 import { API_BASE_URL } from '../config/apiConfig';
 import DigoraScannerModal from '../components/DigoraScannerModal';
+import ImplantPlanningModal from '../components/clinicalSpecialties/ImplantPlanningModal';
+import BiopsyPathologyModal from '../components/clinicalSpecialties/BiopsyPathologyModal';
+import ClearAlignerModal from '../components/clinicalSpecialties/ClearAlignerModal';
 
 // Real Anatomical Maxilla (Upper Jaw) Coordinate & Rotation Mapping for Empty Jaw Template (Exact 16 Sockets)
 export const MAXILLA_COORDS = {
@@ -696,6 +699,9 @@ export default function ChartPage() {
   const [isChatCollapsed, setIsChatCollapsed] = useState(true);
   const [selectedJawView, setSelectedJawView] = useState('both'); // 'both' | 'maxilla' | 'mandible'
   const [showOrthoTmjModal, setShowOrthoTmjModal] = useState(false);
+  const [showImplantModal, setShowImplantModal] = useState(false);
+  const [showBiopsyModal, setShowBiopsyModal] = useState(false);
+  const [showAlignerModal, setShowAlignerModal] = useState(false);
   const [liveOrthoAssessment, setLiveOrthoAssessment] = useState(null);
   
   // Eighteeth Nano-Pix Intraoral RVG Sensor Hardware Integration States
@@ -8681,6 +8687,36 @@ export default function ChartPage() {
                         <span>Ortho & TMJ Suite</span>
                         <span className="text-[9px] font-black bg-white/20 text-white px-1.5 py-0.2 rounded-full">12</span>
                       </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowImplantModal(true)}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1.5 rounded-xl shadow-2xs flex items-center gap-1 text-[10.5px] font-bold transition-all cursor-pointer group shrink-0 active:scale-95"
+                        title="Implant Planning (Length, Diameter, Bone Quality D1-D4, Grafting, 3D Guided Surgery)"
+                      >
+                        <span>🔩</span>
+                        <span>Implant Plan</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowBiopsyModal(true)}
+                        className="bg-purple-600 hover:bg-purple-700 text-white px-2.5 py-1.5 rounded-xl shadow-2xs flex items-center gap-1 text-[10.5px] font-bold transition-all cursor-pointer group shrink-0 active:scale-95"
+                        title="Biopsy & Oral Pathology (Incisional/Excisional, Anatomical Site)"
+                      >
+                        <span>🔬</span>
+                        <span>Biopsy</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowAlignerModal(true)}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-xl shadow-2xs flex items-center gap-1 text-[10.5px] font-bold transition-all cursor-pointer group shrink-0 active:scale-95"
+                        title="Clear Aligners (Brand, Stages, Attachments, IPR, Wear Schedule)"
+                      >
+                        <span>✨</span>
+                        <span>Aligners</span>
+                      </button>
                     </div>
                   </div>
 
@@ -9319,6 +9355,41 @@ export default function ChartPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* Clinical Specialties Modals */}
+                  <ImplantPlanningModal
+                    isOpen={showImplantModal}
+                    onClose={() => setShowImplantModal(false)}
+                    patientId={patientId}
+                    toothNumber={detailedTooth || 19}
+                    toothKey={detailedTooth ? String(detailedTooth) : '19'}
+                    onPlanSaved={() => {
+                      setToast({ visible: true, message: 'Implant Plan saved successfully.' });
+                      setTimeout(() => setToast({ visible: false, message: '' }), 3000);
+                    }}
+                  />
+
+                  <BiopsyPathologyModal
+                    isOpen={showBiopsyModal}
+                    onClose={() => setShowBiopsyModal(false)}
+                    patientId={patientId}
+                    toothNumber={detailedTooth || null}
+                    toothKey={detailedTooth ? String(detailedTooth) : ''}
+                    onBiopsySaved={() => {
+                      setToast({ visible: true, message: 'Biopsy record saved successfully.' });
+                      setTimeout(() => setToast({ visible: false, message: '' }), 3000);
+                    }}
+                  />
+
+                  <ClearAlignerModal
+                    isOpen={showAlignerModal}
+                    onClose={() => setShowAlignerModal(false)}
+                    patientId={patientId}
+                    onPlanSaved={() => {
+                      setToast({ visible: true, message: 'Clear aligner treatment plan saved.' });
+                      setTimeout(() => setToast({ visible: false, message: '' }), 3000);
+                    }}
+                  />
 
                   {/* === 3. MODAL / OVERLAY 5-SURFACE ZONE & CLINICAL PALETTE INSPECTOR === */}
                   {detailedTooth && (() => {
