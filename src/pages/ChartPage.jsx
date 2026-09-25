@@ -35,6 +35,7 @@ import DigoraScannerModal from '../components/DigoraScannerModal';
 import ImplantPlanningModal from '../components/clinicalSpecialties/ImplantPlanningModal';
 import BiopsyPathologyModal from '../components/clinicalSpecialties/BiopsyPathologyModal';
 import ClearAlignerModal from '../components/clinicalSpecialties/ClearAlignerModal';
+import ClinicalSpecialtiesDossierBar from '../components/clinicalSpecialties/ClinicalSpecialtiesDossierBar';
 
 // Real Anatomical Maxilla (Upper Jaw) Coordinate & Rotation Mapping for Empty Jaw Template (Exact 16 Sockets)
 export const MAXILLA_COORDS = {
@@ -703,6 +704,7 @@ export default function ChartPage() {
   const [showBiopsyModal, setShowBiopsyModal] = useState(false);
   const [showAlignerModal, setShowAlignerModal] = useState(false);
   const [liveOrthoAssessment, setLiveOrthoAssessment] = useState(null);
+  const [specialtyRefreshTrigger, setSpecialtyRefreshTrigger] = useState(0);
   
   // Eighteeth Nano-Pix Intraoral RVG Sensor Hardware Integration States
   const [showNanoPixModal, setShowNanoPixModal] = useState(false);
@@ -8742,6 +8744,18 @@ export default function ChartPage() {
                     </div>
                   </div>
 
+                  {/* Active Clinical Specialty Dossier Strip (General Information & Patient History) */}
+                  <div className="w-full">
+                    <ClinicalSpecialtiesDossierBar
+                      patientId={patientId}
+                      onOpenImplant={() => setShowImplantModal(true)}
+                      onOpenBiopsy={() => setShowBiopsyModal(true)}
+                      onOpenAligner={() => setShowAlignerModal(true)}
+                      onOpenOrthoTmj={() => setShowOrthoTmjModal(true)}
+                      refreshTrigger={specialtyRefreshTrigger}
+                    />
+                  </div>
+
                   {/* Active Scan Clinical Impact Horizon Banner (Visible in Non-Split Modes) */}
                   {activeScanImpact && workspaceMode !== 'split' && (
                     <div className="w-full bg-gradient-to-r from-[#10244B] via-[#1E3A8A] to-[#2563EB] border border-blue-500/40 text-white px-4 py-3 rounded-2xl shadow-lg flex flex-wrap items-center justify-between gap-3 animate-in fade-in text-xs">
@@ -9389,6 +9403,7 @@ export default function ChartPage() {
                       const tKey = plan?.toothKey || (plan?.toothNumber ? String(plan.toothNumber) : (detailedTooth ? String(detailedTooth) : '19'));
                       const implantDesc = `Implant Plan: ${plan?.implantBrand || 'Straumann'} ${plan?.implantLength || 10}mm x ${plan?.implantDiameter || 4.3}mm, Bone ${plan?.boneQuality || 'D2'}${plan?.guidedSurgeryFlag ? ', 3D Guided' : ''}`;
                       await handleSaveSingleToothObservation(tKey, 'Dental Implant', implantDesc, '#0E8A80');
+                      setSpecialtyRefreshTrigger(prev => prev + 1);
                       setToast({ visible: true, message: `Tooth #${tKey} updated on Dental Chart with Implant Plan.` });
                       setTimeout(() => setToast({ visible: false, message: '' }), 3500);
                     }}
@@ -9419,6 +9434,7 @@ export default function ChartPage() {
                         } catch (e) {}
                         setToast({ visible: true, message: `Biopsy Requisition saved: ${biopsy?.biopsyType} (${biopsy?.siteOfBiopsy || 'Soft tissue'})` });
                       }
+                      setSpecialtyRefreshTrigger(prev => prev + 1);
                       setTimeout(() => setToast({ visible: false, message: '' }), 3500);
                     }}
                   />
@@ -9444,6 +9460,7 @@ export default function ChartPage() {
                           activeTreatment: alignerDesc
                         }));
                       } catch (e) {}
+                      setSpecialtyRefreshTrigger(prev => prev + 1);
                       setToast({ visible: true, message: `Clear Aligner treatment applied: ${plan?.alignerBrand || 'Active'}` });
                       setTimeout(() => setToast({ visible: false, message: '' }), 3500);
                     }}

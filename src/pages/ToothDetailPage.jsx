@@ -48,6 +48,7 @@ export default function ToothDetailPage() {
   const [showImplantModal, setShowImplantModal] = useState(false);
   const [showBiopsyModal, setShowBiopsyModal] = useState(false);
   const [showAlignerModal, setShowAlignerModal] = useState(false);
+  const [specialtyRefreshTrigger, setSpecialtyRefreshTrigger] = useState(0);
 
   // Surface Matrix State
   const [surfaceData, setSurfaceData] = useState({
@@ -1178,6 +1179,10 @@ export default function ToothDetailPage() {
                 setIsEditingNotes={setIsEditingNotes}
                 handleSaveObservation={handleSaveObservation}
                 saving={saving}
+                onOpenImplant={() => setShowImplantModal(true)}
+                onOpenBiopsy={() => setShowBiopsyModal(true)}
+                onOpenAligner={() => setShowAlignerModal(true)}
+                refreshTrigger={specialtyRefreshTrigger}
               />
             )}
 
@@ -1246,6 +1251,7 @@ export default function ToothDetailPage() {
           const targetTooth = plan?.toothKey || plan?.toothNumber || tKey;
           const implantDesc = `Implant Plan: ${plan?.implantBrand || 'Straumann'} ${plan?.implantLength || 10}mm x ${plan?.implantDiameter || 4.3}mm, Bone ${plan?.boneQuality || 'D2'}${plan?.guidedSurgeryFlag ? ', 3D Guided' : ''}`;
           await handleSaveObservation('Dental Implant', implantDesc, '#0E8A80');
+          setSpecialtyRefreshTrigger(prev => prev + 1);
           setToast({ visible: true, message: `Tooth #${targetTooth} updated with Dental Implant plan.` });
           setTimeout(() => setToast({ visible: false, message: '' }), 3500);
         }}
@@ -1261,6 +1267,7 @@ export default function ToothDetailPage() {
           const targetTooth = biopsy?.toothKey || biopsy?.toothNumber || tKey;
           const biopsyDesc = `Biopsy Requisition: ${biopsy?.biopsyType || 'Incisional'} at ${biopsy?.siteOfBiopsy || `Tooth #${tKey}`} (${biopsy?.clinicalImpression || 'Oral Pathology'})`;
           await handleSaveObservation('Biopsy / Pathology', biopsyDesc, '#8B5CF6');
+          setSpecialtyRefreshTrigger(prev => prev + 1);
           setToast({ visible: true, message: `Tooth #${targetTooth} updated with Biopsy requisition.` });
           setTimeout(() => setToast({ visible: false, message: '' }), 3500);
         }}
@@ -1273,6 +1280,7 @@ export default function ToothDetailPage() {
         onPlanSaved={async (plan) => {
           const alignerDesc = `Clear Aligners: ${plan?.alignerBrand || 'Invisalign'} (${plan?.totalStages || 24} Trays, ${plan?.wearSchedule || '10 Days/Tray'})`;
           await handleSaveObservation('Clear Aligners Active', alignerDesc, '#0284C7');
+          setSpecialtyRefreshTrigger(prev => prev + 1);
           setToast({ visible: true, message: `Clear Aligner treatment plan applied.` });
           setTimeout(() => setToast({ visible: false, message: '' }), 3500);
         }}

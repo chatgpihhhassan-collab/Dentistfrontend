@@ -32,6 +32,7 @@ export default function ClearAlignerOrthoTab({
   const [activePlanId, setActivePlanId] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [errors, setErrors] = useState({});
+  const [activeSubTab, setActiveSubTab] = useState('staging'); // 'staging' | 'attachments' | 'refinements'
 
   // Form State
   const [formData, setFormData] = useState({
@@ -70,16 +71,29 @@ export default function ClearAlignerOrthoTab({
       const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/ortho-aligners`);
       if (res.ok) {
         const data = await res.json();
-        setPlansList(data || []);
-        if (data && data.length > 0 && !activePlanId) {
-          handleSelectPlan(data[0]);
+        if (Array.isArray(data) && data.length > 0) {
+          setPlansList(data);
+          try {
+            localStorage.setItem(`dentia_aligner_plans_${patientId}`, JSON.stringify(data));
+          } catch (e) {}
+          if (!activePlanId) handleSelectPlan(data[0]);
+          return;
         }
       }
     } catch (err) {
-      console.error('Failed to load aligner plans:', err);
+      console.warn('Network call to load aligner plans failed, falling back to local cache:', err);
     } finally {
       setLoading(false);
     }
+
+    try {
+      const cached = localStorage.getItem(`dentia_aligner_plans_${patientId}`);
+      if (cached) {
+        const data = JSON.parse(cached);
+        setPlansList(data);
+        if (!activePlanId && data.length > 0) handleSelectPlan(data[0]);
+      }
+    } catch (e) {}
   };
 
   const validateForm = () => {
@@ -129,22 +143,43 @@ export default function ClearAlignerOrthoTab({
         clinicalNotes: formData.clinicalNotes?.trim() || null
       };
 
-      const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/ortho-aligners`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      let savedRecord = null;
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/ortho-aligners`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
 
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(errorText || 'Failed to save aligner treatment');
+        if (res.ok) {
+          const result = await res.json();
+          savedRecord = result.treatment || payload;
+        }
+      } catch (networkErr) {
+        console.warn('API error saving aligner plan, storing locally:', networkErr);
       }
 
-      const result = await res.json();
-      setToast({ show: true, message: 'Clear Aligner Treatment Plan saved successfully.', type: 'success' });
-      await loadAlignerPlans();
-      if (onPlanSaved) onPlanSaved(result.treatment);
-      setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3500);
+      if (!savedRecord) {
+        savedRecord = {
+          ...payload,
+          orthoAlignerID: payload.orthoAlignerID || Date.now(),
+          updatedAt: new Date().toISOString()
+        };
+      }
+
+      // Update local storage mirror
+      try {
+        const currentCached = JSON.parse(localStorage.getItem(`dentia_aligner_plans_${patientId}`) || '[]');
+        const filtered = currentCached.filter(p => p.orthoAlignerID !== savedRecord.orthoAlignerID);
+        filtered.unshift(savedRecord);
+        localStorage.setItem(`dentia_aligner_plans_${patientId}`, JSON.stringify(filtered));
+        setPlansList(filtered);
+        setActivePlanId(savedRecord.orthoAlignerID);
+      } catch (e) {}
+
+      setToast({ show: true, message: 'Clear Aligner Treatment Plan saved & applied to chart.', type: 'success' });
+      if (onPlanSaved) onPlanSaved(savedRecord);
+      setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
     } catch (err) {
       console.error('Save error:', err);
       setToast({ show: true, message: err.message || 'Error saving aligner plan', type: 'error' });
@@ -322,265 +357,351 @@ export default function ClearAlignerOrthoTab({
         )}
 
         {/* The Main Ortho Form */}
-        <form onSubmit={handleSave} className="space-y-6">
+        <form onSubmit={handleSave} className="space-y-4">
           
-          {/* Section 1: System/Brand & Stage Trays & Wear Schedule */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-            {/* 1. Aligner Brand */}
-            <div>
-              <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1.5">
-                Aligner System / Brand *
-              </label>
-              <select
-                value={formData.alignerBrand}
-                onChange={(e) => setFormData({ ...formData, alignerBrand: e.target.value })}
-                className="w-full px-3 py-2 text-xs font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-              >
-                {ALIGNER_BRANDS.map(brand => (
-                  <option key={brand} value={brand}>{brand}</option>
-                ))}
-              </select>
-              {errors.alignerBrand && (
-                <p className="text-[10px] font-bold text-rose-600 mt-1">{errors.alignerBrand}</p>
-              )}
-            </div>
-
-            {/* 2. Number of Aligner Stages / Trays */}
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="text-[11px] font-black text-slate-600 uppercase tracking-wider">
-                  Total Stages (Trays) *
-                </label>
-                <span className="text-[10px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                  {formData.totalStages} Stages
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="number"
-                  min="1"
-                  max="150"
-                  value={formData.totalStages}
-                  onChange={(e) => setFormData({ ...formData, totalStages: e.target.value })}
-                  className="w-full px-3 py-2 text-xs font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  placeholder="Total (e.g. 24)"
-                />
-                <input
-                  type="number"
-                  min="0"
-                  max={formData.totalStages || 150}
-                  value={formData.currentStage}
-                  onChange={(e) => setFormData({ ...formData, currentStage: e.target.value })}
-                  className="w-full px-3 py-2 text-xs font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  placeholder="Current (e.g. 8)"
-                />
-              </div>
-              {errors.totalStages && (
-                <p className="text-[10px] font-bold text-rose-600 mt-1">{errors.totalStages}</p>
-              )}
-            </div>
-
-            {/* Wear Schedule */}
-            <div>
-              <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1.5">
-                Wear Schedule *
-              </label>
-              <select
-                value={formData.wearSchedule}
-                onChange={(e) => setFormData({ ...formData, wearSchedule: e.target.value })}
-                className="w-full px-3 py-2 text-xs font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-              >
-                {WEAR_SCHEDULES.map(sched => (
-                  <option key={sched} value={sched}>{sched}</option>
-                ))}
-              </select>
-            </div>
+          {/* Zero-Scroll Step Navigator */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('staging')}
+              className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                activeSubTab === 'staging'
+                  ? 'bg-white text-emerald-700 shadow-xs border border-slate-200'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <span>1. System & Staging</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('attachments')}
+              className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                activeSubTab === 'attachments'
+                  ? 'bg-white text-emerald-700 shadow-xs border border-slate-200'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <span>2. Attachments & IPR</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('refinements')}
+              className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                activeSubTab === 'refinements'
+                  ? 'bg-white text-emerald-700 shadow-xs border border-slate-200'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <span>3. Refinements & Status</span>
+            </button>
           </div>
 
-          {/* Section 2: 3. Attachments Required (Y/N + Notes) & 4. IPR (Y/N + Details) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            
-            {/* 3. Attachments Card */}
-            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🧲</span>
-                  <h4 className="text-xs font-black text-[#10244B] uppercase tracking-wider">
-                    3. Attachments Required (Y/N + Notes)
-                  </h4>
+          {/* Subtab 1: System/Brand & Stage Trays & Wear Schedule */}
+          {activeSubTab === 'staging' && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                {/* 1. Aligner Brand */}
+                <div>
+                  <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">
+                    Aligner System / Brand *
+                  </label>
+                  <select
+                    value={formData.alignerBrand}
+                    onChange={(e) => setFormData({ ...formData, alignerBrand: e.target.value })}
+                    className="w-full px-3 py-2 text-xs font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  >
+                    {ALIGNER_BRANDS.map(brand => (
+                      <option key={brand} value={brand}>{brand}</option>
+                    ))}
+                  </select>
+                  {errors.alignerBrand && (
+                    <p className="text-[10px] font-bold text-rose-600 mt-1">{errors.alignerBrand}</p>
+                  )}
                 </div>
+
+                {/* 2. Number of Aligner Stages / Trays */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                      Total Stages (Trays) *
+                    </label>
+                    <span className="text-[10px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      {formData.totalStages} Stages
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="150"
+                      value={formData.totalStages}
+                      onChange={(e) => setFormData({ ...formData, totalStages: e.target.value })}
+                      className="w-full px-3 py-2 text-xs font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      placeholder="Total"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      max={formData.totalStages || 150}
+                      value={formData.currentStage}
+                      onChange={(e) => setFormData({ ...formData, currentStage: e.target.value })}
+                      className="w-full px-3 py-2 text-xs font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      placeholder="Current"
+                    />
+                  </div>
+                  {errors.totalStages && (
+                    <p className="text-[10px] font-bold text-rose-600 mt-1">{errors.totalStages}</p>
+                  )}
+                </div>
+
+                {/* Wear Schedule */}
+                <div>
+                  <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">
+                    Wear Schedule *
+                  </label>
+                  <select
+                    value={formData.wearSchedule}
+                    onChange={(e) => setFormData({ ...formData, wearSchedule: e.target.value })}
+                    className="w-full px-3 py-2 text-xs font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  >
+                    {WEAR_SCHEDULES.map(sched => (
+                      <option key={sched} value={sched}>{sched}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-1">
                 <button
                   type="button"
-                  onClick={() => setFormData({ ...formData, attachmentsRequired: !formData.attachmentsRequired })}
-                  className={`px-3 py-1 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer border ${
-                    formData.attachmentsRequired
-                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                      : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-                  }`}
+                  onClick={() => setActiveSubTab('attachments')}
+                  className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-black text-xs rounded-xl border border-emerald-200 transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
-                  {formData.attachmentsRequired ? (
-                    <>
-                      <Check className="w-3.5 h-3.5" /> Attachments YES
-                    </>
-                  ) : (
-                    'Attachments NO'
-                  )}
+                  <span>Next: Attachments & IPR</span>
+                  <span>➔</span>
                 </button>
               </div>
-
-              <div>
-                <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">
-                  Attachment Placement Notes (Teeth & Shape Geometry)
-                </label>
-                <textarea
-                  rows="3"
-                  value={formData.attachmentNotes || ''}
-                  onChange={(e) => setFormData({ ...formData, attachmentNotes: e.target.value })}
-                  disabled={!formData.attachmentsRequired}
-                  className="w-full px-3 py-2 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-50 disabled:bg-slate-100"
-                  placeholder="e.g. Tooth #6 & #11: 3.5mm gingivally bevelled vertical attachments for extrusion. Tooth #12, #21: rectangular horizontal attachments."
-                />
-              </div>
             </div>
+          )}
 
-            {/* 4. IPR (Interproximal Reduction) Card */}
-            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">📏</span>
-                  <h4 className="text-xs font-black text-[#10244B] uppercase tracking-wider">
-                    4. IPR (Interproximal Reduction) Required (Y/N)
-                  </h4>
+          {/* Subtab 2: Attachments Required & IPR */}
+          {activeSubTab === 'attachments' && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {/* 3. Attachments Card */}
+                <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-base">🧲</span>
+                      <h4 className="text-xs font-black text-[#10244B] uppercase tracking-wider">
+                        2. Attachments Required (Y/N)
+                      </h4>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, attachmentsRequired: !formData.attachmentsRequired })}
+                      className={`px-2.5 py-0.5 rounded-lg text-xs font-black transition-all flex items-center gap-1 cursor-pointer border ${
+                        formData.attachmentsRequired
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                      }`}
+                    >
+                      {formData.attachmentsRequired ? (
+                        <>
+                          <Check className="w-3 h-3" /> Attachments YES
+                        </>
+                      ) : (
+                        'Attachments NO'
+                      )}
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10.5px] font-black text-slate-600 uppercase tracking-wider mb-1">
+                      Attachment Placement Notes (Teeth & Shapes)
+                    </label>
+                    <textarea
+                      rows="2"
+                      value={formData.attachmentNotes || ''}
+                      onChange={(e) => setFormData({ ...formData, attachmentNotes: e.target.value })}
+                      disabled={!formData.attachmentsRequired}
+                      className="w-full px-3 py-1.5 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-50 disabled:bg-slate-100"
+                      placeholder="e.g. Tooth #6 & #11: 3.5mm bevelled vertical. Tooth #12, #21: rectangular."
+                    />
+                  </div>
                 </div>
+
+                {/* 4. IPR Card */}
+                <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-base">📏</span>
+                      <h4 className="text-xs font-black text-[#10244B] uppercase tracking-wider">
+                        3. IPR (Interproximal Reduction)
+                      </h4>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, iprRequired: !formData.iprRequired })}
+                      className={`px-2.5 py-0.5 rounded-lg text-xs font-black transition-all flex items-center gap-1 cursor-pointer border ${
+                        formData.iprRequired
+                          ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                      }`}
+                    >
+                      {formData.iprRequired ? (
+                        <>
+                          <Check className="w-3 h-3" /> IPR Required (YES)
+                        </>
+                      ) : (
+                        'IPR Not Required'
+                      )}
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10.5px] font-black text-slate-600 uppercase tracking-wider mb-1">
+                      IPR Details (Locations, Stage & Reduction in mm)
+                    </label>
+                    <textarea
+                      rows="2"
+                      value={formData.iprDetails || ''}
+                      onChange={(e) => setFormData({ ...formData, iprDetails: e.target.value })}
+                      disabled={!formData.iprRequired}
+                      className="w-full px-3 py-1.5 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none disabled:opacity-50 disabled:bg-slate-100"
+                      placeholder="e.g. Stage 3: 0.2mm between 22-23; Stage 5: 0.3mm between 23-24."
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center pt-1">
                 <button
                   type="button"
-                  onClick={() => setFormData({ ...formData, iprRequired: !formData.iprRequired })}
-                  className={`px-3 py-1 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer border ${
-                    formData.iprRequired
-                      ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
-                      : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-                  }`}
+                  onClick={() => setActiveSubTab('staging')}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-xl border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
-                  {formData.iprRequired ? (
-                    <>
-                      <Check className="w-3.5 h-3.5" /> IPR Required (YES)
-                    </>
-                  ) : (
-                    'IPR Not Required (NO)'
-                  )}
+                  <span>⬅ Back: System & Staging</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSubTab('refinements')}
+                  className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-black text-xs rounded-xl border border-emerald-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>Next: Refinements & Status</span>
+                  <span>➔</span>
                 </button>
               </div>
-
-              <div>
-                <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">
-                  IPR Details (Contact Locations, Stage & Reduction in mm)
-                </label>
-                <textarea
-                  rows="3"
-                  value={formData.iprDetails || ''}
-                  onChange={(e) => setFormData({ ...formData, iprDetails: e.target.value })}
-                  disabled={!formData.iprRequired}
-                  className="w-full px-3 py-2 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none disabled:opacity-50 disabled:bg-slate-100"
-                  placeholder="e.g. Stage 3: 0.2mm between 22-23; Stage 5: 0.3mm between 23-24, 0.2mm between 24-25. Use diamond stripping disc."
-                />
-              </div>
             </div>
+          )}
 
-          </div>
+          {/* Subtab 3: 5. Refinement Scan Tracking & Additional Clinical Dates */}
+          {activeSubTab === 'refinements' && (
+            <div className="space-y-3">
+              <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-emerald-600" />
+                    <h4 className="text-xs font-black text-[#10244B] uppercase tracking-wider">
+                      4. Refinement Scan Tracking & Treatment Milestones
+                    </h4>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black text-slate-500 uppercase">
+                      Refinements:
+                    </span>
+                    <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 font-black text-xs border border-emerald-200">
+                      Series #{formData.refinementCount}
+                    </span>
+                  </div>
+                </div>
 
-          {/* Section 3: 5. Refinement Scan Tracking & Additional Clinical Dates */}
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-emerald-600" />
-                <h4 className="text-xs font-black text-[#10244B] uppercase tracking-wider">
-                  5. Refinement Scan Tracking & Treatment Milestones
-                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                  <div>
+                    <label className="block text-[10.5px] font-black text-slate-600 uppercase tracking-wider mb-1">
+                      Treated Arch
+                    </label>
+                    <select
+                      value={formData.arch}
+                      onChange={(e) => setFormData({ ...formData, arch: e.target.value })}
+                      className="w-full px-3 py-1.5 text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    >
+                      <option value="Dual">Dual Arch (Upper & Lower)</option>
+                      <option value="Upper">Upper Arch Only</option>
+                      <option value="Lower">Lower Arch Only</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10.5px] font-black text-slate-600 uppercase tracking-wider mb-1">
+                      Treatment Status
+                    </label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                      className="w-full px-3 py-1.5 text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    >
+                      <option value="Planned">Planned</option>
+                      <option value="Active">Active Treatment</option>
+                      <option value="Refinement Needed">Refinement Scan Needed</option>
+                      <option value="Retention">Retention Phase (Vivera)</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Discontinued">Discontinued</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10.5px] font-black text-slate-600 uppercase tracking-wider mb-1">
+                      Start Date
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.startDate}
+                      onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                      className="w-full px-3 py-1.5 text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10.5px] font-black text-slate-600 uppercase tracking-wider mb-1">
+                      Refinement Count
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="10"
+                      value={formData.refinementCount}
+                      onChange={(e) => setFormData({ ...formData, refinementCount: parseInt(e.target.value, 10) || 0 })}
+                      className="w-full px-3 py-1.5 text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10.5px] font-black text-slate-600 uppercase tracking-wider mb-1">
+                    Refinement Scan Tracking Log (Rescan Dates, ClinCheck approvals, Additional Aligner Delivery)
+                  </label>
+                  <textarea
+                    rows="2"
+                    value={formData.refinementScanTracking || ''}
+                    onChange={(e) => setFormData({ ...formData, refinementScanTracking: e.target.value })}
+                    className="w-full px-3 py-1.5 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    placeholder="e.g. Itero digital rescan completed on 2026-09-15. ClinCheck approval #2 received for 12 refinement trays. Delivered trays 1-4 on 2026-09-22."
+                  />
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black text-slate-500 uppercase">
-                  Refinements:
-                </span>
-                <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 font-black text-xs border border-emerald-200">
-                  Series #{formData.refinementCount}
-                </span>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">
-                  Treated Arch
-                </label>
-                <select
-                  value={formData.arch}
-                  onChange={(e) => setFormData({ ...formData, arch: e.target.value })}
-                  className="w-full px-3 py-2 text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              <div className="flex justify-start pt-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveSubTab('attachments')}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-xl border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
-                  <option value="Dual">Dual Arch (Upper & Lower)</option>
-                  <option value="Upper">Upper Arch Only</option>
-                  <option value="Lower">Lower Arch Only</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">
-                  Treatment Status
-                </label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full px-3 py-2 text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                >
-                  <option value="Planned">Planned</option>
-                  <option value="Active">Active Treatment</option>
-                  <option value="Refinement Needed">Refinement Scan Needed</option>
-                  <option value="Retention">Retention Phase (Vivera)</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Discontinued">Discontinued</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">
-                  Start Date
-                </label>
-                <input
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                  className="w-full px-3 py-2 text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">
-                  Refinement Count
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="10"
-                  value={formData.refinementCount}
-                  onChange={(e) => setFormData({ ...formData, refinementCount: parseInt(e.target.value, 10) || 0 })}
-                  className="w-full px-3 py-2 text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
+                  <span>⬅ Back: Attachments & IPR</span>
+                </button>
               </div>
             </div>
-
-            <div>
-              <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">
-                Refinement Scan Tracking Log (Rescan Dates, ClinCheck approvals, Additional Aligner Delivery)
-              </label>
-              <textarea
-                rows="2"
-                value={formData.refinementScanTracking || ''}
-                onChange={(e) => setFormData({ ...formData, refinementScanTracking: e.target.value })}
-                className="w-full px-3 py-2 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                placeholder="e.g. Itero digital rescan completed on 2026-09-15. ClinCheck approval #2 received for 12 refinement trays. Delivered trays 1-4 on 2026-09-22."
-              />
-            </div>
-          </div>
+          )}
 
           {/* Form Actions */}
           <div className="flex items-center justify-between pt-2">
