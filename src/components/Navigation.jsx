@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { LogOut, Home, Users, Calendar, Stethoscope, Info, CalendarPlus, Phone, Clock, Mail, Star, UserCheck, DollarSign } from 'lucide-react';
 import { HardwareDeviceSyncBadge } from './HardwareDeviceSyncBadge';
+import { purgeClinicianSession } from '../services/sessionSecurityService';
 
 export default function Navigation() {
     const navigate = useNavigate();
@@ -16,9 +17,9 @@ export default function Navigation() {
     }, []);
 
     const handleLogout = () => {
-        localStorage.removeItem('doctor');
+        purgeClinicianSession('manual_logout');
         setDoctor(null);
-        navigate('/');
+        navigate('/login');
     };
 
     const getLinkClass = (isActive) => {

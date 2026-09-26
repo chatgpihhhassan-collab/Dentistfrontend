@@ -4,6 +4,7 @@ import axios from 'axios'
 import './index.css'
 import App from './App.jsx'
 import { recordDoctorActivity } from './components/IdleSessionManager'
+import { purgeClinicianSession } from './services/sessionSecurityService'
 
 // Global API Configuration & Token Authorization Interceptors
 const API_HOST = 'https://dentist-api-dev.vitonta.com';
@@ -50,8 +51,7 @@ axios.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401 && !error.config?.url?.includes('/api/auth/login')) {
-      localStorage.removeItem('doctor');
-      localStorage.removeItem('dentia_last_active');
+      purgeClinicianSession('unauthorized');
       if (window.location.pathname !== '/login') {
         window.location.href = '/login?expired=true';
       }
@@ -97,8 +97,7 @@ if (typeof window !== 'undefined') {
 
     return originalFetch.call(this, resource, init).then((response) => {
       if (response.status === 401 && typeof url === 'string' && url.includes('/api/') && !url.includes('/api/auth/login')) {
-        localStorage.removeItem('doctor');
-        localStorage.removeItem('dentia_last_active');
+        purgeClinicianSession('unauthorized');
         if (window.location.pathname !== '/login') {
           window.location.href = '/login?expired=true';
         }

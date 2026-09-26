@@ -5,6 +5,7 @@ import {
     Stethoscope, Hash, Eye, EyeOff, ArrowRight, CheckCircle2, KeyRound 
 } from 'lucide-react';
 import API_BASE_URL from '../config/apiConfig';
+import { establishDoctorSession } from '../services/sessionSecurityService';
 
 export default function Auth() {
     const navigate = useNavigate();
@@ -21,6 +22,7 @@ export default function Auth() {
 
     // Clinician Form State
     const [isLogin, setIsLogin] = useState(true);
+    const [rememberMe, setRememberMe] = useState(false);
     const [clinicianData, setClinicianData] = useState({ 
         username: '', 
         password: '', 
@@ -40,7 +42,10 @@ export default function Auth() {
     const [patientError, setPatientError] = useState('');
     const [patientNeedsActivation, setPatientNeedsActivation] = useState(null);
 
-    const isSessionExpired = new URLSearchParams(location.search).get('expired') === 'true' || Boolean(location.state?.sessionExpired);
+    const searchParams = new URLSearchParams(location.search);
+    const isSessionExpired = searchParams.get('expired') === 'true' || Boolean(location.state?.sessionExpired);
+    const isSessionClosed = searchParams.get('session_closed') === 'true' || Boolean(location.state?.sessionClosed);
+    const isAuthRequired = searchParams.get('required') === 'true' || Boolean(location.state?.authRequired);
 
     // Switch active role and sync URL cleanly
     const handleRoleSwitch = (role) => {
@@ -77,9 +82,18 @@ export default function Auth() {
 
             if (res.ok) {
                 const data = await res.json();
-                localStorage.setItem('doctor', JSON.stringify(data));
-                const from = location.state?.from?.pathname || (data.isSuperAdmin ? '/admin/doctors' : '/dashboard');
-                navigate(from);
+                establishDoctorSession(data, rememberMe);
+
+                // Preserve deep link path, search params, and hash (e.g. /chart/36?tab=billing)
+                let targetFrom = (data.isSuperAdmin ? '/admin/doctors' : '/directory');
+                if (location.state?.from) {
+                    if (typeof location.state.from === 'string') {
+                        targetFrom = location.state.from;
+                    } else if (location.state.from.pathname) {
+                        targetFrom = location.state.from.pathname + (location.state.from.search || '') + (location.state.from.hash || '');
+                    }
+                }
+                navigate(targetFrom, { replace: true });
             } else {
                 let errMsg = "Invalid username or password. Please check your credentials.";
                 try {
@@ -325,9 +339,37 @@ export default function Auth() {
                                         <Clock className="w-4 h-4 text-amber-600" />
                                     </div>
                                     <div>
-                                        <h4 className="text-xs font-black uppercase tracking-wider text-amber-800">Session Locked</h4>
+                                        <h4 className="text-xs font-black uppercase tracking-wider text-amber-800">Session Expired</h4>
                                         <p className="text-xs text-amber-900/90 font-medium mt-1 leading-relaxed">
-                                            For HIPAA/GDPR clinical security, your session was locked after inactivity. Please sign in to resume.
+                                            For HIPAA/GDPR clinical security, your session was locked after 10 minutes of inactivity. Please sign in to resume.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {isSessionClosed && !isSessionExpired && (
+                                <div className="mb-6 p-4 bg-sky-50/95 border border-sky-300 rounded-2xl shadow-sm flex items-start gap-3 text-sky-950">
+                                    <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-700 flex items-center justify-center shrink-0 mt-0.5">
+                                        <Lock className="w-4 h-4 text-sky-600" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-xs font-black uppercase tracking-wider text-sky-800">Browser Closed — Security Lock</h4>
+                                        <p className="text-xs text-sky-900/90 font-medium mt-1 leading-relaxed">
+                                            Your clinical session ended when Google Chrome was closed. Please sign in with your clinician credentials to access patient records.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {isAuthRequired && !isSessionExpired && !isSessionClosed && (
+                                <div className="mb-6 p-4 bg-rose-50/95 border border-rose-300 rounded-2xl shadow-sm flex items-start gap-3 text-rose-950">
+                                    <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-700 flex items-center justify-center shrink-0 mt-0.5">
+                                        <ShieldCheck className="w-4 h-4 text-rose-600" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-xs font-black uppercase tracking-wider text-rose-800">Authentication Required</h4>
+                                        <p className="text-xs text-rose-900/90 font-medium mt-1 leading-relaxed">
+                                            Direct access to patient charts and records requires an authenticated clinician session. Please sign in to continue.
                                         </p>
                                     </div>
                                 </div>
@@ -426,6 +468,23 @@ export default function Auth() {
                                     <div className="p-3.5 bg-rose-50 text-rose-700 rounded-xl text-xs font-bold border border-rose-200 flex items-start gap-2 shadow-xs">
                                         <AlertCircle className="w-4 h-4 text-rose-600 mt-0.5 shrink-0" />
                                         <span className="leading-relaxed">{clinicianError}</span>
+                                    </div>
+                                )}
+
+                                {isLogin && (
+                                    <div className="flex items-center justify-between text-xs pt-0.5 pb-1">
+                                        <label className="flex items-center gap-2 cursor-pointer select-none text-slate-700 font-semibold">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={rememberMe}
+                                                onChange={(e) => setRememberMe(e.target.checked)}
+                                                className="w-4 h-4 rounded border-slate-300 text-primary-teal focus:ring-primary-teal/40 accent-[#00C5A0]"
+                                            />
+                                            <span>Keep me signed in on this device</span>
+                                        </label>
+                                        <span className="text-[11px] text-muted-text font-medium">
+                                            {rememberMe ? '🔒 Stays active' : '⚡ Closes on exit'}
+                                        </span>
                                     </div>
                                 )}
 

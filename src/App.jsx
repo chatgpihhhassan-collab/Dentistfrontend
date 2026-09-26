@@ -38,18 +38,32 @@ import PatientProtectedRoute from './modules/patientPortal/components/PatientPro
 
 import FullPageSkeletonLoader from './components/FullPageSkeletonLoader';
 
+import { validateClinicianSession } from './services/sessionSecurityService';
+
 const PageFallback = () => (
   <FullPageSkeletonLoader />
 );
 
 const ProtectedRoute = ({ children }) => {
-    const doctor = JSON.parse(localStorage.getItem('doctor'));
     const location = useLocation();
+    const sessionCheck = validateClinicianSession();
     
-    if (!doctor || !doctor.token) {
-        return <Navigate to="/login" state={{ from: location }} replace />;
+    if (!sessionCheck.isValid) {
+        let redirectParam = 'required=true';
+        let alertState = { authRequired: true };
+        
+        if (sessionCheck.reason === 'session_closed') {
+            redirectParam = 'session_closed=true';
+            alertState = { sessionClosed: true };
+        } else if (sessionCheck.reason === 'inactivity_timeout' || sessionCheck.reason === 'token_expired') {
+            redirectParam = 'expired=true';
+            alertState = { sessionExpired: true };
+        }
+        
+        return <Navigate to={`/login?${redirectParam}`} state={{ from: location, ...alertState }} replace />;
     }
-    if (doctor.isSuperAdmin) {
+    
+    if (sessionCheck.doctor?.isSuperAdmin) {
         return <Navigate to="/admin/doctors" replace />;
     }
     return children;
@@ -82,14 +96,18 @@ export default function App() {
             <Route path="/" element={<BlockSuperAdmin><LandingDashboard /></BlockSuperAdmin>} />
             <Route path="/dashboard" element={<BlockSuperAdmin><LandingDashboard /></BlockSuperAdmin>} />
             <Route path="/login" element={<BlockSuperAdmin><Auth /></BlockSuperAdmin>} />
-            <Route path="/directory" element={<BlockSuperAdmin><PatientDirectory /></BlockSuperAdmin>} />
-            <Route path="/chart/:patientId" element={<BlockSuperAdmin><ChartPage /></BlockSuperAdmin>} />
-            <Route path="/chart/:patientId/tooth" element={<BlockSuperAdmin><ToothDetailPage /></BlockSuperAdmin>} />
-            <Route path="/chart/:patientId/tooth/:toothNumber" element={<BlockSuperAdmin><ToothDetailPage /></BlockSuperAdmin>} />
-            <Route path="/new-patient" element={<BlockSuperAdmin><NewPatientPage /></BlockSuperAdmin>} />
-            <Route path="/history/:patientId" element={<BlockSuperAdmin><HistoryPage /></BlockSuperAdmin>} />
-            <Route path="/ai-notes" element={<BlockSuperAdmin><AIDentalNotesPage /></BlockSuperAdmin>} />
-            <Route path="/ai-notes/detail/:noteId" element={<BlockSuperAdmin><AIDentalNoteDetailPage /></BlockSuperAdmin>} />
+            
+            {/* 🛡️ Protected Clinician Workspace & Clinical Patient Records */}
+            <Route path="/directory" element={<ProtectedRoute><PatientDirectory /></ProtectedRoute>} />
+            <Route path="/chart/:patientId" element={<ProtectedRoute><ChartPage /></ProtectedRoute>} />
+            <Route path="/chart/:patientId/tooth" element={<ProtectedRoute><ToothDetailPage /></ProtectedRoute>} />
+            <Route path="/chart/:patientId/tooth/:toothNumber" element={<ProtectedRoute><ToothDetailPage /></ProtectedRoute>} />
+            <Route path="/new-patient" element={<ProtectedRoute><NewPatientPage /></ProtectedRoute>} />
+            <Route path="/history/:patientId" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
+            <Route path="/ai-notes" element={<ProtectedRoute><AIDentalNotesPage /></ProtectedRoute>} />
+            <Route path="/ai-notes/detail/:noteId" element={<ProtectedRoute><AIDentalNoteDetailPage /></ProtectedRoute>} />
+            <Route path="/treatment" element={<ProtectedRoute><Treatment /></ProtectedRoute>} />
+            <Route path="/appointments" element={<ProtectedRoute><AppointmentsList /></ProtectedRoute>} />
             
             {/* Protected Standalone Pages */}
             <Route path="/book" element={
@@ -119,8 +137,6 @@ export default function App() {
             <Route path="/clinical-guide" element={<ClinicalGuidePage />} />
             <Route path="/guidelines" element={<ClinicalGuidePage />} />
             <Route path="/about" element={<BlockSuperAdmin><AboutUs /></BlockSuperAdmin>} />
-            <Route path="/treatment" element={<BlockSuperAdmin><Treatment /></BlockSuperAdmin>} />
-            <Route path="/appointments" element={<BlockSuperAdmin><AppointmentsList /></BlockSuperAdmin>} />
             <Route path="/terms" element={<BlockSuperAdmin><TermsAndConditions /></BlockSuperAdmin>} />
             <Route path="/privacy" element={<BlockSuperAdmin><PrivacyPolicy /></BlockSuperAdmin>} />
             

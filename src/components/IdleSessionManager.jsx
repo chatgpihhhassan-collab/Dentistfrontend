@@ -1,30 +1,24 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ShieldAlert, Clock, RefreshCw } from 'lucide-react';
+import { Clock, RefreshCw } from 'lucide-react';
+import {
+    INACTIVITY_TIMEOUT_MS,
+    WARNING_THRESHOLD_MS,
+    STORAGE_LAST_ACTIVE_KEY,
+    SESSION_CHANNEL_NAME,
+    validateClinicianSession,
+    purgeClinicianSession,
+    recordClinicianActivity
+} from '../services/sessionSecurityService';
 
-// ⏱️ 10 Minutes Inactivity Timeout (600,000 milliseconds)
-export const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
-// ⚠️ 60 Seconds Warning Window before expiration
-export const WARNING_THRESHOLD_MS = 60 * 1000;
-export const STORAGE_LAST_ACTIVE_KEY = 'dentia_last_active';
-export const SESSION_CHANNEL_NAME = 'dentia_session_channel';
+export { INACTIVITY_TIMEOUT_MS, WARNING_THRESHOLD_MS, STORAGE_LAST_ACTIVE_KEY, SESSION_CHANNEL_NAME };
 
 /**
  * Programmatically records clinician activity from anywhere in the application
  * (e.g. from background fetch/axios interceptors).
  */
 export function recordDoctorActivity() {
-    try {
-        const now = Date.now();
-        localStorage.setItem(STORAGE_LAST_ACTIVE_KEY, String(now));
-        if (typeof BroadcastChannel !== 'undefined') {
-            const channel = new BroadcastChannel(SESSION_CHANNEL_NAME);
-            channel.postMessage({ type: 'ACTIVITY', timestamp: now });
-            channel.close();
-        }
-    } catch {
-        // Safe fallback for private browsing or restricted environments
-    }
+    recordClinicianActivity();
 }
 
 export default function IdleSessionManager() {
@@ -41,29 +35,27 @@ export default function IdleSessionManager() {
     const resetTimer = useCallback(() => {
         const now = Date.now();
         lastEventThrottleRef.current = now;
-        try {
-            localStorage.setItem(STORAGE_LAST_ACTIVE_KEY, String(now));
-            if (channelRef.current) {
-                channelRef.current.postMessage({ type: 'ACTIVITY', timestamp: now });
-            }
-        } catch {}
+        recordClinicianActivity();
         setShowWarning(false);
     }, []);
 
     // Expire session immediately
-    const expireSession = useCallback(() => {
-        try {
-            localStorage.removeItem('doctor');
-            localStorage.removeItem(STORAGE_LAST_ACTIVE_KEY);
-            if (channelRef.current) {
-                channelRef.current.postMessage({ type: 'SESSION_EXPIRED' });
-            }
-        } catch {}
+    const expireSession = useCallback((reason = 'inactivity_timeout') => {
+        purgeClinicianSession(reason);
         setShowWarning(false);
-        navigate('/login?expired=true', { replace: true, state: { sessionExpired: true } });
+        const queryParam = reason === 'session_closed' ? 'session_closed=true' : 'expired=true';
+        const alertState = reason === 'session_closed' ? { sessionClosed: true } : { sessionExpired: true };
+        navigate(`/login?${queryParam}`, { replace: true, state: alertState });
     }, [navigate]);
 
     useEffect(() => {
+        // Immediate synchronous session validation on mount
+        const initialCheck = validateClinicianSession();
+        if (!initialCheck.isValid && localStorage.getItem('doctor')) {
+            expireSession(initialCheck.reason);
+            return;
+        }
+
         // Setup Cross-Tab Broadcast Channel
         if (typeof BroadcastChannel !== 'undefined') {
             channelRef.current = new BroadcastChannel(SESSION_CHANNEL_NAME);
@@ -73,12 +65,10 @@ export default function IdleSessionManager() {
                 if (data.type === 'ACTIVITY') {
                     setShowWarning(false);
                 } else if (data.type === 'SESSION_EXPIRED') {
-                    try {
-                        localStorage.removeItem('doctor');
-                        localStorage.removeItem(STORAGE_LAST_ACTIVE_KEY);
-                    } catch {}
                     setShowWarning(false);
-                    navigate('/login?expired=true', { replace: true, state: { sessionExpired: true } });
+                    const reason = data.reason || 'inactivity_timeout';
+                    const queryParam = reason === 'session_closed' ? 'session_closed=true' : 'expired=true';
+                    navigate(`/login?${queryParam}`, { replace: true, state: { sessionExpired: true } });
                 }
             };
         }
@@ -112,21 +102,15 @@ export default function IdleSessionManager() {
         const monitoredEvents = ['mousedown', 'keydown', 'scroll', 'touchstart', 'pointerdown', 'wheel'];
         monitoredEvents.forEach(evt => window.addEventListener(evt, handleUserInteraction, eventOptions));
 
-        // Initialize active timestamp if logged in
-        const storedDoc = localStorage.getItem('doctor');
-        if (storedDoc) {
-            const currentActive = localStorage.getItem(STORAGE_LAST_ACTIVE_KEY);
-            if (!currentActive) {
-                localStorage.setItem(STORAGE_LAST_ACTIVE_KEY, String(Date.now()));
-            }
-        }
-
         // Precision 1-second heartbeat loop
         const intervalId = setInterval(() => {
-            const doctor = localStorage.getItem('doctor');
-            // Only monitor if clinician is actively logged in
-            if (!doctor) {
-                setShowWarning(false);
+            const check = validateClinicianSession();
+            if (!check.isValid) {
+                if (localStorage.getItem('doctor')) {
+                    expireSession(check.reason);
+                } else {
+                    setShowWarning(false);
+                }
                 return;
             }
 
@@ -136,7 +120,7 @@ export default function IdleSessionManager() {
             const remainingMs = INACTIVITY_TIMEOUT_MS - elapsed;
 
             if (remainingMs <= 0) {
-                expireSession();
+                expireSession('inactivity_timeout');
             } else if (remainingMs <= WARNING_THRESHOLD_MS) {
                 setShowWarning(true);
                 setSecondsRemaining(Math.max(1, Math.ceil(remainingMs / 1000)));
@@ -153,7 +137,7 @@ export default function IdleSessionManager() {
                 channelRef.current.close();
             }
         };
-    }, [navigate, resetTimer, expireSession, showWarning]);
+    }, [navigate, resetTimer, expireSession]);
 
     // Do not render warning banner on login/public auth pages
     if (!showWarning || location.pathname === '/login') {

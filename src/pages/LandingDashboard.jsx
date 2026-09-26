@@ -217,74 +217,97 @@ export default function LandingDashboard() {
       <main className="flex-grow">
 
         {/* ── HERO SECTION ── */}
-        <section className="max-w-[1800px] mx-auto px-4 py-10 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+        <section className="max-w-[1440px] mx-auto px-4 sm:px-6 py-8 md:py-12 grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-center">
           <div className="space-y-5 animate-fade-in-up">
-            <div className="inline-flex items-center space-x-2 bg-light-teal px-5 py-2 rounded-full text-sm font-bold border border-light-teal/30 text-primary-teal">
-              <Star className="w-4 h-4 fill-accent-gold text-accent-gold" />
-              <span>Family Dental Care &amp; Clinic</span>
+            <div className="inline-flex items-center space-x-2 bg-light-teal px-4 py-1.5 rounded-full text-xs font-bold border border-light-teal/30 text-primary-teal">
+              <Star className="w-3.5 h-3.5 fill-accent-gold text-accent-gold" />
+              <span>Family Dental Care &amp; Clinical Excellence</span>
             </div>
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-serif font-bold text-dark-slate leading-[1.1] tracking-tight">
+            
+            <h1 className="text-5xl md:text-6xl font-serif font-bold text-dark-slate leading-[1.12] tracking-tight">
               Elevating Smiles <br />
               <span className="text-primary-teal font-serif font-semibold">With Expert Care.</span>
             </h1>
-            <p className="text-lg text-slate-700 leading-relaxed max-w-lg font-normal">
-              We chart all 32 teeth digitally on your first visit, offering transparent diagnostics and advanced treatments with a gentle touch.
+
+            <p className="text-base md:text-lg text-slate-700 leading-relaxed max-w-lg font-normal">
+              We chart all 32 teeth digitally on your first visit, offering 100% transparent diagnostics and gentle, advanced dental treatments designed to last a lifetime.
             </p>
-            <div className="flex flex-col sm:flex-row items-center gap-4 pt-2">
-              <RouterLink to="/book" className="btn-main w-full sm:w-auto bg-primary-teal hover:bg-primary-hover text-white font-bold py-4 px-8 rounded-full transition-all shadow-lg shadow-primary-teal/20 hover:shadow-xl hover:scale-102 text-lg text-center">
+
+            {/* Primary & Secondary CTAs */}
+            <div className="flex flex-col sm:flex-row items-center gap-3.5 pt-1">
+              <RouterLink to="/book" className="btn-main w-full sm:w-auto bg-primary-teal hover:bg-primary-hover text-white font-bold py-3.5 px-8 rounded-full transition-all shadow-lg shadow-primary-teal/20 hover:shadow-xl hover:scale-102 text-base text-center">
                 Book Appointment
               </RouterLink>
-              <RouterLink to="/treatment" className="btn-main w-full sm:w-auto bg-white border border-primary-teal/40 shadow-sm hover:bg-light-teal/20 text-primary-teal font-bold py-4 px-8 rounded-full transition-all text-lg text-center">
+              <RouterLink to="/treatment" className="btn-main w-full sm:w-auto bg-white border border-primary-teal/30 shadow-xs hover:bg-light-teal/20 text-primary-teal font-bold py-3.5 px-7 rounded-full transition-all text-base text-center">
                 View Treatments &amp; Pricing
               </RouterLink>
             </div>
-            <div className="pt-4 flex flex-wrap items-center gap-4 text-sm font-medium text-slate-600">
-              <span className="text-dark-slate font-bold text-lg">Google Rating 5.0</span>
-              <div className="flex text-accent-gold">
-                {[1, 2, 3, 4, 5].map((s) => <Star key={s} className="w-4 h-4 fill-current" />)}
-              </div>
-              <span>Based on 23k Reviews</span>
-            </div>
-            {/* Stat Pills */}
-            <div className="flex flex-wrap gap-4 pt-2">
-              {[
-                { icon: <Users className="w-4 h-4" />, label: '12,000+', sub: 'Happy Patients' },
-                { icon: <Award className="w-4 h-4" />, label: '15 Years', sub: 'of Excellence' },
-                { icon: <Shield className="w-4 h-4" />, label: '100%', sub: 'Safe Procedures' },
-              ].map((stat, i) => (
-                <div key={i} className="flex items-center gap-2 bg-white border border-light-teal/40 rounded-2xl px-4 py-2.5 shadow-sm">
-                  <span className="text-primary-teal">{stat.icon}</span>
-                  <div>
-                    <p className="font-extrabold text-dark-slate text-sm leading-none">{stat.label}</p>
-                    <p className="text-xs text-slate-500 font-medium">{stat.sub}</p>
+
+            {/* Consolidated High-Trust Social Proof Ribbon (Replaces fragmented pills) */}
+            <div className="pt-2">
+              <div className="bg-white/95 backdrop-blur-sm border border-slate-200/80 rounded-2xl p-4 shadow-xs grid grid-cols-2 sm:grid-cols-4 gap-3 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-1 text-accent-gold">
+                    <span className="font-extrabold text-slate-900 text-sm">5.0</span>
+                    <div className="flex">
+                      {[1, 2, 3, 4, 5].map((s) => <Star key={s} className="w-3 h-3 fill-current" />)}
+                    </div>
                   </div>
+                  <span className="text-[11px] text-slate-500 font-medium mt-0.5">23k+ Google Reviews</span>
                 </div>
-              ))}
+                
+                <div className="flex flex-col sm:pl-3 pt-2 sm:pt-0">
+                  <span className="font-extrabold text-slate-900 text-sm">12,000+</span>
+                  <span className="text-[11px] text-slate-500 font-medium mt-0.5">Happy Smiles</span>
+                </div>
+
+                <div className="flex flex-col sm:pl-3 pt-2 sm:pt-0">
+                  <span className="font-extrabold text-slate-900 text-sm">15+ Years</span>
+                  <span className="text-[11px] text-slate-500 font-medium mt-0.5">Of Practice</span>
+                </div>
+
+                <div className="flex flex-col sm:pl-3 pt-2 sm:pt-0">
+                  <span className="font-extrabold text-slate-900 text-sm">100% Digital</span>
+                  <span className="text-[11px] text-slate-500 font-medium mt-0.5">32-Tooth Charting</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Hero Slider with Slide Animations */}
+          {/* Hero Slider with Clean Architectural Frame */}
           <div className="relative animate-zoom-in">
-            <div className="absolute inset-0 bg-light-teal/60 rounded-[2.5rem] transform rotate-2 scale-102 -z-10 shadow-inner"></div>
+            <div className="absolute -inset-1 bg-gradient-to-tr from-primary-teal/20 via-sky-200/30 to-primary-teal/10 rounded-[2.7rem] -z-10 blur-xs"></div>
             <HeroSlider />
           </div>
         </section>
 
-        {/* ── HIGH-TRUST CLINICAL PROMISE STRIP ── */}
-        <section className="bg-gradient-to-r from-dark-slate via-[#0E2838] to-dark-slate text-white py-8 border-y border-white/10 shadow-md">
-          <div className="max-w-[1800px] mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* ── HIGH-TRUST CLINICAL CREDENTIALS RIBBON (Light, Non-Redundant) ── */}
+        <section className="bg-white/85 backdrop-blur-md py-6 border-y border-slate-200/80 shadow-xs">
+          <div className="max-w-[1440px] mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { icon: <Phone className="w-6 h-6" />, label: 'Emergency & Routine Appointments', value: 'Call: +1 123 456 789' },
-              { icon: <Clock className="w-6 h-6" />, label: 'Flexible Practice Hours', value: 'Mon to Sat: 08:00 - 20:00' },
-              { icon: <Shield className="w-6 h-6" />, label: 'Transparent Care & Direct Billing', value: 'All Major Insurance Accepted' },
+              { 
+                icon: <Shield className="w-5 h-5 text-primary-teal" />, 
+                label: 'Direct Insurance & Billing', 
+                sub: 'All major dental insurance accepted with instant automated electronic claims' 
+              },
+              { 
+                icon: <Clock className="w-5 h-5 text-primary-teal" />, 
+                label: 'Same-Day Emergency Relief', 
+                sub: 'Dedicated priority slots daily for acute toothache, broken crowns & trauma' 
+              },
+              { 
+                icon: <Heart className="w-5 h-5 text-primary-teal" />, 
+                label: 'Gentle & Anxiety-Free Care', 
+                sub: 'Painless digital local anesthesia and tailored comfort protocols for all ages' 
+              },
             ].map((item, i) => (
-              <div key={i} className="flex items-center space-x-4 p-3 hover:bg-white/5 rounded-2xl transition-colors">
-                <div className="w-12 h-12 rounded-full bg-primary-teal/20 flex items-center justify-center text-primary-teal flex-shrink-0 border border-primary-teal/30">
+              <div key={i} className="flex items-start space-x-3.5 p-2 rounded-2xl hover:bg-slate-50/80 transition-colors">
+                <div className="w-10 h-10 rounded-xl bg-light-teal/50 flex items-center justify-center flex-shrink-0 border border-primary-teal/20 text-primary-teal">
                   {item.icon}
                 </div>
                 <div>
-                  <h4 className="text-xs text-primary-teal/90 font-bold uppercase tracking-wider">{item.label}</h4>
-                  <p className="text-base md:text-lg font-bold text-white">{item.value}</p>
+                  <h4 className="text-sm font-bold text-dark-slate">{item.label}</h4>
+                  <p className="text-xs text-slate-600 font-normal leading-relaxed mt-0.5">{item.sub}</p>
                 </div>
               </div>
             ))}
@@ -292,20 +315,20 @@ export default function LandingDashboard() {
         </section>
 
         {/* ── ABOUT US SECTION ── */}
-        <section id="about" className="max-w-[1800px] mx-auto px-4 py-16">
+        <section id="about" className="max-w-[1440px] mx-auto px-4 sm:px-6 py-16">
           <ScrollReveal transform="translateY(15px)">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
-              {/* Left Column (Doctor Image with floating card) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+              {/* Left Column (Doctor Image with clean elevation) */}
               <div className="relative">
-                <div className="absolute -top-4 -left-4 w-full h-full bg-light-teal/40 rounded-[2.5rem] -z-10 rotate-2"></div>
+                <div className="absolute inset-0 bg-primary-teal/10 rounded-[2.5rem] -z-10 blur-xs"></div>
                 <img
                   src="/images/about_doctor.jpg"
-                  alt="Lead Specialist at Dentia"
-                  className="rounded-[2.5rem] w-full h-[420px] object-cover shadow-2xl border-4 border-white"
+                  alt="Lead Dental Specialist Dr. Sarah Bennett at Dentia"
+                  className="rounded-[2.5rem] w-full h-[430px] object-cover shadow-xl border-4 border-white"
                 />
-                <div className="absolute -bottom-5 -right-5 bg-white rounded-2xl shadow-xl p-4 border border-light-teal/30 flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-primary-teal/10 flex items-center justify-center text-primary-teal">
-                    <Heart className="w-6 h-6" />
+                <div className="absolute bottom-5 right-5 bg-white/95 backdrop-blur-md rounded-2xl shadow-lg p-3.5 border border-slate-100 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary-teal/15 flex items-center justify-center text-primary-teal">
+                    <Heart className="w-5 h-5" />
                   </div>
                   <div>
                     <p className="font-extrabold text-dark-slate text-sm">12,000+ Smiles</p>
@@ -316,12 +339,12 @@ export default function LandingDashboard() {
 
               {/* Right Column (Content) */}
               <div className="space-y-5">
-                <span className="text-primary-teal font-bold tracking-widest uppercase text-sm">About Dentia</span>
-                <h2 className="text-4xl font-serif font-bold text-dark-slate leading-tight">
+                <span className="text-primary-teal font-bold tracking-widest uppercase text-xs">About Dentia Dental Arts</span>
+                <h2 className="text-3xl md:text-4xl font-serif font-bold text-dark-slate leading-tight">
                   Professional and Personalized Dental Excellence
                 </h2>
                 <p className="text-slate-700 leading-relaxed text-base font-normal">
-                  At <span className="font-bold text-dark-slate">Dentia</span>, we believe everyone deserves a healthy, confident smile. Our expert team combines cutting-edge technology with compassionate, patient-first care to deliver results that last a lifetime. From your first consultation to your final follow-up, we are by your side every step of the way.
+                  At <span className="font-bold text-dark-slate">Dentia</span>, we believe everyone deserves a healthy, confident smile. Led by Dr. Sarah Bennett and our team of credentialed specialists, we combine cutting-edge technology with compassionate, patient-first care to deliver results that last a lifetime.
                 </p>
                 <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-800 font-semibold text-sm">
                   {[
@@ -332,14 +355,14 @@ export default function LandingDashboard() {
                     'Digital Odontogram Records',
                     'Digital Dental X-Rays',
                   ].map((item, i) => (
-                    <li key={i} className="flex items-center gap-2">
+                    <li key={i} className="flex items-center gap-2 text-slate-700">
                       <CheckCircle className="w-4 h-4 text-primary-teal flex-shrink-0" />
                       {item}
                     </li>
                   ))}
                 </ul>
                 <div className="pt-2 flex items-center gap-4">
-                  <RouterLink to="/about" className="btn-main inline-block bg-primary-teal hover:bg-primary-hover text-white font-bold py-3.5 px-8 rounded-full shadow-lg transition-all">
+                  <RouterLink to="/about" className="btn-main inline-block bg-primary-teal hover:bg-primary-hover text-white font-bold py-3 px-7 rounded-full shadow-md text-sm transition-all">
                     Meet Our Dentists
                   </RouterLink>
                   <RouterLink to="/treatment" className="text-primary-teal hover:text-primary-hover font-bold text-sm flex items-center gap-1">
@@ -351,73 +374,114 @@ export default function LandingDashboard() {
           </ScrollReveal>
         </section>
 
-        {/* ── SERVICES SECTION (Eager Render, Zero Ghost Whitespace) ── */}
+        {/* ── SERVICES & TRANSPARENT PRICING SECTION ── */}
         <section id="services" className="py-16 bg-slate-50/80 border-y border-slate-200/60">
-          <div className="max-w-[1800px] mx-auto px-4">
-            <div className="mb-12 text-center max-w-2xl mx-auto space-y-3">
-              <span className="text-primary-teal font-bold tracking-widest uppercase text-sm">Our Specialties</span>
-              <h2 className="text-4xl font-serif font-bold text-dark-slate">Complete Care for Every Smile</h2>
-              <p className="text-slate-600 font-normal">From routine preventive checkups to advanced restorations, we provide personalized dental solutions for patients of all ages.</p>
+          <div className="max-w-[1440px] mx-auto px-4 sm:px-6">
+            {/* Section Header with Direct Secondary Action */}
+            <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200/60 pb-6">
+              <div>
+                <span className="text-primary-teal font-bold tracking-widest uppercase text-xs">Our Specialties</span>
+                <h2 className="text-3xl md:text-4xl font-serif font-bold text-dark-slate mt-1">Complete Care for Every Smile</h2>
+                <p className="text-slate-600 font-normal text-sm md:text-base mt-1 max-w-xl">
+                  From routine preventive cleanings to advanced laser restorations, we provide tailored dental care with complete price transparency.
+                </p>
+              </div>
+              <RouterLink to="/treatment" className="inline-flex items-center text-primary-teal hover:text-primary-hover font-bold text-sm bg-white px-5 py-2.5 rounded-full border border-primary-teal/30 shadow-xs hover:shadow-sm transition-all whitespace-nowrap self-start md:self-end">
+                View All 140+ Procedures <ChevronRight className="w-4 h-4 ml-1" />
+              </RouterLink>
             </div>
 
+            {/* 4 Primary Service Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {[
-                { img: "/images/icons/tooth-1.png", title: "General Dentistry", desc: "Complete oral care for every smile with gentle cleanings, digital checkups, and prevention.", tags: "Exams • Cleanings • Fluoride" },
-                { img: "/images/icons/tooth-2.png", title: "Cosmetic Dentistry", desc: "Enhance your smile's radiance with laser whitening, porcelain veneers, and cosmetic bonding.", tags: "Laser Whitening • Veneers" },
-                { img: "/images/icons/tooth-3.png", title: "Pediatric Dentistry", desc: "Gentle and fun dental experiences designed specially for children and growing smiles.", tags: "Child Friendly • Sealants" },
-                { img: "/images/icons/tooth-4.png", title: "Restorative Dentistry", desc: "Repair and restore missing or damaged teeth for lasting comfort, strength, and function.", tags: "Implants • Crowns • Bridges" }
+                { img: "/images/icons/tooth-1.png", title: "General Dentistry", desc: "Complete oral health care with gentle ultrasonic cleanings, digital checkups, and cavity prevention.", tags: "Exams • Cleanings • Fluoride" },
+                { img: "/images/icons/tooth-2.png", title: "Cosmetic Dentistry", desc: "Enhance your smile radiance with laser whitening, ultra-thin porcelain veneers, and cosmetic bonding.", tags: "Laser Whitening • Veneers" },
+                { img: "/images/icons/tooth-3.png", title: "Pediatric Dentistry", desc: "Gentle, stress-free dental experiences crafted specially for children and growing young smiles.", tags: "Child Friendly • Sealants" },
+                { img: "/images/icons/tooth-4.png", title: "Restorative Dentistry", desc: "Repair damaged or missing teeth with precision digital implants, durable crowns, and aesthetic bridges.", tags: "Implants • Crowns • Bridges" }
               ].map((s, i) => (
-                <div key={i} className="card-hover bg-white p-7 rounded-3xl border border-slate-200/80 shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 relative group h-full flex flex-col justify-between">
+                <div key={i} className="card-hover bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative group h-full flex flex-col justify-between">
                   <div>
-                    <div className="w-14 h-14 bg-light-teal/50 rounded-2xl flex items-center justify-center mb-5 group-hover:bg-primary-teal transition-all duration-300">
-                      <img src={s.img} alt={s.title} className="w-9 h-9 object-contain group-hover:brightness-0 group-hover:invert transition-all" />
+                    <div className="w-13 h-13 bg-light-teal/50 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-primary-teal transition-all duration-300">
+                      <img src={s.img} alt={s.title} className="w-8 h-8 object-contain group-hover:brightness-0 group-hover:invert transition-all" />
                     </div>
-                    <h3 className="text-xl font-bold text-dark-slate mb-2">{s.title}</h3>
-                    <div className="text-xs font-semibold text-primary-teal bg-light-teal/50 px-3 py-1 rounded-full mb-4 inline-block">
+                    <h3 className="text-lg font-bold text-dark-slate mb-1.5">{s.title}</h3>
+                    <div className="text-[11px] font-semibold text-primary-teal bg-light-teal/40 px-2.5 py-0.5 rounded-full mb-3 inline-block">
                       {s.tags}
                     </div>
-                    <p className="text-slate-600 font-normal text-sm leading-relaxed mb-6">{s.desc}</p>
+                    <p className="text-slate-600 font-normal text-sm leading-relaxed mb-5">{s.desc}</p>
                   </div>
-                  <RouterLink to="/treatment" className="text-primary-teal font-bold flex items-center text-sm group-hover:text-primary-hover transition-colors">
-                    Explore Treatments <ChevronRight className="w-4 h-4 ml-1" />
+                  <RouterLink to="/treatment" className="text-primary-teal font-bold flex items-center text-xs uppercase tracking-wider group-hover:text-primary-hover transition-colors">
+                    Explore Treatments <ChevronRight className="w-3.5 h-3.5 ml-1" />
                   </RouterLink>
                 </div>
               ))}
             </div>
 
-            <div className="mt-12 text-center">
-              <RouterLink to="/treatment" className="btn-main inline-flex items-center text-white bg-primary-teal hover:bg-primary-hover font-bold px-9 py-4 rounded-full shadow-lg shadow-primary-teal/20 hover:shadow-xl transition-all text-base">
-                View All Services &amp; Pricing <ChevronRight className="w-5 h-5 ml-1" />
-              </RouterLink>
+            {/* Transparent Pricing Teaser — Resolves Whitespace Canyon & Contextualizes Pricing */}
+            <div className="mt-8 bg-white rounded-3xl border border-slate-200/80 p-6 md:p-8 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-100">
+                <div>
+                  <span className="text-xs font-bold text-primary-teal uppercase tracking-wider">Fee Transparency</span>
+                  <h3 className="text-lg font-bold text-dark-slate">Featured Treatments &amp; Standard Fees</h3>
+                </div>
+                <span className="text-xs text-slate-500 font-medium">Itemized digital estimates provided before every procedure</span>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { name: "Initial Exam & 32-Tooth Digital Odontogram", fee: "Included with Visit", badge: "Diagnostic" },
+                  { name: "Ultrasonic Scaling & Airflow Polishing", fee: "From $85", badge: "Preventive" },
+                  { name: "In-Office Laser Teeth Whitening", fee: "From $250", badge: "Cosmetic" },
+                  { name: "Digital Single Tooth Implant + Crown", fee: "From $950", badge: "Restorative" },
+                ].map((t, idx) => (
+                  <div key={idx} className="bg-slate-50/70 rounded-2xl p-4 border border-slate-200/60 flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-primary-teal uppercase tracking-wider">{t.badge}</span>
+                      <h4 className="text-sm font-bold text-dark-slate mt-1 mb-2 leading-snug">{t.name}</h4>
+                    </div>
+                    <div className="pt-2 border-t border-slate-200/50 flex items-center justify-between">
+                      <span className="text-xs text-slate-500 font-medium">Standard Fee</span>
+                      <span className="text-sm font-extrabold text-dark-slate">{t.fee}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <p className="text-xs text-slate-500">Have dental insurance? We offer instant claims submission and flexible 0% interest payment plans.</p>
+                <RouterLink to="/treatment" className="btn-main inline-flex items-center text-white bg-primary-teal hover:bg-primary-hover font-bold px-7 py-3 rounded-full shadow-md text-sm transition-all whitespace-nowrap">
+                  View Complete Fee Studio <ChevronRight className="w-4 h-4 ml-1.5" />
+                </RouterLink>
+              </div>
             </div>
           </div>
         </section>
 
         {/* ── PRECISION DIGITAL DIAGNOSTICS CALLOUT ── */}
-        <section className="py-16 max-w-[1800px] mx-auto px-4">
-          <ScrollReveal transform="translateY(25px)">
-            <div className="bg-dark-slate text-white rounded-[3rem] p-10 md:p-14 relative overflow-hidden shadow-2xl grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+        <section className="py-14 max-w-[1440px] mx-auto px-4 sm:px-6">
+          <ScrollReveal transform="translateY(20px)">
+            <div className="bg-dark-slate text-white rounded-[3rem] p-8 md:p-12 relative overflow-hidden shadow-2xl grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
               <div className="absolute top-0 right-0 w-96 h-96 bg-primary-teal/20 rounded-full blur-3xl -mr-32 -mt-32 z-0"></div>
               <div className="relative z-10 space-y-5">
-                <div className="w-14 h-14 bg-primary-teal/20 rounded-2xl flex items-center justify-center text-primary-teal border border-primary-teal/30">
-                  <Mic className="w-7 h-7" />
+                <div className="w-12 h-12 bg-primary-teal/20 rounded-2xl flex items-center justify-center text-primary-teal border border-primary-teal/30">
+                  <Mic className="w-6 h-6" />
                 </div>
                 <span className="text-primary-teal font-bold tracking-widest uppercase text-xs">Modern Clinical Technology</span>
-                <h2 className="text-4xl font-serif font-bold leading-tight">
+                <h2 className="text-3xl md:text-4xl font-serif font-bold leading-tight">
                   Precision AI Diagnostics &amp; Digital Odontogram
                 </h2>
                 <p className="text-base text-slate-300 leading-relaxed font-normal">
                   Dentia utilizes cutting-edge AI-assisted diagnostic charting. Our lead specialists record tooth conditions, micro-cavities, and gum measurements digitally in real time, giving you 100% transparent visual dental records you can view from home.
                 </p>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap gap-2.5">
                   {['Real-Time 3D Tooth Mapping', '100% Transparent Diagnostics', 'Digital Lifetime Records'].map((f, i) => (
-                    <div key={i} className="flex items-center gap-2 bg-white/10 rounded-xl px-4 py-2 text-sm font-semibold text-slate-200">
-                      <CheckCircle className="w-4 h-4 text-primary-teal" /> {f}
+                    <div key={i} className="flex items-center gap-1.5 bg-white/10 rounded-xl px-3.5 py-1.5 text-xs font-semibold text-slate-200">
+                      <CheckCircle className="w-3.5 h-3.5 text-primary-teal" /> {f}
                     </div>
                   ))}
                 </div>
                 <div className="pt-2 flex items-center gap-4">
-                  <RouterLink to="/treatment" className="btn-main inline-block bg-primary-teal hover:bg-primary-hover text-white font-bold py-3.5 px-8 rounded-full shadow-md text-center">
+                  <RouterLink to="/treatment" className="btn-main inline-block bg-primary-teal hover:bg-primary-hover text-white font-bold py-3 px-7 rounded-full shadow-md text-sm text-center">
                     Explore Digital Care
                   </RouterLink>
                   <RouterLink to="/book" className="text-slate-300 hover:text-white font-semibold text-sm flex items-center gap-1">
@@ -426,42 +490,44 @@ export default function LandingDashboard() {
                 </div>
               </div>
               <div className="relative flex justify-center z-10">
-                <img src="/images/hero_slide2.jpg" alt="Clinical workspace" className="rounded-2xl shadow-xl max-h-[320px] w-full object-cover border border-white/10" />
+                {/* Distinct high-tech clinic image avoiding duplication of hero consultation photo */}
+                <img src="/images/hero_clinic.jpg" alt="Dentia Advanced Digital Operatory" className="rounded-2xl shadow-xl max-h-[320px] w-full object-cover border border-white/10" />
               </div>
             </div>
           </ScrollReveal>
         </section>
 
-        {/* ── MEET THE TEAM SECTION (Fixed Object-Top Framing) ── */}
+        {/* ── MEET THE TEAM SECTION (Credible Doctor Qualifications) ── */}
         <section id="team" className="py-16 bg-light-teal/10">
-          <div className="max-w-[1800px] mx-auto px-4">
-            <ScrollReveal transform="translateY(25px)">
-              <div className="text-center max-w-2xl mx-auto mb-12 space-y-3">
-                <span className="text-primary-teal font-bold tracking-widest uppercase text-sm">Meet Our Specialists</span>
-                <h2 className="text-4xl font-serif font-bold text-dark-slate">Committed to Your Healthy Smile</h2>
-                <p className="text-slate-600">Our experienced dental specialists are dedicated to making every visit pleasant, tailored, and gentle.</p>
+          <div className="max-w-[1440px] mx-auto px-4 sm:px-6">
+            <ScrollReveal transform="translateY(20px)">
+              <div className="text-center max-w-2xl mx-auto mb-10 space-y-2">
+                <span className="text-primary-teal font-bold tracking-widest uppercase text-xs">Meet Our Specialists</span>
+                <h2 className="text-3xl md:text-4xl font-serif font-bold text-dark-slate">Committed to Your Healthy Smile</h2>
+                <p className="text-slate-600 text-sm md:text-base">Our experienced dental specialists are dedicated to making every visit pleasant, tailored, and gentle.</p>
               </div>
             </ScrollReveal>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               {[
-                { img: "/images/team/1.webp", name: "Dr. Sarah Bennett", role: "Lead Dentist & Oral Surgeon" },
-                { img: "/images/team/2.webp", name: "Dr. Maya Lin", role: "Cosmetic & Veneers Specialist" },
-                { img: "/images/team/3.webp", name: "Dr. Michael Reyes", role: "Pediatric Dentist" },
-                { img: "/images/team/4.webp", name: "Dr. James Carter", role: "Oral Health & Hygiene Lead" }
+                { img: "/images/team/1.webp", name: "Dr. Sarah Bennett", role: "Lead Dental Surgeon", creds: "DDS, FACP • 14+ Yrs Exp" },
+                { img: "/images/team/2.webp", name: "Dr. Maya Lin", role: "Cosmetic Specialist", creds: "DMD, AACD • 10+ Yrs Exp" },
+                { img: "/images/team/3.webp", name: "Dr. Michael Reyes", role: "Pediatric Dentist", creds: "DDS, Board Cert. • 12+ Yrs Exp" },
+                { img: "/images/team/4.webp", name: "Dr. James Carter", role: "Oral Health & Hygiene", creds: "BDS, RDH • 8+ Yrs Exp" }
               ].map((member, i) => (
-                <ScrollReveal key={i} delay={i * 80} transform="translateY(20px)">
-                  <div className="group rounded-3xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 bg-white border border-light-teal/30 relative h-full flex flex-col justify-between">
-                    <div className="h-72 overflow-hidden relative bg-slate-100">
+                <ScrollReveal key={i} delay={i * 60} transform="translateY(15px)">
+                  <div className="group rounded-3xl overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 bg-white border border-slate-200/80 relative h-full flex flex-col justify-between">
+                    <div className="h-68 overflow-hidden relative bg-slate-100">
                       <img 
                         src={member.img} 
                         alt={member.name} 
-                        className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500" 
+                        className="w-full h-full object-cover object-top group-hover:scale-104 transition-transform duration-500" 
                       />
                     </div>
-                    <div className="p-5 text-center flex-grow flex flex-col justify-center">
-                      <h4 className="text-lg font-bold text-dark-slate mb-1">{member.name}</h4>
-                      <p className="text-xs font-semibold text-primary-teal uppercase tracking-wider">{member.role}</p>
+                    <div className="p-4 text-center flex-grow flex flex-col justify-center">
+                      <h4 className="text-base font-bold text-dark-slate mb-0.5">{member.name}</h4>
+                      <p className="text-xs font-semibold text-primary-teal">{member.role}</p>
+                      <p className="text-[11px] text-slate-500 font-medium mt-1">{member.creds}</p>
                     </div>
                   </div>
                 </ScrollReveal>
@@ -471,25 +537,25 @@ export default function LandingDashboard() {
         </section>
 
         {/* ── FAQ SECTION ── */}
-        <section className="py-16 max-w-[1800px] mx-auto px-4">
+        <section className="py-16 max-w-[1440px] mx-auto px-4 sm:px-6">
           <div className="max-w-3xl mx-auto">
-            <ScrollReveal transform="translateY(25px)">
-              <div className="text-center mb-12 space-y-3">
-                <span className="text-primary-teal font-bold tracking-widest uppercase text-sm">Everything You Need to Know</span>
-                <h2 className="text-4xl font-serif font-bold text-dark-slate">Frequently Asked Questions</h2>
+            <ScrollReveal transform="translateY(20px)">
+              <div className="text-center mb-10 space-y-2">
+                <span className="text-primary-teal font-bold tracking-widest uppercase text-xs">Everything You Need to Know</span>
+                <h2 className="text-3xl md:text-4xl font-serif font-bold text-dark-slate">Frequently Asked Questions</h2>
               </div>
             </ScrollReveal>
 
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               {faqs.map((faq, i) => (
                 <ScrollReveal key={i} delay={i * 40} transform="translateY(15px)">
-                  <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
                     <button
                       onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                      className="w-full flex justify-between items-center px-6 py-5 font-bold text-dark-slate text-lg text-left hover:text-primary-teal transition-colors"
+                      className="w-full flex justify-between items-center px-6 py-4.5 font-bold text-dark-slate text-base md:text-lg text-left hover:text-primary-teal transition-colors cursor-pointer"
                     >
                       <span>{faq.q}</span>
-                      <span className={`text-primary-teal text-2xl transition-transform duration-200 ${openFaq === i ? 'rotate-45' : ''}`}>+</span>
+                      <span className={`text-primary-teal text-xl font-bold transition-transform duration-300 ${openFaq === i ? 'rotate-45' : ''}`}>+</span>
                     </button>
                     <div
                       style={{
@@ -499,7 +565,7 @@ export default function LandingDashboard() {
                       }}
                       className="transition-all duration-300"
                     >
-                      <div className="px-6 pb-5 text-slate-700 leading-relaxed text-sm border-t border-slate-100 pt-4">
+                      <div className="px-6 pb-5 text-slate-600 leading-relaxed text-sm border-t border-slate-100 pt-3">
                         {faq.a}
                       </div>
                     </div>
@@ -512,11 +578,11 @@ export default function LandingDashboard() {
 
         {/* ── TESTIMONIALS SECTION ── */}
         <section id="reviews" className="py-16 bg-slate-50 border-t border-slate-200/60">
-          <div className="max-w-[1800px] mx-auto px-4">
-            <ScrollReveal transform="translateY(25px)">
-              <div className="text-center max-w-2xl mx-auto mb-12 space-y-3">
-                <span className="text-primary-teal font-bold tracking-widest uppercase text-sm">Verified Patient Stories</span>
-                <h2 className="text-4xl font-serif font-bold text-dark-slate">Trusted by Over 12,000 Families</h2>
+          <div className="max-w-[1440px] mx-auto px-4 sm:px-6">
+            <ScrollReveal transform="translateY(20px)">
+              <div className="text-center max-w-2xl mx-auto mb-10 space-y-2">
+                <span className="text-primary-teal font-bold tracking-widest uppercase text-xs">Verified Patient Stories</span>
+                <h2 className="text-3xl md:text-4xl font-serif font-bold text-dark-slate">Trusted by Over 12,000 Families</h2>
               </div>
             </ScrollReveal>
 
@@ -527,18 +593,21 @@ export default function LandingDashboard() {
                 { img: "/images/testimonial/3.webp", name: "Jake M.", text: "I came in for a whitening treatment and left with a brand new level of confidence. The results were amazing, and the staff made it such a relaxing experience." }
               ].map((t, i) => (
                 <ScrollReveal key={i} delay={i * 80} transform="translateY(20px)">
-                  <div className="bg-white p-7 rounded-3xl border border-slate-200/80 shadow-md flex flex-col justify-between h-full">
+                  <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all flex flex-col justify-between h-full">
                     <div>
-                      <div className="flex text-accent-gold mb-3">
-                        {[1, 2, 3, 4, 5].map((s) => <Star key={s} className="w-4 h-4 fill-current" />)}
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex text-accent-gold">
+                          {[1, 2, 3, 4, 5].map((s) => <Star key={s} className="w-3.5 h-3.5 fill-current" />)}
+                        </div>
+                        <span className="text-[11px] font-semibold text-slate-400">Google Verified</span>
                       </div>
-                      <p className="text-slate-700 italic mb-5 leading-relaxed font-normal">"{t.text}"</p>
+                      <p className="text-slate-600 italic mb-5 leading-relaxed text-sm font-normal">"{t.text}"</p>
                     </div>
-                    <div className="flex items-center space-x-3">
-                      <img src={t.img} alt={t.name} className="w-11 h-11 rounded-full object-cover" />
+                    <div className="flex items-center space-x-3 pt-3 border-t border-slate-100">
+                      <img src={t.img} alt={t.name} className="w-10 h-10 rounded-full object-cover" />
                       <div>
-                        <h5 className="font-bold text-dark-slate">{t.name}</h5>
-                        <p className="text-xs text-slate-500 font-medium">Verified Patient</p>
+                        <h5 className="font-bold text-dark-slate text-sm">{t.name}</h5>
+                        <p className="text-xs text-slate-500 font-medium">Verified Patient • Patient Since 2023</p>
                       </div>
                     </div>
                   </div>
