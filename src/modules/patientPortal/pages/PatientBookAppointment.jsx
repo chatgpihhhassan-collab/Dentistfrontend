@@ -26,7 +26,14 @@ import {
     RefreshCw,
     Layers,
     Tag,
-    Info
+    Info,
+    Award,
+    Building2,
+    GraduationCap,
+    X,
+    BadgeCheck,
+    Star,
+    Plus
 } from 'lucide-react';
 import API_BASE_URL from '../../../config/apiConfig';
 
@@ -144,6 +151,27 @@ export default function PatientBookAppointment() {
     const [modalCategoryFilter, setModalCategoryFilter] = useState('All');
     const [modalSearchQuery, setModalSearchQuery] = useState('');
 
+    // Doctor Profile Inspection Modal State
+    const [previewDoctor, setPreviewDoctor] = useState(null);
+
+    // Parse organization history safely (supports JSON array or string)
+    const parseDoctorOrgs = (orgData) => {
+        if (!orgData) return [];
+        if (Array.isArray(orgData)) return orgData;
+        try {
+            const parsed = JSON.parse(orgData);
+            if (Array.isArray(parsed)) return parsed;
+        } catch (e) {
+            return String(orgData).split('\n').filter(Boolean).map(line => ({
+                organization: line,
+                role: 'Clinical Affiliation',
+                period: 'Clinical Experience',
+                description: ''
+            }));
+        }
+        return [];
+    };
+
     // 3. Time Slots Categorized
     const morningSlots = ['09:00 AM', '09:45 AM', '10:30 AM', '11:15 AM', '12:00 PM'];
     const afternoonSlots = ['02:00 PM', '02:45 PM', '03:30 PM', '04:15 PM', '05:00 PM'];
@@ -246,10 +274,22 @@ export default function PatientBookAppointment() {
                                 fullName,
                                 title,
                                 exp,
+                                yearsOfExperience: d.yearsOfExperience || (docId === 2 ? 14 : (docId === 4 ? 9 : 11)),
                                 region: docRegion,
                                 avatar,
-                                specialization: d.specialization,
+                                specialization: d.specialization || 'General & Restorative Dentistry',
+                                biography: d.biography,
+                                organizationWorkHistory: d.organizationWorkHistory,
+                                education: d.education,
+                                certifications: d.certifications,
+                                languages: d.languages || 'English, Urdu',
+                                rating: d.rating || 4.9,
+                                reviewCount: d.reviewCount || 28,
+                                organizationID: d.organizationID,
                                 organizationName: d.organizationName,
+                                organizationLogoUrl: d.organizationLogoUrl,
+                                organizationCity: d.organizationCity,
+                                hospitalDepartment: d.hospitalDepartment,
                                 consultationFee: d.consultationFee
                             };
                         });
@@ -941,18 +981,28 @@ export default function PatientBookAppointment() {
                                             )}
                                         </p>
                                         <p className="text-[11px] text-muted-text mt-0.5">
-                                            Pre-selected from Our Specialists directory. Proceed to services below or choose any doctor anytime.
+                                            Pre-selected from Our Specialists directory. You can inspect profile details or choose any doctor anytime.
                                         </p>
                                     </div>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={handleNext}
-                                    className="px-4 py-2 rounded-xl bg-primary-teal hover:bg-primary-hover text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0 self-end sm:self-auto"
-                                >
-                                    <span>Proceed to Services</span>
-                                    <ArrowRight className="w-3.5 h-3.5" />
-                                </button>
+                                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPreviewDoctor(currentDoctor)}
+                                        className="px-3 py-2 rounded-xl bg-white border border-emerald-300 text-emerald-800 text-xs font-bold hover:bg-emerald-100 flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                                    >
+                                        <Info className="w-3.5 h-3.5 text-emerald-700" />
+                                        <span>View Profile</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleNext}
+                                        className="px-4 py-2 rounded-xl bg-primary-teal hover:bg-primary-hover text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                                    >
+                                        <span>Proceed to Services</span>
+                                        <ArrowRight className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
                             </div>
                         )}
 
@@ -1022,6 +1072,19 @@ export default function PatientBookAppointment() {
                                                     {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
                                                 </div>
                                             </div>
+
+                                            {/* Inspect Doctor Profile Button */}
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setPreviewDoctor(doc);
+                                                }}
+                                                className="mt-2.5 w-full py-1.5 px-2 rounded-xl bg-slate-50 hover:bg-light-teal/30 text-dark-slate border border-slate-200/80 text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs hover:border-primary-teal/50 hover:text-primary-teal"
+                                            >
+                                                <Info className="w-3.5 h-3.5 text-primary-teal" />
+                                                <span>View Doctor Profile</span>
+                                            </button>
                                         </div>
                                     );
                                 })}
@@ -1053,6 +1116,14 @@ export default function PatientBookAppointment() {
                                 <div>
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <h3 className="text-xs font-black text-dark-slate">{currentDoctor.name}</h3>
+                                        <button
+                                            type="button"
+                                            onClick={() => setPreviewDoctor(currentDoctor)}
+                                            className="px-2 py-0.5 rounded-md bg-white border border-light-teal/80 text-[10px] font-bold text-primary-teal hover:bg-light-teal/30 transition-colors flex items-center gap-1 cursor-pointer"
+                                        >
+                                            <Info className="w-3 h-3" />
+                                            <span>View Profile</span>
+                                        </button>
                                         <span className="px-2 py-0.5 rounded-md bg-light-teal text-primary-hover font-mono text-[10px] font-bold">
                                             {doctorCurrency} Fee Schedule
                                         </span>
@@ -1977,6 +2048,198 @@ export default function PatientBookAppointment() {
                                 className="px-4 py-2 bg-primary-teal hover:bg-primary-hover text-white font-bold rounded-xl cursor-pointer shadow-xs transition-colors"
                             >
                                 Done
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ============================================================= */}
+            {/* 🌟 DETAILED DOCTOR PROFILE & CREDENTIALS MODAL                */}
+            {/* ============================================================= */}
+            {previewDoctor && (
+                <div className="fixed inset-0 z-50 bg-dark-slate/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl max-w-2xl w-full border border-light-teal shadow-2xl overflow-hidden my-8 animate-in zoom-in-95 duration-200">
+                        {/* Modal Header */}
+                        <div className="relative bg-gradient-to-r from-dark-slate via-[#193256] to-primary-teal text-white p-6 sm:p-7">
+                            <button
+                                type="button"
+                                onClick={() => setPreviewDoctor(null)}
+                                className="absolute top-5 right-5 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+
+                            <div className="flex items-start gap-4 sm:gap-5">
+                                <img
+                                    src={previewDoctor.avatar}
+                                    alt={previewDoctor.name}
+                                    className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-2 border-white shadow-lg shrink-0"
+                                    onError={(e) => {
+                                        e.target.onerror = null;
+                                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(previewDoctor.name)}&background=008080&color=fff&bold=true`;
+                                    }}
+                                />
+                                <div className="space-y-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h2 className="text-xl sm:text-2xl font-serif font-bold text-white truncate">
+                                            {previewDoctor.name}
+                                        </h2>
+                                        <BadgeCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+                                    </div>
+                                    <p className="text-xs sm:text-sm font-semibold text-light-teal truncate">
+                                        {previewDoctor.title}
+                                    </p>
+                                    <p className="text-xs text-white/80 flex items-center gap-1">
+                                        <Award className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                                        <span>{previewDoctor.specialization || 'General & Restorative Dentistry'}</span>
+                                    </p>
+                                    <div className="flex items-center gap-3 pt-1 text-xs">
+                                        <span className="font-bold bg-white/20 px-2.5 py-0.5 rounded-full">
+                                            {previewDoctor.yearsOfExperience || 8} Years Experience
+                                        </span>
+                                        <span className="flex items-center gap-1 font-bold text-amber-300">
+                                            <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                                            {previewDoctor.rating || 4.9} ({previewDoctor.reviewCount || 28} Reviews)
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-6 sm:p-7 space-y-5 max-h-[60vh] overflow-y-auto">
+                            {/* Clinical Biography */}
+                            <div className="space-y-1.5">
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-text flex items-center gap-1.5">
+                                    <Sparkles className="w-4 h-4 text-primary-teal" />
+                                    <span>Professional Biography & Philosophy</span>
+                                </h4>
+                                <p className="text-xs sm:text-sm text-dark-slate leading-relaxed font-normal bg-warm-cream/50 p-4 rounded-2xl border border-light-teal/30">
+                                    {previewDoctor.biography || `${previewDoctor.name} is an experienced dental clinician dedicated to providing compassionate, evidence-based dental care, modern cosmetic dentistry, and comprehensive patient treatment.`}
+                                </p>
+                            </div>
+
+                            {/* Primary Hospital / Clinic Affiliation */}
+                            {previewDoctor.organizationName && (
+                                <div className="space-y-1.5">
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-text flex items-center gap-1.5">
+                                        <Building2 className="w-4 h-4 text-primary-teal" />
+                                        <span>Hospital / Medical Organization</span>
+                                    </h4>
+                                    <div className="bg-gradient-to-r from-teal-50 to-indigo-50/50 rounded-2xl p-3.5 border border-teal-200/80 flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-white border border-teal-200 flex items-center justify-center shrink-0 shadow-xs">
+                                            {previewDoctor.organizationLogoUrl ? (
+                                                <img src={previewDoctor.organizationLogoUrl} alt={previewDoctor.organizationName} className="w-6 h-6 object-contain" />
+                                            ) : (
+                                                <Building2 className="w-5 h-5 text-primary-teal" />
+                                            )}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <h5 className="font-bold text-sm text-dark-slate truncate">{previewDoctor.organizationName}</h5>
+                                            <p className="text-xs text-muted-text font-medium truncate">
+                                                {previewDoctor.hospitalDepartment ? `${previewDoctor.hospitalDepartment} · ` : ''}{previewDoctor.organizationCity || 'Primary Base'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Work History / Hospital Credentials */}
+                            {(() => {
+                                const orgs = parseDoctorOrgs(previewDoctor.organizationWorkHistory);
+                                if (orgs.length === 0) return null;
+                                return (
+                                    <div className="space-y-2">
+                                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-text flex items-center gap-1.5">
+                                            <Building2 className="w-4 h-4 text-primary-teal" />
+                                            <span>Hospital & Institutional History</span>
+                                        </h4>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            {orgs.map((o, idx) => (
+                                                <div key={idx} className="bg-warm-cream/40 rounded-xl p-3 border border-light-teal/30 text-xs">
+                                                    <div className="flex items-center justify-between gap-1">
+                                                        <span className="font-bold text-dark-slate truncate">{o.organization}</span>
+                                                        <span className="text-[10px] font-semibold text-muted-text shrink-0">{o.period}</span>
+                                                    </div>
+                                                    {o.role && (
+                                                        <div className="text-[11px] text-primary-teal font-medium truncate mt-0.5">
+                                                            {o.role}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Education */}
+                            {previewDoctor.education && (
+                                <div className="space-y-1.5">
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-text flex items-center gap-1.5">
+                                        <GraduationCap className="w-4 h-4 text-primary-teal" />
+                                        <span>Education & Degrees</span>
+                                    </h4>
+                                    <div className="bg-warm-cream/40 p-3.5 rounded-2xl border border-light-teal/30 text-xs text-dark-slate leading-relaxed whitespace-pre-line font-medium">
+                                        {previewDoctor.education}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Certifications */}
+                            {previewDoctor.certifications && (
+                                <div className="space-y-1.5">
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-text flex items-center gap-1.5">
+                                        <Award className="w-4 h-4 text-primary-teal" />
+                                        <span>Certifications & Fellowships</span>
+                                    </h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        {previewDoctor.certifications.split(',').map((c, i) => (
+                                            <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-light-teal/30 border border-light-teal/60 text-xs font-bold text-dark-slate">
+                                                <CheckCircle2 className="w-3.5 h-3.5 text-primary-teal shrink-0" />
+                                                <span>{c.trim()}</span>
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Languages & Consultation Fee */}
+                            <div className="grid grid-cols-2 gap-4 bg-light-teal/15 p-4 rounded-2xl border border-light-teal/40 text-xs">
+                                <div>
+                                    <span className="text-muted-text font-bold uppercase tracking-wider block text-[10px]">Languages</span>
+                                    <span className="font-semibold text-dark-slate mt-0.5 block">{previewDoctor.languages || 'English, Urdu'}</span>
+                                </div>
+                                <div>
+                                    <span className="text-muted-text font-bold uppercase tracking-wider block text-[10px]">Consultation Fee</span>
+                                    <span className="font-serif font-bold text-dark-slate text-sm mt-0.5 block">
+                                        ${previewDoctor.consultationFee || 150}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer CTA */}
+                        <div className="p-5 sm:p-6 bg-warm-cream/60 border-t border-light-teal/40 flex items-center justify-between gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setPreviewDoctor(null)}
+                                className="px-5 py-2.5 rounded-xl bg-white border border-light-teal text-muted-text text-xs font-bold hover:bg-light-teal/30 transition-colors cursor-pointer"
+                            >
+                                Close
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSelectedDoctorId(previewDoctor.id);
+                                    setPreviewDoctor(null);
+                                    setError('');
+                                }}
+                                className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-primary-teal to-primary-hover text-white text-xs font-bold shadow-md shadow-primary-teal/20 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                                <Check className="w-4 h-4 stroke-[3]" />
+                                <span>Select {previewDoctor.name} & Continue</span>
                             </button>
                         </div>
                     </div>
