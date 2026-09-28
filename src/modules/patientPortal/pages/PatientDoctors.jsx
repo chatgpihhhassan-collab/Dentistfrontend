@@ -85,10 +85,10 @@ export default function PatientDoctors() {
                 setLoadingModalServices(true);
                 const endpoints = [
                     `${API_BASE_URL}/api/patient-portal/doctors/${docId}/services`,
-                    `${API_BASE_URL}/api/treatment-pricing/doctor/${docId}`,
                     `https://dentist-api-dev.vitonta.com/api/patient-portal/doctors/${docId}/services`,
-                    `https://dentist-api-dev.vitonta.com/api/treatment-pricing/doctor/${docId}`,
                     `/api/patient-portal/doctors/${docId}/services`,
+                    `${API_BASE_URL}/api/treatment-pricing/doctor/${docId}`,
+                    `https://dentist-api-dev.vitonta.com/api/treatment-pricing/doctor/${docId}`,
                     `/api/treatment-pricing/doctor/${docId}`
                 ];
                 const result = await safeFetchJson(endpoints);
@@ -186,11 +186,8 @@ export default function PatientDoctors() {
         try {
             const endpoints = [
                 `${API_BASE_URL}/api/patient-portal/organizations`,
-                `${API_BASE_URL}/api/organizations`,
                 'https://dentist-api-dev.vitonta.com/api/patient-portal/organizations',
-                'https://dentist-api-dev.vitonta.com/api/organizations',
-                '/api/patient-portal/organizations',
-                '/api/organizations'
+                '/api/patient-portal/organizations'
             ];
             const result = await safeFetchJson(endpoints);
             if (result.ok && Array.isArray(result.data) && result.data.length > 0) {

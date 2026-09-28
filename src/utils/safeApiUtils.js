@@ -373,6 +373,10 @@ export async function safeFetchJson(endpoints, options = {}) {
             const timeoutId = setTimeout(() => controller.abort(), 6000);
             const fetchOptions = {
                 ...options,
+                headers: {
+                    ...(options.headers || {}),
+                    'X-Skip-Auth-Redirect': 'true'
+                },
                 signal: options.signal || controller.signal
             };
 

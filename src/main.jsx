@@ -50,10 +50,18 @@ axios.interceptors.request.use((config) => {
 axios.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401 && !error.config?.url?.includes('/api/auth/login')) {
-      purgeClinicianSession('unauthorized');
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login?expired=true';
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+    const isPortalRoute = currentPath.startsWith('/portal');
+    const isSkipAuth = error.config?.headers?.['X-Skip-Auth-Redirect'] || error.config?.headers?.['x-skip-auth-redirect'];
+    const isLoginEndpoint = error.config?.url?.includes('/api/auth/login') || error.config?.url?.includes('/api/patient-auth/login');
+
+    if (error.response && error.response.status === 401 && !isLoginEndpoint && !isPortalRoute && !isSkipAuth) {
+      const hasDoctorSession = !!localStorage.getItem('doctor');
+      if (hasDoctorSession) {
+        purgeClinicianSession('unauthorized');
+        if (currentPath !== '/login') {
+          window.location.href = '/login?expired=true';
+        }
       }
     }
     return Promise.reject(error);
@@ -96,10 +104,30 @@ if (typeof window !== 'undefined') {
     }
 
     return originalFetch.call(this, resource, init).then((response) => {
-      if (response.status === 401 && typeof url === 'string' && url.includes('/api/') && !url.includes('/api/auth/login')) {
-        purgeClinicianSession('unauthorized');
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login?expired=true';
+      if (response.status === 401 && typeof url === 'string' && url.includes('/api/')) {
+        const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+        const isPortalRoute = currentPath.startsWith('/portal');
+        const isPatientApi = url.includes('/api/patient-') || url.includes('/api/patient-portal');
+        const isLoginApi = url.includes('/api/auth/login') || url.includes('/api/patient-auth/login');
+
+        let isSkipRedirect = false;
+        if (init?.headers) {
+          if (init.headers instanceof Headers) {
+            isSkipRedirect = init.headers.get('X-Skip-Auth-Redirect') === 'true';
+          } else if (typeof init.headers === 'object') {
+            isSkipRedirect = init.headers['X-Skip-Auth-Redirect'] === 'true' || init.headers['x-skip-auth-redirect'] === 'true';
+          }
+        }
+
+        // Strict guard: NEVER logout or redirect on patient portal routes, patient APIs, or probe requests
+        if (!isPortalRoute && !isPatientApi && !isLoginApi && !isSkipRedirect) {
+          const hasDoctorSession = !!localStorage.getItem('doctor');
+          if (hasDoctorSession) {
+            purgeClinicianSession('unauthorized');
+            if (currentPath !== '/login') {
+              window.location.href = '/login?expired=true';
+            }
+          }
         }
       }
       return response;
