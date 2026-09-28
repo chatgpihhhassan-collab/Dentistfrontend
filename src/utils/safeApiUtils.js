@@ -83,61 +83,101 @@ export const DEFAULT_CLINIC_DOCTORS = [
     {
         id: 2,
         doctorID: 2,
-        username: "jhangir",
+        username: "ahmedjh",
         firstName: "Jhangir",
         lastName: "Ahmed",
         fullName: "Dr. Jhangir Ahmed",
         region: "PK",
-        title: "Consultant Dental Surgeon & Implantologist",
-        specialization: "Oral & Maxillofacial Implantology",
-        yearsOfExperience: 14,
-        exp: "14 yrs exp",
-        biography: "Distinguished Dental Surgeon & Implantologist with over 14 years of clinical experience in advanced implant placement, bone grafting, and comprehensive oral rehabilitation across Pakistan and New Zealand.",
+        title: "BDS, MDS (Oral & Maxillofacial Surgery), FICOI (USA)",
+        specialization: "Senior Consultant Implantologist & Oral Surgeon",
+        yearsOfExperience: 15,
+        exp: "15 yrs exp",
+        biography: "Distinguished Oral & Maxillofacial Surgeon and Fellow of the International Congress of Oral Implantologists (ICOI, USA). With over 15 years of dedicated surgical experience across leading tertiary teaching hospitals and private specialty clinics, he has successfully placed more than 3,500 dental implants with computer-guided surgical navigation, sinus augmentations, and full-mouth rehabilitation.",
         organizationWorkHistory: JSON.stringify([
             {
-                organization: "Shifa International Hospitals Ltd",
+                organization: "Aga Khan University Hospital (AKUH)",
                 role: "Consultant Dental Surgeon",
                 period: "2018 - Present",
                 description: "Lead implant surgeon handling complex sinus lift elevations and guided bone regenerations."
             },
             {
-                organization: "Pakistan Institute of Medical Sciences (PIMS)",
-                role: "Senior Dental Registrar",
+                organization: "Shifa International Hospital",
+                role: "Senior Dental Surgeon",
                 period: "2014 - 2018",
-                description: "Supervised resident dental surgeons in emergency maxillofacial trauma and reconstructive cases."
+                description: "Supervising surgical theater for advanced ridge augmentation and maxillofacial trauma."
             },
             {
-                organization: "Rawal Institute of Health Sciences",
-                role: "Assistant Professor - Oral Surgery",
-                period: "2012 - 2014",
-                description: "Delivered clinical lectures on surgical extractions, impactions, and pre-prosthetic surgery."
+                organization: "Mayo Hospital / King Edward Medical University",
+                role: "Resident Surgeon",
+                period: "2010 - 2014",
+                description: "Completed intensive clinical residency in maxillofacial trauma and oral pathology."
             }
         ]),
-        education: "BDS - Rawalpindi Medical University (2010)\r\nFCPS (Oral & Maxillofacial Surgery) - College of Physicians & Surgeons Pakistan (2015)\r\nFellowship in Advanced Dental Implantology (ICOI, USA - 2018)",
-        certifications: "Diplomate International Congress of Oral Implantologists (ICOI)\r\nCertified Digital Smile Design (DSD) Expert\r\nBLS & ACLS Certified Healthcare Provider",
-        consultationFee: 2500,
+        education: "BDS - King Edward Medical University (2009)\r\nMDS (Oral & Maxillofacial Surgery) - Postgraduate Institute of Dental Sciences (2014)\r\nFellowship in Advanced Implantology - International Congress of Oral Implantologists (ICOI USA, 2017)",
+        certifications: "Diplomate & Fellow ICOI (USA), Digital Guided Implant Surgery Specialist, BLS/ACLS Certified",
+        consultationFee: 180,
         avatar: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=400",
         languages: "English, Urdu, Punjabi",
-        rating: 4.96,
-        reviewCount: 98,
-        organizationID: 1,
-        organizationName: "Shifa International Hospitals Ltd",
-        organizationLogoUrl: "https://images.unsplash.com/photo-1586773860418-d37222d8fce3?auto=format&fit=crop&q=80&w=300",
-        organizationCity: "Islamabad",
-        hospitalDepartment: "Department of Oral Surgery & Dentistry"
+        rating: 4.97,
+        reviewCount: 168,
+        organizationID: 2,
+        organizationName: "Aga Khan University Hospital (AKUH)",
+        organizationLogoUrl: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&q=80&w=300",
+        organizationCity: "Karachi",
+        hospitalDepartment: "Division of Oral & Maxillofacial Surgery"
+    },
+    {
+        id: 3,
+        doctorID: 3,
+        username: "ahmedjhahmedjh",
+        firstName: "Ahmed",
+        lastName: "Khan",
+        fullName: "Dr. Ahmed Khan",
+        region: "NZ",
+        title: "BDS, FCPS (Restorative Dentistry & Endodontics)",
+        specialization: "Consultant Dental Surgeon & Endodontist",
+        yearsOfExperience: 9,
+        exp: "9 yrs exp",
+        biography: "Experienced dental surgeon specializing in microscopic root canal therapy, complex retreatment cases, and tooth-colored cosmetic restorations.",
+        organizationWorkHistory: JSON.stringify([
+            {
+                organization: "Dentia Auckland Regional Dental Hospital",
+                role: "Consultant Dental Surgeon",
+                period: "2019 - Present",
+                description: "Lead clinician for restorative dentistry and single-visit rotary endodontics."
+            },
+            {
+                organization: "City Dental Teaching Hospital",
+                role: "Registrar",
+                period: "2015 - 2019",
+                description: "Conducted emergency dental trauma treatment and root canal clinical trials."
+            }
+        ]),
+        education: "BDS - University of Health Sciences (2014)\r\nFCPS Part II Trained (Restorative Dentistry & Endodontics)",
+        certifications: "Rotary Endodontics Masterclass, Laser Dentistry Certification",
+        consultationFee: 120,
+        avatar: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&q=80&w=400",
+        languages: "English, Urdu",
+        rating: 4.88,
+        reviewCount: 64,
+        organizationID: 3,
+        organizationName: "Dentia Auckland Regional Dental Hospital",
+        organizationLogoUrl: "https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&q=80&w=300",
+        organizationCity: "Auckland",
+        hospitalDepartment: "Department of Restorative & Cosmetic Dentistry"
     },
     {
         id: 4,
         doctorID: 4,
-        username: "sarah",
+        username: "sarah@dentia.com",
         firstName: "Sarah",
         lastName: "Jenkins",
         fullName: "Dr. Sarah Jenkins",
-        region: "PK",
-        title: "Senior Orthodontic Specialist",
-        specialization: "Orthodontics & Dentofacial Orthopedics",
-        yearsOfExperience: 9,
-        exp: "9 yrs exp",
+        region: "NZ",
+        title: "BDS, MSc (Orthodontics), MOrth RCSEd (UK)",
+        specialization: "Specialist Orthodontist & Dentofacial Orthopedics",
+        yearsOfExperience: 12,
+        exp: "12 yrs exp",
         biography: "Specialist orthodontist certified in clear aligner biomechanics and interceptive jaw development therapies. Member of the Royal College of Surgeons of Edinburgh. Dr. Sarah focuses on non-extraction orthodontic alignment, TMJ stabilization, and aesthetic smile design.",
         organizationWorkHistory: JSON.stringify([
             {
@@ -161,7 +201,7 @@ export const DEFAULT_CLINIC_DOCTORS = [
         ]),
         education: "BDS - Army Medical College (2011)\r\nMSc in Orthodontics - King’s College London (2016)\r\nMOrth - Royal College of Surgeons of Edinburgh (2017)",
         certifications: "Invisalign Diamond Apex Provider, Damon System Certified, Lingual Orthodontics Specialist (WIN & Incognito)",
-        consultationFee: 3000,
+        consultationFee: 160,
         avatar: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=400",
         languages: "English, Urdu",
         rating: 4.95,
@@ -176,18 +216,18 @@ export const DEFAULT_CLINIC_DOCTORS = [
         id: 5,
         doctorID: 5,
         username: "ahmedjh2",
-        firstName: "Ahmed",
-        lastName: "Hassan",
-        fullName: "Dr. Ahmed Hassan",
+        firstName: "Jhangir",
+        lastName: "Ahmed",
+        fullName: "Dr. Jhangir Ahmed",
         region: "NZ",
         title: "BDS, FCPS (Restorative Dentistry & Endodontics)",
-        specialization: "Endodontics & Restorative Dentistry",
+        specialization: "Consultant Dental Surgeon & Endodontist",
         yearsOfExperience: 9,
         exp: "9 yrs exp",
         biography: "Experienced dental surgeon specializing in microscopic root canal therapy, complex retreatment cases, and tooth-colored cosmetic restorations.",
         organizationWorkHistory: JSON.stringify([
             {
-                organization: "Dental Associates Healthcare",
+                organization: "Dentia Auckland Regional Dental Hospital",
                 role: "Senior Dental Surgeon",
                 period: "2019 - Present",
                 description: "Lead clinician for restorative dentistry and single-visit rotary endodontics."
@@ -213,38 +253,106 @@ export const DEFAULT_CLINIC_DOCTORS = [
         hospitalDepartment: "Department of Restorative & Cosmetic Dentistry"
     },
     {
-        id: 1,
-        doctorID: 1,
-        username: "sarahlee",
-        firstName: "Sarah",
-        lastName: "Lee",
-        fullName: "Dr. Sarah J. Lee",
+        id: 6,
+        doctorID: 6,
+        username: "doc3",
+        firstName: "Jhangir",
+        lastName: "Ahmed",
+        fullName: "Dr. Jhangir Ahmed",
         region: "NZ",
-        title: "BDS, NZDA Lead Dental Clinician",
-        specialization: "General Dental Surgery & Aesthetics",
-        yearsOfExperience: 11,
-        exp: "11 yrs exp",
-        biography: "Dedicated dental surgeon focusing on holistic family care, aesthetic crowns, minimally invasive cosmetic restorations, and pediatric preventative oral care.",
+        title: "BDS, FCPS (Restorative Dentistry & Endodontics)",
+        specialization: "Consultant Dental Surgeon & Endodontist",
+        yearsOfExperience: 9,
+        exp: "9 yrs exp",
+        biography: "Experienced dental surgeon specializing in microscopic root canal therapy, complex retreatment cases, and tooth-colored cosmetic restorations.",
         organizationWorkHistory: JSON.stringify([
             {
                 organization: "Dentia Auckland Regional Dental Hospital",
-                role: "Principal Dental Surgeon",
-                period: "2016 - Present",
-                description: "Supervised primary clinical audits and outpatient restorative workflows."
+                role: "Senior Dental Surgeon",
+                period: "2019 - Present",
+                description: "Lead clinician for restorative dentistry and single-visit rotary endodontics."
             }
         ]),
-        education: "BDS - University of Otago (2013)",
-        certifications: "NZ Dental Association Board Certified, CAD/CAM Ceramic Restoration Specialist",
-        consultationFee: 110,
-        avatar: "https://images.unsplash.com/photo-1594824813627-2c938c03e670?auto=format&fit=crop&q=80&w=400",
-        languages: "English",
-        rating: 4.92,
-        reviewCount: 88,
+        education: "BDS - University of Health Sciences (2014)",
+        certifications: "Rotary Endodontics Masterclass",
+        consultationFee: 120,
+        avatar: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&q=80&w=400",
+        languages: "English, Urdu",
+        rating: 4.88,
+        reviewCount: 64,
         organizationID: 3,
         organizationName: "Dentia Auckland Regional Dental Hospital",
         organizationLogoUrl: "https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&q=80&w=300",
         organizationCity: "Auckland",
-        hospitalDepartment: "Department of General Dental Practice"
+        hospitalDepartment: "Department of Restorative & Cosmetic Dentistry"
+    },
+    {
+        id: 7,
+        doctorID: 7,
+        username: "dr_test",
+        firstName: "Test",
+        lastName: "Doctor",
+        fullName: "Dr. Test Doctor",
+        region: "NZ",
+        title: "BDS, FCPS (Restorative Dentistry & Endodontics)",
+        specialization: "Consultant Dental Surgeon & Endodontist",
+        yearsOfExperience: 9,
+        exp: "9 yrs exp",
+        biography: "Experienced dental surgeon specializing in microscopic root canal therapy, complex retreatment cases, and tooth-colored cosmetic restorations.",
+        organizationWorkHistory: JSON.stringify([
+            {
+                organization: "Dentia Auckland Regional Dental Hospital",
+                role: "Senior Dental Surgeon",
+                period: "2019 - Present",
+                description: "Lead clinician for restorative dentistry."
+            }
+        ]),
+        education: "BDS - University of Health Sciences (2014)",
+        certifications: "Rotary Endodontics Masterclass",
+        consultationFee: 120,
+        avatar: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&q=80&w=400",
+        languages: "English, Urdu",
+        rating: 4.88,
+        reviewCount: 64,
+        organizationID: 3,
+        organizationName: "Dentia Auckland Regional Dental Hospital",
+        organizationLogoUrl: "https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&q=80&w=300",
+        organizationCity: "Auckland",
+        hospitalDepartment: "Department of Restorative & Cosmetic Dentistry"
+    },
+    {
+        id: 8,
+        doctorID: 8,
+        username: "ahmedhassan",
+        firstName: "Ahmed",
+        lastName: "Hassan",
+        fullName: "Dr. Ahmed Hassan",
+        region: "NZ",
+        title: "BDS, FCPS (Restorative Dentistry & Endodontics)",
+        specialization: "Consultant Dental Surgeon & Endodontist",
+        yearsOfExperience: 9,
+        exp: "9 yrs exp",
+        biography: "Experienced dental surgeon specializing in microscopic root canal therapy, complex retreatment cases, and tooth-colored cosmetic restorations.",
+        organizationWorkHistory: JSON.stringify([
+            {
+                organization: "Dentia Auckland Regional Dental Hospital",
+                role: "Senior Dental Surgeon",
+                period: "2019 - Present",
+                description: "Lead clinician for restorative dentistry and single-visit rotary endodontics."
+            }
+        ]),
+        education: "BDS - University of Health Sciences (2014)",
+        certifications: "Rotary Endodontics Masterclass, Laser Dentistry Certification",
+        consultationFee: 120,
+        avatar: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&q=80&w=400",
+        languages: "English, Urdu",
+        rating: 4.88,
+        reviewCount: 64,
+        organizationID: 3,
+        organizationName: "Dentia Auckland Regional Dental Hospital",
+        organizationLogoUrl: "https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&q=80&w=300",
+        organizationCity: "Auckland",
+        hospitalDepartment: "Department of Restorative & Cosmetic Dentistry"
     }
 ];
 
@@ -384,7 +492,7 @@ export const DEFAULT_CLINIC_PROCEDURES_BY_DOCTOR = {
         }
     ],
 
-    // Dr. Ayesha Siddiqui (ID 4, Orthodontics & Pediatric, PK / PKR)
+    // Dr. Sarah Jenkins (ID 4, Specialist Orthodontist, AKUH)
     4: [
         {
             procedureCode: 'D8080',
@@ -460,7 +568,7 @@ export const DEFAULT_CLINIC_PROCEDURES_BY_DOCTOR = {
         }
     ],
 
-    // Dr. Marcus Vance / Dr. Sarah Lee (ID 3 / 1, NZ / NZD)
+    // Dr. Ahmed Khan / NZ Restorative Specialists (ID 3, 5, 6, 7, 8, NZ / NZD)
     default: [
         {
             procedureCode: 'D0150',

@@ -128,9 +128,9 @@ export default function PatientBookAppointment() {
     const stateDoctorId = location.state?.doctorId || location.state?.doctor?.doctorID || location.state?.doctor?.DoctorID || location.state?.doctor?.id;
     const requestedDoctorId = urlDoctorParam || stateDoctorId;
 
-    // 1. Doctors State (Fetched dynamically from Database with resilient fallback)
-    const [doctors, setDoctors] = useState(DEFAULT_CLINIC_DOCTORS);
-    const [loadingDoctors, setLoadingDoctors] = useState(false);
+    // 1. Doctors State (Fetched dynamically from Database)
+    const [doctors, setDoctors] = useState([]);
+    const [loadingDoctors, setLoadingDoctors] = useState(true);
     const [selectedDoctorId, setSelectedDoctorId] = useState(() => {
         if (requestedDoctorId && !isNaN(Number(requestedDoctorId))) return Number(requestedDoctorId);
         if (patient.doctorID && !isNaN(Number(patient.doctorID))) return Number(patient.doctorID);
@@ -239,10 +239,10 @@ export default function PatientBookAppointment() {
                 setLoadingDoctors(true);
                 const endpoints = [
                     `${API_BASE_URL}/api/patient-portal/doctors`,
-                    `${API_BASE_URL}/api/auth/doctors`,
                     'https://dentist-api-dev.vitonta.com/api/patient-portal/doctors',
-                    'https://dentist-api-dev.vitonta.com/api/auth/doctors',
                     '/api/patient-portal/doctors',
+                    `${API_BASE_URL}/api/auth/doctors`,
+                    'https://dentist-api-dev.vitonta.com/api/auth/doctors',
                     '/api/auth/doctors'
                 ];
                 const result = await safeFetchJson(endpoints);
@@ -253,10 +253,18 @@ export default function PatientBookAppointment() {
                 if (isMounted) {
                     const mapped = rawList.map(d => {
                         const docId = Number(d.doctorID ?? d.DoctorID ?? d.id ?? d.DoctorId);
-                        const fullName = d.fullName || `Dr. ${d.firstName} ${d.lastName}`.trim();
+                        const first = (d.firstName || '').trim();
+                        const last = (d.lastName || '').trim();
+                        let fullName = d.fullName;
+                        if (first || last) {
+                            const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : '';
+                            fullName = `Dr. ${cap(first)} ${cap(last)}`.trim();
+                        } else if (!fullName || !fullName.startsWith('Dr.')) {
+                            fullName = fullName ? `Dr. ${fullName}` : 'Dr. Specialist';
+                        }
                         const docRegion = d.region || 'NZ';
                         const title = d.title || (docRegion === 'PK' ? 'Consultant Dental Surgeon' : 'Dental Surgeon & Specialist');
-                        const exp = d.exp || (docId === 2 ? '14 yrs exp' : (docId === 4 ? '9 yrs exp' : '11 yrs exp'));
+                        const exp = d.exp || `${d.yearsOfExperience || (docId === 2 ? 15 : (docId === 4 ? 12 : 9))} yrs exp`;
                         const avatar = d.avatar || d.profileImageUrl || (
                             docId === 2
                                 ? 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=200'

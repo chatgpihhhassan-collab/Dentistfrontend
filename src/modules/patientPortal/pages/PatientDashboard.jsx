@@ -203,7 +203,7 @@ export default function PatientDashboard() {
             raw = raw.replace(cdtMatch[0], '').trim();
         }
 
-        // Extract doctor in parentheses e.g. (Dr. Sarah J. Lee (Lead Dental Surgeon)) or (Dr. Sarah J. Lee)
+        // Extract doctor in parentheses e.g. (Dr. Sarah Jenkins (Orthodontics)) or (Dr. Sarah Jenkins)
         const docParenMatch = raw.match(/\((Dr\.?[^)]+(?:\([^)]+\))?)\)/i);
         if (docParenMatch) {
             const docStr = docParenMatch[1].trim();
@@ -236,11 +236,14 @@ export default function PatientDashboard() {
                 }
             }
             if (!doctorName) {
-                if (doctorId === 2) { doctorName = 'Dr. Jhangir Ahmed'; doctorRole = 'Orthodontics & Implants'; }
-                else if (doctorId === 1) { doctorName = 'Dr. Sarah J. Lee'; doctorRole = 'Lead Dental Surgeon'; }
-                else if (doctorId === 4) { doctorName = 'Dr. Sarah Jenkins'; doctorRole = 'Periodontics Specialist'; }
-                else if (doctorId === 3) { doctorName = 'Dr. Ahmed Khan'; doctorRole = 'General Dental Practitioner'; }
-                else { doctorName = 'Dr. Sarah J. Lee'; doctorRole = 'Lead Dental Surgeon'; }
+                if (doctorId === 2) { doctorName = 'Dr. Jhangir Ahmed'; doctorRole = 'Senior Consultant Implantologist & Oral Surgeon'; }
+                else if (doctorId === 3) { doctorName = 'Dr. Ahmed Khan'; doctorRole = 'Consultant Dental Surgeon & Endodontist'; }
+                else if (doctorId === 4) { doctorName = 'Dr. Sarah Jenkins'; doctorRole = 'Specialist Orthodontist & Dentofacial Orthopedics'; }
+                else if (doctorId === 5) { doctorName = 'Dr. Jhangir Ahmed'; doctorRole = 'Consultant Dental Surgeon & Endodontist'; }
+                else if (doctorId === 6) { doctorName = 'Dr. Jhangir Ahmed'; doctorRole = 'Consultant Dental Surgeon & Endodontist'; }
+                else if (doctorId === 7) { doctorName = 'Dr. Test Doctor'; doctorRole = 'Consultant Dental Surgeon'; }
+                else if (doctorId === 8) { doctorName = 'Dr. Ahmed Hassan'; doctorRole = 'Consultant Dental Surgeon & Endodontist'; }
+                else { doctorName = 'Dental Specialist'; doctorRole = 'Clinical Practice'; }
             }
         }
 

@@ -7,15 +7,9 @@ import {
     DEFAULT_CLINIC_DOCTORS 
 } from '../../../utils/safeApiUtils';
 
-const defaultMappedDoctors = DEFAULT_CLINIC_DOCTORS.map(d => ({
-    doctorID: d.doctorID || d.id,
-    name: d.fullName || `Dr. ${d.firstName} ${d.lastName}`.trim(),
-    title: d.title || (d.region === 'PK' ? 'Consultant Dental Surgeon' : 'Dental Surgeon & Specialist')
-}));
-
 export default function PatientRegister() {
-    const [doctors, setDoctors] = useState(defaultMappedDoctors);
-    const [loadingDoctors, setLoadingDoctors] = useState(false);
+    const [doctors, setDoctors] = useState([]);
+    const [loadingDoctors, setLoadingDoctors] = useState(true);
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
@@ -26,7 +20,7 @@ export default function PatientRegister() {
         password: '',
         confirmPassword: '',
         region: 'NZ',
-        doctorID: defaultMappedDoctors[0]?.doctorID || 2
+        doctorID: ''
     });
 
     const [loading, setLoading] = useState(false);
@@ -40,10 +34,10 @@ export default function PatientRegister() {
                 setLoadingDoctors(true);
                 const endpoints = [
                     `${API_BASE_URL}/api/patient-portal/doctors`,
-                    `${API_BASE_URL}/api/auth/doctors`,
                     'https://dentist-api-dev.vitonta.com/api/patient-portal/doctors',
-                    'https://dentist-api-dev.vitonta.com/api/auth/doctors',
                     '/api/patient-portal/doctors',
+                    `${API_BASE_URL}/api/auth/doctors`,
+                    'https://dentist-api-dev.vitonta.com/api/auth/doctors',
                     '/api/auth/doctors'
                 ];
                 const result = await safeFetchJson(endpoints);
@@ -52,15 +46,26 @@ export default function PatientRegister() {
                     : DEFAULT_CLINIC_DOCTORS;
 
                 if (isMounted) {
-                    const mapped = rawList.map(d => ({
-                        doctorID: d.doctorID || d.id,
-                        name: d.fullName || `Dr. ${d.firstName} ${d.lastName}`.trim(),
-                        title: d.title || (d.region === 'PK' ? 'Consultant Dental Surgeon' : 'Dental Surgeon & Specialist')
-                    }));
+                    const mapped = rawList.map(d => {
+                        const first = (d.firstName || '').trim();
+                        const last = (d.lastName || '').trim();
+                        let fullName = d.fullName;
+                        if (first || last) {
+                            const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : '';
+                            fullName = `Dr. ${cap(first)} ${cap(last)}`.trim();
+                        } else if (!fullName || !fullName.startsWith('Dr.')) {
+                            fullName = fullName ? `Dr. ${fullName}` : 'Dr. Specialist';
+                        }
+                        return {
+                            doctorID: d.doctorID || d.id,
+                            name: fullName,
+                            title: d.title || (d.region === 'PK' ? 'Consultant Dental Surgeon' : 'Dental Surgeon & Specialist')
+                        };
+                    });
                     setDoctors(mapped);
                     setFormData(prev => ({ 
                         ...prev, 
-                        doctorID: prev.doctorID || mapped[0]?.doctorID || 2 
+                        doctorID: prev.doctorID || (mapped[0] ? mapped[0].doctorID : 2) 
                     }));
                 }
             } catch {

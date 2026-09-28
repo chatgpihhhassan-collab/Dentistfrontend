@@ -56,7 +56,7 @@ export const parseAppointmentReason = (rawReason = '') => {
 export default function PatientAppointments() {
     const navigate = useNavigate();
     const [appointments, setAppointments] = useState([]);
-    const [doctors, setDoctors] = useState(DEFAULT_CLINIC_DOCTORS);
+    const [doctors, setDoctors] = useState([]);
     const [activeTab, setActiveTab] = useState('upcoming'); // 'upcoming' | 'past'
     const [loading, setLoading] = useState(true);
     const [actionMsg, setActionMsg] = useState('');
@@ -125,15 +125,30 @@ export default function PatientAppointments() {
             try {
                 const endpoints = [
                     `${API_BASE_URL}/api/patient-portal/doctors`,
-                    `${API_BASE_URL}/api/auth/doctors`,
                     'https://dentist-api-dev.vitonta.com/api/patient-portal/doctors',
-                    'https://dentist-api-dev.vitonta.com/api/auth/doctors',
                     '/api/patient-portal/doctors',
+                    `${API_BASE_URL}/api/auth/doctors`,
+                    'https://dentist-api-dev.vitonta.com/api/auth/doctors',
                     '/api/auth/doctors'
                 ];
                 const result = await safeFetchJson(endpoints);
                 if (result.ok && Array.isArray(result.data) && result.data.length > 0) {
-                    setDoctors(result.data);
+                    const mapped = result.data.map(d => {
+                        const first = (d.firstName || '').trim();
+                        const last = (d.lastName || '').trim();
+                        let fullName = d.fullName;
+                        if (first || last) {
+                            const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : '';
+                            fullName = `Dr. ${cap(first)} ${cap(last)}`.trim();
+                        } else if (!fullName || !fullName.startsWith('Dr.')) {
+                            fullName = fullName ? `Dr. ${fullName}` : 'Dr. Specialist';
+                        }
+                        return {
+                            ...d,
+                            fullName
+                        };
+                    });
+                    setDoctors(mapped);
                 } else {
                     setDoctors(DEFAULT_CLINIC_DOCTORS);
                 }
@@ -353,12 +368,21 @@ export default function PatientAppointments() {
     const getDoctorName = (docId) => {
         const found = doctors.find(d => (d.doctorID || d.id) === docId);
         if (found) {
-            return found.fullName || `Dr. ${found.firstName} ${found.lastName}`.trim();
+            const first = (found.firstName || '').trim();
+            const last = (found.lastName || '').trim();
+            if (first || last) {
+                const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : '';
+                return `Dr. ${cap(first)} ${cap(last)}`.trim();
+            }
+            return found.fullName || 'Dentia Specialist';
         }
         if (docId === 2) return 'Dr. Jhangir Ahmed';
-        if (docId === 4) return 'Dr. Sarah Jenkins';
         if (docId === 3) return 'Dr. Ahmed Khan';
-        if (docId === 1) return 'Dr. Sarah J. Lee';
+        if (docId === 4) return 'Dr. Sarah Jenkins';
+        if (docId === 5) return 'Dr. Jhangir Ahmed';
+        if (docId === 6) return 'Dr. Jhangir Ahmed';
+        if (docId === 7) return 'Dr. Test Doctor';
+        if (docId === 8) return 'Dr. Ahmed Hassan';
         return 'Dentia Specialist';
     };
 
