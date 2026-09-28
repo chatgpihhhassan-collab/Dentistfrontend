@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API_BASE_URL from '../../../config/apiConfig';
 import { 
+    safeFetchJson, 
+    DEFAULT_CLINIC_DOCTORS, 
+    DEFAULT_CLINIC_ORGANIZATIONS 
+} from '../../../utils/safeApiUtils';
+import { 
     Stethoscope, 
     Calendar, 
     Star, 
@@ -25,9 +30,9 @@ import {
 
 export default function PatientDoctors() {
     const navigate = useNavigate();
-    const [doctors, setDoctors] = useState([]);
-    const [organizations, setOrganizations] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [doctors, setDoctors] = useState(DEFAULT_CLINIC_DOCTORS);
+    const [organizations, setOrganizations] = useState(DEFAULT_CLINIC_ORGANIZATIONS);
+    const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedSpecialty, setSelectedSpecialty] = useState('All');
     const [selectedOrg, setSelectedOrg] = useState('All');
@@ -50,31 +55,22 @@ export default function PatientDoctors() {
     const fetchDoctors = async () => {
         try {
             setLoading(true);
-            let res = null;
-            try {
-                res = await fetch(`${API_BASE_URL}/api/patient-portal/doctors`);
-            } catch {
-                res = null;
+            const endpoints = [
+                `${API_BASE_URL}/api/patient-portal/doctors`,
+                `${API_BASE_URL}/api/auth/doctors`,
+                'https://dentist-api-dev.vitonta.com/api/patient-portal/doctors',
+                'https://dentist-api-dev.vitonta.com/api/auth/doctors',
+                '/api/patient-portal/doctors',
+                '/api/auth/doctors'
+            ];
+            const result = await safeFetchJson(endpoints);
+            if (result.ok && Array.isArray(result.data) && result.data.length > 0) {
+                setDoctors(result.data);
+            } else {
+                setDoctors(DEFAULT_CLINIC_DOCTORS);
             }
-            if (!res || !res.ok) {
-                try {
-                    res = await fetch(`${API_BASE_URL}/api/auth/doctors`);
-                } catch {
-                    res = null;
-                }
-            }
-            if (!res || !res.ok) {
-                res = await fetch('/api/patient-portal/doctors');
-            }
-            if (!res || !res.ok) {
-                res = await fetch('/api/auth/doctors');
-            }
-            if (res && res.ok) {
-                const data = await res.json();
-                setDoctors(data);
-            }
-        } catch (err) {
-            console.error('Failed to load clinic specialists:', err);
+        } catch {
+            setDoctors(DEFAULT_CLINIC_DOCTORS);
         } finally {
             setLoading(false);
         }
@@ -82,28 +78,22 @@ export default function PatientDoctors() {
 
     const fetchOrganizations = async () => {
         try {
-            let res = null;
-            try {
-                res = await fetch(`${API_BASE_URL}/api/patient-portal/organizations`);
-            } catch {
-                res = null;
+            const endpoints = [
+                `${API_BASE_URL}/api/patient-portal/organizations`,
+                `${API_BASE_URL}/api/organizations`,
+                'https://dentist-api-dev.vitonta.com/api/patient-portal/organizations',
+                'https://dentist-api-dev.vitonta.com/api/organizations',
+                '/api/patient-portal/organizations',
+                '/api/organizations'
+            ];
+            const result = await safeFetchJson(endpoints);
+            if (result.ok && Array.isArray(result.data) && result.data.length > 0) {
+                setOrganizations(result.data);
+            } else {
+                setOrganizations(DEFAULT_CLINIC_ORGANIZATIONS);
             }
-            if (!res || !res.ok) {
-                try {
-                    res = await fetch(`${API_BASE_URL}/api/organizations`);
-                } catch {
-                    res = null;
-                }
-            }
-            if (!res || !res.ok) {
-                res = await fetch('/api/patient-portal/organizations');
-            }
-            if (res && res.ok) {
-                const data = await res.json();
-                setOrganizations(data);
-            }
-        } catch (err) {
-            console.error('Failed to load hospitals/organizations:', err);
+        } catch {
+            setOrganizations(DEFAULT_CLINIC_ORGANIZATIONS);
         }
     };
 

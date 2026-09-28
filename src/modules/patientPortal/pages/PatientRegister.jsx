@@ -2,10 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Sparkles, User, Mail, Phone, Calendar, Lock, ArrowRight, AlertCircle, ShieldCheck, CheckCircle2, Stethoscope } from 'lucide-react';
 import API_BASE_URL from '../../../config/apiConfig';
+import { 
+    safeFetchJson, 
+    DEFAULT_CLINIC_DOCTORS 
+} from '../../../utils/safeApiUtils';
+
+const defaultMappedDoctors = DEFAULT_CLINIC_DOCTORS.map(d => ({
+    doctorID: d.doctorID || d.id,
+    name: d.fullName || `Dr. ${d.firstName} ${d.lastName}`.trim(),
+    title: d.title || (d.region === 'PK' ? 'Consultant Dental Surgeon' : 'Dental Surgeon & Specialist')
+}));
 
 export default function PatientRegister() {
-    const [doctors, setDoctors] = useState([]);
-    const [loadingDoctors, setLoadingDoctors] = useState(true);
+    const [doctors, setDoctors] = useState(defaultMappedDoctors);
+    const [loadingDoctors, setLoadingDoctors] = useState(false);
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
@@ -16,7 +26,7 @@ export default function PatientRegister() {
         password: '',
         confirmPassword: '',
         region: 'NZ',
-        doctorID: ''
+        doctorID: defaultMappedDoctors[0]?.doctorID || 2
     });
 
     const [loading, setLoading] = useState(false);
@@ -28,39 +38,33 @@ export default function PatientRegister() {
         const fetchDoctors = async () => {
             try {
                 setLoadingDoctors(true);
-                let res = null;
-                try {
-                    res = await fetch(`${API_BASE_URL}/api/patient-portal/doctors`);
-                } catch {
-                    res = null;
+                const endpoints = [
+                    `${API_BASE_URL}/api/patient-portal/doctors`,
+                    `${API_BASE_URL}/api/auth/doctors`,
+                    'https://dentist-api-dev.vitonta.com/api/patient-portal/doctors',
+                    'https://dentist-api-dev.vitonta.com/api/auth/doctors',
+                    '/api/patient-portal/doctors',
+                    '/api/auth/doctors'
+                ];
+                const result = await safeFetchJson(endpoints);
+                const rawList = (result.ok && Array.isArray(result.data) && result.data.length > 0)
+                    ? result.data
+                    : DEFAULT_CLINIC_DOCTORS;
+
+                if (isMounted) {
+                    const mapped = rawList.map(d => ({
+                        doctorID: d.doctorID || d.id,
+                        name: d.fullName || `Dr. ${d.firstName} ${d.lastName}`.trim(),
+                        title: d.title || (d.region === 'PK' ? 'Consultant Dental Surgeon' : 'Dental Surgeon & Specialist')
+                    }));
+                    setDoctors(mapped);
+                    setFormData(prev => ({ 
+                        ...prev, 
+                        doctorID: prev.doctorID || mapped[0]?.doctorID || 2 
+                    }));
                 }
-                if (!res || !res.ok) {
-                    try {
-                        res = await fetch(`${API_BASE_URL}/api/auth/doctors`);
-                    } catch {
-                        res = null;
-                    }
-                }
-                if (!res || !res.ok) {
-                    res = await fetch('/api/auth/doctors');
-                }
-                if (res && res.ok) {
-                    const data = await res.json();
-                    if (Array.isArray(data) && data.length > 0 && isMounted) {
-                        const mapped = data.map(d => ({
-                            doctorID: d.doctorID || d.id,
-                            name: d.fullName || `Dr. ${d.firstName} ${d.lastName}`.trim(),
-                            title: d.title || (d.region === 'PK' ? 'Consultant Dental Surgeon' : 'Dental Surgeon & Specialist')
-                        }));
-                        setDoctors(mapped);
-                        setFormData(prev => ({ 
-                            ...prev, 
-                            doctorID: prev.doctorID || mapped[0].doctorID 
-                        }));
-                    }
-                }
-            } catch (err) {
-                console.error('Error loading database doctors for registration:', err);
+            } catch {
+                // Keep default mapped doctors silently
             } finally {
                 if (isMounted) setLoadingDoctors(false);
             }

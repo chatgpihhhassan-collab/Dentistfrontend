@@ -6,6 +6,10 @@ import {
     Check, DollarSign, Stethoscope, RefreshCw, X, Tag
 } from 'lucide-react';
 import API_BASE_URL from '../../../config/apiConfig';
+import { 
+    safeFetchJson, 
+    DEFAULT_CLINIC_DOCTORS 
+} from '../../../utils/safeApiUtils';
 
 // Helper to extract clean doctor name, clean procedure title, and clean notes from composite reason string
 export const parseAppointmentReason = (rawReason = '') => {
@@ -52,7 +56,7 @@ export const parseAppointmentReason = (rawReason = '') => {
 export default function PatientAppointments() {
     const navigate = useNavigate();
     const [appointments, setAppointments] = useState([]);
-    const [doctors, setDoctors] = useState([]);
+    const [doctors, setDoctors] = useState(DEFAULT_CLINIC_DOCTORS);
     const [activeTab, setActiveTab] = useState('upcoming'); // 'upcoming' | 'past'
     const [loading, setLoading] = useState(true);
     const [actionMsg, setActionMsg] = useState('');
@@ -86,19 +90,30 @@ export default function PatientAppointments() {
             const token = patient.token;
             const headers = { 'Authorization': `Bearer ${token}` };
 
-            let res;
+            let res = null;
             try {
                 res = await fetch(`${API_BASE_URL}/api/patient-portal/appointments`, { headers });
             } catch {
-                res = await fetch(`/api/patient-portal/appointments`, { headers });
+                try {
+                    res = await fetch(`/api/patient-portal/appointments`, { headers });
+                } catch {
+                    res = null;
+                }
             }
 
-            if (res.ok) {
-                const data = await res.json();
-                setAppointments(data);
+            if (res && res.ok) {
+                const text = await res.text();
+                if (text && !text.trim().startsWith('<')) {
+                    try {
+                        const data = JSON.parse(text);
+                        setAppointments(Array.isArray(data) ? data : []);
+                    } catch {
+                        // ignore parse issue
+                    }
+                }
             }
-        } catch (err) {
-            console.error('Failed to load appointments:', err);
+        } catch {
+            // Keep existing appointments silently
         } finally {
             setLoading(false);
         }
@@ -108,21 +123,22 @@ export default function PatientAppointments() {
     useEffect(() => {
         const loadDoctors = async () => {
             try {
-                let res = null;
-                try {
-                    res = await fetch(`${API_BASE_URL}/api/patient-portal/doctors`);
-                } catch {
-                    res = null;
+                const endpoints = [
+                    `${API_BASE_URL}/api/patient-portal/doctors`,
+                    `${API_BASE_URL}/api/auth/doctors`,
+                    'https://dentist-api-dev.vitonta.com/api/patient-portal/doctors',
+                    'https://dentist-api-dev.vitonta.com/api/auth/doctors',
+                    '/api/patient-portal/doctors',
+                    '/api/auth/doctors'
+                ];
+                const result = await safeFetchJson(endpoints);
+                if (result.ok && Array.isArray(result.data) && result.data.length > 0) {
+                    setDoctors(result.data);
+                } else {
+                    setDoctors(DEFAULT_CLINIC_DOCTORS);
                 }
-                if (!res || !res.ok) {
-                    res = await fetch('/api/auth/doctors');
-                }
-                if (res && res.ok) {
-                    const data = await res.json();
-                    setDoctors(data);
-                }
-            } catch (err) {
-                console.error('Error fetching doctors:', err);
+            } catch {
+                setDoctors(DEFAULT_CLINIC_DOCTORS);
             }
         };
         loadDoctors();

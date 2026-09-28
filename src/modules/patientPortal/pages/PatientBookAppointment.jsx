@@ -36,6 +36,10 @@ import {
     Plus
 } from 'lucide-react';
 import API_BASE_URL from '../../../config/apiConfig';
+import { 
+    safeFetchJson, 
+    DEFAULT_CLINIC_DOCTORS 
+} from '../../../utils/safeApiUtils';
 
 // Color themes tailored for clinical dental procedure categories
 const categoryBadgeColors = {
@@ -122,14 +126,14 @@ export default function PatientBookAppointment() {
     const stateDoctorId = location.state?.doctorId || location.state?.doctor?.doctorID || location.state?.doctor?.DoctorID || location.state?.doctor?.id;
     const requestedDoctorId = urlDoctorParam || stateDoctorId;
 
-    // 1. Doctors State (Fetched dynamically from Database)
-    const [doctors, setDoctors] = useState([]);
-    const [loadingDoctors, setLoadingDoctors] = useState(true);
+    // 1. Doctors State (Fetched dynamically from Database with resilient fallback)
+    const [doctors, setDoctors] = useState(DEFAULT_CLINIC_DOCTORS);
+    const [loadingDoctors, setLoadingDoctors] = useState(false);
     const [selectedDoctorId, setSelectedDoctorId] = useState(() => {
         if (requestedDoctorId && !isNaN(Number(requestedDoctorId))) return Number(requestedDoctorId);
         if (patient.doctorID && !isNaN(Number(patient.doctorID))) return Number(patient.doctorID);
         if (patient.doctorId && !isNaN(Number(patient.doctorId))) return Number(patient.doctorId);
-        return null;
+        return 2; // Default to Dr. Jhangir Ahmed
     });
 
     useEffect(() => {
@@ -231,113 +235,104 @@ export default function PatientBookAppointment() {
         const loadRealDoctors = async () => {
             try {
                 setLoadingDoctors(true);
-                let res = null;
-                try {
-                    res = await fetch(`${API_BASE_URL}/api/patient-portal/doctors`);
-                } catch {
-                    res = null;
-                }
+                const endpoints = [
+                    `${API_BASE_URL}/api/patient-portal/doctors`,
+                    `${API_BASE_URL}/api/auth/doctors`,
+                    'https://dentist-api-dev.vitonta.com/api/patient-portal/doctors',
+                    'https://dentist-api-dev.vitonta.com/api/auth/doctors',
+                    '/api/patient-portal/doctors',
+                    '/api/auth/doctors'
+                ];
+                const result = await safeFetchJson(endpoints);
+                const rawList = (result.ok && Array.isArray(result.data) && result.data.length > 0)
+                    ? result.data
+                    : DEFAULT_CLINIC_DOCTORS;
 
-                if (!res || !res.ok) {
-                    try {
-                        res = await fetch(`${API_BASE_URL}/api/auth/doctors`);
-                    } catch {
-                        res = null;
-                    }
-                }
+                if (isMounted) {
+                    const mapped = rawList.map(d => {
+                        const docId = Number(d.doctorID ?? d.DoctorID ?? d.id ?? d.DoctorId);
+                        const fullName = d.fullName || `Dr. ${d.firstName} ${d.lastName}`.trim();
+                        const docRegion = d.region || 'NZ';
+                        const title = d.title || (docRegion === 'PK' ? 'Consultant Dental Surgeon' : 'Dental Surgeon & Specialist');
+                        const exp = d.exp || (docId === 2 ? '14 yrs exp' : (docId === 4 ? '9 yrs exp' : '11 yrs exp'));
+                        const avatar = d.avatar || d.profileImageUrl || (
+                            docId === 2
+                                ? 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=200'
+                                : (docId === 4
+                                    ? 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=200'
+                                    : 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&q=80&w=200')
+                        );
 
-                if (!res || !res.ok) {
-                    res = await fetch('/api/auth/doctors');
-                }
+                        return {
+                            id: docId,
+                            doctorID: docId,
+                            name: fullName,
+                            fullName,
+                            title,
+                            exp,
+                            yearsOfExperience: d.yearsOfExperience || (docId === 2 ? 14 : (docId === 4 ? 9 : 11)),
+                            region: docRegion,
+                            avatar,
+                            specialization: d.specialization || 'General & Restorative Dentistry',
+                            biography: d.biography,
+                            organizationWorkHistory: d.organizationWorkHistory,
+                            education: d.education,
+                            certifications: d.certifications,
+                            languages: d.languages || 'English, Urdu',
+                            rating: d.rating || 4.9,
+                            reviewCount: d.reviewCount || 28,
+                            organizationID: d.organizationID,
+                            organizationName: d.organizationName,
+                            organizationLogoUrl: d.organizationLogoUrl,
+                            organizationCity: d.organizationCity,
+                            hospitalDepartment: d.hospitalDepartment,
+                            consultationFee: d.consultationFee
+                        };
+                    });
 
-                if (res && res.ok) {
-                    const data = await res.json();
-                    if (Array.isArray(data) && data.length > 0 && isMounted) {
-                        const mapped = data.map(d => {
-                            const docId = Number(d.doctorID ?? d.DoctorID ?? d.id ?? d.DoctorId);
-                            const fullName = d.fullName || `Dr. ${d.firstName} ${d.lastName}`.trim();
-                            const docRegion = d.region || 'NZ';
-                            const title = d.title || (docRegion === 'PK' ? 'Consultant Dental Surgeon' : 'Dental Surgeon & Specialist');
-                            const exp = d.exp || (docId === 2 ? '14 yrs exp' : (docId === 4 ? '9 yrs exp' : '11 yrs exp'));
-                            const avatar = d.avatar || d.profileImageUrl || (
-                                docId === 2
-                                    ? 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=200'
-                                    : (docId === 4
-                                        ? 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=200'
-                                        : 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&q=80&w=200')
-                            );
+                    setDoctors(mapped);
 
-                            return {
-                                id: docId,
-                                doctorID: docId,
-                                name: fullName,
-                                fullName,
-                                title,
-                                exp,
-                                yearsOfExperience: d.yearsOfExperience || (docId === 2 ? 14 : (docId === 4 ? 9 : 11)),
-                                region: docRegion,
-                                avatar,
-                                specialization: d.specialization || 'General & Restorative Dentistry',
-                                biography: d.biography,
-                                organizationWorkHistory: d.organizationWorkHistory,
-                                education: d.education,
-                                certifications: d.certifications,
-                                languages: d.languages || 'English, Urdu',
-                                rating: d.rating || 4.9,
-                                reviewCount: d.reviewCount || 28,
-                                organizationID: d.organizationID,
-                                organizationName: d.organizationName,
-                                organizationLogoUrl: d.organizationLogoUrl,
-                                organizationCity: d.organizationCity,
-                                hospitalDepartment: d.hospitalDepartment,
-                                consultationFee: d.consultationFee
-                            };
-                        });
+                    // Doctor selection priority:
+                    // 1. Explicitly requested doctor from URL query param (e.g. ?doctor=4) or navigation state
+                    // 2. Currently selected doctor in component state (if valid)
+                    // 3. Logged-in patient's assigned doctor from profile
+                    // 4. First doctor in mapped list
+                    const explicitId = urlDoctorParam || stateDoctorId;
+                    let targetDoc = null;
 
-                        setDoctors(mapped);
-
-                        // Doctor selection priority:
-                        // 1. Explicitly requested doctor from URL query param (e.g. ?doctor=4) or navigation state
-                        // 2. Currently selected doctor in component state (if valid)
-                        // 3. Logged-in patient's assigned doctor from profile
-                        // 4. First doctor in mapped list
-                        const explicitId = urlDoctorParam || stateDoctorId;
-                        let targetDoc = null;
-
-                        if (explicitId) {
-                            const numReq = Number(explicitId);
-                            if (!isNaN(numReq) && numReq > 0) {
-                                targetDoc = mapped.find(m => Number(m.id) === numReq || Number(m.doctorID) === numReq);
-                            }
-                            if (!targetDoc && typeof explicitId === 'string') {
-                                const q = explicitId.toLowerCase().replace('dr.', '').trim();
-                                targetDoc = mapped.find(m => m.name?.toLowerCase().includes(q));
-                            }
+                    if (explicitId) {
+                        const numReq = Number(explicitId);
+                        if (!isNaN(numReq) && numReq > 0) {
+                            targetDoc = mapped.find(m => Number(m.id) === numReq || Number(m.doctorID) === numReq);
                         }
-
-                        if (!targetDoc && selectedDoctorId) {
-                            const curNum = Number(selectedDoctorId);
-                            targetDoc = mapped.find(m => Number(m.id) === curNum || Number(m.doctorID) === curNum);
-                        }
-
-                        if (!targetDoc) {
-                            const assignedId = Number(patient.doctorID || patient.doctorId);
-                            if (assignedId) {
-                                targetDoc = mapped.find(m => Number(m.id) === assignedId || Number(m.doctorID) === assignedId);
-                            }
-                        }
-
-                        if (!targetDoc && mapped.length > 0) {
-                            targetDoc = mapped[0];
-                        }
-
-                        if (targetDoc) {
-                            setSelectedDoctorId(targetDoc.id);
+                        if (!targetDoc && typeof explicitId === 'string') {
+                            const q = explicitId.toLowerCase().replace('dr.', '').trim();
+                            targetDoc = mapped.find(m => m.name?.toLowerCase().includes(q));
                         }
                     }
+
+                    if (!targetDoc && selectedDoctorId) {
+                        const curNum = Number(selectedDoctorId);
+                        targetDoc = mapped.find(m => Number(m.id) === curNum || Number(m.doctorID) === curNum);
+                    }
+
+                    if (!targetDoc) {
+                        const assignedId = Number(patient.doctorID || patient.doctorId);
+                        if (assignedId) {
+                            targetDoc = mapped.find(m => Number(m.id) === assignedId || Number(m.doctorID) === assignedId);
+                        }
+                    }
+
+                    if (!targetDoc && mapped.length > 0) {
+                        targetDoc = mapped[0];
+                    }
+
+                    if (targetDoc) {
+                        setSelectedDoctorId(targetDoc.id);
+                    }
                 }
-            } catch (err) {
-                console.error('Error loading live database doctors:', err);
+            } catch {
+                // Keep default fallback doctors
             } finally {
                 if (isMounted) setLoadingDoctors(false);
             }
@@ -361,50 +356,37 @@ export default function PatientBookAppointment() {
         const loadDoctorFeeSchedule = async () => {
             try {
                 setLoadingProcedures(true);
-                let res = null;
-                try {
-                    res = await fetch(`${API_BASE_URL}/api/treatment-pricing/doctor/${selectedDoctorId}`);
-                } catch {
-                    res = null;
-                }
+                const endpoints = [
+                    `${API_BASE_URL}/api/treatment-pricing/doctor/${selectedDoctorId}`,
+                    `https://dentist-api-dev.vitonta.com/api/treatment-pricing/doctor/${selectedDoctorId}`,
+                    `/api/treatment-pricing/doctor/${selectedDoctorId}`
+                ];
+                const result = await safeFetchJson(endpoints);
 
-                if (!res || !res.ok) {
-                    try {
-                        res = await fetch(`/api/treatment-pricing/doctor/${selectedDoctorId}`);
-                    } catch {
-                        res = null;
+                if (result.ok && result.data && isMounted) {
+                    const data = result.data;
+                    const procs = (data.procedures || []).filter(p => p.isActive !== false);
+                    setDoctorProcedures(procs.length > 0 ? procs : fallbackServices);
+                    const curr = data.currency || (data.region === 'PK' || isPk ? 'PKR' : 'NZD');
+                    setDoctorCurrency(curr);
+
+                    // If procedure list loaded, preserve valid selections or keep empty if in consultation mode
+                    if (procs.length > 0) {
+                        setSelectedProcedureKeys(prev => {
+                            if (prev.length > 0) {
+                                const valid = prev.filter(k => procs.some(p => (p.procedureCode || p.procedureName) === k));
+                                return valid;
+                            }
+                            return [];
+                        });
                     }
-                }
-
-                if (res && res.ok) {
-                    const data = await res.json();
-                    if (isMounted) {
-                        const procs = (data.procedures || []).filter(p => p.isActive !== false);
-                        setDoctorProcedures(procs);
-                        const curr = data.currency || (data.region === 'PK' || isPk ? 'PKR' : 'NZD');
-                        setDoctorCurrency(curr);
-
-                        // If procedure list loaded, preserve valid selections or keep empty if in consultation mode
-                        if (procs.length > 0) {
-                            setSelectedProcedureKeys(prev => {
-                                if (prev.length > 0) {
-                                    const valid = prev.filter(k => procs.some(p => (p.procedureCode || p.procedureName) === k));
-                                    return valid;
-                                }
-                                return [];
-                            });
-                        }
-                    }
-                } else {
+                } else if (isMounted) {
                     // Fallback to standard services
-                    if (isMounted) {
-                        setDoctorCurrency(isPk ? 'PKR' : 'NZD');
-                        setDoctorProcedures(fallbackServices);
-                        setSelectedProcedureKeys([fallbackServices[0].procedureCode]);
-                    }
+                    setDoctorCurrency(isPk ? 'PKR' : 'NZD');
+                    setDoctorProcedures(fallbackServices);
+                    setSelectedProcedureKeys([fallbackServices[0].procedureCode]);
                 }
-            } catch (err) {
-                console.error(`Failed to load treatments for doctor ${selectedDoctorId}:`, err);
+            } catch {
                 if (isMounted) {
                     setDoctorCurrency(isPk ? 'PKR' : 'NZD');
                     setDoctorProcedures(fallbackServices);
