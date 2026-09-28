@@ -30,6 +30,57 @@ import {
 } from 'lucide-react';
 import { extractAiFindingsFromReport, isTestRadiograph } from '../utils/aiRadiologyUtils.js';
 import DigoraScannerModal from './DigoraScannerModal';
+import { API_BASE_URL } from '../config/apiConfig';
+
+// Module-level in-memory cache for resolved radiograph blob URLs to prevent redundant network transfers
+const radiographBlobCache = new Map();
+const inFlightImageFetches = new Map();
+
+export const getRadiographAuthToken = () => {
+  if (typeof window === 'undefined') return '';
+  try {
+    const raw = localStorage.getItem('doctor');
+    if (!raw) return '';
+    const parsed = JSON.parse(raw);
+    return parsed.token || parsed.Token || '';
+  } catch {
+    return '';
+  }
+};
+
+export const fetchRadiographBlob = async (id) => {
+  if (!id) return '';
+  if (radiographBlobCache.has(id)) {
+    return radiographBlobCache.get(id);
+  }
+  if (inFlightImageFetches.has(id)) {
+    return inFlightImageFetches.get(id);
+  }
+
+  const cleanBase = (API_BASE_URL || 'https://dentist-api-dev.vitonta.com').replace(/\/$/, '');
+  const authToken = getRadiographAuthToken();
+  const url = `${cleanBase}/api/radiographs/${id}/image${authToken ? `?token=${encodeURIComponent(authToken)}` : ''}`;
+
+  const fetchPromise = (async () => {
+    try {
+      const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
+      const res = await fetch(url, { headers });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      radiographBlobCache.set(id, blobUrl);
+      return blobUrl;
+    } catch (err) {
+      console.warn(`[Radiograph] Blob fetch fallback for ID ${id}:`, err.message);
+      return url;
+    } finally {
+      inFlightImageFetches.delete(id);
+    }
+  })();
+
+  inFlightImageFetches.set(id, fetchPromise);
+  return fetchPromise;
+};
 
 /**
  * ChartRadiographFilmstrip (Interactive Radiograph Diagnostic Console)
@@ -227,6 +278,9 @@ export default function ChartRadiographFilmstrip({
     return { modality, shortModality, device };
   };
 
+  const [mainBlobUrl, setMainBlobUrl] = useState('');
+  const [thumbBlobMap, setThumbBlobMap] = useState({});
+
   const getImageUrl = (r) => {
     if (!r) return '';
     if (r.dataUrl) return r.dataUrl;
@@ -237,14 +291,82 @@ export default function ChartRadiographFilmstrip({
         : `data:${r.mimeType || 'image/png'};base64,${r.imageData}`;
     }
     const id = r.radiographID || r.RadiographID;
-    if (id && typeof window !== 'undefined') {
-      const cached = localStorage.getItem(`dentia_radiograph_${id}`);
-      if (cached) return cached;
+    if (id) {
+      if (thumbBlobMap[id]) return thumbBlobMap[id];
+      if (radiographBlobCache.has(id)) return radiographBlobCache.get(id);
+      if (typeof window !== 'undefined') {
+        const cached = localStorage.getItem(`dentia_radiograph_${id}`);
+        if (cached && (cached.startsWith('data:') || cached.startsWith('blob:'))) return cached;
+      }
     }
-    if (r.imageUrl) return r.imageUrl;
-    if (!id) return '';
-    return `https://dentist-api-dev.vitonta.com/api/radiographs/${id}/image`;
+    if (r.imageUrl && !r.imageUrl.includes('/api/radiographs/')) return r.imageUrl;
+    if (!id) return r.imageUrl || '';
+
+    const authToken = getRadiographAuthToken();
+    const cleanBase = (API_BASE_URL || 'https://dentist-api-dev.vitonta.com').replace(/\/$/, '');
+    return `${cleanBase}/api/radiographs/${id}/image${authToken ? `?token=${encodeURIComponent(authToken)}` : ''}`;
   };
+
+  // Proactively resolve authenticated blob URL for active radiograph
+  useEffect(() => {
+    const scanId = currentRadiograph?.radiographID || currentRadiograph?.RadiographID;
+    if (!scanId) {
+      setMainBlobUrl('');
+      return;
+    }
+
+    if (currentRadiograph.dataUrl) {
+      setMainBlobUrl(currentRadiograph.dataUrl);
+      return;
+    }
+    if (currentRadiograph.imageUrl && (currentRadiograph.imageUrl.startsWith('data:') || currentRadiograph.imageUrl.startsWith('blob:'))) {
+      setMainBlobUrl(currentRadiograph.imageUrl);
+      return;
+    }
+    if (currentRadiograph.imageData && currentRadiograph.imageData.length > 50) {
+      const b64 = currentRadiograph.imageData.startsWith('data:')
+        ? currentRadiograph.imageData
+        : `data:${currentRadiograph.mimeType || 'image/png'};base64,${currentRadiograph.imageData}`;
+      setMainBlobUrl(b64);
+      return;
+    }
+    if (radiographBlobCache.has(scanId)) {
+      setMainBlobUrl(radiographBlobCache.get(scanId));
+      return;
+    }
+
+    let active = true;
+    fetchRadiographBlob(scanId).then((blobUrl) => {
+      if (active && blobUrl) {
+        setMainBlobUrl(blobUrl);
+      }
+    }).catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, [currentRadiograph]);
+
+  // Pre-fetch thumbnails for archive strip using authenticated stream
+  useEffect(() => {
+    if (!activeRadiographs || activeRadiographs.length === 0) return;
+    let active = true;
+
+    activeRadiographs.slice(0, 15).forEach((r) => {
+      const rId = r.radiographID || r.RadiographID;
+      if (!rId || radiographBlobCache.has(rId) || r.dataUrl || (r.imageData && r.imageData.length > 50)) return;
+
+      fetchRadiographBlob(rId).then((blobUrl) => {
+        if (active && blobUrl && blobUrl.startsWith('blob:')) {
+          setThumbBlobMap((prev) => (prev[rId] === blobUrl ? prev : { ...prev, [rId]: blobUrl }));
+        }
+      }).catch(() => {});
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [activeRadiographs]);
 
   // Image Adjustment Handlers
   const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.25, 3));
@@ -272,7 +394,7 @@ export default function ChartRadiographFilmstrip({
   };
 
   const currentMeta = getScanMetadata(currentRadiograph);
-  const currentImageUrl = getImageUrl(currentRadiograph);
+  const currentImageUrl = mainBlobUrl || getImageUrl(currentRadiograph);
   const currentScanId = currentRadiograph?.radiographID || currentRadiograph?.RadiographID;
   const isCurrentlySpotlighted = activeScanImpact?.scanId === currentScanId;
 
@@ -762,6 +884,7 @@ export default function ChartRadiographFilmstrip({
                     isRadiologyFullMode ? 'h-[440px]' : 'h-[250px] sm:h-[280px]'
                   }`}>
                     <img
+                      key={`scan-${currentScanId}-${currentImageUrl}`}
                       src={currentImageUrl}
                       alt={currentRadiograph.imageName || 'Active Radiograph'}
                       style={{
@@ -771,15 +894,35 @@ export default function ChartRadiographFilmstrip({
                         transition: 'transform 0.15s ease-out, filter 0.1s ease-out'
                       }}
                       className="max-w-full max-h-full object-contain pointer-events-none"
+                      onLoad={(e) => {
+                        e.currentTarget.style.display = 'block';
+                        const fallback = e.currentTarget.parentElement?.querySelector('.stage-fallback');
+                        if (fallback) fallback.classList.add('hidden');
+                      }}
                       onError={(e) => {
-                        const cached = (typeof window !== 'undefined' && currentScanId) 
-                          ? localStorage.getItem(`dentia_radiograph_${currentScanId}`)
-                          : null;
-                        if (cached && e.currentTarget.src !== cached) {
-                          e.currentTarget.src = cached;
+                        const target = e.currentTarget;
+                        const scanId = currentScanId;
+                        if (scanId && !target.dataset.fallbackRetried) {
+                          target.dataset.fallbackRetried = 'true';
+                          fetchRadiographBlob(scanId).then((blobUrl) => {
+                            if (blobUrl && blobUrl !== target.src) {
+                              target.src = blobUrl;
+                              target.style.display = 'block';
+                              const fallback = target.parentElement?.querySelector('.stage-fallback');
+                              if (fallback) fallback.classList.add('hidden');
+                            } else {
+                              target.style.display = 'none';
+                              const fallback = target.parentElement?.querySelector('.stage-fallback');
+                              if (fallback) fallback.classList.remove('hidden');
+                            }
+                          }).catch(() => {
+                            target.style.display = 'none';
+                            const fallback = target.parentElement?.querySelector('.stage-fallback');
+                            if (fallback) fallback.classList.remove('hidden');
+                          });
                         } else {
-                          e.currentTarget.style.display = 'none';
-                          const fallback = e.currentTarget.parentElement?.querySelector('.stage-fallback');
+                          target.style.display = 'none';
+                          const fallback = target.parentElement?.querySelector('.stage-fallback');
                           if (fallback) fallback.classList.remove('hidden');
                         }
                       }}
@@ -1041,10 +1184,36 @@ export default function ChartRadiographFilmstrip({
                             alt={r.imageName || 'Scan'}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                             loading="lazy"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
+                            onLoad={(e) => {
+                              e.currentTarget.style.display = 'block';
                               const ph = e.currentTarget.parentElement?.querySelector('.thumb-ph');
-                              if (ph) ph.classList.remove('hidden');
+                              if (ph) ph.classList.add('hidden');
+                            }}
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              if (rId && !target.dataset.fallbackRetried) {
+                                target.dataset.fallbackRetried = 'true';
+                                fetchRadiographBlob(rId).then((blobUrl) => {
+                                  if (blobUrl && blobUrl !== target.src) {
+                                    target.src = blobUrl;
+                                    target.style.display = 'block';
+                                    const ph = target.parentElement?.querySelector('.thumb-ph');
+                                    if (ph) ph.classList.add('hidden');
+                                  } else {
+                                    target.style.display = 'none';
+                                    const ph = target.parentElement?.querySelector('.thumb-ph');
+                                    if (ph) ph.classList.remove('hidden');
+                                  }
+                                }).catch(() => {
+                                  target.style.display = 'none';
+                                  const ph = target.parentElement?.querySelector('.thumb-ph');
+                                  if (ph) ph.classList.remove('hidden');
+                                });
+                              } else {
+                                target.style.display = 'none';
+                                const ph = target.parentElement?.querySelector('.thumb-ph');
+                                if (ph) ph.classList.remove('hidden');
+                              }
                             }}
                           />
                           <div className="thumb-ph hidden absolute inset-0 flex flex-col items-center justify-center text-slate-500 bg-slate-900 p-1">

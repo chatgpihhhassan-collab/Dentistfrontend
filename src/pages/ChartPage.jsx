@@ -2715,8 +2715,15 @@ export default function ChartPage() {
         return;
       }
 
-      // 2. Fetch using window.fetch (which automatically maps directly to https://dentist-api-dev.vitonta.com on Vercel)
-      fetch(`/api/radiographs/${radId}/image`)
+      // 2. Fetch authenticated radiograph blob using token
+      const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
+      const token = doctorData.token || doctorData.Token || '';
+      const cleanBase = (API_BASE_URL || 'https://dentist-api-dev.vitonta.com').replace(/\/$/, '');
+      const imgUrl = `${cleanBase}/api/radiographs/${radId}/image${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+
+      fetch(imgUrl, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      })
         .then(async (res) => {
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const blob = await res.blob();
@@ -2729,7 +2736,7 @@ export default function ChartPage() {
         .catch((err) => {
           console.warn("Radiograph blob fetch failed, falling back to direct URL:", err);
           if (active) {
-            setRadiographBlobUrl(`https://dentist-api-dev.vitonta.com/api/radiographs/${radId}/image`);
+            setRadiographBlobUrl(imgUrl);
             setRadiographImgLoading(false);
           }
         });
@@ -8590,7 +8597,7 @@ export default function ChartPage() {
                                 <p className="text-[10px] text-slate-400 mt-0.5">The scan file may be restricted or undergoing AI processing.</p>
                               </div>
                               <a
-                                href={`https://dentist-api-dev.vitonta.com/api/radiographs/${selectedRadiograph.radiographID || selectedRadiograph.RadiographID}/image`}
+                                href={`${(API_BASE_URL || 'https://dentist-api-dev.vitonta.com').replace(/\/$/, '')}/api/radiographs/${selectedRadiograph.radiographID || selectedRadiograph.RadiographID}/image${(JSON.parse(localStorage.getItem('doctor') || '{}').token) ? `?token=${encodeURIComponent(JSON.parse(localStorage.getItem('doctor') || '{}').token)}` : ''}`}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="text-[11px] px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
@@ -8603,7 +8610,7 @@ export default function ChartPage() {
 
                           {!radiographImgError && (
                             <img
-                              src={radiographBlobUrl || `https://dentist-api-dev.vitonta.com/api/radiographs/${selectedRadiograph.radiographID || selectedRadiograph.RadiographID}/image`}
+                              src={radiographBlobUrl || `${(API_BASE_URL || 'https://dentist-api-dev.vitonta.com').replace(/\/$/, '')}/api/radiographs/${selectedRadiograph.radiographID || selectedRadiograph.RadiographID}/image${(JSON.parse(localStorage.getItem('doctor') || '{}').token) ? `?token=${encodeURIComponent(JSON.parse(localStorage.getItem('doctor') || '{}').token)}` : ''}`}
                               alt={selectedRadiograph.imageName || selectedRadiograph.ImageName}
                               className={`max-h-[360px] max-w-full object-contain rounded-lg shadow-sm transition-opacity duration-200 ${radiographImgLoading ? 'opacity-0' : 'opacity-100'}`}
                               onError={() => {

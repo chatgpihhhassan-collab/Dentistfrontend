@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   ZoomIn, 
@@ -18,6 +18,8 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { extractAiFindingsFromReport, extractSoapFromReport } from '../utils/aiRadiologyUtils.js';
+import { fetchRadiographBlob, getRadiographAuthToken } from './ChartRadiographFilmstrip';
+import { API_BASE_URL } from '../config/apiConfig';
 
 /**
  * RadiographImpactInspectorModal
@@ -43,14 +45,54 @@ export default function RadiographImpactInspectorModal({
   const [contrast, setContrast] = useState(100);
   const [activeFindingTab, setActiveFindingTab] = useState('findings'); // 'findings' | 'soap' | 'narrative'
   const [copiedState, setCopiedState] = useState(false);
+  const [modalBlobUrl, setModalBlobUrl] = useState('');
+
+  const rId = radiograph?.radiographID || radiograph?.RadiographID;
+
+  useEffect(() => {
+    if (!isOpen || !radiograph || !rId) {
+      setModalBlobUrl('');
+      return;
+    }
+
+    if (radiograph.dataUrl) {
+      setModalBlobUrl(radiograph.dataUrl);
+      return;
+    }
+    if (radiograph.imageUrl && (radiograph.imageUrl.startsWith('data:') || radiograph.imageUrl.startsWith('blob:'))) {
+      setModalBlobUrl(radiograph.imageUrl);
+      return;
+    }
+    if (radiograph.imageData && radiograph.imageData.length > 50) {
+      const b64 = radiograph.imageData.startsWith('data:')
+        ? radiograph.imageData
+        : `data:${radiograph.mimeType || 'image/jpeg'};base64,${radiograph.imageData}`;
+      setModalBlobUrl(b64);
+      return;
+    }
+
+    let active = true;
+    fetchRadiographBlob(rId).then((blobUrl) => {
+      if (active && blobUrl) {
+        setModalBlobUrl(blobUrl);
+      }
+    }).catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, radiograph, rId]);
 
   if (!isOpen || !radiograph) return null;
 
   const findings = extractAiFindingsFromReport(radiograph.analysisSummary);
-  const rId = radiograph.radiographID || radiograph.RadiographID;
-  const imageUrl = radiograph.imageData && radiograph.imageData.length > 50
-    ? (radiograph.imageData.startsWith('data:') ? radiograph.imageData : `data:${radiograph.mimeType || 'image/jpeg'};base64,${radiograph.imageData}`)
-    : `https://dentist-api-dev.vitonta.com/api/radiographs/${rId}/image`;
+  const authToken = getRadiographAuthToken();
+  const cleanBase = (API_BASE_URL || 'https://dentist-api-dev.vitonta.com').replace(/\/$/, '');
+  const imageUrl = modalBlobUrl || (
+    radiograph.imageData && radiograph.imageData.length > 50
+      ? (radiograph.imageData.startsWith('data:') ? radiograph.imageData : `data:${radiograph.mimeType || 'image/jpeg'};base64,${radiograph.imageData}`)
+      : `${cleanBase}/api/radiographs/${rId}/image${authToken ? `?token=${encodeURIComponent(authToken)}` : ''}`
+  );
 
   const resetAdjustments = () => {
     setZoom(1);
@@ -213,6 +255,17 @@ export default function RadiographImpactInspectorModal({
                 alt={radiograph.imageName}
                 style={imageFilterStyle}
                 className="max-w-full max-h-full object-contain rounded-lg shadow-2xl cursor-grab active:cursor-grabbing"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  if (rId && !target.dataset.fallbackRetried) {
+                    target.dataset.fallbackRetried = 'true';
+                    fetchRadiographBlob(rId).then((blobUrl) => {
+                      if (blobUrl && blobUrl !== target.src) {
+                        target.src = blobUrl;
+                      }
+                    }).catch(() => {});
+                  }
+                }}
               />
 
               {/* Watermark/Modality Overlay */}
