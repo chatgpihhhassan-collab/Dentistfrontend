@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams, useLocation } from 'react-router-dom';
 import { 
     Calendar as CalendarIcon, 
     Clock, 
@@ -51,6 +51,7 @@ const categoryBadgeColors = {
 
 export default function PatientBookAppointment() {
     const navigate = useNavigate();
+    const location = useLocation();
 
     // Standard fallback services in case API connection is establishing
     const fallbackServices = [
@@ -110,21 +111,26 @@ export default function PatientBookAppointment() {
         : (patient.firstName || 'Patient');
 
     const [searchParams] = useSearchParams();
-    const urlDoctorId = searchParams.get('doctor') || searchParams.get('doctorId');
+    const urlDoctorParam = searchParams.get('doctor') || searchParams.get('doctorId') || searchParams.get('doc');
+    const stateDoctorId = location.state?.doctorId || location.state?.doctor?.doctorID || location.state?.doctor?.DoctorID || location.state?.doctor?.id;
+    const requestedDoctorId = urlDoctorParam || stateDoctorId;
 
     // 1. Doctors State (Fetched dynamically from Database)
     const [doctors, setDoctors] = useState([]);
     const [loadingDoctors, setLoadingDoctors] = useState(true);
     const [selectedDoctorId, setSelectedDoctorId] = useState(() => {
-        if (urlDoctorId && !isNaN(Number(urlDoctorId))) return Number(urlDoctorId);
-        return patient.doctorID || patient.doctorId || null;
+        if (requestedDoctorId && !isNaN(Number(requestedDoctorId))) return Number(requestedDoctorId);
+        if (patient.doctorID && !isNaN(Number(patient.doctorID))) return Number(patient.doctorID);
+        if (patient.doctorId && !isNaN(Number(patient.doctorId))) return Number(patient.doctorId);
+        return null;
     });
 
     useEffect(() => {
-        if (urlDoctorId && !isNaN(Number(urlDoctorId))) {
-            setSelectedDoctorId(Number(urlDoctorId));
+        const targetId = urlDoctorParam || stateDoctorId;
+        if (targetId && !isNaN(Number(targetId))) {
+            setSelectedDoctorId(Number(targetId));
         }
-    }, [urlDoctorId]);
+    }, [urlDoctorParam, stateDoctorId]);
 
     // 2. Doctor Treatment Plans / Procedures State (Fetched dynamically based on selectedDoctorId)
     const [doctorProcedures, setDoctorProcedures] = useState([]);
@@ -220,12 +226,12 @@ export default function PatientBookAppointment() {
                     const data = await res.json();
                     if (Array.isArray(data) && data.length > 0 && isMounted) {
                         const mapped = data.map(d => {
-                            const docId = d.doctorID || d.id;
+                            const docId = Number(d.doctorID ?? d.DoctorID ?? d.id ?? d.DoctorId);
                             const fullName = d.fullName || `Dr. ${d.firstName} ${d.lastName}`.trim();
                             const docRegion = d.region || 'NZ';
                             const title = d.title || (docRegion === 'PK' ? 'Consultant Dental Surgeon' : 'Dental Surgeon & Specialist');
                             const exp = d.exp || (docId === 2 ? '14 yrs exp' : (docId === 4 ? '9 yrs exp' : '11 yrs exp'));
-                            const avatar = d.avatar || (
+                            const avatar = d.avatar || d.profileImageUrl || (
                                 docId === 2
                                     ? 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=200'
                                     : (docId === 4
@@ -237,18 +243,54 @@ export default function PatientBookAppointment() {
                                 id: docId,
                                 doctorID: docId,
                                 name: fullName,
+                                fullName,
                                 title,
                                 exp,
                                 region: docRegion,
-                                avatar
+                                avatar,
+                                specialization: d.specialization,
+                                organizationName: d.organizationName,
+                                consultationFee: d.consultationFee
                             };
                         });
 
                         setDoctors(mapped);
 
-                        // Auto-select assigned patient doctor or first doctor in list
-                        const assignedId = patient.doctorID || patient.doctorId;
-                        const targetDoc = mapped.find(m => m.id === assignedId) || mapped[0];
+                        // Doctor selection priority:
+                        // 1. Explicitly requested doctor from URL query param (e.g. ?doctor=4) or navigation state
+                        // 2. Currently selected doctor in component state (if valid)
+                        // 3. Logged-in patient's assigned doctor from profile
+                        // 4. First doctor in mapped list
+                        const explicitId = urlDoctorParam || stateDoctorId;
+                        let targetDoc = null;
+
+                        if (explicitId) {
+                            const numReq = Number(explicitId);
+                            if (!isNaN(numReq) && numReq > 0) {
+                                targetDoc = mapped.find(m => Number(m.id) === numReq || Number(m.doctorID) === numReq);
+                            }
+                            if (!targetDoc && typeof explicitId === 'string') {
+                                const q = explicitId.toLowerCase().replace('dr.', '').trim();
+                                targetDoc = mapped.find(m => m.name?.toLowerCase().includes(q));
+                            }
+                        }
+
+                        if (!targetDoc && selectedDoctorId) {
+                            const curNum = Number(selectedDoctorId);
+                            targetDoc = mapped.find(m => Number(m.id) === curNum || Number(m.doctorID) === curNum);
+                        }
+
+                        if (!targetDoc) {
+                            const assignedId = Number(patient.doctorID || patient.doctorId);
+                            if (assignedId) {
+                                targetDoc = mapped.find(m => Number(m.id) === assignedId || Number(m.doctorID) === assignedId);
+                            }
+                        }
+
+                        if (!targetDoc && mapped.length > 0) {
+                            targetDoc = mapped[0];
+                        }
+
                         if (targetDoc) {
                             setSelectedDoctorId(targetDoc.id);
                         }
@@ -263,7 +305,7 @@ export default function PatientBookAppointment() {
 
         loadRealDoctors();
         return () => { isMounted = false; };
-    }, []);
+    }, [urlDoctorParam, stateDoctorId]);
 
     // =========================================================================
     // 2. DYNAMICALLY LOAD TREATMENT PLANS & FEE SCHEDULE FOR SELECTED DOCTOR
@@ -272,8 +314,8 @@ export default function PatientBookAppointment() {
         if (!selectedDoctorId) return;
         let isMounted = true;
 
-        const targetDoc = doctors.find(d => d.id === selectedDoctorId);
-        const isPk = selectedDoctorId === 2 || targetDoc?.region === 'PK';
+        const targetDoc = doctors.find(d => Number(d.id) === Number(selectedDoctorId));
+        const isPk = Number(selectedDoctorId) === 2 || targetDoc?.region === 'PK';
         setDoctorCurrency(isPk ? 'PKR' : 'NZD');
 
         const loadDoctorFeeSchedule = async () => {
@@ -398,8 +440,8 @@ export default function PatientBookAppointment() {
     }, [bookingMode, selectedProceduresList]);
 
     // Current selected doctor & procedure objects
-    const currentDoctor = doctors.find(d => d.id === selectedDoctorId) || doctors[0] || { 
-        id: selectedDoctorId || 2, 
+    const currentDoctor = doctors.find(d => Number(d.id) === Number(selectedDoctorId)) || doctors[0] || { 
+        id: Number(selectedDoctorId) || 2, 
         name: 'Dr. Jhangir Ahmed', 
         title: 'Consultant Dental Surgeon' 
     };
@@ -881,6 +923,39 @@ export default function PatientBookAppointment() {
                             </span>
                         </div>
 
+                        {/* Pre-selected Specialist Announcement Banner */}
+                        {(urlDoctorParam || stateDoctorId) && currentDoctor && (
+                            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 text-emerald-900 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs shadow-xs animate-in fade-in">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
+                                        <CheckCircle2 className="w-5 h-5 stroke-[2.5]" />
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-dark-slate flex items-center gap-1.5 flex-wrap">
+                                            <span>Doctor Selected:</span>
+                                            <span className="text-primary-teal font-serif font-black">{currentDoctor.name}</span>
+                                            {currentDoctor.specialization && (
+                                                <span className="text-[10px] font-semibold text-emerald-700 bg-white px-2 py-0.5 rounded-md border border-emerald-200">
+                                                    {currentDoctor.specialization}
+                                                </span>
+                                            )}
+                                        </p>
+                                        <p className="text-[11px] text-muted-text mt-0.5">
+                                            Pre-selected from Our Specialists directory. Proceed to services below or choose any doctor anytime.
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleNext}
+                                    className="px-4 py-2 rounded-xl bg-primary-teal hover:bg-primary-hover text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0 self-end sm:self-auto"
+                                >
+                                    <span>Proceed to Services</span>
+                                    <ArrowRight className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        )}
+
                         {loadingDoctors ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                                 {[1, 2, 3, 4].map((i) => (
@@ -899,8 +974,8 @@ export default function PatientBookAppointment() {
                         ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                                 {doctors.map((doc) => {
-                                    const isSelected = selectedDoctorId === doc.id;
-                                    const isAssigned = (patient.doctorID === doc.id) || (patient.doctorId === doc.id);
+                                    const isSelected = Number(selectedDoctorId) === Number(doc.id);
+                                    const isAssigned = (Number(patient.doctorID) === Number(doc.id)) || (Number(patient.doctorId) === Number(doc.id));
 
                                     return (
                                         <div

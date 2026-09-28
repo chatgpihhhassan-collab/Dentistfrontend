@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import API_BASE_URL from '../../../config/apiConfig';
 import { 
     Stethoscope, 
     Calendar, 
@@ -49,8 +50,26 @@ export default function PatientDoctors() {
     const fetchDoctors = async () => {
         try {
             setLoading(true);
-            const res = await fetch('/api/patient-portal/doctors');
-            if (res.ok) {
+            let res = null;
+            try {
+                res = await fetch(`${API_BASE_URL}/api/patient-portal/doctors`);
+            } catch {
+                res = null;
+            }
+            if (!res || !res.ok) {
+                try {
+                    res = await fetch(`${API_BASE_URL}/api/auth/doctors`);
+                } catch {
+                    res = null;
+                }
+            }
+            if (!res || !res.ok) {
+                res = await fetch('/api/patient-portal/doctors');
+            }
+            if (!res || !res.ok) {
+                res = await fetch('/api/auth/doctors');
+            }
+            if (res && res.ok) {
                 const data = await res.json();
                 setDoctors(data);
             }
@@ -63,8 +82,23 @@ export default function PatientDoctors() {
 
     const fetchOrganizations = async () => {
         try {
-            const res = await fetch('/api/patient-portal/organizations');
-            if (res.ok) {
+            let res = null;
+            try {
+                res = await fetch(`${API_BASE_URL}/api/patient-portal/organizations`);
+            } catch {
+                res = null;
+            }
+            if (!res || !res.ok) {
+                try {
+                    res = await fetch(`${API_BASE_URL}/api/organizations`);
+                } catch {
+                    res = null;
+                }
+            }
+            if (!res || !res.ok) {
+                res = await fetch('/api/patient-portal/organizations');
+            }
+            if (res && res.ok) {
                 const data = await res.json();
                 setOrganizations(data);
             }
@@ -93,8 +127,16 @@ export default function PatientDoctors() {
     };
 
     const handleSelectDoctorForBooking = (doctor) => {
-        const docId = doctor.id || doctor.doctorID;
-        navigate(`/portal/book?doctor=${docId}`);
+        if (!doctor) return;
+        const docId = Number(doctor.doctorID ?? doctor.DoctorID ?? doctor.id ?? doctor.DoctorId);
+        const docName = doctor.fullName || `Dr. ${doctor.firstName || ''} ${doctor.lastName || ''}`.trim();
+        navigate(`/portal/book?doctor=${docId}`, {
+            state: {
+                doctorId: docId,
+                doctorName: docName,
+                doctor
+            }
+        });
     };
 
     const filteredDoctors = doctors.filter(doc => {
