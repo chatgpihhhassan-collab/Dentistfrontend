@@ -4,7 +4,8 @@ import API_BASE_URL from '../../../config/apiConfig';
 import { 
     safeFetchJson, 
     DEFAULT_CLINIC_DOCTORS, 
-    DEFAULT_CLINIC_ORGANIZATIONS 
+    DEFAULT_CLINIC_ORGANIZATIONS,
+    getDoctorProceduresFallback
 } from '../../../utils/safeApiUtils';
 import { 
     Stethoscope, 
@@ -59,7 +60,74 @@ export default function PatientDoctors() {
 
     // Selected Doctor for Profile Modal
     const [selectedDoctor, setSelectedDoctor] = useState(null);
-    const [modalActiveTab, setModalActiveTab] = useState('overview'); // 'overview' | 'career' | 'credentials' | 'reviews'
+    const [modalActiveTab, setModalActiveTab] = useState('overview'); // 'overview' | 'services' | 'career' | 'credentials' | 'reviews'
+
+    // Doctor Services state for Modal
+    const [modalDoctorServices, setModalDoctorServices] = useState([]);
+    const [loadingModalServices, setLoadingModalServices] = useState(false);
+    const [serviceSearch, setServiceSearch] = useState('');
+    const [serviceCategory, setServiceCategory] = useState('All');
+
+    useEffect(() => {
+        if (!selectedDoctor) {
+            setModalDoctorServices([]);
+            setServiceSearch('');
+            setServiceCategory('All');
+            return;
+        }
+
+        const docId = Number(selectedDoctor.doctorID ?? selectedDoctor.id);
+        const fallbackList = getDoctorProceduresFallback(docId, selectedDoctor.region);
+        setModalDoctorServices(fallbackList);
+
+        const fetchDoctorServices = async () => {
+            try {
+                setLoadingModalServices(true);
+                const endpoints = [
+                    `${API_BASE_URL}/api/patient-portal/doctors/${docId}/services`,
+                    `${API_BASE_URL}/api/treatment-pricing/doctor/${docId}`,
+                    `https://dentist-api-dev.vitonta.com/api/patient-portal/doctors/${docId}/services`,
+                    `https://dentist-api-dev.vitonta.com/api/treatment-pricing/doctor/${docId}`,
+                    `/api/patient-portal/doctors/${docId}/services`,
+                    `/api/treatment-pricing/doctor/${docId}`
+                ];
+                const result = await safeFetchJson(endpoints);
+                if (result.ok && result.data && Array.isArray(result.data.procedures) && result.data.procedures.length > 0) {
+                    const active = result.data.procedures.filter(p => p.isActive !== false);
+                    if (active.length > 0) {
+                        setModalDoctorServices(active);
+                    }
+                }
+            } catch {
+                // Keep fallbackList
+            } finally {
+                setLoadingModalServices(false);
+            }
+        };
+
+        fetchDoctorServices();
+    }, [selectedDoctor]);
+
+    const modalServiceCategories = useMemo(() => {
+        const cats = new Set(['All']);
+        modalDoctorServices.forEach(s => {
+            if (s.category) cats.add(s.category);
+        });
+        return Array.from(cats);
+    }, [modalDoctorServices]);
+
+    const filteredModalServices = useMemo(() => {
+        return modalDoctorServices.filter(s => {
+            const matchesCat = serviceCategory === 'All' || s.category === serviceCategory;
+            const q = serviceSearch.trim().toLowerCase();
+            const matchesQuery = !q || 
+                s.procedureName?.toLowerCase().includes(q) ||
+                s.procedureCode?.toLowerCase().includes(q) ||
+                s.description?.toLowerCase().includes(q) ||
+                s.category?.toLowerCase().includes(q);
+            return matchesCat && matchesQuery;
+        });
+    }, [modalDoctorServices, serviceCategory, serviceSearch]);
 
     const specialtiesList = [
         { id: 'All', label: 'All Specialists', icon: Stethoscope },
@@ -678,6 +746,21 @@ export default function PatientDoctors() {
                                         )}
                                     </div>
 
+                                    {/* Quick Link to Clinical Services */}
+                                    <button
+                                        onClick={() => {
+                                            setSelectedDoctor(doctor);
+                                            setModalActiveTab('services');
+                                        }}
+                                        className="w-full py-2 px-3 rounded-xl bg-teal-50/80 hover:bg-teal-100/80 text-teal-800 border border-teal-200/60 text-[11px] font-bold flex items-center justify-between transition-colors cursor-pointer"
+                                    >
+                                        <span className="flex items-center gap-1.5">
+                                            <Stethoscope className="w-3.5 h-3.5 text-primary-teal" />
+                                            <span>View Clinical Services & Procedure Fees</span>
+                                        </span>
+                                        <ChevronRight className="w-3.5 h-3.5 text-primary-teal" />
+                                    </button>
+
                                     {/* Availability & Fee Summary Strip */}
                                     <div className="pt-3 border-t border-light-teal/40 flex items-center justify-between text-xs">
                                         <div>
@@ -796,6 +879,16 @@ export default function PatientDoctors() {
 
                                     <div className="flex items-center gap-2">
                                         <button
+                                            onClick={() => {
+                                                setSelectedDoctor(doctor);
+                                                setModalActiveTab('services');
+                                            }}
+                                            className="px-3.5 py-2.5 rounded-xl bg-teal-50 border border-teal-200/80 text-teal-800 text-xs font-bold hover:bg-teal-100/80 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                        >
+                                            <Stethoscope className="w-3.5 h-3.5 text-primary-teal" />
+                                            <span>Services & Fees</span>
+                                        </button>
+                                        <button
                                             onClick={() => setSelectedDoctor(doctor)}
                                             className="px-4 py-2.5 rounded-xl bg-warm-cream border border-light-teal text-dark-slate text-xs font-bold hover:bg-light-teal/40 transition-colors cursor-pointer"
                                         >
@@ -877,6 +970,7 @@ export default function PatientDoctors() {
                         <div className="flex items-center border-b border-light-teal/50 bg-warm-cream/50 px-6 sm:px-8 gap-2 overflow-x-auto scrollbar-none">
                             {[
                                 { id: 'overview', label: 'Clinical Overview', icon: BookOpen },
+                                { id: 'services', label: 'Services & Pricing', icon: Stethoscope },
                                 { id: 'career', label: 'Hospital Affiliations & Career', icon: Building2 },
                                 { id: 'credentials', label: 'Education & Certifications', icon: GraduationCap },
                                 { id: 'reviews', label: 'Quality & Patient Reviews', icon: Star }
@@ -966,6 +1060,151 @@ export default function PatientDoctors() {
                                             </span>
                                         </div>
                                     </div>
+                                </div>
+                            )}
+
+                            {modalActiveTab === 'services' && (
+                                <div className="space-y-5">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-teal-50 via-sky-50/50 to-warm-cream p-4 rounded-2xl border border-teal-200/70">
+                                        <div className="space-y-0.5">
+                                            <h4 className="text-xs font-bold uppercase tracking-wider text-teal-900 flex items-center gap-1.5">
+                                                <Stethoscope className="w-4 h-4 text-primary-teal" />
+                                                <span>Doctor Clinical Services & Procedure Fees</span>
+                                            </h4>
+                                            <p className="text-[11px] text-muted-text">
+                                                Live database fee schedule synchronized with clinical department standards.
+                                            </p>
+                                        </div>
+                                        <span className="text-[11px] font-bold text-teal-800 bg-teal-100/80 px-2.5 py-1 rounded-full shrink-0 border border-teal-200 self-start sm:self-auto">
+                                            {filteredModalServices.length} Accredited Procedure{filteredModalServices.length === 1 ? '' : 's'}
+                                        </span>
+                                    </div>
+
+                                    {/* Search & Category Filter Bar */}
+                                    <div className="space-y-3">
+                                        <div className="relative">
+                                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-text" />
+                                            <input
+                                                type="text"
+                                                value={serviceSearch}
+                                                onChange={(e) => setServiceSearch(e.target.value)}
+                                                placeholder="Search procedures by name, code (e.g. D6010), or keyword..."
+                                                className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-light-teal/80 bg-white text-xs text-dark-slate placeholder-muted-text focus:outline-none focus:border-primary-teal focus:ring-2 focus:ring-primary-teal/15 shadow-2xs"
+                                            />
+                                            {serviceSearch && (
+                                                <button
+                                                    onClick={() => setServiceSearch('')}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-text hover:text-dark-slate p-1"
+                                                >
+                                                    <X className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {/* Category Pills Strip */}
+                                        {modalServiceCategories.length > 2 && (
+                                            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                                                {modalServiceCategories.map(cat => (
+                                                    <button
+                                                        key={cat}
+                                                        onClick={() => setServiceCategory(cat)}
+                                                        className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap cursor-pointer ${
+                                                            serviceCategory === cat
+                                                                ? 'bg-primary-teal text-white shadow-2xs'
+                                                                : 'bg-warm-cream/80 text-muted-text hover:text-dark-slate border border-light-teal/50'
+                                                        }`}
+                                                    >
+                                                        {cat}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Services Listing */}
+                                    {loadingModalServices ? (
+                                        <div className="space-y-3 py-4">
+                                            {[1, 2, 3].map(i => (
+                                                <div key={i} className="h-24 rounded-2xl bg-light-teal/20 animate-pulse border border-light-teal/40" />
+                                            ))}
+                                        </div>
+                                    ) : filteredModalServices.length === 0 ? (
+                                        <div className="p-8 text-center bg-warm-cream/40 rounded-2xl border border-light-teal/40 space-y-2">
+                                            <Stethoscope className="w-8 h-8 text-primary-teal/50 mx-auto" />
+                                            <p className="text-xs font-bold text-dark-slate">No procedures match your search</p>
+                                            <button
+                                                onClick={() => { setServiceSearch(''); setServiceCategory('All'); }}
+                                                className="text-[11px] font-bold text-primary-teal hover:underline cursor-pointer"
+                                            >
+                                                Reset procedure filters
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {filteredModalServices.map((proc, pIdx) => {
+                                                const procCode = proc.procedureCode || `PROC-${pIdx + 1}`;
+                                                const formattedPrice = formatDoctorFee(proc.standardFee, selectedDoctor.region, selectedDoctor.doctorID || selectedDoctor.id);
+
+                                                return (
+                                                    <div
+                                                        key={procCode + pIdx}
+                                                        className="bg-white rounded-2xl border border-light-teal/70 p-4 sm:p-5 shadow-2xs hover:border-primary-teal hover:shadow-md transition-all space-y-3"
+                                                    >
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="space-y-1 flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <span className="text-xs sm:text-sm font-bold text-dark-slate">
+                                                                        {proc.procedureName}
+                                                                    </span>
+                                                                    {proc.procedureCode && (
+                                                                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-light-teal/30 text-dark-slate font-bold">
+                                                                            {proc.procedureCode}
+                                                                        </span>
+                                                                    )}
+                                                                    {proc.category && (
+                                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
+                                                                            {proc.category}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                {proc.description && (
+                                                                    <p className="text-xs text-muted-text leading-relaxed font-normal">
+                                                                        {proc.description}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                            <div className="text-right shrink-0">
+                                                                <span className="font-serif font-black text-dark-slate text-base block">
+                                                                    {formattedPrice}
+                                                                </span>
+                                                                <span className="text-[10px] font-bold text-emerald-700 flex items-center justify-end gap-1 mt-0.5">
+                                                                    <Clock className="w-3 h-3" />
+                                                                    <span>{proc.estimatedDuration || '45 mins'}</span>
+                                                                </span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="pt-2 border-t border-light-teal/30 flex items-center justify-between gap-3">
+                                                            <span className="text-[11px] text-muted-text hidden sm:inline">
+                                                                Verified Department Standard Fee
+                                                            </span>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const docId = selectedDoctor.doctorID || selectedDoctor.id;
+                                                                    setSelectedDoctor(null);
+                                                                    navigate(`/portal/book?doctor=${docId}&procedure=${encodeURIComponent(proc.procedureCode || proc.procedureName)}`);
+                                                                }}
+                                                                className="ml-auto px-4 py-2 rounded-xl bg-gradient-to-r from-primary-teal to-primary-hover text-white text-xs font-bold hover:shadow-md hover:shadow-primary-teal/20 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                                            >
+                                                                <Calendar className="w-3.5 h-3.5" />
+                                                                <span>Book This Service</span>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             )}
 

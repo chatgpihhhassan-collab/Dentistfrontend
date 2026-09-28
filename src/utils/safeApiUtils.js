@@ -297,3 +297,250 @@ export async function safeFetchJson(endpoints, options = {}) {
 
     return { ok: false, data: null };
 }
+
+export const DEFAULT_CLINIC_PROCEDURES_BY_DOCTOR = {
+    // Dr. Jhangir Ahmed (ID 2, Oral & Maxillofacial Implantology, PK / PKR)
+    2: [
+        {
+            procedureCode: 'D6010',
+            procedureName: 'Surgical Dental Implant Placement (Titanium Fixture)',
+            category: 'Dental Implants',
+            estimatedDuration: '60 mins',
+            standardFee: 75000,
+            currency: 'PKR',
+            description: 'Precision surgical placement of titanium endosteal implant fixture under local anesthesia with 3D CBCT surgical guide.'
+        },
+        {
+            procedureCode: 'D6058',
+            procedureName: 'Porcelain-Fused-to-Zirconia Implant Abutment & Crown',
+            category: 'Dental Implants',
+            estimatedDuration: '45 mins',
+            standardFee: 28000,
+            currency: 'PKR',
+            description: 'Custom CAD/CAM titanium or zirconia abutment and monolithic zirconia implant crown restoration.'
+        },
+        {
+            procedureCode: 'D7953',
+            procedureName: 'Bone Grafting & Socket Preservation',
+            category: 'Extractions & Oral Surgery',
+            estimatedDuration: '45 mins',
+            standardFee: 35000,
+            currency: 'PKR',
+            description: 'Osteoconductive bone graft particulate and collagen resorbable membrane for alveolar ridge preservation.'
+        },
+        {
+            procedureCode: 'D7210',
+            procedureName: 'Surgical Removal of Impacted Wisdom Tooth',
+            category: 'Extractions & Oral Surgery',
+            estimatedDuration: '45 mins',
+            standardFee: 18000,
+            currency: 'PKR',
+            description: 'Surgical extraction of bony impacted third molar with mucosal flap elevation, bone guttering, and sterile suture closure.'
+        },
+        {
+            procedureCode: 'D0150',
+            procedureName: 'Comprehensive Implant Consultation & 3D CBCT Review',
+            category: 'Examination & Diagnosis',
+            estimatedDuration: '45 mins',
+            standardFee: 3500,
+            currency: 'PKR',
+            description: 'Full-mouth oral surgery evaluation, bone density assessment, nerve tracing, and digital treatment roadmap.'
+        },
+        {
+            procedureCode: 'D3330',
+            procedureName: 'Molar Root Canal Endodontic Therapy (3-4 Canals)',
+            category: 'Root Canal Treatment',
+            estimatedDuration: '60 mins',
+            standardFee: 22000,
+            currency: 'PKR',
+            description: 'Rotary nickel-titanium canal instrumentation, apex locator electronic measurement, antibacterial irrigation, and warm gutta-percha obturation.'
+        },
+        {
+            procedureCode: 'D2391',
+            procedureName: 'Posterior Nano-Hybrid Composite Tooth Restoration',
+            category: 'Fillings & Restorative Treatment',
+            estimatedDuration: '30 mins',
+            standardFee: 6500,
+            currency: 'PKR',
+            description: 'Micro-hybrid aesthetic resin restorative filling for tooth decay, cuspal fractures, or recurrent cavities.'
+        },
+        {
+            procedureCode: 'D4341',
+            procedureName: 'Periodontal Scaling & Deep Root Planing (Per Quadrant)',
+            category: 'Gum / Periodontal Treatment',
+            estimatedDuration: '45 mins',
+            standardFee: 8500,
+            currency: 'PKR',
+            description: 'Ultrasonic subgingival calculus removal, bacterial biofilm eradication, and root surface smoothing.'
+        },
+        {
+            procedureCode: 'D2740',
+            procedureName: 'Full Ceramic High-Strength Zirconia Crown',
+            category: 'Crowns & Bridges',
+            estimatedDuration: '45 mins',
+            standardFee: 24000,
+            currency: 'PKR',
+            description: 'Computer-milled multi-layered aesthetic zirconia crown restoring tooth anatomy, masticatory function, and shade.'
+        }
+    ],
+
+    // Dr. Ayesha Siddiqui (ID 4, Orthodontics & Pediatric, PK / PKR)
+    4: [
+        {
+            procedureCode: 'D8080',
+            procedureName: 'Clear Aligner Comprehensive Orthodontic Plan',
+            category: 'Orthodontics',
+            estimatedDuration: '45 mins',
+            standardFee: 140000,
+            currency: 'PKR',
+            description: 'Digital 3D intraoral scan, biomechanical tooth movement staging, and full series of custom transparent aligners.'
+        },
+        {
+            procedureCode: 'D8070',
+            procedureName: 'Fixed Appliance Ceramic & Metal Bracket Therapy',
+            category: 'Orthodontics',
+            estimatedDuration: '60 mins',
+            standardFee: 95000,
+            currency: 'PKR',
+            description: 'Comprehensive fixed orthodontic bonding, archwire alignment, and bite correction for malocclusion.'
+        },
+        {
+            procedureCode: 'D0340',
+            procedureName: 'Diagnostic Cephalometric Analysis & Orthodontic Workup',
+            category: 'Examination & Diagnosis',
+            estimatedDuration: '30 mins',
+            standardFee: 7500,
+            currency: 'PKR',
+            description: 'Lateral cephalometric tracing, facial aesthetic profile evaluation, and photographic bite documentation.'
+        },
+        {
+            procedureCode: 'D1510',
+            procedureName: 'Pediatric Space Maintainer & Pulpotomy',
+            category: 'Pediatric Dentistry',
+            estimatedDuration: '30 mins',
+            standardFee: 12000,
+            currency: 'PKR',
+            description: 'Preventative space maintainer fabrication to safeguard permanent tooth eruption following premature primary tooth loss.'
+        },
+        {
+            procedureCode: 'D1351',
+            procedureName: 'Pit & Fissure Enamel Sealant (Per Tooth)',
+            category: 'Preventive Dentistry',
+            estimatedDuration: '20 mins',
+            standardFee: 4000,
+            currency: 'PKR',
+            description: 'Resin seal of deep anatomical molar fissures to provide high-efficacy barrier protection against childhood decay.'
+        },
+        {
+            procedureCode: 'D9972',
+            procedureName: 'Laser Activated Teeth Whitening & Enamel Brightening',
+            category: 'Cosmetic Dentistry',
+            estimatedDuration: '45 mins',
+            standardFee: 25000,
+            currency: 'PKR',
+            description: 'In-chair medical grade hydrogen peroxide photo-activation lifting stubborn intrinsic and extrinsic stains up to 8 shades.'
+        },
+        {
+            procedureCode: 'D1110',
+            procedureName: 'Full Mouth Scaling, Polishing & Fluoride Varnish',
+            category: 'Preventive Dentistry',
+            estimatedDuration: '30 mins',
+            standardFee: 5500,
+            currency: 'PKR',
+            description: 'Ultrasonic plaque removal, prophylaxis paste polishing, and remineralizing fluoride varnish application.'
+        },
+        {
+            procedureCode: 'D2330',
+            procedureName: 'Anterior Aesthetic Composite Bonding / Diastema Closure',
+            category: 'Fillings & Restorative Treatment',
+            estimatedDuration: '45 mins',
+            standardFee: 8500,
+            currency: 'PKR',
+            description: 'Layered cosmetic composite resin bonding to close gaps, repair incisal edge chips, and harmonize smile line.'
+        }
+    ],
+
+    // Dr. Marcus Vance / Dr. Sarah Lee (ID 3 / 1, NZ / NZD)
+    default: [
+        {
+            procedureCode: 'D0150',
+            procedureName: 'Comprehensive Oral Examination & Bitewing Radiographs',
+            category: 'Examination & Diagnosis',
+            estimatedDuration: '45 mins',
+            standardFee: 95.00,
+            currency: 'NZD',
+            description: 'Detailed diagnostic oral review, periodontal pocket charting, soft tissue screen, and digital x-ray exposure.'
+        },
+        {
+            procedureCode: 'D1110',
+            procedureName: 'Periodontal Prophylaxis & Ultrasonic Hygiene Clean',
+            category: 'Preventive Dentistry',
+            estimatedDuration: '45 mins',
+            standardFee: 140.00,
+            currency: 'NZD',
+            description: 'Ultrasonic scaling, air-flow stain removal, subgingival biofilm irrigation, and remineralizing treatment.'
+        },
+        {
+            procedureCode: 'D2392',
+            procedureName: 'Two-Surface Posterior Composite Tooth Restoration',
+            category: 'Fillings & Restorative Treatment',
+            estimatedDuration: '45 mins',
+            standardFee: 220.00,
+            currency: 'NZD',
+            description: 'Aesthetic biomimetic resin composite restoration reproducing natural tooth anatomy, contact points, and shade.'
+        },
+        {
+            procedureCode: 'D2740',
+            procedureName: 'High-Translucency Monolithic Zirconia Crown',
+            category: 'Crowns & Bridges',
+            estimatedDuration: '60 mins',
+            standardFee: 1250.00,
+            currency: 'NZD',
+            description: 'Precision digital scan and laboratory-milled ceramic crown restoring endodontically treated or broken teeth.'
+        },
+        {
+            procedureCode: 'D3330',
+            procedureName: 'Molar Root Canal Endodontic Therapy (Complete)',
+            category: 'Root Canal Treatment',
+            estimatedDuration: '75 mins',
+            standardFee: 1100.00,
+            currency: 'NZD',
+            description: 'Microscopic canal debridement, chemo-mechanical disinfection, and hermetic warm vertical gutta-percha seal.'
+        },
+        {
+            procedureCode: 'D7210',
+            procedureName: 'Surgical Tooth Extraction & Atraumatic Socket Preservation',
+            category: 'Extractions & Oral Surgery',
+            estimatedDuration: '45 mins',
+            standardFee: 320.00,
+            currency: 'NZD',
+            description: 'Sectional atraumatic removal of non-restorable tooth with local anesthesia and collagen plug.'
+        },
+        {
+            procedureCode: 'D9972',
+            procedureName: 'In-Chair Professional Laser Teeth Whitening',
+            category: 'Cosmetic Dentistry',
+            estimatedDuration: '60 mins',
+            standardFee: 450.00,
+            currency: 'NZD',
+            description: 'Medical-grade chairside power bleaching lifting discoloration and creating a radiant, luminous smile.'
+        },
+        {
+            procedureCode: 'D8080',
+            procedureName: 'Clear Aligner Orthodontic Digital Assessment & Scan',
+            category: 'Orthodontics',
+            estimatedDuration: '30 mins',
+            standardFee: 180.00,
+            currency: 'NZD',
+            description: '3D digital intraoral scan and clinical simulation previewing customized orthodontic alignment trajectory.'
+        }
+    ]
+};
+
+export function getDoctorProceduresFallback(doctorId, region) {
+    const docId = Number(doctorId);
+    if (docId === 2) return DEFAULT_CLINIC_PROCEDURES_BY_DOCTOR[2];
+    if (docId === 4) return DEFAULT_CLINIC_PROCEDURES_BY_DOCTOR[4];
+    if (region === 'PK') return DEFAULT_CLINIC_PROCEDURES_BY_DOCTOR[2];
+    return DEFAULT_CLINIC_PROCEDURES_BY_DOCTOR.default;
+}

@@ -38,7 +38,8 @@ import {
 import API_BASE_URL from '../../../config/apiConfig';
 import { 
     safeFetchJson, 
-    DEFAULT_CLINIC_DOCTORS 
+    DEFAULT_CLINIC_DOCTORS,
+    getDoctorProceduresFallback
 } from '../../../utils/safeApiUtils';
 
 // Color themes tailored for clinical dental procedure categories
@@ -123,6 +124,7 @@ export default function PatientBookAppointment() {
 
     const [searchParams] = useSearchParams();
     const urlDoctorParam = searchParams.get('doctor') || searchParams.get('doctorId') || searchParams.get('doc');
+    const urlProcedureParam = searchParams.get('procedure') || searchParams.get('procedureCode') || searchParams.get('service');
     const stateDoctorId = location.state?.doctorId || location.state?.doctor?.doctorID || location.state?.doctor?.DoctorID || location.state?.doctor?.id;
     const requestedDoctorId = urlDoctorParam || stateDoctorId;
 
@@ -357,40 +359,73 @@ export default function PatientBookAppointment() {
             try {
                 setLoadingProcedures(true);
                 const endpoints = [
+                    `${API_BASE_URL}/api/patient-portal/doctors/${selectedDoctorId}/services`,
                     `${API_BASE_URL}/api/treatment-pricing/doctor/${selectedDoctorId}`,
+                    `https://dentist-api-dev.vitonta.com/api/patient-portal/doctors/${selectedDoctorId}/services`,
                     `https://dentist-api-dev.vitonta.com/api/treatment-pricing/doctor/${selectedDoctorId}`,
+                    `/api/patient-portal/doctors/${selectedDoctorId}/services`,
                     `/api/treatment-pricing/doctor/${selectedDoctorId}`
                 ];
                 const result = await safeFetchJson(endpoints);
+                const fallbackList = getDoctorProceduresFallback(selectedDoctorId, targetDoc?.region);
 
                 if (result.ok && result.data && isMounted) {
                     const data = result.data;
                     const procs = (data.procedures || []).filter(p => p.isActive !== false);
-                    setDoctorProcedures(procs.length > 0 ? procs : fallbackServices);
+                    const finalProcs = procs.length > 0 ? procs : fallbackList;
+                    setDoctorProcedures(finalProcs);
                     const curr = data.currency || (data.region === 'PK' || isPk ? 'PKR' : 'NZD');
                     setDoctorCurrency(curr);
 
-                    // If procedure list loaded, preserve valid selections or keep empty if in consultation mode
-                    if (procs.length > 0) {
+                    // If URL specified a procedure, auto-select it
+                    if (urlProcedureParam) {
+                        const match = finalProcs.find(p => 
+                            (p.procedureCode && p.procedureCode.toLowerCase() === urlProcedureParam.toLowerCase()) ||
+                            (p.procedureName && p.procedureName.toLowerCase().includes(urlProcedureParam.toLowerCase()))
+                        );
+                        if (match) {
+                            setSelectedProcedureKeys([match.procedureCode || match.procedureName]);
+                            setBookingMode('procedures');
+                        }
+                    } else if (finalProcs.length > 0) {
                         setSelectedProcedureKeys(prev => {
                             if (prev.length > 0) {
-                                const valid = prev.filter(k => procs.some(p => (p.procedureCode || p.procedureName) === k));
+                                const valid = prev.filter(k => finalProcs.some(p => (p.procedureCode || p.procedureName) === k));
                                 return valid;
                             }
                             return [];
                         });
                     }
                 } else if (isMounted) {
-                    // Fallback to standard services
+                    // Fallback to real standard clinical services library
                     setDoctorCurrency(isPk ? 'PKR' : 'NZD');
-                    setDoctorProcedures(fallbackServices);
-                    setSelectedProcedureKeys([fallbackServices[0].procedureCode]);
+                    setDoctorProcedures(fallbackList);
+                    if (urlProcedureParam) {
+                        const match = fallbackList.find(p => 
+                            (p.procedureCode && p.procedureCode.toLowerCase() === urlProcedureParam.toLowerCase()) ||
+                            (p.procedureName && p.procedureName.toLowerCase().includes(urlProcedureParam.toLowerCase()))
+                        );
+                        if (match) {
+                            setSelectedProcedureKeys([match.procedureCode || match.procedureName]);
+                            setBookingMode('procedures');
+                        }
+                    }
                 }
             } catch {
                 if (isMounted) {
+                    const fallbackList = getDoctorProceduresFallback(selectedDoctorId, targetDoc?.region);
                     setDoctorCurrency(isPk ? 'PKR' : 'NZD');
-                    setDoctorProcedures(fallbackServices);
-                    setSelectedProcedureKeys([fallbackServices[0].procedureCode]);
+                    setDoctorProcedures(fallbackList);
+                    if (urlProcedureParam) {
+                        const match = fallbackList.find(p => 
+                            (p.procedureCode && p.procedureCode.toLowerCase() === urlProcedureParam.toLowerCase()) ||
+                            (p.procedureName && p.procedureName.toLowerCase().includes(urlProcedureParam.toLowerCase()))
+                        );
+                        if (match) {
+                            setSelectedProcedureKeys([match.procedureCode || match.procedureName]);
+                            setBookingMode('procedures');
+                        }
+                    }
                 }
             } finally {
                 if (isMounted) setLoadingProcedures(false);
