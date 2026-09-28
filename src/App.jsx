@@ -16,6 +16,7 @@ const AboutUs = lazy(() => import('./pages/AboutUs'));
 const Treatment = lazy(() => import('./pages/Treatment'));
 const AppointmentsList = lazy(() => import('./pages/AppointmentsList'));
 const DoctorManagement = lazy(() => import('./pages/DoctorManagement'));
+const OrganizationManagement = lazy(() => import('./pages/OrganizationManagement'));
 const TermsAndConditions = lazy(() => import('./pages/TermsAndConditions'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const AIDentalNotesPage = lazy(() => import('./modules/aiDentalNotes/pages/AIDentalNotesPage'));
@@ -34,6 +35,7 @@ const PatientBookAppointment = lazy(() => import('./modules/patientPortal/pages/
 const PatientOdontogramPage = lazy(() => import('./modules/patientPortal/pages/PatientOdontogramPage'));
 const PatientReports = lazy(() => import('./modules/patientPortal/pages/PatientReports'));
 const PatientBilling = lazy(() => import('./modules/patientPortal/pages/PatientBilling'));
+const PatientDoctors = lazy(() => import('./modules/patientPortal/pages/PatientDoctors'));
 import PatientProtectedRoute from './modules/patientPortal/components/PatientProtectedRoute';
 
 import FullPageSkeletonLoader from './components/FullPageSkeletonLoader';
@@ -132,6 +134,16 @@ export default function App() {
                     <DoctorManagement />
                 </AdminRoute>
             } />
+            <Route path="/admin/organizations" element={
+                <AdminRoute>
+                    <OrganizationManagement />
+                </AdminRoute>
+            } />
+            <Route path="/admin/hospitals" element={
+                <AdminRoute>
+                    <OrganizationManagement />
+                </AdminRoute>
+            } />
             
             {/* Public Pages */}
             <Route path="/clinical-guide" element={<ClinicalGuidePage />} />
@@ -166,6 +178,7 @@ export default function App() {
             }>
                 <Route index element={<Navigate to="/portal/dashboard" replace />} />
                 <Route path="dashboard" element={<PatientDashboard />} />
+                <Route path="doctors" element={<PatientDoctors />} />
                 <Route path="appointments" element={<PatientAppointments />} />
                 <Route path="book" element={<PatientBookAppointment />} />
                 <Route path="appointments/book" element={<PatientBookAppointment />} />

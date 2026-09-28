@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { LogOut, Home, Users, Calendar, Stethoscope, Info, CalendarPlus, Phone, Clock, Mail, Star, UserCheck, DollarSign } from 'lucide-react';
+import { LogOut, Home, Users, Calendar, Stethoscope, Info, CalendarPlus, Phone, Clock, Mail, Star, UserCheck, DollarSign, Building2, Shield } from 'lucide-react';
 import { HardwareDeviceSyncBadge } from './HardwareDeviceSyncBadge';
 import { purgeClinicianSession } from '../services/sessionSecurityService';
 
@@ -87,6 +87,24 @@ export default function Navigation() {
                             >
                                 <DollarSign className="w-5 h-5" />
                             </Link>
+                            {doctor.isSuperAdmin && (
+                                <>
+                                    <Link 
+                                        to="/admin/organizations" 
+                                        className={getLinkClass(location.pathname === '/admin/organizations' || location.pathname === '/admin/hospitals')}
+                                        title="Hospital & Organization Management (SuperAdmin)"
+                                    >
+                                        <Building2 className="w-5 h-5 text-indigo-600" />
+                                    </Link>
+                                    <Link 
+                                        to="/admin/doctors" 
+                                        className={getLinkClass(location.pathname === '/admin/doctors')}
+                                        title="Doctor Directory & Profiles (SuperAdmin)"
+                                    >
+                                        <Shield className="w-5 h-5 text-emerald-600" />
+                                    </Link>
+                                </>
+                            )}
                         </>
                     )}
                     

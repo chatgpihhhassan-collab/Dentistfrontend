@@ -46,6 +46,7 @@ export default function PatientPortalLayout() {
     // General navigation matching the main Dentia theme
     const generalNav = [
         { path: '/portal/dashboard', label: 'Overview', icon: Home },
+        { path: '/portal/doctors', label: 'Our Specialists', icon: Stethoscope },
         { path: '/portal/appointments', label: 'Appointments', icon: Calendar },
         { path: '/portal/book', label: 'Book Visit', icon: PlusCircle },
         { path: '/portal/odontogram', label: 'Dental Map', icon: Smile },
