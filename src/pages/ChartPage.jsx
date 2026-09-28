@@ -703,6 +703,9 @@ export default function ChartPage() {
   const [showImplantModal, setShowImplantModal] = useState(false);
   const [showBiopsyModal, setShowBiopsyModal] = useState(false);
   const [showAlignerModal, setShowAlignerModal] = useState(false);
+  const [implantPrefill, setImplantPrefill] = useState(null);
+  const [biopsyPrefill, setBiopsyPrefill] = useState(null);
+  const [alignerPrefill, setAlignerPrefill] = useState(null);
   const [liveOrthoAssessment, setLiveOrthoAssessment] = useState(null);
   const [specialtyRefreshTrigger, setSpecialtyRefreshTrigger] = useState(0);
   
@@ -4422,6 +4425,269 @@ export default function ChartPage() {
 
     // NLP intent regex matching
     const txtLower = normalizeWordsToNumbers(text.toLowerCase());
+
+    // =========================================================================
+    // --- 0.00 CLINICAL SPECIALTY INTENT ENGINE (IMPLANT, BIOPSY, ALIGNERS) ---
+    // Auto-extracts parameters, pre-fills modal forms, updates chart & responds
+    // =========================================================================
+
+    // A. 🔩 IMPLANT PLANNING & 3D GUIDED SURGERY
+    const isImplantSpecialty = (
+      txtLower.includes('implant plan') ||
+      txtLower.includes('implant planning') ||
+      txtLower.includes('plan implant') ||
+      txtLower.includes('guided surgery') ||
+      txtLower.includes('surgical guide') ||
+      (txtLower.includes('implant') && (
+        txtLower.includes('straumann') ||
+        txtLower.includes('nobel') ||
+        txtLower.includes('zimmer') ||
+        txtLower.includes('biohorizon') ||
+        txtLower.includes('osstem') ||
+        txtLower.includes('megagen') ||
+        txtLower.includes('neodent') ||
+        txtLower.includes('bone quality') ||
+        txtLower.includes('bone d') ||
+        txtLower.includes('sinus lift') ||
+        txtLower.includes('grafting') ||
+        txtLower.includes('diameter') ||
+        txtLower.includes('length') ||
+        /\b\d+(\.\d+)?\s*mm\b/.test(txtLower)
+      ))
+    );
+
+    if (isImplantSpecialty) {
+      console.log(`🎙️ [ChartPage:ImplantSpecialtyVoice] Processing: "${text}"`);
+      const tMatch = txtLower.match(/\b(?:tooth|teeth|#|dant|dharh)\s*#?(\d{1,2})\b/i) ||
+                     txtLower.match(/\b(\d{1,2})\s*(?:number|no|num)\b/i);
+      let tNum = tMatch ? parseInt(tMatch[1], 10) : (detailedTooth ? parseInt(detailedTooth, 10) : 19);
+      if (isNaN(tNum) || tNum < 1 || tNum > 32) tNum = 19;
+
+      let brand = 'Straumann (SLActive / BLX)';
+      if (txtLower.includes('nobel')) brand = 'Nobel Biocare (Active / Replace)';
+      else if (txtLower.includes('zimmer')) brand = 'Zimmer Biomet (T3 / Trabecular)';
+      else if (txtLower.includes('biohorizon')) brand = 'BioHorizons (Tapered Pro)';
+      else if (txtLower.includes('osstem') || txtLower.includes('hiossen')) brand = 'Osstem / Hiossen (ETIII / TSIII)';
+      else if (txtLower.includes('megagen')) brand = 'MegaGen (AnyRidge)';
+      else if (txtLower.includes('dentsply') || txtLower.includes('astra')) brand = 'Dentsply Sirona (Astra Tech)';
+      else if (txtLower.includes('neodent')) brand = 'Neodent (Grand Morse)';
+
+      const lenMatch = txtLower.match(/\b(\d{1,2}(?:\.\d+)?)\s*(?:mm)?\s*(?:length|len)\b/i) ||
+                       txtLower.match(/\b(?:length|len)\s*(?:is|of|:)?\s*(\d{1,2}(?:\.\d+)?)\s*(?:mm)?\b/i) ||
+                       txtLower.match(/\b(\d{1,2}(?:\.\d+)?)\s*(?:mm)?\s*(?:x|\*|by)\s*(\d(?:\.\d+)?)\s*(?:mm)?\b/i) ||
+                       txtLower.match(/\b(\d{1,2}(?:\.\d+)?)\s*mm\b/i);
+      let lengthVal = lenMatch ? parseFloat(lenMatch[1]) : 10.0;
+      if (lengthVal < 3 || lengthVal > 25) lengthVal = 10.0;
+
+      const dimXMatch = txtLower.match(/\b(\d{1,2}(?:\.\d+)?)\s*(?:mm)?\s*(?:x|\*|by)\s*(\d(?:\.\d+)?)\s*(?:mm)?\b/i);
+      const diaMatch = txtLower.match(/\b(\d(?:\.\d+)?)\s*(?:mm)?\s*(?:diameter|dia|width)\b/i) ||
+                       txtLower.match(/\b(?:diameter|dia|width)\s*(?:is|of|:)?\s*(\d(?:\.\d+)?)\s*(?:mm)?\b/i) ||
+                       (dimXMatch ? dimXMatch : null);
+      let diaVal = 4.3;
+      if (diaMatch) {
+        diaVal = parseFloat(diaMatch[2] ? diaMatch[2] : diaMatch[1]);
+      }
+      if (diaVal < 2 || diaVal > 10) diaVal = 4.3;
+
+      let boneQ = 'D2';
+      if (txtLower.includes('d1') || txtLower.includes('dense cortical')) boneQ = 'D1';
+      else if (txtLower.includes('d2') || txtLower.includes('thick cortical')) boneQ = 'D2';
+      else if (txtLower.includes('d3') || txtLower.includes('fine trabecular') || txtLower.includes('thin cortical')) boneQ = 'D3';
+      else if (txtLower.includes('d4') || txtLower.includes('low density') || txtLower.includes('porous')) boneQ = 'D4';
+
+      let sinus = 'None';
+      if (txtLower.includes('crestal sinus') || txtLower.includes('summers')) sinus = 'Crestal_Planned';
+      else if (txtLower.includes('lateral window') || txtLower.includes('lateral sinus') || txtLower.includes('tatum')) sinus = 'Lateral_Window_Planned';
+      else if (txtLower.includes('sinus lift')) sinus = 'Required';
+
+      const graftingReq = txtLower.includes('graft') || txtLower.includes('grafting');
+      const isGuided = !txtLower.includes('freehand');
+
+      const prefillObj = {
+        toothNumber: tNum,
+        toothKey: String(tNum),
+        implantBrand: brand,
+        implantLength: lengthVal,
+        implantDiameter: diaVal,
+        boneQuality: boneQ,
+        sinusLiftStatus: sinus,
+        graftingRequired: graftingReq,
+        guidedSurgeryFlag: isGuided,
+        digitalPlanningNotes: `Voice Dictated Plan: ${brand}, ${lengthVal}mm length x ${diaVal}mm diameter, Bone Quality ${boneQ}, Sinus: ${sinus}, Guided: ${isGuided ? '3D Guide' : 'Freehand'}.`
+      };
+
+      setImplantPrefill(prefillObj);
+      setShowImplantModal(true);
+
+      const implantSummary = `Implant Plan: ${brand} ${lengthVal}mm x ${diaVal}mm, Bone ${boneQ}${isGuided ? ', 3D Guided' : ''}`;
+      handleSaveSingleToothObservation(String(tNum), 'Dental Implant Planned', implantSummary, '#0E8A80');
+
+      const replyText = `Doctor, I have initiated an Implant Plan for Tooth #${tNum}: ${brand} (${lengthVal}mm length x ${diaVal}mm diameter, Bone Quality ${boneQ}, ${isGuided ? '3D Guided' : 'Freehand'}). The Implant Planning form is now open with your parameters pre-filled.`;
+      const aiReply = {
+        id: Date.now() + 1,
+        sender: 'assistant',
+        text: replyText,
+        type: 'text',
+        time: 'Just now'
+      };
+      setMessages(prev => [...prev, aiReply]);
+      try {
+        const utt = new SpeechSynthesisUtterance(replyText);
+        utt.rate = 1.05;
+        window.speechSynthesis.speak(utt);
+      } catch (e) {}
+      return;
+    }
+
+    // B. 🔬 BIOPSY & ORAL PATHOLOGY REQUISITION
+    const isBiopsySpecialty = (
+      txtLower.includes('biopsy') ||
+      txtLower.includes('pathology requisition') ||
+      txtLower.includes('histopatholog') ||
+      txtLower.includes('specimen sent') ||
+      txtLower.includes('excisional biopsy') ||
+      txtLower.includes('incisional biopsy') ||
+      (txtLower.includes('punch biopsy') || (txtLower.includes('oral pathology') && (txtLower.includes('lesion') || txtLower.includes('specimen'))))
+    );
+
+    if (isBiopsySpecialty) {
+      console.log(`🎙️ [ChartPage:BiopsySpecialtyVoice] Processing: "${text}"`);
+      const bType = (txtLower.includes('excisional') || txtLower.includes('excision')) ? 'Excisional' : 'Incisional';
+
+      let site = 'Lateral Border of Tongue (Right)';
+      if (txtLower.includes('lateral tongue') || txtLower.includes('border of tongue')) {
+        site = txtLower.includes('left') ? 'Lateral Border of Tongue (Left)' : 'Lateral Border of Tongue (Right)';
+      } else if (txtLower.includes('buccal mucosa')) {
+        site = txtLower.includes('left') ? 'Buccal Mucosa (Left)' : 'Buccal Mucosa (Right)';
+      } else if (txtLower.includes('floor of mouth') || txtLower.includes('ventral tongue')) {
+        site = 'Ventral Tongue / Floor of Mouth';
+      } else if (txtLower.includes('hard palate')) {
+        site = 'Hard Palate';
+      } else if (txtLower.includes('soft palate') || txtLower.includes('uvula')) {
+        site = 'Soft Palate / Uvula';
+      } else if (txtLower.includes('gingiva')) {
+        site = (txtLower.includes('mandible') || txtLower.includes('lower')) ? 'Attached Gingiva (Mandible)' : 'Attached Gingiva (Maxilla)';
+      } else if (txtLower.includes('labial mucosa') || txtLower.includes('lip')) {
+        site = txtLower.includes('upper') ? 'Upper Labial Mucosa' : 'Lower Labial Mucosa';
+      } else if (txtLower.includes('retromolar')) {
+        site = 'Retromolar Trigone';
+      }
+
+      const tMatch = txtLower.match(/\b(?:tooth|teeth|#|dant)\s*#?(\d{1,2})\b/i);
+      let tNum = tMatch ? parseInt(tMatch[1], 10) : (detailedTooth ? parseInt(detailedTooth, 10) : null);
+      if (tNum && (tNum < 1 || tNum > 32)) tNum = null;
+      if (tNum && !txtLower.includes('tongue') && !txtLower.includes('buccal mucosa') && !txtLower.includes('palate')) {
+        site = `Adjacent to Tooth #${tNum} attached gingiva / periapical site`;
+      }
+
+      let impression = 'Leukoplakia / Hyperkeratosis';
+      if (txtLower.includes('erythroplakia')) impression = 'Erythroplakia';
+      else if (txtLower.includes('lichen planus')) impression = 'Oral Lichen Planus (Reticular / Erosive)';
+      else if (txtLower.includes('fibroma')) impression = 'Traumatic Fibroma / Irritation Fibroma';
+      else if (txtLower.includes('mucocele') || txtLower.includes('ranula')) impression = 'Mucocele / Ranula';
+      else if (txtLower.includes('papilloma')) impression = 'Squamous Papilloma';
+      else if (txtLower.includes('pyogenic')) impression = 'Pyogenic Granuloma';
+      else if (txtLower.includes('carcinoma') || txtLower.includes('malignan') || txtLower.includes('oscc')) impression = 'Suspected Oral Squamous Cell Carcinoma (OSCC)';
+      else if (txtLower.includes('cyst')) impression = 'Odontogenic Cyst / Radicular Cyst';
+      else if (txtLower.includes('ulcer')) impression = 'Aphthous Ulceration / Chronic Ulcer';
+
+      const prefillObj = {
+        biopsyType: bType,
+        siteOfBiopsy: site,
+        clinicalImpression: impression,
+        toothNumber: tNum,
+        toothKey: tNum ? String(tNum) : '',
+        status: 'Specimen Sent',
+        clinicalNotes: `Voice Requisition: ${bType} Biopsy of ${site}. Impression: ${impression}.`
+      };
+
+      setBiopsyPrefill(prefillObj);
+      setShowBiopsyModal(true);
+
+      if (tNum) {
+        handleSaveSingleToothObservation(String(tNum), 'Biopsy / Oral Pathology', `Biopsy Requisition: ${bType} at ${site} (${impression})`, '#8B5CF6');
+      }
+
+      const replyText = `Doctor, I have initiated an Oral Pathology Requisition: ${bType} Biopsy at ${site}, Clinical Impression '${impression}'. The Biopsy & Pathology form is now open with your parameters pre-filled.`;
+      const aiReply = {
+        id: Date.now() + 1,
+        sender: 'assistant',
+        text: replyText,
+        type: 'text',
+        time: 'Just now'
+      };
+      setMessages(prev => [...prev, aiReply]);
+      try {
+        const utt = new SpeechSynthesisUtterance(replyText);
+        utt.rate = 1.05;
+        window.speechSynthesis.speak(utt);
+      } catch (e) {}
+      return;
+    }
+
+    // C. ✨ CLEAR ALIGNER DIGITAL ORTHODONTICS
+    const isAlignerSpecialty = (
+      txtLower.includes('clear aligner') ||
+      txtLower.includes('clear aligners') ||
+      txtLower.includes('invisalign') ||
+      txtLower.includes('clearcorrect') ||
+      txtLower.includes('spark aligner') ||
+      txtLower.includes('angelalign') ||
+      txtLower.includes('suresmile') ||
+      ((txtLower.includes('aligner') || txtLower.includes('aligners')) && (txtLower.includes('stage') || txtLower.includes('tray') || txtLower.includes('wear') || txtLower.includes('ipr') || txtLower.includes('attachment') || txtLower.includes('ortho')))
+    );
+
+    if (isAlignerSpecialty) {
+      console.log(`🎙️ [ChartPage:AlignerSpecialtyVoice] Processing: "${text}"`);
+      let brand = 'Invisalign (Align Technology)';
+      if (txtLower.includes('clearcorrect')) brand = 'ClearCorrect (Straumann Group)';
+      else if (txtLower.includes('spark')) brand = 'Spark Clear Aligners (Ormco)';
+      else if (txtLower.includes('angelalign')) brand = 'AngelAlign (Angelaligner Pro)';
+      else if (txtLower.includes('suresmile')) brand = 'SureSmile (Dentsply Sirona)';
+      else if (txtLower.includes('in-house') || txtLower.includes('printed') || txtLower.includes('formlabs')) brand = 'In-House 3D Printed (Direct Print / Formlabs)';
+
+      const stageMatch = txtLower.match(/(\d{1,3})\s*(?:stages?|trays?|aligners?)/i) ||
+                         txtLower.match(/(?:stages?|trays?)\s*(?:is|of|:)?\s*(\d{1,3})/i);
+      let totalStages = stageMatch ? parseInt(stageMatch[1], 10) : 24;
+      if (totalStages < 1 || totalStages > 200) totalStages = 24;
+
+      let wear = '10 Days / Tray (Standard Recommended)';
+      if (txtLower.includes('7 day') || txtLower.includes('accelerat')) wear = '7 Days / Tray (Accelerated)';
+      else if (txtLower.includes('14 day') || txtLower.includes('root movement') || txtLower.includes('complex')) wear = '14 Days / Tray (Complex Root Movements)';
+      else if (txtLower.includes('20 hour') || txtLower.includes('22 hour') || txtLower.includes('full time')) wear = '20–22 Hours / Day Full-Time Compliance';
+
+      const attachmentsReq = !txtLower.includes('no attachment') && (txtLower.includes('attachment') || true);
+      const iprReq = !txtLower.includes('no ipr') && (txtLower.includes('ipr') || txtLower.includes('reduction') || txtLower.includes('interproximal') || false);
+
+      const prefillObj = {
+        alignerBrand: brand,
+        totalStages,
+        currentStage: 1,
+        wearSchedule: wear,
+        attachmentsRequired: attachmentsReq,
+        iprRequired: iprReq,
+        clinicalNotes: `Voice Initiated Plan: ${brand}, ${totalStages} total stages, ${wear}. Attachments: ${attachmentsReq ? 'Active' : 'No'}, IPR: ${iprReq ? 'Planned' : 'No'}.`
+      };
+
+      setAlignerPrefill(prefillObj);
+      setShowAlignerModal(true);
+
+      const replyText = `Doctor, I have initiated a Clear Aligner Orthodontics Plan: ${brand} with ${totalStages} stages, ${wear}${attachmentsReq ? ', Attachments Active' : ''}${iprReq ? ', IPR Planned' : ''}. The Clear Aligner form is now open with your parameters pre-filled.`;
+      const aiReply = {
+        id: Date.now() + 1,
+        sender: 'assistant',
+        text: replyText,
+        type: 'text',
+        time: 'Just now'
+      };
+      setMessages(prev => [...prev, aiReply]);
+      try {
+        const utt = new SpeechSynthesisUtterance(replyText);
+        utt.rate = 1.05;
+        window.speechSynthesis.speak(utt);
+      } catch (e) {}
+      return;
+    }
 
     // --- 0. MULTI-TOOTH & DIRECT CLINICAL ASSESSMENT ENGINE (HIGHEST PRIORITY) ---
     const parseClinicalToothEntry = (rawSegment, mode, selKey) => {
@@ -9395,10 +9661,11 @@ export default function ChartPage() {
                   {/* Clinical Specialties Modals (Fully Integrated with Odontogram & DB Persistence) */}
                   <ImplantPlanningModal
                     isOpen={showImplantModal}
-                    onClose={() => setShowImplantModal(false)}
+                    onClose={() => { setShowImplantModal(false); setImplantPrefill(null); }}
                     patientId={patientId}
-                    toothNumber={detailedTooth || 19}
-                    toothKey={detailedTooth ? String(detailedTooth) : '19'}
+                    toothNumber={implantPrefill?.toothNumber || detailedTooth || 19}
+                    toothKey={implantPrefill?.toothKey || (detailedTooth ? String(detailedTooth) : '19')}
+                    initialData={implantPrefill}
                     onPlanSaved={async (plan) => {
                       const tKey = plan?.toothKey || (plan?.toothNumber ? String(plan.toothNumber) : (detailedTooth ? String(detailedTooth) : '19'));
                       const implantDesc = `Implant Plan: ${plan?.implantBrand || 'Straumann'} ${plan?.implantLength || 10}mm x ${plan?.implantDiameter || 4.3}mm, Bone ${plan?.boneQuality || 'D2'}${plan?.guidedSurgeryFlag ? ', 3D Guided' : ''}`;
@@ -9411,10 +9678,11 @@ export default function ChartPage() {
 
                   <BiopsyPathologyModal
                     isOpen={showBiopsyModal}
-                    onClose={() => setShowBiopsyModal(false)}
+                    onClose={() => { setShowBiopsyModal(false); setBiopsyPrefill(null); }}
                     patientId={patientId}
-                    toothNumber={detailedTooth || null}
-                    toothKey={detailedTooth ? String(detailedTooth) : ''}
+                    toothNumber={biopsyPrefill?.toothNumber !== undefined ? biopsyPrefill.toothNumber : (detailedTooth || null)}
+                    toothKey={biopsyPrefill?.toothKey || (detailedTooth ? String(detailedTooth) : '')}
+                    initialData={biopsyPrefill}
                     onBiopsySaved={async (biopsy) => {
                       const tKey = biopsy?.toothKey || (biopsy?.toothNumber ? String(biopsy.toothNumber) : (detailedTooth ? String(detailedTooth) : null));
                       const biopsyDesc = `Biopsy Requisition: ${biopsy?.biopsyType || 'Incisional'} - ${biopsy?.siteOfBiopsy || 'Specimen'} (${biopsy?.clinicalImpression || 'Oral Pathology'})`;
@@ -9441,8 +9709,9 @@ export default function ChartPage() {
 
                   <ClearAlignerModal
                     isOpen={showAlignerModal}
-                    onClose={() => setShowAlignerModal(false)}
+                    onClose={() => { setShowAlignerModal(false); setAlignerPrefill(null); }}
                     patientId={patientId}
+                    initialData={alignerPrefill}
                     onPlanSaved={async (plan) => {
                       const alignerDesc = `Clear Aligners: ${plan?.alignerBrand || 'Invisalign'} (${plan?.totalStages || 24} Trays, ${plan?.wearSchedule || '10 Days/Tray'})`;
                       try {

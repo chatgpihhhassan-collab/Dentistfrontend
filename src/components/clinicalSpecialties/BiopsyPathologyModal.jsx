@@ -40,7 +40,8 @@ export default function BiopsyPathologyModal({
   patientId,
   toothNumber = null,
   toothKey = '',
-  onBiopsySaved
+  onBiopsySaved,
+  initialData = null
 }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -76,13 +77,14 @@ export default function BiopsyPathologyModal({
       setFormData(prev => ({
         ...prev,
         biopsyId: null,
-        toothNumber: toothNumber || null,
-        toothKey: toothKey || (toothNumber ? String(toothNumber) : ''),
-        siteOfBiopsy: toothNumber ? `Adjacent to Tooth #${toothNumber} attached gingiva` : ''
+        toothNumber: initialData?.toothNumber !== undefined ? initialData.toothNumber : toothNumber || null,
+        toothKey: initialData?.toothKey || toothKey || (toothNumber ? String(toothNumber) : ''),
+        siteOfBiopsy: initialData?.siteOfBiopsy || (toothNumber ? `Adjacent to Tooth #${toothNumber} attached gingiva` : ''),
+        ...(initialData || {})
       }));
       setErrors({});
     }
-  }, [isOpen, patientId, toothNumber, toothKey]);
+  }, [isOpen, patientId, toothNumber, toothKey, initialData]);
 
   const loadBiopsyRecords = async () => {
     try {

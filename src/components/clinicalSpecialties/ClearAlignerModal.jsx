@@ -6,7 +6,8 @@ export default function ClearAlignerModal({
   isOpen,
   onClose,
   patientId,
-  onPlanSaved
+  onPlanSaved,
+  initialData = null
 }) {
   if (!isOpen) return null;
 
@@ -44,6 +45,7 @@ export default function ClearAlignerModal({
         <div className="flex-1 overflow-y-auto p-3.5 sm:p-4">
           <ClearAlignerOrthoTab
             patientId={patientId}
+            initialData={initialData}
             onPlanSaved={(plan) => {
               if (onPlanSaved) onPlanSaved(plan);
               setTimeout(() => {

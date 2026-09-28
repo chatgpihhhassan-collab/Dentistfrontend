@@ -76,6 +76,11 @@ export const PLATFORM_SECTIONS = {
     path: '/admin/doctors',
     title: 'Clinician & Staff Administration',
     description: 'Super admin management for clinic dentists, license numbers, specialty assignments, regional permissions (PK/NZ), and credentials.'
+  },
+  GUIDELINES: {
+    path: '/guidelines',
+    title: 'Dentia Clinical Voice & Charting Guidelines',
+    description: 'Doctor dictation manual, chatbot prompt library, 5-surface mapping, CDT billing codes, and specialties (Implant Planning, Biopsy, Aligners).'
   }
 };
 
@@ -141,9 +146,23 @@ export const DENTAL_KNOWLEDGE_BASE = [
   },
   {
     category: 'Surgical & Implants',
-    keywords: ['implant', 'dental implant', 'fixture', 'd6010', 'osteotomy'],
-    title: 'Endosseous Implant Placement (ADA D6010)',
-    answer: 'Doctor, endosseous implant placement (ADA D6010) requires at least 1.5mm to 2mm of sound buccal and lingual cortical bone, with minimum 2mm clearance from the inferior alveolar nerve (IAN) or maxillary sinus floor. Primary insertion torque should reach 30 to 45 Ncm for immediate temporization; otherwise, submerge for 3 to 4 months of unloaded healing.',
+    keywords: ['implant', 'dental implant', 'fixture', 'd6010', 'osteotomy', 'implant plan', 'implant planning', 'guided surgery', 'surgical guide'],
+    title: 'Implant Planning & 3D Guided Surgery (ADA D6010 / D6190)',
+    answer: 'Doctor, comprehensive dental implant planning in Dentia mandates: 1) High-resolution CBCT volumetric survey (ADA D0364); 2) Minimum 1.5mm to 2mm buccal/lingual alveolar plate thickness; 3) 2mm safety margin to the inferior alveolar nerve canal (IAN) and mental foramen; 4) Lekholm & Zarb Bone Quality classification (D1: dense cortical, D2: thick cortical/trabecular, D3: thin cortical/fine trabecular, D4: low density porous); 5) 3D surgical guide sleeve diameter calibration. Crestal sinus lift (Summers technique) indicated for 5-8mm residual bone; lateral window sinus lift (Tatum) required for <5mm residual bone height.',
+    action: null
+  },
+  {
+    category: 'Oral Pathology & Biopsy',
+    keywords: ['biopsy', 'pathology', 'oral pathology', 'histopathology', 'specimen', 'incisional', 'excisional', 'd7285', 'd7286', 'leukoplakia', 'lichen planus'],
+    title: 'Oral Biopsy & Pathology Requisition Protocol (ADA D7285 / D7286)',
+    answer: 'Doctor, oral biopsy protocol requires: 1) Incisional biopsy (ADA D7286) for large (>1cm), ulcerated, or suspected malignant lesions (sampling margin of transition to sound tissue); 2) Excisional biopsy (ADA D7285) for small (<1cm) benign lesions (fibroma, mucocele, papilloma) with complete 2-3mm peripheral clearance; 3) Immediate immersion in 10% neutral buffered formalin (minimum 10:1 formalin-to-specimen volume ratio); 4) Complete anatomical mapping (e.g. lateral tongue, buccal mucosa, floor of mouth) and clinical impressions sent to accredited histopathology labs.',
+    action: null
+  },
+  {
+    category: 'Orthodontics & Clear Aligners',
+    keywords: ['aligner', 'aligners', 'clear aligners', 'invisalign', 'clearcorrect', 'spark', 'ipr', 'attachments', 'tray schedule', 'd8080'],
+    title: 'Clear Aligner Digital Orthodontics Protocol (ADA D8080)',
+    answer: 'Doctor, clear aligner therapy in Dentia covers full digital workflow: 1) 3D intraoral optical impression & cephalometric staging; 2) Aligner brand selection (Invisalign, ClearCorrect, Spark, AngelAlign, SureSmile, In-House 3D Printed); 3) Staging and tray sequencing (12 to 40+ trays); 4) Precision composite attachments (gingival bevelled for extrusion/intrusion, horizontal rectangular for rotation); 5) Calibrated Interproximal Reduction (IPR: 0.1mm - 0.5mm per contact) with diamond strips; 6) Standard compliance wear of 20 to 22 hours per day with 7 to 14 day tray change cycles, with refinement scan check at 75% treatment progress.',
     action: null
   },
 
@@ -832,6 +851,18 @@ export function resolveDoctorInstruction(transcript, context = {}) {
       category: 'Navigation',
       text: 'Opening clinician and staff administration, Doctor.',
       action: { type: 'NAVIGATE', path: '/admin/doctors' }
+    };
+  }
+
+  // 2.9 Clinical Voice & Charting Guidelines ("Guidelines", "Clinical guidelines", "Charting manual")
+  if (
+    /(?:guidelines|clinical\s+guidelines|charting\s+guidelines|voice\s+guidelines|dictation\s+guide|clinical\s+manual)/i.test(clean)
+  ) {
+    return {
+      title: 'Clinical Charting Guidelines',
+      category: 'Navigation',
+      text: 'Opening the Dentia Clinical Voice & Charting Guidelines, Doctor. This contains all dictation prompts, CDT codes, and specialty forms for Implants, Biopsy, and Aligners.',
+      action: { type: 'NAVIGATE', path: '/guidelines' }
     };
   }
 

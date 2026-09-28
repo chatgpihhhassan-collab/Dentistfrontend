@@ -62,7 +62,8 @@ export default function ImplantPlanningModal({
   patientId,
   toothNumber = 19,
   toothKey = '19',
-  onPlanSaved
+  onPlanSaved,
+  initialData = null
 }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -101,16 +102,17 @@ export default function ImplantPlanningModal({
   useEffect(() => {
     if (isOpen && patientId) {
       loadPatientImplantPlans();
-      // Reset form to active tooth
+      // Reset form to active tooth or populate initialData if provided from voice/copilot
       setFormData(prev => ({
         ...prev,
         implantPlanId: null,
-        toothNumber: toothNumber || 19,
-        toothKey: String(toothKey || toothNumber || '19')
+        toothNumber: initialData?.toothNumber || toothNumber || 19,
+        toothKey: String(initialData?.toothKey || initialData?.toothNumber || toothKey || toothNumber || '19'),
+        ...(initialData || {})
       }));
       setErrors({});
     }
-  }, [isOpen, patientId, toothNumber, toothKey]);
+  }, [isOpen, patientId, toothNumber, toothKey, initialData]);
 
   const loadPatientImplantPlans = async () => {
     try {

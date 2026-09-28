@@ -171,9 +171,168 @@ export default function ClinicalGuidePage() {
     { suite: "Radiographic", query: "Radiographic survey shows well-circumscribed periapical radiolucent cyst", target: "Radiographic Suite ➔ Periapical Radiolucent Cyst", cdt: "D0220", visual: "Circular corticated radiolucent cyst boundary highlighted at tooth apex", category: "suites" }
   ];
 
+  // 🔩 Implant Planning & 3D Guided Surgery Guidelines
+  const implantPlanningGuideData = [
+    { 
+      query: "Tooth 19 implant plan Straumann BLX 10mm length 4.3mm diameter bone D2 guided surgery", 
+      surface: "Site #19", 
+      cdt: "D6010 / D6190", 
+      status: "Implant Plan — Straumann (10mm x 4.3mm, D2, 3D Guided)", 
+      manual: "Toolbar ➔ Click 🔩 Implant Plan ➔ Set Length 10mm, Dia 4.3mm, Bone D2 ➔ Enable 3D Guided ➔ Save", 
+      category: "implants" 
+    },
+    { 
+      query: "Tooth 30 implant plan Nobel Active 11.5mm length 5.0mm diameter bone D1 dense cortical", 
+      surface: "Site #30", 
+      cdt: "D6010", 
+      status: "Implant Plan — Nobel Biocare (11.5mm x 5.0mm, D1 Dense Cortical)", 
+      manual: "Select Tooth #30 ➔ 🔩 Implant Plan ➔ Length 11.5mm, Dia 5.0mm, Bone D1 ➔ Save", 
+      category: "implants" 
+    },
+    { 
+      query: "Tooth 14 implant plan Zimmer Biomet 8.0mm length 4.7mm diameter crestal sinus lift planned bone D3", 
+      surface: "Site #14", 
+      cdt: "D6010 / D7951", 
+      status: "Implant Plan — Zimmer Biomet (8.0mm x 4.7mm, D3, Crestal Sinus Lift)", 
+      manual: "Select Tooth #14 ➔ 🔩 Implant Plan ➔ Sinus Lift: Crestal Planned ➔ Save", 
+      category: "implants" 
+    },
+    { 
+      query: "Tooth 8 immediate dental implant Straumann 12mm length 3.6mm diameter bone grafting required", 
+      surface: "Site #8", 
+      cdt: "D6010 / D7953", 
+      status: "Implant Plan — Straumann (12mm x 3.6mm, D2, Particulate Bone Graft)", 
+      manual: "Select Tooth #8 ➔ 🔩 Implant Plan ➔ Toggle Bone Grafting Required ➔ Save", 
+      category: "implants" 
+    },
+    { 
+      query: "Tooth 3 implant plan BioHorizons 10.5mm length 4.6mm diameter lateral window sinus lift bone D4", 
+      surface: "Site #3", 
+      cdt: "D6010 / D7951", 
+      status: "Implant Plan — BioHorizons (10.5mm x 4.6mm, D4, Lateral Window Sinus Lift)", 
+      manual: "Select Tooth #3 ➔ 🔩 Implant Plan ➔ Sinus Lift: Lateral Window ➔ Save", 
+      category: "implants" 
+    },
+    { 
+      query: "Tooth 18 implant plan Osstem 10mm length 4.5mm diameter 3D surgical guide fabricated", 
+      surface: "Site #18", 
+      cdt: "D6010 / D6190", 
+      status: "Implant Plan — Osstem / Hiossen (10mm x 4.5mm, D2, 3D Guided Sleeve)", 
+      manual: "Select Tooth #18 ➔ 🔩 Implant Plan ➔ 3D Guided Surgery Flag ON ➔ Save", 
+      category: "implants" 
+    }
+  ];
+
+  // 🔬 Biopsy & Oral Pathology Requisition Guidelines
+  const biopsyPathologyGuideData = [
+    { 
+      query: "Biopsy requisition incisional biopsy lateral border of tongue suspected leukoplakia", 
+      surface: "Lateral Tongue", 
+      cdt: "D7286", 
+      status: "Biopsy Requisition — Incisional (Lateral Tongue, Leukoplakia)", 
+      manual: "Toolbar ➔ Click 🔬 Biopsy ➔ Type: Incisional ➔ Site: Lateral Tongue ➔ Impression: Leukoplakia ➔ Submit", 
+      category: "biopsy" 
+    },
+    { 
+      query: "Biopsy requisition excisional biopsy buccal mucosa right traumatic irritation fibroma", 
+      surface: "Buccal Mucosa", 
+      cdt: "D7285", 
+      status: "Biopsy Requisition — Excisional (Buccal Mucosa, Traumatic Fibroma)", 
+      manual: "Toolbar ➔ Click 🔬 Biopsy ➔ Type: Excisional ➔ Site: Buccal Mucosa ➔ Impression: Fibroma ➔ Submit", 
+      category: "biopsy" 
+    },
+    { 
+      query: "Biopsy requisition incisional biopsy ventral tongue floor of mouth oral lichen planus erosive", 
+      surface: "Floor of Mouth", 
+      cdt: "D7286", 
+      status: "Biopsy Requisition — Incisional (Floor of Mouth, Lichen Planus)", 
+      manual: "Toolbar ➔ Click 🔬 Biopsy ➔ Site: Ventral Tongue / Floor of Mouth ➔ Impression: Lichen Planus ➔ Submit", 
+      category: "biopsy" 
+    },
+    { 
+      query: "Tooth 19 periapical site biopsy odontogenic radicular cyst specimen sent to pathology", 
+      surface: "Apex Site #19", 
+      cdt: "D7286 / D7450", 
+      status: "Biopsy Requisition — Periapical Tooth #19 (Odontogenic Radicular Cyst)", 
+      manual: "Select Tooth #19 ➔ 🔬 Biopsy ➔ Site: Adjacent to Tooth #19 ➔ Impression: Odontogenic Cyst ➔ Submit", 
+      category: "biopsy" 
+    },
+    { 
+      query: "Biopsy requisition excisional biopsy lower labial mucosa mucocele excision", 
+      surface: "Lower Lip", 
+      cdt: "D7285", 
+      status: "Biopsy Requisition — Excisional (Lower Labial Mucosa, Mucocele)", 
+      manual: "Toolbar ➔ Click 🔬 Biopsy ➔ Type: Excisional ➔ Site: Lower Labial Mucosa ➔ Impression: Mucocele ➔ Submit", 
+      category: "biopsy" 
+    },
+    { 
+      query: "Biopsy requisition incisional biopsy soft palate erythroplakia oral pathology referral", 
+      surface: "Soft Palate", 
+      cdt: "D7286", 
+      status: "Biopsy Requisition — Incisional (Soft Palate, Erythroplakia OSCC Rule-Out)", 
+      manual: "Toolbar ➔ Click 🔬 Biopsy ➔ Site: Soft Palate / Uvula ➔ Impression: Erythroplakia ➔ Submit", 
+      category: "biopsy" 
+    }
+  ];
+
+  // ✨ Clear Aligner Digital Orthodontics Guidelines
+  const clearAlignerGuideData = [
+    { 
+      query: "Patient planned for Clear Aligners Invisalign 24 stages 10 days wear schedule with attachments and IPR", 
+      surface: "Dual Arch", 
+      cdt: "D8080", 
+      status: "Clear Aligners — Invisalign (24 Trays, 10 Days/Tray, Attachments + IPR)", 
+      manual: "Toolbar ➔ Click ✨ Aligners ➔ Brand: Invisalign ➔ Stages: 24 ➔ Wear: 10 Days ➔ Attachments & IPR ON ➔ Save", 
+      category: "aligners" 
+    },
+    { 
+      query: "Clear Aligners ClearCorrect 18 trays accelerated 7 days schedule dual arch", 
+      surface: "Dual Arch", 
+      cdt: "D8080", 
+      status: "Clear Aligners — ClearCorrect (18 Trays, 7 Days/Tray Accelerated)", 
+      manual: "Toolbar ➔ Click ✨ Aligners ➔ Brand: ClearCorrect ➔ Total Stages: 18 ➔ Wear: 7 Days ➔ Save Plan", 
+      category: "aligners" 
+    },
+    { 
+      query: "Spark Clear Aligners 30 stages anterior crowding refinement scan scheduled at tray 20", 
+      surface: "Dual Arch", 
+      cdt: "D8080", 
+      status: "Clear Aligners — Spark (30 Trays, Refinement Scan Tracking at Tray 20)", 
+      manual: "Toolbar ➔ Click ✨ Aligners ➔ Brand: Spark ➔ Stages: 30 ➔ Refinement Tracking note ➔ Save Plan", 
+      category: "aligners" 
+    },
+    { 
+      query: "AngelAlign clear aligner therapy 26 trays 10 days compliance tracking dual arch", 
+      surface: "Dual Arch", 
+      cdt: "D8080", 
+      status: "Clear Aligners — AngelAlign (26 Trays, Dual Arch Alignment)", 
+      manual: "Toolbar ➔ Click ✨ Aligners ➔ Brand: AngelAlign ➔ Stages: 26 ➔ Save Plan", 
+      category: "aligners" 
+    },
+    { 
+      query: "SureSmile clear aligners 20 stages with interproximal reduction IPR between anterior incisors", 
+      surface: "Anterior Arch", 
+      cdt: "D8080", 
+      status: "Clear Aligners — SureSmile (20 Trays, IPR Details Recorded)", 
+      manual: "Toolbar ➔ Click ✨ Aligners ➔ Brand: SureSmile ➔ Stages: 20 ➔ IPR Details input ➔ Save Plan", 
+      category: "aligners" 
+    },
+    { 
+      query: "In-house 3D printed direct aligners 12 stages mild relapse single arch 14 days wear", 
+      surface: "Single Arch", 
+      cdt: "D8080", 
+      status: "Clear Aligners — In-House 3D Printed (12 Trays, 14 Days/Tray Relapse)", 
+      manual: "Toolbar ➔ Click ✨ Aligners ➔ Brand: In-House 3D Printed ➔ Stages: 12 ➔ Wear: 14 Days ➔ Save Plan", 
+      category: "aligners" 
+    }
+  ];
+
   // Merge all items for universal search
   const allEntries = useMemo(() => {
     return [
+      ...implantPlanningGuideData.map(i => ({ ...i, section: '🔩 Implantology & 3D Guided Surgery' })),
+      ...biopsyPathologyGuideData.map(i => ({ ...i, section: '🔬 Oral Pathology & Biopsy Requisition' })),
+      ...clearAlignerGuideData.map(i => ({ ...i, section: '✨ Clear Aligner Digital Orthodontics' })),
       ...restorativeAdultData.map(i => ({ ...i, section: 'Restorative (Adult)' })),
       ...endodonticData.map(i => ({ ...i, section: 'Endodontics' })),
       ...prosthodonticData.map(i => ({ ...i, section: 'Prosthodontics' })),
@@ -347,7 +506,10 @@ export default function ClinicalGuidePage() {
           {/* Specialty Category Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
             {[
-              { id: 'all', label: 'All Categories (117)' },
+              { id: 'all', label: `All Guidelines (${allEntries.length})` },
+              { id: 'implants', label: '🔩 Implant Plan' },
+              { id: 'biopsy', label: '🔬 Biopsy' },
+              { id: 'aligners', label: '✨ Aligners' },
               { id: 'restorative', label: 'Restorative' },
               { id: 'endodontic', label: 'Endodontics' },
               { id: 'prosthodontic', label: 'Prosthodontics' },

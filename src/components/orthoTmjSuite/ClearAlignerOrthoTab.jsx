@@ -24,7 +24,8 @@ const WEAR_SCHEDULES = [
 
 export default function ClearAlignerOrthoTab({
   patientId,
-  onPlanSaved
+  onPlanSaved,
+  initialData = null
 }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -64,6 +65,15 @@ export default function ClearAlignerOrthoTab({
       loadAlignerPlans();
     }
   }, [patientId]);
+
+  useEffect(() => {
+    if (initialData) {
+      setFormData(prev => ({
+        ...prev,
+        ...initialData
+      }));
+    }
+  }, [initialData]);
 
   const loadAlignerPlans = async () => {
     try {
