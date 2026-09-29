@@ -31,6 +31,7 @@ import {
   searchClinicPatients 
 } from './clinicalDentalBrain';
 import aiVoice from '../../utils/aiVoiceAssistant';
+import { queryJarvis, executeJarvisAction } from '../../services/dentiaJarvisService';
 
 export default function Doctor3DAssistantWidget() {
   const navigate = useNavigate();
@@ -373,24 +374,7 @@ export default function Doctor3DAssistantWidget() {
     }
 
     const pool = (livePatients && livePatients.length > 0) ? livePatients : getDynamicPatients();
-
-    const resolution = resolveDoctorInstruction(transcript, {
-      pathname: location.pathname,
-      patientId: activePatientId,
-      doctorName: doctorName,
-      patients: pool
-    });
-
-    const aiMsg = {
-      sender: 'ai',
-      category: resolution.category,
-      title: resolution.title,
-      text: resolution.text,
-      patientsList: resolution.patientsList || null,
-      pagesList: resolution.pagesList || null,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-    setChatLog(prev => [...prev, aiMsg]);
+    const isAuth = Boolean(localStorage.getItem('doctor'));
 
     // Temporarily pause mic while speaking to eliminate acoustic feedback
     if (recognitionRef.current && isListening) {
@@ -403,11 +387,29 @@ export default function Doctor3DAssistantWidget() {
     // Reset inactivity timer on active command
     resetInactivityTimer();
 
-    // 1. Handle Sleep / Mute Directive
-    if (resolution.action && resolution.action.type === 'SLEEP') {
+    // Query Real-Time Intelligent Jarvis Engine (Groq LLM)
+    const jarvisRes = await queryJarvis(transcript, {
+      pathname: location.pathname,
+      patientId: activePatientId,
+      doctorName: doctorName,
+      isAuthenticated: isAuth,
+      patients: pool
+    });
+
+    const aiMsg = {
+      sender: 'ai',
+      category: jarvisRes.action?.type !== 'NONE' ? jarvisRes.action?.type : 'Jarvis Copilot',
+      title: jarvisRes.action?.type && jarvisRes.action.type !== 'NONE' ? `Action: ${jarvisRes.action.type}` : 'Jarvis Response',
+      text: jarvisRes.reply,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    setChatLog(prev => [...prev, aiMsg]);
+
+    // Handle Sleep / Mute Directive
+    if (jarvisRes.action && jarvisRes.action.type === 'SLEEP') {
       aiVoice.playChime('sleep');
-      if (!isAudioMuted) {
-        aiVoice.speak(resolution.text, { rate: 1.02, pitch: 1.08 });
+      if (!isAudioMuted && jarvisRes.reply) {
+        aiVoice.speak(jarvisRes.reply, { rate: 1.02, pitch: 1.08 });
       }
       stopListening();
       setIsEnabled(false);
@@ -415,100 +417,15 @@ export default function Doctor3DAssistantWidget() {
       return;
     }
 
-    // 2. Handle Odontogram Voice Charting Updates
-    if (resolution.action && resolution.action.type === 'CHART_TOOTH_UPDATE') {
+    // Speak intelligent, non-repetitive response in natural Lady Voice
+    if (!isAudioMuted && jarvisRes.reply) {
       aiVoice.playChime('success');
-      if (!isAudioMuted) {
-        aiVoice.speak(resolution.text, { rate: 1.02, pitch: 1.08 });
-      }
-      // Broadcast to ChartPage and 3D Jaw
-      window.dispatchEvent(new CustomEvent('dentia:voice:chart-update', { detail: resolution.action }));
-      
-      // If we are currently on /chart/:patientId, also update database
-      if (activePatientId) {
-        try {
-          fetch('/api/patients/teeth/update-bulk', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              patientId: parseInt(activePatientId, 10),
-              updates: [{
-                toothNumber: resolution.action.toothNumber,
-                toothKey: String(resolution.action.toothNumber),
-                dentitionCategory: 'Adult',
-                doctorId: doctorId,
-                status: resolution.action.condition,
-                conditionStatus: resolution.action.condition,
-                color: resolution.action.color,
-                comment: resolution.action.comment,
-                comments: resolution.action.comment
-              }]
-            })
-          }).catch(e => console.warn('[Jarvis Voice Chart API sync notice]:', e));
-        } catch {}
-      }
-      return;
+      aiVoice.speak(jarvisRes.reply, { rate: 1.02, pitch: 1.08 });
     }
 
-    // 3. Handle Soredex Digora Optime Arming
-    if (resolution.action && resolution.action.type === 'ARM_DIGORA') {
-      aiVoice.playChime('success');
-      if (!isAudioMuted) {
-        aiVoice.speak(resolution.text, { rate: 1.02, pitch: 1.08 });
-      }
-      window.dispatchEvent(new CustomEvent('dentia:voice:open-digora'));
-      return;
-    }
-
-    // 4. Handle Intraoral Video Camera Capture
-    if (resolution.action && resolution.action.type === 'CAPTURE_CAMERA') {
-      aiVoice.playChime('success');
-      if (!isAudioMuted) {
-        aiVoice.speak(resolution.text, { rate: 1.02, pitch: 1.08 });
-      }
-      window.dispatchEvent(new CustomEvent('dentia:voice:open-camera'));
-      return;
-    }
-
-    // 5. Handle Radiograph Upload
-    if (resolution.action && resolution.action.type === 'UPLOAD_XRAY') {
-      aiVoice.playChime('success');
-      if (!isAudioMuted) {
-        aiVoice.speak(resolution.text, { rate: 1.02, pitch: 1.08 });
-      }
-      window.dispatchEvent(new CustomEvent('dentia:voice:upload-xray'));
-      return;
-    }
-
-    // 6. Handle AI Clinical SOAP Notes
-    if (resolution.action && resolution.action.type === 'SOAP_NOTE_GENERATE') {
-      aiVoice.playChime('success');
-      if (!isAudioMuted) {
-        aiVoice.speak(resolution.text, { rate: 1.02, pitch: 1.08 });
-      }
-      window.dispatchEvent(new CustomEvent('dentia:voice:soap-append', { detail: resolution.action }));
-      return;
-    }
-
-    // 7. Handle Hardware Devices Suite
-    if (resolution.action && resolution.action.type === 'DEVICE_CONNECT') {
-      aiVoice.playChime('success');
-      if (!isAudioMuted) {
-        aiVoice.speak(resolution.text, { rate: 1.02, pitch: 1.08 });
-      }
-      window.dispatchEvent(new CustomEvent('dentia:voice:device-sync'));
-      return;
-    }
-
-    // Handle instant known patient or route navigation
-    if (resolution.action && resolution.action.type === 'NAVIGATE') {
-      if (!isAudioMuted) {
-        aiVoice.speak(resolution.text, { rate: 1.02, pitch: 1.08 });
-      }
-      setTimeout(() => {
-        navigate(resolution.action.path);
-      }, 1200);
-      return;
+    // Execute Autonomous Platform Action (Login, Navigation, Charting, Modals)
+    if (jarvisRes.action) {
+      await executeJarvisAction(jarvisRes.action, navigate, activePatientId);
     }
 
     // Handle Dynamic Patient Database Search (fallback when not immediately resolved)
