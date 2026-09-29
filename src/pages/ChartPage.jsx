@@ -8940,6 +8940,21 @@ export default function ChartPage() {
                           <span>Tooth Detail</span>
                         </button>
 
+                        {/* ✨ Denty AI Diagnostic & Radiology Studio (User Request) */}
+                        <button
+                          type="button"
+                          id="btn-denty-ai-studio"
+                          onClick={() => navigate(`/chart/${patient?.patientID || patientId}/ai-studio`)}
+                          className="text-[10.5px] font-black bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white px-3 py-1.5 rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer group shrink-0 ring-2 ring-blue-400/30 hover:scale-105"
+                          title="Open Denty AI Diagnostic Studio (AI Analyzed 3D Radiograph & Treatment)"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
+                          <span>Denty AI Studio</span>
+                          <span className="text-[8.5px] bg-white/25 text-white font-extrabold px-1.5 py-0.2 rounded-full uppercase tracking-wider">
+                            AI
+                          </span>
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => window.open('/clinical-guide', '_blank')}

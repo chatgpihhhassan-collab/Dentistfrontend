@@ -24,6 +24,7 @@ const AIDentalNotesPage = lazy(() => import('./modules/aiDentalNotes/pages/AIDen
 const AIDentalNoteDetailPage = lazy(() => import('./modules/aiDentalNotes/pages/AIDentalNoteDetailPage'));
 const ClinicalGuidePage = lazy(() => import('./pages/ClinicalGuidePage'));
 const DoctorTreatmentPricing = lazy(() => import('./pages/DoctorTreatmentPricing'));
+const DentiaAIRadiologyStudioPage = lazy(() => import('./modules/aiRadiologyStudio/pages/DentiaAIRadiologyStudioPage'));
 
 // 🌟 Patient Portal Lazy Loaded Modules
 const PatientPortalLayout = lazy(() => import('./modules/patientPortal/layouts/PatientPortalLayout'));
@@ -110,6 +111,8 @@ export default function App() {
             {/* 🛡️ Protected Clinician Workspace & Clinical Patient Records */}
             <Route path="/directory" element={<ProtectedRoute><PatientDirectory /></ProtectedRoute>} />
             <Route path="/chart/:patientId" element={<ProtectedRoute><ChartPage /></ProtectedRoute>} />
+            <Route path="/chart/:patientId/ai-studio" element={<ProtectedRoute><DentiaAIRadiologyStudioPage /></ProtectedRoute>} />
+            <Route path="/ai-studio" element={<ProtectedRoute><DentiaAIRadiologyStudioPage /></ProtectedRoute>} />
             <Route path="/chart/:patientId/tooth" element={<ProtectedRoute><ToothDetailPage /></ProtectedRoute>} />
             <Route path="/chart/:patientId/tooth/:toothNumber" element={<ProtectedRoute><ToothDetailPage /></ProtectedRoute>} />
             <Route path="/new-patient" element={<ProtectedRoute><NewPatientPage /></ProtectedRoute>} />
