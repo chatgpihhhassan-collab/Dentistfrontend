@@ -1,861 +1,652 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
-  Mic, 
-  MicOff, 
+  Power, 
   Volume2, 
   VolumeX, 
-  Power, 
-  Minimize2, 
-  Send, 
-  Paperclip, 
   Sparkles, 
-  Copy, 
-  Check, 
+  CheckCircle2, 
+  HelpCircle,
   X,
-  Stethoscope,
-  ChevronDown,
-  ChevronRight,
-  Calendar,
-  ExternalLink,
-  Lock,
-  Shield,
+  Radio,
   Activity,
-  Zap
+  Layers,
+  Camera,
+  Calendar,
+  FileText,
+  UserCheck
 } from 'lucide-react';
-import ThreeDoctorHead from './ThreeDoctorHead';
-import { 
-  resolveDoctorInstruction, 
-  syncDynamicPatients, 
-  getDynamicPatients, 
-  searchClinicPatients 
-} from './clinicalDentalBrain';
 import aiVoice from '../../utils/aiVoiceAssistant';
 import { queryJarvis, executeJarvisAction } from '../../services/dentiaJarvisService';
+
+/**
+ * ==============================================================================
+ * DENTIA JARVIS CHAIRSIDE CLINICAL COPILOT (v2 Controller)
+ * ==============================================================================
+ * - Voice-first hands-free teammate: NO clunky text inputs or patient chat boxes.
+ * - Stays continuously ON until explicitly turned OFF by the doctor.
+ * - Toggled via Spacebar / dental foot-pedal, on-screen power switch, or "Jarvis off".
+ * - Ignores room background chatter unless addressed as "Jarvis, ...".
+ * - Sub-second local & cloud command execution across the entire dental platform.
+ * ==============================================================================
+ */
+
+const REQUIRE_NAME = true; // Acts only when addressed with "Jarvis" to protect patient privacy
 
 export default function Doctor3DAssistantWidget() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Master Enable / Disable Toggle (DORMANT by default for HIPAA privacy & zero eavesdropping)
-  const [isEnabled, setIsEnabled] = useState(() => {
+  // Never render inside the public patient self-service portal
+  const isPatientPortal = location.pathname.startsWith('/portal');
+
+  // Master ON/OFF State (Persisted in localStorage; default OFF/dormant)
+  const [running, setRunning] = useState(() => {
     try {
-      const saved = localStorage.getItem('dentia_3d_doctor_active');
-      return saved !== null ? saved === 'true' : false; // Default: DORMANT / OFF
+      return localStorage.getItem('dentia_jarvis_running') === 'true';
     } catch {
       return false;
     }
   });
 
-  // Never render in patient portal
-  const isPatientPortal = location.pathname.startsWith('/portal');
-
-  // UI States
-  const [isMinimized, setIsMinimized] = useState(false);
+  // UI Telemetry States
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
-  const [mood, setMood] = useState('neutral');
-  const [inputText, setInputText] = useState('');
-  const [copiedIndex, setCopiedIndex] = useState(null);
-  const [hasStartedChat, setHasStartedChat] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
-  // Active Doctor & Dynamic Patient Database Registry
+  // Live HUD Action Feedback (Auto-fades after 4 seconds)
+  const [lastAction, setLastAction] = useState(null); // { speech, chip, timestamp }
+  const [lastTranscript, setLastTranscript] = useState('');
+  const actionTimerRef = useRef(null);
+
+  // Active Doctor Information
   const [doctorName, setDoctorName] = useState('Doctor');
   const [doctorId, setDoctorId] = useState(2);
-  const [livePatients, setLivePatients] = useState(() => getDynamicPatients());
 
+  // Screen WakeLock Reference (keeps monitor awake during clinical procedures)
+  const wakeLockRef = useRef(null);
+  const recognitionRef = useRef(null);
+  const runningRef = useRef(running);
+  runningRef.current = running;
+
+  // Synchronize Doctor Profile
   useEffect(() => {
-    let docId = 2;
     try {
       const stored = localStorage.getItem('doctor');
       if (stored) {
         const d = JSON.parse(stored);
         if (d?.firstName) setDoctorName(d.firstName);
         else if (d?.username) setDoctorName(d.username);
-        if (d?.doctorID) docId = d.doctorID;
+        if (d?.doctorID) setDoctorId(d.doctorID);
       }
     } catch {}
-    setDoctorId(docId);
-
-    // Synchronize live patient records directly from Database
-    const fetchLivePatients = async () => {
-      try {
-        const res = await fetch(`/api/patients/doctor/${docId}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            syncDynamicPatients(data);
-            setLivePatients(data);
-          }
-        }
-      } catch (err) {
-        console.warn('[Doctor3DAssistant] Live patient DB sync notice:', err);
-      }
-    };
-    fetchLivePatients();
   }, []);
 
-  // Conversation history
-  const [chatLog, setChatLog] = useState([
-    {
-      sender: 'ai',
-      text: "Hello! I am your AI Health & Dental Copilot. Ask clinical questions, check contraindications, or instruct me to navigate.",
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
-  ]);
-
-  const recognitionRef = useRef(null);
-  const chatEndRef = useRef(null);
-
-  useEffect(() => {
-    if (hasStartedChat) {
-      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [chatLog, hasStartedChat]);
-
-  // 60-Second Inactivity Safety Timer (Auto-disengage to dormant)
-  const inactivityTimerRef = useRef(null);
-  const resetInactivityTimer = () => {
-    if (inactivityTimerRef.current) {
-      clearTimeout(inactivityTimerRef.current);
-    }
-    inactivityTimerRef.current = setTimeout(() => {
-      if (isEnabled) {
-        console.log('🔒 [Jarvis Copilot] Auto-sleeping after 60s of operatory silence');
-        stopListening();
-        setIsEnabled(false);
-        try { localStorage.setItem('dentia_3d_doctor_active', 'false'); } catch {}
-        aiVoice.playChime('sleep');
-      }
-    }, 60000); // 60s inactivity
-  };
-
-  const toggleEnabled = () => {
-    const nextVal = !isEnabled;
-    setIsEnabled(nextVal);
+  // Screen WakeLock Management
+  const requestWakeLock = async () => {
     try {
-      localStorage.setItem('dentia_3d_doctor_active', String(nextVal));
+      if ('wakeLock' in navigator && !wakeLockRef.current) {
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
+      }
+    } catch (e) {
+      console.warn('[Jarvis WakeLock] Notice:', e);
+    }
+  };
+
+  const releaseWakeLock = () => {
+    try {
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      }
     } catch {}
-    if (!nextVal) {
-      aiVoice.playChime('sleep');
-      stopListening();
-      aiVoice.stop();
-      setIsSpeaking(false);
-      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-    } else {
-      aiVoice.playChime('wake');
-      resetInactivityTimer();
-      setTimeout(() => toggleListening(), 250);
-    }
   };
 
-  // Hands-free Spacebar / Foot-switch toggle
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      const tag = document.activeElement?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) {
-        return;
-      }
-      if (e.code === 'Space' && !e.repeat) {
-        e.preventDefault();
-        if (!isEnabled) {
-          setIsEnabled(true);
-          try { localStorage.setItem('dentia_3d_doctor_active', 'true'); } catch {}
-          aiVoice.playChime('wake');
-          resetInactivityTimer();
-          setTimeout(() => toggleListening(), 200);
-        } else {
-          toggleListening();
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isEnabled, isListening]);
-
-  useEffect(() => {
-    const unsubscribe = aiVoice.subscribe((voiceState) => {
-      setIsSpeaking(voiceState.speaking);
-      if (voiceState.speaking && voiceState.currentText) {
-        setMood(voiceState.currentText.includes('Doctor, please check') ? 'alert' : 'success');
-      } else if (!voiceState.speaking) {
-        setMood('neutral');
-      }
+  // Helper to show floating clinical HUD feedback
+  const triggerHudFeedback = (speech, chip = null) => {
+    if (actionTimerRef.current) clearTimeout(actionTimerRef.current);
+    setLastAction({
+      speech,
+      chip,
+      timestamp: Date.now()
     });
-
-    return () => unsubscribe();
-  }, []);
-
-  const accumulatedTranscriptRef = useRef('');
-  const speechTimeoutRef = useRef(null);
-  const shouldKeepListeningRef = useRef(false);
-  const SILENCE_TIMEOUT_MS = 5000; // 5 seconds silence debounce before auto-forwarding speech to copilot
-
-  // Web Speech Recognition
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-
-      recognition.onstart = () => {
-        setIsListening(true);
-      };
-
-      recognition.onresult = (event) => {
-        // Acoustic feedback suppression: Ignore audio if AI is speaking
-        if (aiVoice.speaking) {
-          console.log('[Doctor3DAssistant] Suppressed mic input while AI is speaking');
-          return;
-        }
-
-        let interim = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const res = event.results[i];
-          if (res.isFinal) {
-            accumulatedTranscriptRef.current += (accumulatedTranscriptRef.current ? ' ' : '') + res[0].transcript.trim();
-          } else {
-            interim += (interim ? ' ' : '') + res[0].transcript.trim();
-          }
-        }
-
-        const liveCombined = (accumulatedTranscriptRef.current + (interim ? ' ' + interim : '')).trim();
-        if (liveCombined) {
-          setInputText(liveCombined);
-        }
-
-        // Debounce sentence completion: wait for 5000ms (5s) natural speech pause before forwarding
-        if (speechTimeoutRef.current) {
-          clearTimeout(speechTimeoutRef.current);
-        }
-        speechTimeoutRef.current = setTimeout(() => {
-          const fullSpoken = (accumulatedTranscriptRef.current + (interim ? ' ' + interim : '')).trim();
-          if (fullSpoken) {
-            accumulatedTranscriptRef.current = '';
-            setInputText('');
-            shouldKeepListeningRef.current = false;
-            stopListening();
-            handleDoctorSpokenCommand(fullSpoken);
-          }
-        }, SILENCE_TIMEOUT_MS);
-      };
-
-      recognition.onerror = (err) => {
-        console.warn('[Doctor3DAssistant] Speech Recognition Error:', err);
-        if (err.error !== 'no-speech') {
-          setIsListening(false);
-        }
-      };
-
-      recognition.onend = () => {
-        // If the browser ended audio but we are still waiting for speech within silence window, restart recognition
-        if (shouldKeepListeningRef.current) {
-          try {
-            recognition.start();
-            return;
-          } catch {}
-        }
-
-        setIsListening(false);
-        if (speechTimeoutRef.current) {
-          clearTimeout(speechTimeoutRef.current);
-          speechTimeoutRef.current = null;
-        }
-        const pending = (accumulatedTranscriptRef.current || '').trim();
-        accumulatedTranscriptRef.current = '';
-        if (pending) {
-          setInputText('');
-          handleDoctorSpokenCommand(pending);
-        }
-      };
-
-      recognitionRef.current = recognition;
-    }
-
-    return () => {
-      shouldKeepListeningRef.current = false;
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.abort();
-        } catch {}
-      }
-      if (speechTimeoutRef.current) {
-        clearTimeout(speechTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const toggleListening = () => {
-    if (!recognitionRef.current) {
-      alert('Speech Recognition is not supported by your browser. Please use Chrome, Edge, or Safari.');
-      return;
-    }
-
-    if (isListening) {
-      shouldKeepListeningRef.current = false;
-      stopListening();
-    } else {
-      try {
-        accumulatedTranscriptRef.current = '';
-        if (speechTimeoutRef.current) {
-          clearTimeout(speechTimeoutRef.current);
-          speechTimeoutRef.current = null;
-        }
-        shouldKeepListeningRef.current = true;
-        setInputText('');
-        recognitionRef.current.start();
-      } catch (e) {
-        console.warn('[Doctor3DAssistant] Recognition start error:', e);
-      }
-    }
+    actionTimerRef.current = setTimeout(() => {
+      setLastAction(null);
+    }, 4500);
   };
 
-  const stopListening = () => {
-    shouldKeepListeningRef.current = false;
-    if (speechTimeoutRef.current) {
-      clearTimeout(speechTimeoutRef.current);
-      speechTimeoutRef.current = null;
+  // --------------------------------------------------------------------------
+  // LOCAL FAST COMMAND ROUTER (0ms Latency, Zero Token Usage)
+  // --------------------------------------------------------------------------
+  const handleLocalCommand = (rawText) => {
+    const t = rawText.toLowerCase().trim();
+
+    // 1. Odontogram Tooth Condition Regex (e.g. "tooth 14 occlusal caries", "tooth 21 crown", "tooth 36 rct")
+    const toothMatch = t.match(/tooth\s+(\d{1,2})\s*(?:on\s+([modbl]+))?\s*(?:pe\s+)?(caries|decay|rct|root\s*canal|crown|implant|missing|filling|composite|fracture)/i);
+    if (toothMatch) {
+      const toothNum = parseInt(toothMatch[1], 10);
+      const surface = (toothMatch[2] || 'O').toUpperCase();
+      let condition = toothMatch[3].toLowerCase();
+      if (condition.includes('root') || condition === 'rct') condition = 'RCT';
+      else if (condition.includes('caries') || condition === 'decay') condition = 'Caries';
+      else if (condition.includes('crown')) condition = 'Crown';
+      else if (condition.includes('implant')) condition = 'Implant';
+      else if (condition.includes('missing')) condition = 'Missing';
+      else condition = 'Composite';
+
+      window.dispatchEvent(new CustomEvent('dentia:voice:chart-update', {
+        detail: { toothNumber: toothNum, surface, condition }
+      }));
+
+      const reply = `Done, Doctor. Tooth ${toothNum}, ${condition} marked.`;
+      if (!isAudioMuted) {
+        aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      }
+      triggerHudFeedback(reply, `Tooth #${toothNum} • ${condition}`);
+      return true;
     }
-    const pending = (accumulatedTranscriptRef.current || '').trim();
-    accumulatedTranscriptRef.current = '';
-    if (pending) {
-      setInputText('');
-      handleDoctorSpokenCommand(pending);
+
+    // 2. Hardware: Soredex Digora Scanner
+    if (/connect\s+digora|open\s+digora|arm\s+digora/i.test(t)) {
+      window.dispatchEvent(new CustomEvent('dentia:voice:open-digora'));
+      const reply = "Soredex Digora Optime scanner armed and ready, Doctor.";
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      triggerHudFeedback(reply, "Digora Scanner Armed");
+      return true;
     }
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch {}
+
+    // 3. Hardware: NanoPix RVG Sensor
+    if (/open\s+nanopix|connect\s+nanopix|arm\s+sensor/i.test(t)) {
+      window.dispatchEvent(new CustomEvent('dentia:voice:open-nanopix'));
+      const reply = "NanoPix RVG sensor modal active, Doctor.";
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      triggerHudFeedback(reply, "NanoPix Sensor Active");
+      return true;
     }
-    setIsListening(false);
+
+    // 4. Hardware: Intraoral Camera
+    if (/open\s+camera|launch\s+camera/i.test(t)) {
+      window.dispatchEvent(new CustomEvent('dentia:voice:open-camera'));
+      const reply = "Intraoral camera view ready for capture, Doctor.";
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      triggerHudFeedback(reply, "Intraoral Camera Ready");
+      return true;
+    }
+
+    // 5. Navigation: Schedule
+    if (/(?:go\s+to|open)\s+schedule|calendar|timetable/i.test(t)) {
+      navigate('/appointments');
+      const reply = "Opening operatory schedule, Doctor.";
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      triggerHudFeedback(reply, "Schedule Loaded");
+      return true;
+    }
+
+    // 6. Navigation: Directory
+    if (/(?:go\s+to|open)\s+directory|patient\s+list/i.test(t)) {
+      navigate('/directory');
+      const reply = "Opening patient directory, Doctor.";
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      triggerHudFeedback(reply, "Directory Loaded");
+      return true;
+    }
+
+    // 7. Navigation: Guidelines
+    if (/(?:go\s+to|open)\s+guidelines|manual/i.test(t)) {
+      navigate('/guidelines');
+      const reply = "Opening clinical guidelines manual, Doctor.";
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      triggerHudFeedback(reply, "Guidelines Opened");
+      return true;
+    }
+
+    return false;
   };
 
-  const lastProcessedTranscriptRef = useRef({ text: '', timestamp: 0 });
+  // --------------------------------------------------------------------------
+  // INTELLIGENT COMMAND EXECUTION (Groq LLM + Platform Integration)
+  // --------------------------------------------------------------------------
+  const processDoctorCommand = async (commandText) => {
+    setIsProcessing(true);
+    setLastTranscript(commandText);
 
-  const handleDoctorSpokenCommand = async (transcript) => {
-    if (!transcript || !transcript.trim()) return;
-
-    const trimmed = transcript.trim();
-    const now = Date.now();
-
-    // Prevent acoustic feedback echo and duplicate rapid-fire utterances within 2000ms
-    if (
-      lastProcessedTranscriptRef.current.text.toLowerCase() === trimmed.toLowerCase() &&
-      now - lastProcessedTranscriptRef.current.timestamp < 2000
-    ) {
-      console.log('🔇 [Doctor3DAssistant] Suppressed duplicate speech echo:', trimmed);
-      return;
-    }
-    lastProcessedTranscriptRef.current = { text: trimmed, timestamp: now };
-
-    // Don't process input if AI is actively speaking
-    if (aiVoice.speaking) {
-      console.log('🔇 [Doctor3DAssistant] Skipped command while AI is speaking');
+    // Fast path: try local handler first
+    if (handleLocalCommand(commandText)) {
+      setIsProcessing(false);
       return;
     }
 
-    setHasStartedChat(true);
-
-    const doctorMsg = {
-      sender: 'doctor',
-      text: transcript,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-    setChatLog(prev => [...prev, doctorMsg]);
-
+    // Cloud path: Query Groq LLM (sub-second response)
     let activePatientId = null;
     if (location.pathname.startsWith('/chart/')) {
       activePatientId = location.pathname.split('/')[2];
     }
-
-    const pool = (livePatients && livePatients.length > 0) ? livePatients : getDynamicPatients();
     const isAuth = Boolean(localStorage.getItem('doctor'));
 
-    // Temporarily pause mic while speaking to eliminate acoustic feedback
-    if (recognitionRef.current && isListening) {
-      try {
-        recognitionRef.current.stop();
-      } catch {}
-      setIsListening(false);
-    }
+    try {
+      const jarvisRes = await queryJarvis(commandText, {
+        pathname: location.pathname,
+        patientId: activePatientId,
+        doctorName: doctorName,
+        isAuthenticated: isAuth
+      });
 
-    // Reset inactivity timer on active command
-    resetInactivityTimer();
+      const replySpeech = jarvisRes.reply || jarvisRes.speech || "Done, Doctor.";
 
-    // Query Real-Time Intelligent Jarvis Engine (Groq LLM)
-    const jarvisRes = await queryJarvis(transcript, {
-      pathname: location.pathname,
-      patientId: activePatientId,
-      doctorName: doctorName,
-      isAuthenticated: isAuth,
-      patients: pool
-    });
-
-    const aiMsg = {
-      sender: 'ai',
-      category: jarvisRes.action?.type !== 'NONE' ? jarvisRes.action?.type : 'Jarvis Copilot',
-      title: jarvisRes.action?.type && jarvisRes.action.type !== 'NONE' ? `Action: ${jarvisRes.action.type}` : 'Jarvis Response',
-      text: jarvisRes.reply,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-    setChatLog(prev => [...prev, aiMsg]);
-
-    // Handle Sleep / Mute Directive
-    if (jarvisRes.action && jarvisRes.action.type === 'SLEEP') {
-      aiVoice.playChime('sleep');
-      if (!isAudioMuted && jarvisRes.reply) {
-        aiVoice.speak(jarvisRes.reply, { rate: 1.02, pitch: 1.08 });
+      // 1. Speak aloud in lady voice
+      if (!isAudioMuted && replySpeech) {
+        aiVoice.playChime('success');
+        aiVoice.speak(replySpeech, { rate: 1.02, pitch: 1.08 });
       }
-      stopListening();
-      setIsEnabled(false);
-      try { localStorage.setItem('dentia_3d_doctor_active', 'false'); } catch {}
-      return;
-    }
 
-    // Speak intelligent, non-repetitive response in natural Lady Voice
-    if (!isAudioMuted && jarvisRes.reply) {
-      aiVoice.playChime('success');
-      aiVoice.speak(jarvisRes.reply, { rate: 1.02, pitch: 1.08 });
-    }
+      // 2. Trigger HUD visual chip
+      let chipLabel = jarvisRes.action?.type !== 'NONE' ? jarvisRes.action?.type : 'Jarvis Copilot';
+      if (jarvisRes.action?.type === 'CHART_UPDATE') chipLabel = `Tooth #${jarvisRes.action.data?.toothNumber || ''} Updated`;
+      if (jarvisRes.action?.type === 'OPEN_CHART') chipLabel = `Chart #${jarvisRes.action.patientId} Loaded`;
+      if (jarvisRes.action?.type === 'AUTO_LOGIN') chipLabel = `Doctor Authenticated`;
+      triggerHudFeedback(replySpeech, chipLabel);
 
-    // Execute Autonomous Platform Action (Login, Navigation, Charting, Modals)
-    if (jarvisRes.action) {
-      await executeJarvisAction(jarvisRes.action, navigate, activePatientId);
-    }
-
-    // Handle Dynamic Patient Database Search (fallback when not immediately resolved)
-    if (resolution.action && resolution.action.type === 'PATIENT_LOOKUP') {
-      const pName = resolution.action.patientName;
-      try {
-        // Query both live search endpoint and doctor's patient list in parallel
-        const [searchRes, docListRes] = await Promise.allSettled([
-          fetch(`/api/patients/search?name=${encodeURIComponent(pName)}`),
-          fetch(`/api/patients/doctor/${doctorId}`)
-        ]);
-
-        let foundPatient = null;
-        if (docListRes.status === 'fulfilled' && docListRes.value.ok) {
-          const freshList = await docListRes.value.json();
-          if (Array.isArray(freshList) && freshList.length > 0) {
-            syncDynamicPatients(freshList);
-            setLivePatients(freshList);
-            const matches = searchClinicPatients(transcript, freshList);
-            if (matches.length > 0) {
-              foundPatient = matches[0];
-            }
-          }
-        }
-
-        if (!foundPatient && searchRes.status === 'fulfilled' && searchRes.value.ok) {
-          const p = await searchRes.value.json();
-          if (p && (p.patientID || p.id)) {
-            const pid = p.patientID || p.id;
-            foundPatient = {
-              id: pid,
-              patientID: pid,
-              firstName: p.firstName,
-              lastName: p.lastName,
-              dentition: p.dentitionType || 'Adult'
-            };
-          }
-        }
-
-        if (foundPatient) {
-          const pid = foundPatient.patientID || foundPatient.id;
-          const foundMsg = {
-            sender: 'ai',
-            category: 'Patient Navigation',
-            title: `Patient Dental Chart: ${foundPatient.firstName} ${foundPatient.lastName}`,
-            text: `Opening dental chart for ${foundPatient.firstName} ${foundPatient.lastName} (Patient ID #${pid}, ${foundPatient.dentition || 'Adult'} Arch), Doctor. Synchronizing 3D jaws.`,
-            patientsList: [{
-              id: pid,
-              patientID: pid,
-              firstName: foundPatient.firstName,
-              lastName: foundPatient.lastName,
-              dentition: foundPatient.dentition || 'Adult'
-            }],
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          };
-          setChatLog(prev => [...prev.slice(0, -1), foundMsg]);
-          if (!isAudioMuted) {
-            aiVoice.speak(foundMsg.text, { rate: 1.0, pitch: 1.05 });
-          }
-          setTimeout(() => {
-            navigate(`/chart/${pid}`);
-          }, 1200);
+      // 3. Execute platform action
+      if (jarvisRes.action) {
+        if (jarvisRes.action.type === 'SLEEP') {
+          jarvisOff();
           return;
         }
-      } catch (err) {
-        console.warn('[Doctor3DAssistant] Dynamic Patient search error:', err);
+        await executeJarvisAction(jarvisRes.action, navigate, activePatientId);
       }
+    } catch (err) {
+      console.error('[Jarvis] Execution Error:', err);
+      const fallbackMsg = "Doctor, I am ready. Please repeat the command.";
+      if (!isAudioMuted) aiVoice.speak(fallbackMsg, { rate: 1.0 });
+      triggerHudFeedback(fallbackMsg, "Awaiting Command");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
-      // If not found in database, present directory and option cards
-      const notFoundMsg = {
-        sender: 'ai',
-        category: 'Patient Directory',
-        title: `Search: ${pName}`,
-        text: `Doctor, I could not find an exact patient record for "${pName}". You can open the directory or select from our clinic registry:`,
-        patientsList: resolution.patientsList || (livePatients && livePatients.slice(0, 4)) || null,
-        pagesList: [
-          { id: 'directory', title: 'Open Patient Directory', path: `/directory?search=${encodeURIComponent(pName)}`, subtitle: `Search for "${pName}" in directory`, badge: 'Directory' }
-        ],
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      setChatLog(prev => [...prev.slice(0, -1), notFoundMsg]);
+  // --------------------------------------------------------------------------
+  // SPEECH RECOGNITION (Browser Web Speech API - Continuous Loop)
+  // --------------------------------------------------------------------------
+  const onSpeechResult = useCallback((rawTranscript) => {
+    let text = rawTranscript.trim();
+    if (!text) return;
+
+    const lower = text.toLowerCase();
+
+    // 1. Voice Turn OFF (always active)
+    if (/jarvis.*(?:off|stop|band\s*karo|so\s*jao)|(?:band\s*karo|so\s*jao)\s*jarvis/i.test(lower)) {
       if (!isAudioMuted) {
-        aiVoice.speak(notFoundMsg.text, { rate: 1.0, pitch: 1.05 });
+        aiVoice.speak('Switching off, Doctor.', { rate: 1.02, pitch: 1.08 });
       }
+      triggerHudFeedback('Switching off, Doctor.', 'Jarvis Inactive');
+      jarvisOff();
       return;
     }
 
-    if (!isAudioMuted) {
-      aiVoice.speak(resolution.text, { rate: 1.0, pitch: 1.05 });
+    // 2. Filtering for "Jarvis" Wake-Word
+    if (REQUIRE_NAME) {
+      if (!lower.includes('jarvis')) {
+        // Ignores doctor-patient chatter during surgery
+        return;
+      }
+      // Strip "Jarvis" prefix
+      text = text.replace(/^(?:hey\s+|hi\s+|ok\s+|hello\s+)?jarvis[,:\s]*/i, '').trim();
+
+      // If doctor called only "Jarvis"
+      if (!text) {
+        const promptReply = "Yes, Doctor?";
+        if (!isAudioMuted) aiVoice.speak(promptReply, { rate: 1.05, pitch: 1.1 });
+        triggerHudFeedback(promptReply, "Listening...");
+        return;
+      }
+    }
+
+    processDoctorCommand(text);
+  }, [isAudioMuted, location.pathname, doctorName]);
+
+  const startMic = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.warn('[Jarvis] Web Speech API not supported in this browser.');
+      return;
+    }
+
+    try {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort(); } catch {}
+      }
+
+      const rec = new SpeechRecognition();
+      rec.continuous = true;
+      rec.interimResults = false;
+      rec.lang = 'en-US';
+
+      rec.onstart = () => {
+        setIsListening(true);
+      };
+
+      rec.onresult = (e) => {
+        // Acoustic feedback suppression: don't listen to self while Jarvis speaks
+        if (aiVoice.speaking) return;
+
+        const lastResult = e.results[e.results.length - 1];
+        if (lastResult && lastResult.isFinal) {
+          const spoken = lastResult[0]?.transcript?.trim();
+          if (spoken) onSpeechResult(spoken);
+        }
+      };
+
+      rec.onerror = (e) => {
+        console.warn('[Jarvis Mic Notice]:', e.error);
+        if (e.error === 'not-allowed') {
+          jarvisOff();
+        }
+      };
+
+      // Continuous loop: if browser stops recognition while Jarvis is ON, restart in 300ms
+      rec.onend = () => {
+        setIsListening(false);
+        if (runningRef.current) {
+          setTimeout(() => {
+            if (runningRef.current) {
+              try { rec.start(); } catch {}
+            }
+          }, 300);
+        }
+      };
+
+      rec.start();
+      recognitionRef.current = rec;
+    } catch (err) {
+      console.warn('[Jarvis StartMic Error]:', err);
     }
   };
 
-  const handleTextSubmit = (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-    if (isListening) {
-      stopListening();
+  const stopMic = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.onend = null;
+      try { recognitionRef.current.abort(); } catch {}
+      recognitionRef.current = null;
     }
-    if (inputText.trim()) {
-      handleDoctorSpokenCommand(inputText);
-      setInputText('');
-    }
+    setIsListening(false);
   };
 
-  const copyToClipboard = (text, index) => {
-    navigator.clipboard?.writeText(text);
-    setCopiedIndex(index);
-    setTimeout(() => setCopiedIndex(null), 2000);
+  // --------------------------------------------------------------------------
+  // MASTER ON / OFF CONTROLLERS (Doctor Exclusive Control)
+  // --------------------------------------------------------------------------
+  const jarvisOn = async () => {
+    if (running) return;
+    setRunning(true);
+    runningRef.current = true;
+    try { localStorage.setItem('dentia_jarvis_running', 'true'); } catch {}
+    aiVoice.playChime('wake');
+    await requestWakeLock();
+    startMic();
+    triggerHudFeedback("Jarvis online, Doctor. Say 'Jarvis, ...'", "Active");
   };
 
-  // Symptom / Quick Topic Pills matching the exact layout of the user's sample image!
-  const topicPillsRow1 = [
-    { label: 'Toothache', cmd: 'What is the treatment for toothache and deep caries?' },
-    { label: 'Sensitivity', cmd: 'What causes dentin hypersensitivity and how to treat?' },
-    { label: 'Bleeding Gums', cmd: 'Protocol for bleeding gums and periodontitis' }
-  ];
+  const jarvisOff = () => {
+    setRunning(false);
+    runningRef.current = false;
+    try { localStorage.setItem('dentia_jarvis_running', 'false'); } catch {}
+    aiVoice.playChime('sleep');
+    stopMic();
+    releaseWakeLock();
+    aiVoice.stop();
+  };
 
-  const topicPillsRow2 = [
-    { label: 'Bone Graft', cmd: 'Explain dental bone graft procedure' },
-    { label: 'Penicillin Allergy', cmd: 'Check penicillin allergy contraindications' },
-    { label: 'Schedule', cmd: 'Go to appointments schedule' }
-  ];
+  const toggleJarvis = () => (runningRef.current ? jarvisOff() : jarvisOn());
 
-  // Never render in patient portal
-  if (isPatientPortal) {
-    return null;
-  }
+  // Hands-free Spacebar / Foot-Pedal Listener
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const activeEl = document.activeElement;
+      const isInput = activeEl && (
+        activeEl.tagName === 'INPUT' || 
+        activeEl.tagName === 'TEXTAREA' || 
+        activeEl.isContentEditable
+      );
+      if (e.code === 'Space' && !isInput && !e.repeat) {
+        e.preventDefault();
+        toggleJarvis();
+      }
+    };
 
-  // =========================================================================
-  // RENDER 1: DISABLED / DORMANT STATE (Sleek Jarvis Lock Capsule)
-  // =========================================================================
-  if (!isEnabled) {
-    return (
-      <aside aria-label="Jarvis AI Clinical Copilot" className="fixed bottom-5 right-5 z-50">
-        <button
-          onClick={toggleEnabled}
-          className="flex items-center gap-2.5 px-4 py-2.5 bg-[#10244B] hover:bg-[#1A3668] text-white rounded-full shadow-2xl border border-[#EAA638]/70 backdrop-blur-md transition-all duration-300 hover:scale-105 group cursor-pointer"
-          title="Activate Jarvis Voice Copilot (or press Spacebar)"
-        >
-          <div className="w-6 h-6 rounded-full bg-[#EAA638]/20 flex items-center justify-center text-[#EAA638] group-hover:scale-110 transition-transform">
-            <Lock className="w-3.5 h-3.5" />
-          </div>
-          <div className="text-left">
-            <p className="text-xs font-bold leading-none text-white tracking-wide">JARVIS CLINICAL AI</p>
-            <p className="text-[10px] text-[#EAA638] font-medium mt-0.5">Muted • Press Space to Wake</p>
-          </div>
-          <Power className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#EAA638] ml-1" />
-        </button>
-      </aside>
-    );
-  }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
-  // =========================================================================
-  // RENDER 2: MINIMIZED BUBBLE
-  // =========================================================================
-  if (isMinimized) {
-    return (
-      <aside aria-label="3D Doctor Assistant Controls" className="fixed bottom-5 right-5 z-50 flex items-center gap-2">
-        <div 
-          onClick={() => setIsMinimized(false)}
-          className="relative w-15 h-15 rounded-full bg-gradient-to-tr from-[#eaf6f4] to-white border-2 border-teal-400 shadow-xl cursor-pointer overflow-hidden transition-all duration-300 hover:scale-110 flex items-center justify-center group ring-4 ring-teal-500/10"
-          title="Expand AI Assistant"
-        >
-          <ThreeDoctorHead 
-            isSpeaking={isSpeaking} 
-            isListening={isListening} 
-            mood={mood}
-            className="w-full h-full"
-          />
-          {isListening && (
-            <span className="absolute bottom-1 right-1 w-3 h-3 bg-rose-500 rounded-full border-2 border-white animate-pulse" />
-          )}
-          {isSpeaking && (
-            <span className="absolute top-1 right-1 w-3 h-3 bg-teal-400 rounded-full border-2 border-white animate-ping" />
-          )}
-        </div>
-        <button
-          onClick={toggleEnabled}
-          className="p-2 rounded-full bg-white/90 border border-slate-200 text-slate-400 hover:text-rose-500 shadow-md transition cursor-pointer"
-          title="Turn Off AI Assistant"
-        >
-          <Power className="w-3.5 h-3.5" />
-        </button>
-      </aside>
-    );
-  }
+  // Sync TTS Speaking State
+  useEffect(() => {
+    const unsubscribe = aiVoice.subscribe((voiceState) => {
+      setIsSpeaking(voiceState.speaking);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopMic();
+      releaseWakeLock();
+      if (actionTimerRef.current) clearTimeout(actionTimerRef.current);
+    };
+  }, []);
+
+  if (isPatientPortal) return null;
 
   // =========================================================================
-  // RENDER 3: PERFECT REPLICA OF USER SAMPLE CARD
+  // RENDER: FUTURISTIC CHAIRSIDE DYNAMIC HUD (OpenJarvis Aesthetic)
   // =========================================================================
   return (
-    <aside aria-label="3D Doctor Assistant Controls" className="fixed bottom-5 right-5 z-50 w-[360px] sm:w-[380px] max-w-[calc(100vw-1.5rem)] rounded-[32px] bg-gradient-to-b from-[#e8f6f5] via-[#f7fbfa] to-[#ffffff] border border-teal-100 shadow-[0_20px_60px_rgba(15,118,110,0.12)] text-slate-800 flex flex-col overflow-hidden font-sans transition-all duration-300 ring-1 ring-black/[0.04]">
-      
-      {/* Top Controls Bar (Subtle & clean) */}
-      <div className="flex items-center justify-between px-4 pt-3 pb-1">
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-white/80 border border-teal-100 text-teal-700 shadow-xs">
-          <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
-          {isListening ? 'Listening... (5s pause sends)' : isSpeaking ? 'Speaking...' : 'Online & Ready'}
-        </span>
-
-        <div className="flex items-center gap-1 text-slate-400">
-          <button 
-            onClick={() => setIsAudioMuted(!isAudioMuted)} 
-            className={`p-1.5 rounded-full transition cursor-pointer ${isAudioMuted ? 'text-amber-500 bg-amber-50' : 'hover:text-slate-700 hover:bg-white/60'}`}
-            title={isAudioMuted ? "Unmute Voice" : "Mute Voice"}
-          >
-            {isAudioMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-          </button>
-          
-          <button 
-            onClick={() => setIsMinimized(true)} 
-            className="p-1.5 rounded-full hover:text-slate-700 hover:bg-white/60 transition cursor-pointer"
-            title="Minimize"
-          >
-            <Minimize2 className="w-3.5 h-3.5" />
-          </button>
-
-          <button 
-            onClick={toggleEnabled} 
-            className="p-1.5 rounded-full text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition cursor-pointer"
-            title="Close Assistant"
-          >
-            <Power className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {/* 3D Cute Robot Canvas with Floating Speech Bubbles */}
-      <div className="relative w-full h-[180px] flex items-center justify-center">
-        <ThreeDoctorHead 
-          isSpeaking={isSpeaking} 
-          isListening={isListening} 
-          mood={mood} 
-          className="w-full h-full"
-        />
-      </div>
-
-      {/* Headline & Subtitle (Exact layout from user sample!) */}
-      <div className="px-5 text-center mt-1 mb-3">
-        <h2 className="text-base sm:text-lg font-bold text-slate-800 tracking-tight leading-snug">
-          Hey, {doctorName},
-        </h2>
-        <p className="text-sm sm:text-base font-semibold text-slate-800 tracking-tight leading-snug mt-0.5">
-          How Can I Help You With Your Health Today?
-        </p>
-      </div>
-
-      {/* Chat Conversation Area (Shows when user starts speaking or asks a question) */}
-      {hasStartedChat && (
-        <div className="mx-4 mb-3 max-h-[220px] overflow-y-auto px-3 py-2 space-y-2 bg-white/90 rounded-2xl border border-slate-200/70 shadow-xs [scrollbar-width:thin] [scrollbar-color:rgba(0,0,0,0.15)_transparent] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
-          {chatLog.map((msg, index) => (
-            <div 
-              key={index}
-              className={`flex flex-col ${msg.sender === 'doctor' ? 'items-end' : 'items-start'}`}
-            >
-              <div className={`max-w-[92%] rounded-2xl px-3 py-2 text-xs leading-relaxed relative group ${
-                msg.sender === 'doctor'
-                  ? 'bg-[#00a896] text-white rounded-br-none shadow-xs'
-                  : 'bg-slate-50 text-slate-800 border border-slate-200/80 rounded-bl-none shadow-xs'
-              }`}>
-                {msg.title && (
-                  <p className="text-[10px] font-bold text-teal-700 mb-0.5">{msg.title}</p>
-                )}
-                <p>{msg.text}</p>
-
-                {/* Interactive Patient Selection Cards */}
-                {msg.patientsList && msg.patientsList.length > 0 && (
-                  <div className="mt-2.5 space-y-1.5 w-full">
-                    {msg.patientsList.map((p) => {
-                      const pid = p.patientID || p.id;
-                      return (
-                        <div 
-                          key={pid}
-                          className="flex items-center justify-between p-2 rounded-xl bg-white border border-teal-100 hover:border-[#00a896] hover:shadow-xs transition"
-                        >
-                          <div className="flex items-center gap-2 min-w-0 pr-2">
-                            <div className="w-7 h-7 rounded-full bg-teal-50 border border-teal-200 text-[#00a896] font-bold text-[10px] flex items-center justify-center shrink-0">
-                              {p.firstName ? p.firstName[0].toUpperCase() : 'P'}{p.lastName ? p.lastName[0].toUpperCase() : ''}
-                            </div>
-                            <div className="min-w-0 text-left">
-                              <p className="text-[11px] font-semibold text-slate-800 truncate leading-tight">
-                                {p.firstName} {p.lastName} <span className="text-[9px] font-normal text-slate-400">#{pid}</span>
-                              </p>
-                              <p className="text-[9px] text-teal-600 font-medium truncate leading-tight">
-                                {p.dentition || 'Adult Arch'}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigate(`/chart/${pid}`);
-                              if (!isAudioMuted) {
-                                aiVoice.speak(`Opening dental chart for ${p.firstName} ${p.lastName}, Doctor.`);
-                              }
-                            }}
-                            className="shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-[#00a896] text-teal-700 hover:text-white border border-teal-200 hover:border-[#00a896] transition cursor-pointer flex items-center gap-0.5 shadow-2xs"
-                          >
-                            Chart
-                            <ChevronRight className="w-3 h-3" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Interactive Pages List Chips */}
-                {msg.pagesList && msg.pagesList.length > 0 && (
-                  <div className="mt-2.5 grid grid-cols-1 gap-1.5 w-full">
-                    {msg.pagesList.map((pg) => (
-                      <button
-                        key={pg.id}
-                        type="button"
-                        onClick={() => {
-                          navigate(pg.path);
-                          if (!isAudioMuted) {
-                            aiVoice.speak(`Opening ${pg.title}, Doctor.`);
-                          }
-                        }}
-                        className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200 hover:border-[#00a896] hover:bg-teal-50/40 hover:shadow-2xs text-left transition cursor-pointer group/pg w-full"
-                      >
-                        <div className="min-w-0 pr-1.5">
-                          <p className="text-[11px] font-semibold text-slate-800 group-hover/pg:text-[#00a896] transition leading-tight">
-                            {pg.title}
-                          </p>
-                          <p className="text-[9px] text-slate-400 truncate leading-tight">
-                            {pg.subtitle}
-                          </p>
-                        </div>
-                        <span className="shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded bg-slate-100 group-hover/pg:bg-teal-100 group-hover/pg:text-teal-700 text-slate-600 transition">
-                          {pg.badge}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {msg.sender === 'ai' && (
-                  <button
-                    onClick={() => copyToClipboard(msg.text, index)}
-                    className="absolute top-1.5 right-1.5 p-1 rounded bg-white/80 text-slate-400 hover:text-slate-700 opacity-0 group-hover:opacity-100 transition cursor-pointer"
-                    title="Copy"
-                  >
-                    {copiedIndex === index ? <Check className="w-2.5 h-2.5 text-emerald-600" /> : <Copy className="w-2.5 h-2.5" />}
-                  </button>
+    <>
+      {/* FLOATING ACTION RESPONSE HUD CARD (Appears when Jarvis executes or speaks) */}
+      {lastAction && (
+        <div className="fixed bottom-24 right-6 z-50 animate-in fade-in slide-in-from-bottom-3 duration-250 max-w-sm pointer-events-auto">
+          <div className="bg-[#10244B]/95 backdrop-blur-xl border border-cyan-500/40 rounded-2xl p-3.5 shadow-[0_15px_40px_rgba(0,168,150,0.25)] text-white flex items-start gap-3">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500 to-teal-400 flex items-center justify-center shrink-0 shadow-md shadow-cyan-500/30">
+              <Sparkles className="w-4 h-4 text-white animate-pulse" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-[11px] font-bold text-cyan-300 tracking-wider uppercase flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+                  Jarvis Voice Copilot
+                </span>
+                {lastAction.chip && (
+                  <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-200 text-[10px] font-semibold border border-cyan-400/30 truncate">
+                    {lastAction.chip}
+                  </span>
                 )}
               </div>
-              <span className="text-[8px] text-slate-400 mt-0.5 px-1">{msg.time}</span>
+              <p className="text-xs text-slate-100 font-medium leading-relaxed">
+                "{lastAction.speech}"
+              </p>
             </div>
-          ))}
-          <div ref={chatEndRef} />
+          </div>
         </div>
       )}
 
-      {/* Topic / Symptom Pills (Exact replica of sample layout: 2 clean centered rows) */}
-      <div className="px-4 mb-4 space-y-2">
-        {/* Row 1 */}
-        <div className="flex items-center justify-center gap-2">
-          {topicPillsRow1.map((pill, i) => (
-            <button
-              key={i}
-              onClick={() => handleDoctorSpokenCommand(pill.cmd)}
-              className="bg-white border border-slate-200/90 hover:border-[#00a896] text-slate-700 hover:text-[#00a896] px-3.5 py-1.5 rounded-2xl text-xs font-medium shadow-xs hover:shadow-sm transition-all duration-150 cursor-pointer active:scale-95 whitespace-nowrap"
-            >
-              {pill.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Row 2 */}
-        <div className="flex items-center justify-center gap-2">
-          {topicPillsRow2.map((pill, i) => (
-            <button
-              key={i}
-              onClick={() => handleDoctorSpokenCommand(pill.cmd)}
-              className="bg-white border border-slate-200/90 hover:border-[#00a896] text-slate-700 hover:text-[#00a896] px-3.5 py-1.5 rounded-2xl text-xs font-medium shadow-xs hover:shadow-sm transition-all duration-150 cursor-pointer active:scale-95 whitespace-nowrap"
-            >
-              {pill.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Bottom Input Bar (Exact match to sample: White capsule + Vibrant Teal Send Button) */}
-      <div className="p-4 pt-1 bg-gradient-to-b from-transparent to-white flex items-center gap-2">
-        {/* White Capsule Container */}
-        <form onSubmit={handleTextSubmit} className="flex-1 bg-white border border-slate-200/90 rounded-full px-3.5 py-2 flex items-center gap-2 shadow-xs focus-within:border-[#00a896] focus-within:ring-2 focus-within:ring-[#00a896]/15 transition">
-          {/* Mic Button */}
-          <button
-            type="button"
-            onClick={toggleListening}
-            className={`p-1 rounded-full transition cursor-pointer ${
-              isListening ? 'text-rose-500 animate-pulse scale-110' : 'text-slate-400 hover:text-[#00a896]'
-            }`}
-            title={isListening ? "Listening... Click to stop" : "Speak to AI Assistant"}
+      {/* MASTER CHAIRSIDE CONTROLLER HUD CAPSULE */}
+      <aside 
+        aria-label="Jarvis Chairside Voice Assistant" 
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 select-none pointer-events-auto"
+      >
+        {/* DORMANT / OFF STATE CAPSULE */}
+        {!running ? (
+          <div 
+            onClick={jarvisOn}
+            className="group flex items-center gap-3 px-4 py-2.5 bg-[#10244B]/95 hover:bg-[#152e5d] text-white rounded-full shadow-[0_10px_30px_rgba(16,36,75,0.35)] border border-[#EAA638]/60 backdrop-blur-xl transition-all duration-300 hover:scale-105 cursor-pointer ring-1 ring-white/10"
+            title="Click or press Spacebar / Foot-pedal to activate Jarvis"
           >
-            {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-          </button>
+            <div className="w-7 h-7 rounded-full bg-[#EAA638]/20 flex items-center justify-center text-[#EAA638] group-hover:scale-110 transition-transform">
+              <Power className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-white tracking-wider">JARVIS COPILOT</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.2 bg-amber-500/20 text-[#EAA638] rounded-md border border-[#EAA638]/40">
+                  OFF
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-300 font-medium mt-0.5">
+                Press <span className="text-[#EAA638] font-bold">[Space]</span> or Foot-Pedal to Wake
+              </p>
+            </div>
+          </div>
+        ) : (
+          /* ACTIVE / LISTENING CHAIRSIDE HUD (Runs until doctor turns OFF) */
+          <div className="flex items-center gap-2 bg-[#10244B]/95 backdrop-blur-xl border border-cyan-400/50 rounded-full px-4 py-2 shadow-[0_12px_35px_rgba(0,168,150,0.3)] ring-2 ring-cyan-500/20 transition-all duration-300">
+            
+            {/* Holographic Glowing Voice Equalizer */}
+            <div className="flex items-center gap-1 h-5 px-1">
+              {[0.4, 0.9, 0.6, 1.0, 0.5].map((scale, i) => (
+                <span 
+                  key={i} 
+                  className={`w-1 bg-gradient-to-t from-teal-400 to-cyan-300 rounded-full transition-all duration-150 ${
+                    isSpeaking 
+                      ? 'animate-bounce' 
+                      : isListening 
+                        ? 'animate-pulse' 
+                        : 'opacity-40 h-2'
+                  }`}
+                  style={{
+                    height: isSpeaking ? `${scale * 18}px` : isListening ? `${scale * 12}px` : '6px',
+                    animationDelay: `${i * 120}ms`
+                  }}
+                />
+              ))}
+            </div>
 
-          {/* Text Input */}
-          <input
-            type="text"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder={isListening ? "Listening... (speak naturally, 5s pause sends)..." : "Ask anything, search patient, or say 'open'..."}
-            className="flex-1 text-xs text-slate-800 placeholder-slate-400 bg-transparent focus:outline-none"
-          />
+            {/* Status Information */}
+            <div className="pl-1 pr-2">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                <span className="text-xs font-extrabold text-white tracking-wide">JARVIS LISTENING</span>
+              </div>
+              <p className="text-[10px] text-cyan-200/90 font-medium leading-none mt-0.5">
+                Say <span className="text-white font-bold">"Jarvis, ..."</span> • Stays Active
+              </p>
+            </div>
 
-          {/* Paperclip Attachment Icon */}
-          <button
-            type="button"
-            onClick={() => handleDoctorSpokenCommand("Check latest patient radiographs and attachments")}
-            className="text-slate-400 hover:text-slate-600 p-0.5 transition cursor-pointer"
-            title="Attach / Check records"
-          >
-            <Paperclip className="w-4 h-4 rotate-45" />
-          </button>
-        </form>
+            {/* Quick Controls */}
+            <div className="flex items-center gap-1 border-l border-white/15 pl-2">
+              {/* Audio Mute Toggle */}
+              <button
+                type="button"
+                onClick={() => setIsAudioMuted(!isAudioMuted)}
+                className={`p-1.5 rounded-full transition cursor-pointer ${
+                  isAudioMuted ? 'text-amber-400 bg-amber-400/10' : 'text-slate-300 hover:text-white hover:bg-white/10'
+                }`}
+                title={isAudioMuted ? "Unmute Lady Voice" : "Mute Lady Voice"}
+              >
+                {isAudioMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              </button>
 
-        {/* Vibrant Teal Rounded Square Send Button (Exact match from sample!) */}
-        <button
-          onClick={handleTextSubmit}
-          disabled={!inputText.trim()}
-          className="w-10 h-10 rounded-2xl bg-[#00a896] hover:bg-[#008f80] disabled:opacity-50 text-white flex items-center justify-center shadow-md shadow-[#00a896]/25 transition cursor-pointer active:scale-95 shrink-0"
-          title="Send"
-        >
-          <Send className="w-4 h-4 -rotate-12 translate-x-0.5" />
-        </button>
-      </div>
+              {/* Command Cheat-Sheet Info Button */}
+              <button
+                type="button"
+                onClick={() => setShowGuide(!showGuide)}
+                className={`p-1.5 rounded-full transition cursor-pointer ${
+                  showGuide ? 'text-cyan-300 bg-cyan-500/20' : 'text-slate-300 hover:text-white hover:bg-white/10'
+                }`}
+                title="Voice Command Guide"
+              >
+                <HelpCircle className="w-4 h-4" />
+              </button>
 
-    </aside>
+              {/* Explicit Turn OFF Button */}
+              <button
+                type="button"
+                onClick={jarvisOff}
+                className="p-1.5 rounded-full text-rose-300 hover:text-rose-100 hover:bg-rose-500/20 transition cursor-pointer ml-0.5"
+                title="Turn Off Jarvis (or say 'Jarvis off')"
+              >
+                <Power className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+      </aside>
+
+      {/* MINIMALIST CLINICAL COMMAND QUICK-GUIDE MODAL */}
+      {showGuide && (
+        <div className="fixed inset-0 bg-dark-slate/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-[#10244B] border border-cyan-500/30 text-white rounded-3xl p-6 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white tracking-wide">Jarvis Clinical Voice Commands</h3>
+                  <p className="text-[11px] text-cyan-200">Say commands starting with "Jarvis, ..."</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowGuide(false)}
+                className="p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs max-h-[60vh] overflow-y-auto pr-1">
+              <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                <span className="font-bold text-cyan-300 flex items-center gap-1.5 mb-1">
+                  <Layers className="w-3.5 h-3.5" /> 3D Odontogram & Charting
+                </span>
+                <p className="text-slate-300 leading-relaxed text-[11px]">
+                  • "Jarvis, tooth 14 occlusal caries"<br />
+                  • "Jarvis, tooth 21 crown" • "tooth 36 RCT" • "tooth 46 missing"
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                <span className="font-bold text-teal-300 flex items-center gap-1.5 mb-1">
+                  <Camera className="w-3.5 h-3.5" /> Hardware & Imaging Modals
+                </span>
+                <p className="text-slate-300 leading-relaxed text-[11px]">
+                  • "Jarvis, connect Digora scanner"<br />
+                  • "Jarvis, open camera" • "Jarvis, open NanoPix sensor"
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                <span className="font-bold text-amber-300 flex items-center gap-1.5 mb-1">
+                  <UserCheck className="w-3.5 h-3.5" /> Patients & Navigation
+                </span>
+                <p className="text-slate-300 leading-relaxed text-[11px]">
+                  • "Jarvis, open patient 38" • "Jarvis, open schedule"<br />
+                  • "Jarvis, open directory" • "Jarvis, login as doctor"
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                <span className="font-bold text-indigo-300 flex items-center gap-1.5 mb-1">
+                  <FileText className="w-3.5 h-3.5" /> Ambient SOAP Notes & Control
+                </span>
+                <p className="text-slate-300 leading-relaxed text-[11px]">
+                  • "Jarvis, start scribing" • "Jarvis, write clinical notes"<br />
+                  • "Jarvis off" or "Jarvis so jao" to switch off.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-400">
+              <span>Foot-Pedal: <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono">Spacebar</kbd></span>
+              <button
+                onClick={() => setShowGuide(false)}
+                className="px-4 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl transition cursor-pointer text-xs"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
