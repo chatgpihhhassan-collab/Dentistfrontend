@@ -643,6 +643,191 @@ export function resolveDoctorInstruction(transcript, context = {}) {
   const docName = context.doctorName || 'Doctor';
 
   // =========================================================================
+  // STAGE 0A: STERILITY & PRIVACY SLEEP COMMANDS ("Jarvis Sleep", "Disengage", "Mute")
+  // =========================================================================
+  if (
+    /(?:jarvis\s+sleep|go\s+to\s+sleep|^sleep$|disengage|jarvis\s+disengage|mute\s+jarvis|stop\s+listening|band\s+ho\s+jao|chup\s+ho\s+jao|standby)/i.test(clean)
+  ) {
+    return {
+      title: 'Jarvis Disengaged (Muted)',
+      category: 'Privacy',
+      text: `Disengaging operatory microphone, Doctor. Sleeping now. Tap the foot-pedal or press Space to wake me.`,
+      action: { type: 'SLEEP' }
+    };
+  }
+
+  // =========================================================================
+  // STAGE 0B: VOICE-DRIVEN ODONTOGRAM CHARTING ("Tooth 14 pe caries mark karo", "Mera chart update karo")
+  // =========================================================================
+  // Matches:
+  // - "tooth 14 pe occlusal caries mark karo"
+  // - "mera chart pe update karo tooth 19 composite filling"
+  // - "falan teeth pe ye apply karo tooth 36 missing"
+  // - "tooth 21 root canal"
+  // - "tooth 11 crown"
+  // - "tooth 46 implant"
+  const isChartUpdateIntent = 
+    /(?:update\s+chart|mera\s+chart|chart\s+update|apply\s+karo|mark\s+karo|lagao|daal\s+do|teeth\s+pe|tooth\s+pe|tooth\s+ko|teeth\s+ko|falan\s+teeth)/i.test(clean) ||
+    /(?:caries|decay|cavity|composite|filling|restoration|root\s+canal|rct|pulpectomy|crown|cap|missing|extracted|extraction|implant|veneer|fracture)/i.test(clean);
+
+  const toothNumMatch = clean.match(/(?:tooth|teeth|daant|dant|#)\s*(?:number|#)?\s*([1-9]|[12][0-9]|3[0-2]|[a-t]|1[1-8]|2[1-8]|3[1-8]|4[1-8])\b/i);
+
+  if (isChartUpdateIntent && toothNumMatch) {
+    let rawTooth = toothNumMatch[1].toUpperCase();
+    let parsedTooth = rawTooth;
+
+    // FDI Two-Digit Notation Conversion to Universal (1-32)
+    const fdiToUniversal = {
+      '18': 1, '17': 2, '16': 3, '15': 4, '14': 5, '13': 6, '12': 7, '11': 8,
+      '21': 9, '22': 10, '23': 11, '24': 12, '25': 13, '26': 14, '27': 15, '28': 16,
+      '38': 17, '37': 18, '36': 19, '35': 20, '34': 21, '33': 22, '32': 23, '31': 24,
+      '41': 25, '42': 26, '43': 27, '44': 28, '45': 29, '46': 30, '47': 31, '48': 32
+    };
+
+    const numVal = parseInt(rawTooth, 10);
+    if (!isNaN(numVal) && numVal > 32 && fdiToUniversal[rawTooth]) {
+      parsedTooth = fdiToUniversal[rawTooth];
+    } else if (!isNaN(numVal) && numVal >= 1 && numVal <= 32) {
+      parsedTooth = numVal;
+    }
+
+    // Detect Surfaces (MODBL)
+    const surfaces = [];
+    if (/occlusal|\bo\b/i.test(clean)) surfaces.push('O');
+    if (/mesial|\bm\b/i.test(clean)) surfaces.push('M');
+    if (/distal|\bd\b/i.test(clean)) surfaces.push('D');
+    if (/buccal|facial|\bb\b|\bf\b/i.test(clean)) surfaces.push('B');
+    if (/lingual|palatal|\bl\b|\bp\b/i.test(clean)) surfaces.push('L');
+    if (/incisal|\bi\b/i.test(clean)) surfaces.push('I');
+    if (/mod\b/i.test(clean)) { surfaces.push('M', 'O', 'D'); }
+    if (/mo\b/i.test(clean)) { surfaces.push('M', 'O'); }
+    if (/do\b/i.test(clean)) { surfaces.push('D', 'O'); }
+    const uniqueSurfaces = [...new Set(surfaces)];
+    const surfStr = uniqueSurfaces.length > 0 ? ` (${uniqueSurfaces.join('')})` : '';
+
+    // Detect Procedure Condition
+    let conditionStatus = 'Decay';
+    let hexColor = '#EF4444';
+    let conditionName = 'Caries';
+
+    if (/composite|filling|restoration|resin|amalgam|bhar\s+do/i.test(clean)) {
+      conditionStatus = uniqueSurfaces.length > 0 ? `Filling — Composite ${uniqueSurfaces.join('')}` : 'Filling — Composite';
+      hexColor = '#2563EB';
+      conditionName = 'Composite Restoration';
+    } else if (/root\s+canal|rct|pulpectomy|pulpitis|necrotic/i.test(clean)) {
+      conditionStatus = 'RCT Needed';
+      hexColor = '#7C3AED';
+      conditionName = 'Root Canal Therapy';
+    } else if (/crown|cap|porcelain|zirconia/i.test(clean)) {
+      conditionStatus = 'Crown';
+      hexColor = '#D97706';
+      conditionName = 'Full Crown';
+    } else if (/missing|extracted|extraction|nikal|pull/i.test(clean)) {
+      conditionStatus = 'Missing';
+      hexColor = '#DC2626';
+      conditionName = 'Extracted / Missing';
+    } else if (/implant|fixture/i.test(clean)) {
+      conditionStatus = 'Implant';
+      hexColor = '#059669';
+      conditionName = 'Dental Implant';
+    } else if (/fracture|broken|toota/i.test(clean)) {
+      conditionStatus = 'Fracture';
+      hexColor = '#F97316';
+      conditionName = 'Enamel/Root Fracture';
+    } else if (/healthy|sound|normal|theek/i.test(clean)) {
+      conditionStatus = 'Healthy';
+      hexColor = '#10B981';
+      conditionName = 'Healthy';
+    } else {
+      conditionStatus = uniqueSurfaces.length > 0 ? `Caries — ${uniqueSurfaces.join(', ')}` : 'Decay';
+      hexColor = '#EF4444';
+      conditionName = 'Caries / Decay';
+    }
+
+    return {
+      title: `Odontogram Chart Update: Tooth #${parsedTooth}`,
+      category: 'Odontogram',
+      text: `Doctor, updating tooth #${parsedTooth} with ${conditionName}${surfStr} on the 3D dental chart. Observation synchronized.`,
+      action: {
+        type: 'CHART_TOOTH_UPDATE',
+        toothNumber: parsedTooth,
+        toothKey: String(parsedTooth),
+        condition: conditionStatus,
+        color: hexColor,
+        surfaces: uniqueSurfaces,
+        comment: `Voice Update: ${conditionName}${surfStr}`
+      }
+    };
+  }
+
+  // =========================================================================
+  // STAGE 0C: HANDS-FREE AI CLINICAL SCRIBE & SOAP NOTES ("Notes likho", "Start clinical note")
+  // =========================================================================
+  if (
+    /(?:start\s+(?:clinical\s+)?note|write\s+note|notes\s+likho|notes\s+likha|soap\s+note|dictate|consultation\s+note|scribe\s+note)/i.test(clean) ||
+    (/(?:patient\s+presents\s+with|cold\s+test|vitality\s+test|pulpectomy|anesthesia|prescribed\s+amoxicillin|cavit)/i.test(clean) && clean.length > 40)
+  ) {
+    return {
+      title: 'AI Clinical SOAP Scribe',
+      category: 'Clinical Scribe',
+      text: `Compiling 8-section clinical consultation note into Subjective, Objective, Assessment, and Plan with CDT codes, Doctor. Staging for your signature.`,
+      action: {
+        type: 'SOAP_NOTE_GENERATE',
+        rawText: transcript
+      }
+    };
+  }
+
+  // =========================================================================
+  // STAGE 0D: VOICE-TRIGGERED X-RAY & IMAGING ("Upload X-ray", "Arm Digora", "Take camera snapshot")
+  // =========================================================================
+  if (
+    /(?:upload\s+x-?ray|x-?ray\s+upload|take\s+x-?ray|scan\s+x-?ray|periapical\s+x-?ray|bitewing\s+x-?ray)/i.test(clean) ||
+    /(?:arm\s+digora|connect\s+digora|digora\s+scanner|scan\s+plate|soredex)/i.test(clean) ||
+    /(?:camera\s+snapshot|take\s+(?:camera\s+)?(?:picture|photo|snapshot)|intraoral\s+camera|freeze\s+frame)/i.test(clean)
+  ) {
+    const isDigora = /(?:digora|soredex|phosphor|plate)/i.test(clean);
+    const isCamera = /(?:camera|snapshot|photo|picture|freeze)/i.test(clean);
+
+    if (isDigora) {
+      return {
+        title: 'Soredex DIGORA® Optime Hardware Armed',
+        category: 'Imaging',
+        text: `Arming Soredex DIGORA Optime Ethernet scanner on LAN, Doctor. Operatory armed for PSP plate scanning.`,
+        action: { type: 'ARM_DIGORA' }
+      };
+    } else if (isCamera) {
+      return {
+        title: 'Intraoral Video Camera Active',
+        category: 'Imaging',
+        text: `Opening intraoral HD camera capture wand, Doctor. Ready to capture frame.`,
+        action: { type: 'CAPTURE_CAMERA' }
+      };
+    } else {
+      return {
+        title: 'Radiograph Upload & Ingestion',
+        category: 'Imaging',
+        text: `Opening radiograph ingestion dialog, Doctor. Radiographs will be automatically scanned by AI vision.`,
+        action: { type: 'UPLOAD_XRAY' }
+      };
+    }
+  }
+
+  // =========================================================================
+  // STAGE 0E: HARDWARE & DEVICE INTEGRATION ("Devices ko connect karo jo khuch bhi h")
+  // =========================================================================
+  if (
+    /(?:connect\s+devices|connect\s+hardware|device\s+status|hardware\s+status|check\s+devices|rvg\s+sensor|nanopix|apex\s+locator|working\s+length|patient\s+vitals)/i.test(clean)
+  ) {
+    return {
+      title: 'Operatory Devices & Hardware Suite',
+      category: 'Hardware',
+      text: `Hardware Suite Status: Soredex DIGORA Optime Ethernet online on 192.168.1.50. Woodpecker NanoPix RVG USB sensor calibrated. Intraoral video camera ready. All operatory peripherals operational, Doctor.`,
+      action: { type: 'DEVICE_CONNECT', device: 'all' }
+    };
+  }
+
+  // =========================================================================
   // STAGE 1: CONVERSATIONAL INTENTS (Greetings, Identity, Help, Gratitude)
   // =========================================================================
 

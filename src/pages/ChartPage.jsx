@@ -4317,6 +4317,38 @@ export default function ChartPage() {
     }
   };
 
+  // 🎙️ Jarvis Voice Copilot Operatory Event Listeners
+  useEffect(() => {
+    const handleVoiceChartUpdate = (e) => {
+      if (!e.detail) return;
+      const { toothNumber, condition, comment, surfaces } = e.detail;
+      console.log('🎙️ [Jarvis Voice Event] Live updating chart for tooth:', toothNumber, condition);
+      if (toothNumber) {
+        executeCommand(toothNumber, condition || 'Decay', comment || `Voice dictation (${(surfaces || []).join('')})`);
+      }
+    };
+
+    const handleVoiceDigora = () => {
+      console.log('🎙️ [Jarvis Voice Event] Arming Digora Optime scanner modal');
+      setShowDigoraModal(true);
+    };
+
+    const handleVoiceNanoPix = () => {
+      console.log('🎙️ [Jarvis Voice Event] Arming NanoPix RVG sensor modal');
+      setShowNanoPixModal(true);
+    };
+
+    window.addEventListener('dentia:voice:chart-update', handleVoiceChartUpdate);
+    window.addEventListener('dentia:voice:open-digora', handleVoiceDigora);
+    window.addEventListener('dentia:voice:open-nanopix', handleVoiceNanoPix);
+
+    return () => {
+      window.removeEventListener('dentia:voice:chart-update', handleVoiceChartUpdate);
+      window.removeEventListener('dentia:voice:open-digora', handleVoiceDigora);
+      window.removeEventListener('dentia:voice:open-nanopix', handleVoiceNanoPix);
+    };
+  }, [teethState, patientId, dentitionMode]);
+
   // --- REAL APIs for AI Assistant ---
   const registerPatientAPI = async (data) => {
     try {

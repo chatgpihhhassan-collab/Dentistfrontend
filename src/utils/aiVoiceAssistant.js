@@ -88,9 +88,56 @@ class AIVoiceAssistant {
     }
 
     /**
-     * Speak text using Web Speech Synthesis API
+     * Play subtle clinical chime via Web Audio API (Zero external assets needed)
      */
-    speak(text, { rate = 1.0, pitch = 1.05 } = {}) {
+    playChime(type = 'wake') {
+        if (typeof window === 'undefined') return;
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            const ctx = new AudioCtx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.type = 'sine';
+            gain.connect(ctx.destination);
+            osc.connect(gain);
+
+            const now = ctx.currentTime;
+            if (type === 'wake') {
+                // Rising two-tone pleasant chime (523Hz C5 -> 659Hz E5)
+                osc.frequency.setValueAtTime(523.25, now);
+                osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.12);
+                gain.gain.setValueAtTime(0.08, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+                osc.start(now);
+                osc.stop(now + 0.35);
+            } else if (type === 'sleep') {
+                // Descending gentle tone (659Hz E5 -> 440Hz A4)
+                osc.frequency.setValueAtTime(659.25, now);
+                osc.frequency.exponentialRampToValueAtTime(440.0, now + 0.15);
+                gain.gain.setValueAtTime(0.06, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            } else if (type === 'success') {
+                // Subtle bright triple-tone confirmation
+                osc.frequency.setValueAtTime(587.33, now); // D5
+                osc.frequency.setValueAtTime(880.0, now + 0.08); // A5
+                gain.gain.setValueAtTime(0.07, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+                osc.start(now);
+                osc.stop(now + 0.28);
+            }
+        } catch (e) {
+            // Audio context silently ignored if blocked by autoplay policies
+        }
+    }
+
+    /**
+     * Speak text using Web Speech Synthesis API with dedicated Lady/Female Voice Persona
+     */
+    speak(text, { rate = 1.02, pitch = 1.08 } = {}) {
         if (!this.isSupported() || !this.enabled || !text) return;
 
         try {
@@ -100,18 +147,27 @@ class AIVoiceAssistant {
             utterance.rate = rate;
             utterance.pitch = pitch;
 
-            // Pick a clean, professional natural English voice if available
+            // Pick a clean, professional, natural female/lady voice
             const voices = window.speechSynthesis.getVoices() || [];
-            const preferredVoice = voices.find(v => 
-                v.lang.startsWith('en') && (
-                    v.name.includes('Google') || 
-                    v.name.includes('Natural') || 
-                    v.name.includes('Zira') || 
-                    v.name.includes('Samantha') || 
-                    v.name.includes('Karen') || 
-                    v.name.includes('Jenny')
-                )
-            ) || voices.find(v => v.lang.startsWith('en')) || voices[0];
+            
+            // Priority list of premium female voices across Windows, Mac, Chrome & Edge
+            const femaleKeywords = [
+                'jenny', 'zira', 'samantha', 'karen', 'victoria', 
+                'female', 'woman', 'heera', 'neerja', 'aria', 'google uk english female'
+            ];
+
+            let preferredVoice = voices.find(v => {
+                const nameLower = v.name.toLowerCase();
+                return v.lang.startsWith('en') && femaleKeywords.some(kw => nameLower.includes(kw));
+            });
+
+            // Fallback to any natural or English voice if specific female named voice not found
+            if (!preferredVoice) {
+                preferredVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural')));
+            }
+            if (!preferredVoice) {
+                preferredVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
+            }
 
             if (preferredVoice) {
                 utterance.voice = preferredVoice;
@@ -128,7 +184,6 @@ class AIVoiceAssistant {
             };
 
             utterance.onerror = (e) => {
-                // Ignore cancel errors
                 if (e.error !== 'canceled' && e.error !== 'interrupted') {
                     console.warn('[AIVoiceAssistant] Utterance error:', e);
                 }

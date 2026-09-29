@@ -17,7 +17,11 @@ import {
   ChevronDown,
   ChevronRight,
   Calendar,
-  ExternalLink
+  ExternalLink,
+  Lock,
+  Shield,
+  Activity,
+  Zap
 } from 'lucide-react';
 import ThreeDoctorHead from './ThreeDoctorHead';
 import { 
@@ -32,15 +36,18 @@ export default function Doctor3DAssistantWidget() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Master Enable / Disable Toggle (Persisted in localStorage)
+  // Master Enable / Disable Toggle (DORMANT by default for HIPAA privacy & zero eavesdropping)
   const [isEnabled, setIsEnabled] = useState(() => {
     try {
       const saved = localStorage.getItem('dentia_3d_doctor_active');
-      return saved !== null ? saved === 'true' : true;
+      return saved !== null ? saved === 'true' : false; // Default: DORMANT / OFF
     } catch {
-      return true;
+      return false;
     }
   });
+
+  // Never render in patient portal
+  const isPatientPortal = location.pathname.startsWith('/portal');
 
   // UI States
   const [isMinimized, setIsMinimized] = useState(false);
@@ -106,6 +113,23 @@ export default function Doctor3DAssistantWidget() {
     }
   }, [chatLog, hasStartedChat]);
 
+  // 60-Second Inactivity Safety Timer (Auto-disengage to dormant)
+  const inactivityTimerRef = useRef(null);
+  const resetInactivityTimer = () => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+    }
+    inactivityTimerRef.current = setTimeout(() => {
+      if (isEnabled) {
+        console.log('🔒 [Jarvis Copilot] Auto-sleeping after 60s of operatory silence');
+        stopListening();
+        setIsEnabled(false);
+        try { localStorage.setItem('dentia_3d_doctor_active', 'false'); } catch {}
+        aiVoice.playChime('sleep');
+      }
+    }, 60000); // 60s inactivity
+  };
+
   const toggleEnabled = () => {
     const nextVal = !isEnabled;
     setIsEnabled(nextVal);
@@ -113,11 +137,41 @@ export default function Doctor3DAssistantWidget() {
       localStorage.setItem('dentia_3d_doctor_active', String(nextVal));
     } catch {}
     if (!nextVal) {
+      aiVoice.playChime('sleep');
       stopListening();
       aiVoice.stop();
       setIsSpeaking(false);
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+    } else {
+      aiVoice.playChime('wake');
+      resetInactivityTimer();
+      setTimeout(() => toggleListening(), 250);
     }
   };
+
+  // Hands-free Spacebar / Foot-switch toggle
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) {
+        return;
+      }
+      if (e.code === 'Space' && !e.repeat) {
+        e.preventDefault();
+        if (!isEnabled) {
+          setIsEnabled(true);
+          try { localStorage.setItem('dentia_3d_doctor_active', 'true'); } catch {}
+          aiVoice.playChime('wake');
+          resetInactivityTimer();
+          setTimeout(() => toggleListening(), 200);
+        } else {
+          toggleListening();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isEnabled, isListening]);
 
   useEffect(() => {
     const unsubscribe = aiVoice.subscribe((voiceState) => {
@@ -346,10 +400,110 @@ export default function Doctor3DAssistantWidget() {
       setIsListening(false);
     }
 
+    // Reset inactivity timer on active command
+    resetInactivityTimer();
+
+    // 1. Handle Sleep / Mute Directive
+    if (resolution.action && resolution.action.type === 'SLEEP') {
+      aiVoice.playChime('sleep');
+      if (!isAudioMuted) {
+        aiVoice.speak(resolution.text, { rate: 1.02, pitch: 1.08 });
+      }
+      stopListening();
+      setIsEnabled(false);
+      try { localStorage.setItem('dentia_3d_doctor_active', 'false'); } catch {}
+      return;
+    }
+
+    // 2. Handle Odontogram Voice Charting Updates
+    if (resolution.action && resolution.action.type === 'CHART_TOOTH_UPDATE') {
+      aiVoice.playChime('success');
+      if (!isAudioMuted) {
+        aiVoice.speak(resolution.text, { rate: 1.02, pitch: 1.08 });
+      }
+      // Broadcast to ChartPage and 3D Jaw
+      window.dispatchEvent(new CustomEvent('dentia:voice:chart-update', { detail: resolution.action }));
+      
+      // If we are currently on /chart/:patientId, also update database
+      if (activePatientId) {
+        try {
+          fetch('/api/patients/teeth/update-bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              patientId: parseInt(activePatientId, 10),
+              updates: [{
+                toothNumber: resolution.action.toothNumber,
+                toothKey: String(resolution.action.toothNumber),
+                dentitionCategory: 'Adult',
+                doctorId: doctorId,
+                status: resolution.action.condition,
+                conditionStatus: resolution.action.condition,
+                color: resolution.action.color,
+                comment: resolution.action.comment,
+                comments: resolution.action.comment
+              }]
+            })
+          }).catch(e => console.warn('[Jarvis Voice Chart API sync notice]:', e));
+        } catch {}
+      }
+      return;
+    }
+
+    // 3. Handle Soredex Digora Optime Arming
+    if (resolution.action && resolution.action.type === 'ARM_DIGORA') {
+      aiVoice.playChime('success');
+      if (!isAudioMuted) {
+        aiVoice.speak(resolution.text, { rate: 1.02, pitch: 1.08 });
+      }
+      window.dispatchEvent(new CustomEvent('dentia:voice:open-digora'));
+      return;
+    }
+
+    // 4. Handle Intraoral Video Camera Capture
+    if (resolution.action && resolution.action.type === 'CAPTURE_CAMERA') {
+      aiVoice.playChime('success');
+      if (!isAudioMuted) {
+        aiVoice.speak(resolution.text, { rate: 1.02, pitch: 1.08 });
+      }
+      window.dispatchEvent(new CustomEvent('dentia:voice:open-camera'));
+      return;
+    }
+
+    // 5. Handle Radiograph Upload
+    if (resolution.action && resolution.action.type === 'UPLOAD_XRAY') {
+      aiVoice.playChime('success');
+      if (!isAudioMuted) {
+        aiVoice.speak(resolution.text, { rate: 1.02, pitch: 1.08 });
+      }
+      window.dispatchEvent(new CustomEvent('dentia:voice:upload-xray'));
+      return;
+    }
+
+    // 6. Handle AI Clinical SOAP Notes
+    if (resolution.action && resolution.action.type === 'SOAP_NOTE_GENERATE') {
+      aiVoice.playChime('success');
+      if (!isAudioMuted) {
+        aiVoice.speak(resolution.text, { rate: 1.02, pitch: 1.08 });
+      }
+      window.dispatchEvent(new CustomEvent('dentia:voice:soap-append', { detail: resolution.action }));
+      return;
+    }
+
+    // 7. Handle Hardware Devices Suite
+    if (resolution.action && resolution.action.type === 'DEVICE_CONNECT') {
+      aiVoice.playChime('success');
+      if (!isAudioMuted) {
+        aiVoice.speak(resolution.text, { rate: 1.02, pitch: 1.08 });
+      }
+      window.dispatchEvent(new CustomEvent('dentia:voice:device-sync'));
+      return;
+    }
+
     // Handle instant known patient or route navigation
     if (resolution.action && resolution.action.type === 'NAVIGATE') {
       if (!isAudioMuted) {
-        aiVoice.speak(resolution.text, { rate: 1.0, pitch: 1.05 });
+        aiVoice.speak(resolution.text, { rate: 1.02, pitch: 1.08 });
       }
       setTimeout(() => {
         navigate(resolution.action.path);
@@ -477,25 +631,30 @@ export default function Doctor3DAssistantWidget() {
     { label: 'Schedule', cmd: 'Go to appointments schedule' }
   ];
 
+  // Never render in patient portal
+  if (isPatientPortal) {
+    return null;
+  }
+
   // =========================================================================
-  // RENDER 1: DISABLED STATE (Floating pastel pill)
+  // RENDER 1: DISABLED / DORMANT STATE (Sleek Jarvis Lock Capsule)
   // =========================================================================
   if (!isEnabled) {
     return (
-      <aside aria-label="3D Doctor Assistant Controls" className="fixed bottom-5 right-5 z-50">
+      <aside aria-label="Jarvis AI Clinical Copilot" className="fixed bottom-5 right-5 z-50">
         <button
           onClick={toggleEnabled}
-          className="flex items-center gap-2.5 px-4 py-2 bg-white/95 hover:bg-white text-slate-800 rounded-full shadow-lg border border-teal-200/80 backdrop-blur-md transition-all duration-300 hover:scale-105 group cursor-pointer"
-          title="Enable AI Health Assistant"
+          className="flex items-center gap-2.5 px-4 py-2.5 bg-[#10244B] hover:bg-[#1A3668] text-white rounded-full shadow-2xl border border-[#EAA638]/70 backdrop-blur-md transition-all duration-300 hover:scale-105 group cursor-pointer"
+          title="Activate Jarvis Voice Copilot (or press Spacebar)"
         >
-          <div className="w-6 h-6 rounded-full bg-teal-500/15 flex items-center justify-center text-teal-600 group-hover:bg-teal-500/25">
-            <Stethoscope className="w-3.5 h-3.5" />
+          <div className="w-6 h-6 rounded-full bg-[#EAA638]/20 flex items-center justify-center text-[#EAA638] group-hover:scale-110 transition-transform">
+            <Lock className="w-3.5 h-3.5" />
           </div>
           <div className="text-left">
-            <p className="text-xs font-semibold leading-none text-slate-800">AI Health Copilot</p>
-            <p className="text-[10px] text-teal-600 font-medium">Click to Enable</p>
+            <p className="text-xs font-bold leading-none text-white tracking-wide">JARVIS CLINICAL AI</p>
+            <p className="text-[10px] text-[#EAA638] font-medium mt-0.5">Muted • Press Space to Wake</p>
           </div>
-          <Power className="w-3.5 h-3.5 text-slate-400 group-hover:text-teal-600 ml-0.5" />
+          <Power className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#EAA638] ml-1" />
         </button>
       </aside>
     );
