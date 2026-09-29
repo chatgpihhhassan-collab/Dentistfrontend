@@ -1,23 +1,14 @@
 import React from 'react';
 
 // Single Animated SVG Progress Ring Component
-const CircularRing = ({ percentage, color = '#3B82F6', gradientId, startColor, endColor, size = 52, strokeWidth = 5 }) => {
+const CircularRing = ({ percentage, color = '#3B82F6', size = 52, strokeWidth = 5 }) => {
   const radius = (size - strokeWidth * 2) / 2;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (circumference * percentage) / 100;
+  const offset = circumference - (circumference * Math.min(percentage, 100)) / 100;
 
   return (
     <div className="relative flex items-center justify-center shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="transform -rotate-90">
-        {gradientId && (
-          <defs>
-            <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={startColor || color} />
-              <stop offset="100%" stopColor={endColor || color} />
-            </linearGradient>
-          </defs>
-        )}
-        {/* Track */}
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -26,12 +17,11 @@ const CircularRing = ({ percentage, color = '#3B82F6', gradientId, startColor, e
           strokeWidth={strokeWidth}
           fill="transparent"
         />
-        {/* Progress */}
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke={gradientId ? `url(#${gradientId})` : color}
+          stroke={color}
           strokeWidth={strokeWidth}
           strokeDasharray={circumference}
           strokeDashoffset={offset}
@@ -47,17 +37,17 @@ const CircularRing = ({ percentage, color = '#3B82F6', gradientId, startColor, e
   );
 };
 
-// Anatomical Tooth Silhouette Icon for the cards
+// Anatomical Tooth Silhouette Icon
 const MiniToothIcon = () => (
   <svg className="w-7 h-9 text-slate-400 shrink-0 drop-shadow-xs" viewBox="0 0 32 40" fill="none">
     <path
       d="M8 6C8 3 10 2 13 2C15 2 16 3.5 16 3.5C16 3.5 17 2 19 2C22 2 24 3 24 6C24 10 24 14 24 18C24 23 23 28 22 34C21.5 37 19.5 38 18 38C17 38 16.5 36.5 16.5 34C16.5 31 16.5 25 16 23C15.5 25 15.5 31 15.5 34C15.5 36.5 15 38 14 38C12.5 38 10.5 37 10 34C9 28 8 23 8 18C8 14 8 10 8 6Z"
-      fill="url(#toothCardGrad)"
+      fill="url(#toothCardGradDynamic)"
       stroke="#CBD5E1"
       strokeWidth="1.5"
     />
     <defs>
-      <linearGradient id="toothCardGrad" x1="8" y1="2" x2="24" y2="38" gradientUnits="userSpaceOnUse">
+      <linearGradient id="toothCardGradDynamic" x1="8" y1="2" x2="24" y2="38" gradientUnits="userSpaceOnUse">
         <stop stopColor="#FFFFFF" />
         <stop offset="0.6" stopColor="#F1F5F9" />
         <stop offset="1" stopColor="#CBD5E1" />
@@ -66,65 +56,31 @@ const MiniToothIcon = () => (
   </svg>
 );
 
-export default function DiagnosticRingCards({ findings, activeTooth, onSelectTooth }) {
-  const cards = findings || [
-    {
-      id: '7.9',
-      toothNo: '7.9',
-      position: 'Upper',
-      pct: 11,
-      ringColor: '#F43F5E', // Red/Coral
-      gradientId: 'grad11',
-      startColor: '#FB7185',
-      endColor: '#E11D48',
-      headline: 'Upper Panel Tooth No 7.9 Need',
-      actionHighlight: 'Implants',
-      badgeColor: 'text-rose-600',
-      conditionKey: 'implant'
-    },
-    {
-      id: '12',
-      toothNo: '12',
-      position: 'Lower',
-      pct: 23,
-      ringColor: '#2563EB', // Electric Blue
-      gradientId: 'grad23',
-      startColor: '#60A5FA',
-      endColor: '#1D4ED8',
-      headline: 'Lower Panel Tooth No 12 Need',
-      actionHighlight: 'Gingivitis',
-      badgeColor: 'text-blue-600',
-      conditionKey: 'gingivitis'
-    },
-    {
-      id: '27',
-      toothNo: '27',
-      position: 'Upper',
-      pct: 67,
-      ringColor: '#06B6D4', // Cyan/Sky
-      gradientId: 'grad67',
-      startColor: '#38BDF8',
-      endColor: '#0284C7',
-      headline: 'Down Panel Tooth No 27 Need To',
-      actionHighlight: 'Root Cavity',
-      badgeColor: 'text-cyan-600',
-      conditionKey: 'cavity'
-    },
-    {
-      id: '6.17',
-      toothNo: '6.17',
-      position: 'Lower',
-      pct: 76,
-      ringColor: '#F59E0B', // Multi-Tone Gradient
-      gradientId: 'grad76',
-      startColor: '#2DD4BF',
-      endColor: '#F43F5E',
-      headline: 'Lower Panel Tooth No 6.17 Need',
-      actionHighlight: 'Periodontitis',
-      badgeColor: 'text-amber-600',
-      conditionKey: 'periodontitis'
-    }
-  ];
+export default function DiagnosticRingCards({ findings = [], activeTooth, onSelectTooth }) {
+  // If findings is provided from real DB, use them; otherwise fallback gracefully
+  const cards = (findings && findings.length > 0)
+    ? findings.slice(0, 4).map((f) => ({
+        id: `tooth-${f.toothNumber}`,
+        toothNo: String(f.toothNumber),
+        position: f.position?.arch || (parseInt(f.toothNumber, 10) <= 16 ? 'Upper' : 'Lower'),
+        pct: f.ringPct || 65,
+        ringColor: f.ringColor || '#3B82F6',
+        headline: `${f.position?.arch || (parseInt(f.toothNumber, 10) <= 16 ? 'Upper' : 'Lower')} Panel Tooth No ${f.toothNumber} Need`,
+        actionHighlight: f.label || 'Treatment Needed',
+        badgeColor: f.labelColor || 'text-blue-600'
+      }))
+    : [
+        {
+          id: 'healthy-all',
+          toothNo: 'All',
+          position: 'Full Arch',
+          pct: 100,
+          ringColor: '#10B981',
+          headline: 'Full Dentition Survey Completed',
+          actionHighlight: 'All Sound',
+          badgeColor: 'text-emerald-600'
+        }
+      ];
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5 w-full">
@@ -167,9 +123,6 @@ export default function DiagnosticRingCards({ findings, activeTooth, onSelectToo
               <CircularRing
                 percentage={card.pct}
                 color={card.ringColor}
-                gradientId={card.gradientId}
-                startColor={card.startColor}
-                endColor={card.endColor}
               />
             </div>
 

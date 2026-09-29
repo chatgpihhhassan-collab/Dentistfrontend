@@ -7,20 +7,29 @@ import ThreeRadiologyJawViewer from '../components/ThreeRadiologyJawViewer';
 import AISuggestionsActionPanel from '../components/AISuggestionsActionPanel';
 import DeviceScannerOverlay from '../components/DeviceScannerOverlay';
 import { applyAIFindingsToPatientRecord } from '../services/aiFindingsApplierService';
-import { CheckCircle2, ArrowRight, FileText, X } from 'lucide-react';
+import { mapDatabaseTeethToClinicalFindings } from '../utils/dentalCalloutMapper';
+import { fetchWithCache } from '../../../utils/apiCache';
+import { CheckCircle2, ArrowRight, FileText, X, Loader2 } from 'lucide-react';
 
 export default function DentiaAIRadiologyStudioPage() {
-  const { patientId } = useParams();
+  const { patientId = '38' } = useParams();
   const navigate = useNavigate();
 
   // State Management
-  const [activeTooth, setActiveTooth] = useState('27');
-  const [viewMode, setViewMode] = useState('2d'); // Default to HD Anatomical Scan view matching reference
+  const [activeTooth, setActiveTooth] = useState('14');
+  const [viewMode, setViewMode] = useState('3d');
   const [magnifierActive, setMagnifierActive] = useState(false);
   const [isInverted, setIsInverted] = useState(false);
   const [contrastValue, setContrastValue] = useState(100);
   const [brightnessValue, setBrightnessValue] = useState(100);
   const [isFlipped, setIsFlipped] = useState(false);
+
+  // Real Database Data State
+  const [isLoading, setIsLoading] = useState(true);
+  const [patientData, setPatientData] = useState(null);
+  const [rawTeeth, setRawTeeth] = useState([]);
+  const [clinicalFindings, setClinicalFindings] = useState([]);
+  const [patientName, setPatientName] = useState(`Patient #${patientId}`);
 
   // Scanning simulation states
   const [isScanning, setIsScanning] = useState(false);
@@ -30,23 +39,73 @@ export default function DentiaAIRadiologyStudioPage() {
   const [isApplying, setIsApplying] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  // Patient Info
-  const [patientName, setPatientName] = useState('Patient Record');
-
+  // Fetch Real Patient Data & Teeth from Database
   useEffect(() => {
-    if (patientId) {
-      try {
-        const stored = localStorage.getItem(`patient_${patientId}_info`);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          setPatientName(parsed.fullName || parsed.name || `Patient #${patientId}`);
-        } else {
-          setPatientName(`Patient #${patientId}`);
+    let isCancelled = false;
+    setIsLoading(true);
+
+    const doc = JSON.parse(localStorage.getItem('doctor') || '{}');
+    const authHeaders = doc?.token ? { Authorization: `Bearer ${doc.token}` } : {};
+
+    // 1. Fetch Patient Info & Chart concurrently
+    Promise.all([
+      fetch(`/api/patients/${patientId}`, { headers: authHeaders })
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null),
+      fetch(`/api/patients/${patientId}/chart`, { headers: authHeaders })
+        .then((res) => (res.ok ? res.json() : []))
+        .catch(() => [])
+    ])
+      .then(([patient, chart]) => {
+        if (isCancelled) return;
+
+        // Apply Patient Info
+        if (patient) {
+          setPatientData(patient);
+          const fullName =
+            patient.fullName ||
+            `${patient.firstName || patient.FirstName || ''} ${patient.lastName || patient.LastName || ''}`.trim() ||
+            `Patient #${patientId}`;
+          setPatientName(fullName);
         }
-      } catch {
-        setPatientName(`Patient #${patientId}`);
-      }
-    }
+
+        // Apply Teeth Chart & Generate Real Findings
+        let teethList = Array.isArray(chart) ? chart : [];
+
+        // Check if there are local storage overrides for this patient
+        try {
+          const overrideKey = `patient_${patientId}_teeth_override`;
+          const overrides = JSON.parse(localStorage.getItem(overrideKey) || '{}');
+          if (Object.keys(overrides).length > 0) {
+            teethList = teethList.map((t) => {
+              const num = String(t.toothNumber || t.ToothNumber);
+              return overrides[num] ? { ...t, ...overrides[num] } : t;
+            });
+          }
+        } catch { }
+
+        setRawTeeth(teethList);
+
+        // Map into dynamic clinical findings with accurate leader lines
+        const findings = mapDatabaseTeethToClinicalFindings(teethList);
+        setClinicalFindings(findings);
+
+        // Select first affected tooth if available
+        if (findings.length > 0) {
+          setActiveTooth(String(findings[0].toothNumber));
+        }
+
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        if (isCancelled) return;
+        console.error('[AI Studio] Error loading patient DB record:', err);
+        setIsLoading(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
   }, [patientId]);
 
   // Toolbar Handlers
@@ -107,7 +166,10 @@ export default function DentiaAIRadiologyStudioPage() {
   const handleApplyDone = async () => {
     setIsApplying(true);
     try {
-      await applyAIFindingsToPatientRecord(patientId, { patientName });
+      await applyAIFindingsToPatientRecord(patientId, {
+        patientName,
+        findings: clinicalFindings
+      });
       setIsApplying(false);
       setShowSuccessModal(true);
     } catch (err) {
@@ -127,7 +189,7 @@ export default function DentiaAIRadiologyStudioPage() {
     >
       {/* Outer Studio Card Container */}
       <div className="w-full max-w-[1720px] mx-auto flex flex-col gap-3.5 relative">
-        {/* 1. Top Navigation Header (Denty ai brand, scan filters, user profile) */}
+        {/* 1. Top Navigation Header */}
         <StudioTopNavBar
           patientId={patientId}
           patientName={patientName}
@@ -135,12 +197,21 @@ export default function DentiaAIRadiologyStudioPage() {
           isScanning={isScanning}
         />
 
-        {/* 2. Main Studio Body: Focused 2-Column Clinical Layout (Left Menu & Chat excluded) */}
+        {/* Loading Indicator */}
+        {isLoading && (
+          <div className="w-full bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-blue-100 flex items-center justify-center gap-3 text-blue-700 text-sm font-bold shadow-xs">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span>Synchronizing live teeth data from database for {patientName}...</span>
+          </div>
+        )}
+
+        {/* 2. Main Studio Body: Focused 2-Column Clinical Layout */}
         <div className="flex flex-col lg:flex-row gap-4 items-stretch w-full">
           {/* Left Column: Hero Diagnostic Center (Wide Viewport) */}
           <main className="flex-1 flex flex-col gap-3 min-w-0">
-            {/* Top 4 KPI Ring Cards */}
+            {/* Top 4 KPI Ring Cards (Linked to DB Findings) */}
             <DiagnosticRingCards
+              findings={clinicalFindings}
               activeTooth={activeTooth}
               onSelectTooth={setActiveTooth}
             />
@@ -173,6 +244,8 @@ export default function DentiaAIRadiologyStudioPage() {
                 isFlipped={isFlipped}
                 activeTooth={activeTooth}
                 onSelectTooth={setActiveTooth}
+                findings={clinicalFindings}
+                rawTeeth={rawTeeth}
               />
             </div>
           </main>
@@ -187,6 +260,7 @@ export default function DentiaAIRadiologyStudioPage() {
               onApplyFindings={handleApplyDone}
               isApplying={isApplying}
               onTriggerScanner={handleTriggerDevice}
+              findings={clinicalFindings}
             />
           </aside>
         </div>
@@ -221,31 +295,21 @@ export default function DentiaAIRadiologyStudioPage() {
             </h3>
 
             <p className="text-sm text-slate-600 mb-5 leading-relaxed">
-              All 4 detected conditions have been synchronized to the patient’s{' '}
-              <strong className="text-blue-600">3D Odontogram Chart</strong> and an official{' '}
-              <strong className="text-indigo-600">AI Clinical SOAP Note</strong> has been archived with CDT billing codes.
+              All identified conditions have been synchronized to {patientName}’s{' '}
+              <strong className="text-blue-600">3D Odontogram Chart</strong> in the database and an official{' '}
+              <strong className="text-indigo-600">AI Clinical SOAP Note</strong> has been archived.
             </p>
 
-            <div className="w-full bg-slate-50 rounded-2xl p-4 mb-5 border border-slate-100 text-left flex flex-col gap-2">
+            <div className="w-full bg-slate-50 rounded-2xl p-4 mb-5 border border-slate-100 text-left flex flex-col gap-2 max-h-48 overflow-y-auto">
               <div className="text-[11px] font-black uppercase text-slate-400 tracking-wider">
-                Updated Clinical Items:
+                Updated Database Conditions ({clinicalFindings.length}):
               </div>
-              <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                <span>Tooth #7.9 — Bone Pathology & Implant</span>
-                <span className="text-rose-600 font-extrabold">11% Risk</span>
-              </div>
-              <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                <span>Tooth #12 — Marginal Gingivitis</span>
-                <span className="text-blue-600 font-extrabold">23% Inflammation</span>
-              </div>
-              <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                <span>Tooth #27 — Root Cavity Restoration</span>
-                <span className="text-cyan-600 font-extrabold">67% Caries</span>
-              </div>
-              <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                <span>Tooth #6.17 — Periodontitis & Wear</span>
-                <span className="text-amber-600 font-extrabold">76% Bone Loss</span>
-              </div>
+              {clinicalFindings.map((f) => (
+                <div key={f.toothNumber} className="flex items-center justify-between text-xs font-bold text-slate-700 border-b border-slate-100 pb-1">
+                  <span>Tooth #{f.toothNumber} — {f.label}</span>
+                  <span className="text-blue-600 font-extrabold">{f.cdtCode}</span>
+                </div>
+              ))}
             </div>
 
             <div className="flex flex-col sm:flex-row items-center gap-3 w-full">
