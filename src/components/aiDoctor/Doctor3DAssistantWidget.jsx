@@ -475,9 +475,39 @@ export default function Doctor3DAssistantWidget() {
       return true;
     }
 
-    // 2. Doctor Database Lookup & Interactive Login
+    // 2. Navigation: Login / Sign-In Page
+    // (e.g. "please load the login page", "open login page", "go to login", "show login page", "load login", "sign in page")
+    if (
+      /(?:open|load|go\s*to|show|navigate\s*to|take\s*me\s*to)\s+(?:the\s+)?(?:login|sign\s*in|auth)\s*(?:page)?/i.test(t) ||
+      /(?:login|sign\s*in)\s*page/i.test(t)
+    ) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Opening login page', 'color: #00ff88; font-weight: bold;', t);
+      const navEl = document.querySelector('a[href="/login"], [data-nav="login"]');
+      if (navEl) {
+        const rect = navEl.getBoundingClientRect();
+        runCursorGlide(rect.left + rect.width / 2, rect.top + rect.height / 2, "Opening Login Page", true);
+      } else {
+        runCursorGlide(window.innerWidth / 2, window.innerHeight * 0.45, "Opening Login Page", false);
+      }
+      setTimeout(() => {
+        setVirtualCursor(prev => ({ ...prev, visible: false }));
+        navigate('/login');
+      }, 450);
+      const reply = "Opening the sign-in page, Doctor.";
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      triggerHudFeedback(reply, "Login Page Loaded");
+      showLiveSubtitle("Opening Sign-In Page", 'active');
+      return true;
+    }
+
+    // 3. Doctor Database Lookup & Interactive Login
     // (e.g. "login jhangir", "login dr ahmed", "login sarah", "login", "mujhe login karwa do")
-    if (/(?:login|sign\s*in|log\s*me\s*in|login\s*karo|mujhe\s*login|login\s*karwa\s*do)/i.test(t) || /(?:jhangir|ahmedjh|ahmed|sarah).*login|login.*(?:jhangir|ahmedjh|ahmed|sarah)/i.test(t)) {
+    if (
+      !t.includes('page') && (
+        /(?:login|sign\s*in|log\s*me\s*in|login\s*karo|mujhe\s*login|login\s*karwa\s*do)/i.test(t) || 
+        /(?:jhangir|ahmedjh|ahmed|sarah).*login|login.*(?:jhangir|ahmedjh|ahmed|sarah)/i.test(t)
+      )
+    ) {
       console.log('%c⚡ [JARVIS LOCAL ACTION] Doctor Login Intent Detected', 'color: #00ff88; font-weight: bold;', t);
       
       const matchedDoc = matchDoctorInDb(t);
@@ -937,16 +967,19 @@ export default function Doctor3DAssistantWidget() {
         const candidate = (finalTranscript || interimTranscript).trim();
         if (!candidate) return;
 
-        // Acoustic feedback suppression: check if candidate is reflection from device speakers
-        if (aiVoice.isRecentEcho && aiVoice.isRecentEcho(candidate)) {
+        // Interruption (Barge-in) vs Acoustic Feedback Suppression:
+        if (aiVoice.speaking) {
+          const isInterruption = /\b(stop|wait|cancel|pause|chup|quiet|silent|listen|hold\s*on|jarvis|javis|no|nah)\b/i.test(candidate);
+          if (isInterruption) {
+            console.log('%c⚡ [JARVIS VOICE BARGE-IN]', 'background: #00e5ff; color: #000; font-weight: bold;', 'Doctor interrupted speech with:', candidate);
+            aiVoice.stop();
+          } else {
+            // Speaker audio reflection: ignore while Jarvis is speaking so it never cuts itself off
+            return;
+          }
+        } else if (aiVoice.isRecentEcho && aiVoice.isRecentEcho(candidate)) {
           console.log('%c🔇 [ACOUSTIC ECHO SUPPRESSED]', 'color: #78909c;', candidate);
           return;
-        }
-
-        // Interruption (Barge-in): Doctor is speaking while Jarvis was talking
-        if (aiVoice.speaking) {
-          console.log('%c⚡ [JARVIS VOICE BARGE-IN]', 'background: #00e5ff; color: #000; font-weight: bold;', 'Doctor interrupted speech with:', candidate);
-          aiVoice.stop();
         }
 
         const isFinal = Boolean(finalTranscript);

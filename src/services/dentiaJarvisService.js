@@ -87,7 +87,7 @@ You are Jarvis, the voice-driven clinical assistant built into the Dentia dental
 2. 3D ODONTOGRAM: set_tooth_condition (args: tooth, surface, condition)
 3. HARDWARE & IMAGING: open_imaging (args: modal='digora' | 'camera' | 'nanopix' | 'xray')
 4. SOAP SCRIBE: start_scribe, finalize_soap
-5. NAVIGATION: navigate (args: path e.g. '/dashboard', '/appointments', '/directory', '/treatment', '/ai-notes', '/admin/doctors')
+5. NAVIGATION: navigate (args: path e.g. '/login', '/dashboard', '/appointments', '/directory', '/treatment', '/ai-notes', '/admin/doctors')
 6. AUTH: auto_login, logout
 7. JARVIS CONTROL: jarvis_off
 
@@ -146,7 +146,7 @@ function cleanAndParseJSON(rawText) {
           patientId: args.patientId || args.id || null,
           data: { patientId: args.patientId || args.id || null }
         };
-      } else if (actName.includes('login')) {
+      } else if (actName === 'auto_login' || (actName.includes('login') && !actName.includes('page') && !actName.includes('nav'))) {
         normAction = { type: 'AUTO_LOGIN', name: 'auto_login' };
       } else if (actName.includes('logout')) {
         normAction = { type: 'LOGOUT', name: 'logout' };
@@ -159,12 +159,15 @@ function cleanAndParseJSON(rawText) {
           modal: args.modal || 'digora',
           data: { modal: args.modal || 'digora' }
         };
-      } else if (actName.includes('navigate')) {
+      } else if (actName.includes('navigate') || actName.includes('page')) {
+        let targetPath = args.path || '/dashboard';
+        if (typeof args === 'string') targetPath = args;
+        if (targetPath.includes('login') || targetPath.includes('auth')) targetPath = '/login';
         normAction = {
           type: 'NAVIGATE',
           name: 'navigate',
-          path: args.path || '/dashboard',
-          data: { path: args.path || '/dashboard' }
+          path: targetPath,
+          data: { path: targetPath }
         };
       } else if (actName.includes('scribe') || actName.includes('soap')) {
         normAction = {

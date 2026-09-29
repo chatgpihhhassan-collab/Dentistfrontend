@@ -28,27 +28,51 @@ class AIVoiceAssistant {
         if (!candidate) return false;
         const now = Date.now();
         this.recentUtterances = this.recentUtterances.filter(u => u.expiresAt > now);
-        const lower = candidate.toLowerCase().trim();
+        
+        const cleanCandidate = candidate.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (!cleanCandidate) return false;
 
-        // 1. Direct prompt echoes
-        if (lower === 'yes doctor' || lower === 'yes doctor?' || lower === 'yes') {
-            return this.speaking;
+        const isSpeakingOrJustFinished = this.speaking || (now - this.lastSpokeEndTime < 2200);
+
+        // 1. Direct prompt echoes while speaking or right after
+        if (cleanCandidate === 'yes doctor' || cleanCandidate === 'yes doctor' || cleanCandidate === 'yes' || cleanCandidate === 'ready') {
+            return isSpeakingOrJustFinished;
         }
 
-        // 2. Check if candidate matches or is contained inside recent spoken phrases
+        const candidateWords = cleanCandidate.split(' ').filter(w => w.length >= 2);
+        if (candidateWords.length === 0) return false;
+
         for (const item of this.recentUtterances) {
-            if (item.text.includes(lower) || lower.includes(item.text)) {
+            const cleanSpoken = item.text.replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+            
+            // Substring match
+            if (cleanSpoken.includes(cleanCandidate) || cleanCandidate.includes(cleanSpoken)) {
                 return true;
             }
-            // Word overlap check for sentences
-            const words = lower.split(/\s+/).filter(w => w.length > 3);
-            if (words.length >= 3) {
-                const matchCount = words.filter(w => item.text.includes(w)).length;
-                if (matchCount / words.length >= 0.45) {
+
+            // Word overlap check (including short words like "we", "dr", "in", "to")
+            const spokenWords = new Set(cleanSpoken.split(' '));
+            const matchedCount = candidateWords.filter(w => spokenWords.has(w)).length;
+            const ratio = matchedCount / candidateWords.length;
+
+            if (ratio >= 0.40 && matchedCount >= 2) {
+                return true;
+            }
+
+            // Spoken prefix check
+            if (candidateWords.length >= 2) {
+                const spokenPrefix = cleanSpoken.split(' ').slice(0, candidateWords.length).join(' ');
+                if (spokenPrefix.startsWith(candidateWords.slice(0, 2).join(' '))) {
                     return true;
                 }
             }
         }
+
+        // If speaking right now, anything heard without explicit doctor directive is treated as speaker echo
+        if (this.speaking) {
+            return true;
+        }
+
         return false;
     }
 
