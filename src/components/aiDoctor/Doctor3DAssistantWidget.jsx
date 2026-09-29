@@ -78,6 +78,7 @@ export default function Doctor3DAssistantWidget() {
   const wakeWordTimeoutRef = useRef(null);
   const lastExecutedCommandRef = useRef('');
   const lastExecutionTimeRef = useRef(0);
+  const activeConversationUntilRef = useRef(0);
 
   // 🏥 Real-time Clinic Doctors Database (Integrated with /api/auth/doctors)
   const [doctorsDatabase, setDoctorsDatabase] = useState([
@@ -726,6 +727,31 @@ export default function Doctor3DAssistantWidget() {
       return true;
     }
 
+    // 12. Conversational Queries (e.g. "Where you going", "What are you doing", "Where are you")
+    if (/(?:where\s+(?:are\s+)?you\s+going|kahan\s+ja\s+rahe\s+ho)/i.test(t)) {
+      const currentRoute = location.pathname;
+      let destName = "your clinician workspace";
+      if (currentRoute.includes('login')) destName = "the clinic sign-in page";
+      else if (currentRoute.includes('appointment')) destName = "the operatory schedule";
+      else if (currentRoute.includes('directory')) destName = "the patient directory";
+      else if (currentRoute.includes('chart')) destName = "the patient dental chart";
+      const reply = `I am on ${destName}, Doctor. Ready for your command.`;
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      triggerHudFeedback(reply, "Status Query");
+      showLiveSubtitle(reply, 'active', 5000);
+      activeConversationUntilRef.current = Date.now() + 35000;
+      return true;
+    }
+
+    if (/(?:what\s+are\s+you\s+doing|kya\s+kar\s+rahe\s+ho|what's\s+up)/i.test(t)) {
+      const reply = "I am standing by in your operatory, Doctor. Ready for your instructions.";
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      triggerHudFeedback(reply, "Status Query");
+      showLiveSubtitle(reply, 'active', 5000);
+      activeConversationUntilRef.current = Date.now() + 35000;
+      return true;
+    }
+
     return false;
   };
 
@@ -791,6 +817,7 @@ export default function Doctor3DAssistantWidget() {
       triggerHudFeedback(fallbackMsg, "Awaiting Command");
       showLiveSubtitle("Command error. Please repeat.", 'warning');
     } finally {
+      activeConversationUntilRef.current = Date.now() + 35000;
       setIsProcessing(false);
     }
   };
@@ -800,6 +827,19 @@ export default function Doctor3DAssistantWidget() {
   // --------------------------------------------------------------------------
   const onSpeechResult = useCallback((rawTranscript, isFinal = false) => {
     let text = rawTranscript.trim();
+    if (!text) return;
+
+    // Strip leading speaker echo if Web Speech API captured residual speech from Jarvis
+    const utterances = aiVoice.recentUtterances || [];
+    for (const u of utterances) {
+      if (!u.text) continue;
+      const cleanSpoken = u.text.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+      const cleanLower = text.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+      if (cleanSpoken && cleanLower.startsWith(cleanSpoken)) {
+        text = text.slice(u.text.length).replace(/^[,.\s]+/, '').trim();
+        break;
+      }
+    }
     if (!text) return;
 
     const lower = text.toLowerCase();
@@ -850,14 +890,15 @@ export default function Doctor3DAssistantWidget() {
       return;
     }
 
-    // 2. Check Wake-Word or Direct Clinical Intent
+    // 2. Check Wake-Word or Direct Clinical Intent or Active Dialogue Window
     const hasWakeWord = WAKE_REGEX.test(lower);
     const hasClinicalIntent = CLINICAL_INTENT_REGEX.test(lower) || /(?:open|show|go\s*to|take\s*me\s*to|navigate\s*to|load|switch\s*to)\s+/i.test(lower);
     const wasAwaitingCommand = expectingCommandAfterWakeWordRef.current;
+    const isConversationActive = Date.now() < activeConversationUntilRef.current;
 
     // Show live interim subtitle, but wait for finalized speech before executing commands
     if (!isFinal) {
-      if (hasWakeWord || wasAwaitingCommand || hasClinicalIntent) {
+      if (hasWakeWord || wasAwaitingCommand || hasClinicalIntent || isConversationActive) {
         showLiveSubtitle(`Listening: "${rawTranscript}"`, 'heard', 1200);
       }
       return;
@@ -876,6 +917,7 @@ export default function Doctor3DAssistantWidget() {
 
         console.log('%c👋 [JARVIS NAME CALLED]', 'color: #00ff88;', 'Doctor addressed Jarvis alone.');
         expectingCommandAfterWakeWordRef.current = true;
+        activeConversationUntilRef.current = Date.now() + 35000;
         if (wakeWordTimeoutRef.current) clearTimeout(wakeWordTimeoutRef.current);
         wakeWordTimeoutRef.current = setTimeout(() => {
           expectingCommandAfterWakeWordRef.current = false;
@@ -895,6 +937,7 @@ export default function Doctor3DAssistantWidget() {
       expectingCommandAfterWakeWordRef.current = false;
       lastExecutedCommandRef.current = lower;
       lastExecutionTimeRef.current = now;
+      activeConversationUntilRef.current = Date.now() + 35000;
       processDoctorCommand(text);
       return;
     }
@@ -906,6 +949,7 @@ export default function Doctor3DAssistantWidget() {
       expectingCommandAfterWakeWordRef.current = false;
       lastExecutedCommandRef.current = lower;
       lastExecutionTimeRef.current = now;
+      activeConversationUntilRef.current = Date.now() + 35000;
       processDoctorCommand(text);
       return;
     }
@@ -916,6 +960,20 @@ export default function Doctor3DAssistantWidget() {
       console.log('%c⚡ [JARVIS DIRECT CLINICAL DIRECTIVE]', 'color: #76ff03; font-weight: bold;', `Direct command accepted: "${text}"`);
       lastExecutedCommandRef.current = lower;
       lastExecutionTimeRef.current = now;
+      activeConversationUntilRef.current = Date.now() + 35000;
+      processDoctorCommand(text);
+      return;
+    }
+
+    // Active Conversational Dialogue Window:
+    // When the doctor and Jarvis are in an active conversation (or right after Jarvis spoke / prompted),
+    // any natural spoken reply or question is processed immediately without requiring the word "Jarvis"!
+    if (isConversationActive && text.length >= 2) {
+      if (isRecentDuplicate) return;
+      console.log('%c💬 [JARVIS CONVERSATIONAL FLOW]', 'color: #00e5ff; font-weight: bold;', `Active dialogue response: "${text}"`);
+      lastExecutedCommandRef.current = lower;
+      lastExecutionTimeRef.current = now;
+      activeConversationUntilRef.current = Date.now() + 35000;
       processDoctorCommand(text);
       return;
     }
@@ -995,19 +1053,19 @@ export default function Doctor3DAssistantWidget() {
         }
       };
 
-      // Continuous loop: if browser stops recognition while Jarvis is ON, restart in 300ms
+      // Continuous loop: if browser stops recognition while Jarvis is ON, restart if not speaking
       rec.onend = () => {
         setIsListening(false);
-        if (runningRef.current) {
+        if (runningRef.current && !aiVoice.speaking) {
           setTimeout(() => {
-            if (runningRef.current) {
+            if (runningRef.current && !aiVoice.speaking) {
               try { 
                 rec.start(); 
               } catch (startErr) {
                 // Ignore already started notices
               }
             }
-          }, 300);
+          }, 250);
         }
       };
 
@@ -1040,6 +1098,7 @@ export default function Doctor3DAssistantWidget() {
     try { localStorage.setItem('dentia_jarvis_running', 'true'); } catch {}
     aiVoice.playChime('wake');
     await requestWakeLock();
+    activeConversationUntilRef.current = Date.now() + 60000;
     startMic();
     triggerHudFeedback("Jarvis online, Doctor. Say 'Jarvis, ...'", "Active");
     showLiveSubtitle("Jarvis online • Listening for commands", 'active');
@@ -1079,10 +1138,27 @@ export default function Doctor3DAssistantWidget() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Sync TTS Speaking State
+  // Sync TTS Speaking State & Pause Mic while speaking to completely eliminate acoustic feedback
   useEffect(() => {
     const unsubscribe = aiVoice.subscribe((voiceState) => {
       setIsSpeaking(voiceState.speaking);
+      if (voiceState.speaking) {
+        // Abort mic immediately so Chrome does not record computer speakers
+        if (recognitionRef.current) {
+          try {
+            recognitionRef.current.abort();
+          } catch {}
+        }
+      } else {
+        // Resume listening 140ms after speech ends
+        if (runningRef.current) {
+          setTimeout(() => {
+            if (runningRef.current && !aiVoice.speaking) {
+              startMic();
+            }
+          }, 140);
+        }
+      }
     });
     return () => unsubscribe();
   }, []);
