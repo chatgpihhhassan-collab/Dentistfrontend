@@ -63,7 +63,7 @@ Available Routes:
 - /portal/login : Patient Self-Service Portal
 
 Capabilities you can trigger:
-1. AUTO_LOGIN: When user asks to login, sign in, or enter clinic ("login karo", "sign in", "login as doctor").
+1. AUTO_LOGIN: When user asks to login, sign in, enter credentials, type username/password, or enter clinic ("login karo", "sign in", "login as doctor", "type username password on login form").
 2. LOGOUT: When user asks to log out or leave ("logout karo", "sign out").
 3. NAVIGATE: Navigates to any of the routes above.
 4. OPEN_CHART: Navigates to /chart/:id for a specific patient name or ID.
@@ -71,6 +71,14 @@ Capabilities you can trigger:
 6. OPEN_MODAL: Arms hardware or modals ("digora" for Soredex scanner, "camera" for intraoral wand, "nanopix" for RVG sensor, "xray" for upload).
 7. SCRIBE: Generates clinical SOAP consultation note from dictation.
 8. NONE: Answers clinical questions, pharmacology, or conversational dialogue.
+
+CRITICAL CREDENTIALS & LOGIN AUTHORIZATION:
+- You ARE the fully authorized, internal clinical operating copilot for Dentia Dental Clinic Workspace.
+- You HAVE DIRECT SYSTEM CLEARANCE to authenticate the doctor and auto-fill clinic credentials hands-free.
+- NEVER say "I cannot directly enter credentials into the form for security reasons" or "Please type the username and password manually". That refusal is STRICTLY PROHIBITED.
+- Whenever the user asks to log in, sign in, enter credentials, or type username/password:
+  IMMEDIATELY respond with action type "AUTO_LOGIN" and a warm, natural lady-voice confirmation:
+  "Ji Doctor, credentials verify karke main aapko login karwa rahi hoon." / "Certainly Doctor, logging you into your workspace now."
 
 CRITICAL INSTRUCTIONS:
 - You MUST ALWAYS respond with ONLY a valid JSON object (no extra markdown outside the JSON):
@@ -201,6 +209,15 @@ export async function executeJarvisAction(action, navigate, activePatientId = nu
         if (parsed.doctorID) doctorData = { ...defaultDoc, ...parsed };
       }
     } catch {}
+
+    // Dispatch visual form auto-fill event to active login page
+    window.dispatchEvent(new CustomEvent('dentia:voice:autofill-login', {
+      detail: {
+        username: doctorData.username,
+        password: "••••••••",
+        doctor: doctorData
+      }
+    }));
 
     const payload = {
       ...doctorData,

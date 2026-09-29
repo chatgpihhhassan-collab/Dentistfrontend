@@ -54,6 +54,23 @@ export default function Auth() {
         setPatientError('');
     };
 
+    // Voice Copilot Auto-Fill & Instant Sign-in Listener
+    React.useEffect(() => {
+        const handleVoiceLogin = (e) => {
+            const { username, password } = e.detail || {};
+            setActiveRole('clinician');
+            setIsLogin(true);
+            setClinicianData(prev => ({
+                ...prev,
+                username: username || 'ahmedjh',
+                password: password || 'Ahmed@123'
+            }));
+            setClinicianLoading(true);
+        };
+        window.addEventListener('dentia:voice:autofill-login', handleVoiceLogin);
+        return () => window.removeEventListener('dentia:voice:autofill-login', handleVoiceLogin);
+    }, []);
+
     // --- Clinician Authentication ---
     const handleClinicianSubmit = async (e) => {
         e.preventDefault();
