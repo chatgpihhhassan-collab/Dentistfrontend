@@ -66,17 +66,10 @@ const ProtectedRoute = ({ children }) => {
         return <Navigate to={`/login?${redirectParam}`} state={{ from: location, ...alertState }} replace />;
     }
     
-    if (sessionCheck.doctor?.isSuperAdmin) {
-        return <Navigate to="/admin/doctors" replace />;
-    }
     return children;
 };
 
 const BlockSuperAdmin = ({ children }) => {
-    const doctor = JSON.parse(localStorage.getItem('doctor'));
-    if (doctor && doctor.isSuperAdmin) {
-        return <Navigate to="/admin/doctors" replace />;
-    }
     return children;
 };
 

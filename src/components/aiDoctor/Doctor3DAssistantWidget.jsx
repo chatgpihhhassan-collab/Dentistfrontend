@@ -38,7 +38,7 @@ import { DEFAULT_CLINIC_PATIENTS, searchClinicPatients, syncDynamicPatients } fr
 const WAKE_REGEX = /\b(jarvis|javis|jarwis|service|travers|jawis|chavis|charvis|dr\s*jarvis)\b/i;
 
 // Direct clinical directives that execute even if the doctor forgets to say "Jarvis" while ON
-const CLINICAL_INTENT_REGEX = /\b(login|sign\s*in|log\s*me\s*in|login\s*karo|mujhe\s*login|login\s*karwa\s*do|logout|sign\s*out|exit|band\s*karo|tooth\s+\d+|daant\s+\d+|caries|decay|rct|crown|implant|missing|digora|nanopix|camera|patient\s+\d+|patient|schedule|calendar|timetable|appointments|scribe|notes|guidelines|directory|dashboard|workspace|work\s*space|home|overview|charts?|records?|analytics)\b/i;
+const CLINICAL_INTENT_REGEX = /\b(login|sign\s*in|log\s*me\s*in|login\s*karo|mujhe\s*login|login\s*karwa\s*do|logout|sign\s*out|exit|band\s*karo|tooth\s+\d+|daant\s+\d+|caries|decay|rct|crown|implant|missing|digora|nanopix|camera|patient\s+\d+|patient|schedule|calendar|timetable|appointments|scribe|notes|guidelines|directory|dashboard|workspace|work\s*space|home|overview|charts?|records?|analytics|can\s+you\s+hear\s+me|are\s+you\s+there|listen)\b/i;
 
 export default function Doctor3DAssistantWidget() {
   const navigate = useNavigate();
@@ -419,6 +419,21 @@ export default function Doctor3DAssistantWidget() {
   // --------------------------------------------------------------------------
   const handleLocalCommand = (rawText) => {
     const t = rawText.toLowerCase().trim();
+
+    // 0. Conversational Presence & Audio Check (e.g. "can you hear me", "are you there", "can you listen")
+    if (/(?:can\s+you\s+hear\s+me|are\s+you\s+there|can\s+you\s+listen|sun\s*rahe\s*ho|awaz\s*aa\s*rahi\s*hai|am\s+i\s+audible)/i.test(t)) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Doctor Presence Check', 'color: #00ff88; font-weight: bold;', t);
+      const reply = "Yes Doctor, I can hear you loud and clear. Ready for your command.";
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.05, pitch: 1.08 });
+      triggerHudFeedback(reply, "Listening Active");
+      showLiveSubtitle(reply, 'active', 5000);
+      expectingCommandAfterWakeWordRef.current = true;
+      if (wakeWordTimeoutRef.current) clearTimeout(wakeWordTimeoutRef.current);
+      wakeWordTimeoutRef.current = setTimeout(() => {
+        expectingCommandAfterWakeWordRef.current = false;
+      }, 15000);
+      return true;
+    }
 
     // 1. Odontogram Tooth Condition Regex (e.g. "tooth 14 occlusal caries", "tooth 21 crown", "tooth 36 rct")
     const toothMatch = t.match(/(?:tooth|daant)\s+(\d{1,2})\s*(?:on\s+([modbl]+))?\s*(?:pe\s+)?(caries|decay|rct|root\s*canal|crown|implant|missing|filling|composite|fracture)/i);
@@ -834,12 +849,12 @@ export default function Doctor3DAssistantWidget() {
         if (wakeWordTimeoutRef.current) clearTimeout(wakeWordTimeoutRef.current);
         wakeWordTimeoutRef.current = setTimeout(() => {
           expectingCommandAfterWakeWordRef.current = false;
-        }, 8000);
+        }, 15000);
 
         const promptReply = "Yes, Doctor?";
         if (!isAudioMuted) aiVoice.speak(promptReply, { rate: 1.05, pitch: 1.1 });
         triggerHudFeedback(promptReply, "Listening for Command...");
-        showLiveSubtitle("Yes, Doctor? (Listening for command...)", 'active', 6000);
+        showLiveSubtitle("Yes, Doctor? (Listening for command...)", 'active', 8000);
         return;
       }
 
@@ -922,15 +937,14 @@ export default function Doctor3DAssistantWidget() {
         const candidate = (finalTranscript || interimTranscript).trim();
         if (!candidate) return;
 
-        // Acoustic feedback suppression: While Jarvis is speaking or within 1200ms after, laptop speakers emit audio
-        const isSpeakingOrJustFinished = aiVoice.speaking || (Date.now() - (aiVoice.lastSpokeEndTime || 0) < 1200);
-        if (isSpeakingOrJustFinished) {
-          const isInterruptionWord = /\b(stop|wait|cancel|pause|chup|quiet|listen|jarvis|javis)\b/i.test(candidate);
-          if (!isInterruptionWord) {
-            return; // Drop all speaker audio reflection
-          }
+        // Acoustic feedback suppression: check if candidate is reflection from device speakers
+        if (aiVoice.isRecentEcho && aiVoice.isRecentEcho(candidate)) {
+          console.log('%c🔇 [ACOUSTIC ECHO SUPPRESSED]', 'color: #78909c;', candidate);
+          return;
+        }
 
-          // Doctor intentionally spoke a barge-in word
+        // Interruption (Barge-in): Doctor is speaking while Jarvis was talking
+        if (aiVoice.speaking) {
           console.log('%c⚡ [JARVIS VOICE BARGE-IN]', 'background: #00e5ff; color: #000; font-weight: bold;', 'Doctor interrupted speech with:', candidate);
           aiVoice.stop();
         }

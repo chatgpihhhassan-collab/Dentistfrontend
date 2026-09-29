@@ -101,8 +101,8 @@ export default function Auth() {
                 const data = await res.json();
                 establishDoctorSession(data, rememberMe);
 
-                // Preserve deep link path, search params, and hash (e.g. /chart/36?tab=billing)
-                let targetFrom = (data.isSuperAdmin ? '/admin/doctors' : '/directory');
+                // Default landing destination: Doctor Dashboard
+                let targetFrom = '/dashboard';
                 if (location.state?.from) {
                     if (typeof location.state.from === 'string') {
                         targetFrom = location.state.from;
