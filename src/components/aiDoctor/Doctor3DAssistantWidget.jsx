@@ -14,24 +14,29 @@ import {
   Camera,
   Calendar,
   FileText,
-  UserCheck
+  UserCheck,
+  AlertTriangle
 } from 'lucide-react';
 import aiVoice from '../../utils/aiVoiceAssistant';
 import { queryJarvis, executeJarvisAction } from '../../services/dentiaJarvisService';
 
 /**
  * ==============================================================================
- * DENTIA JARVIS CHAIRSIDE CLINICAL COPILOT (v2 Controller)
+ * DENTIA JARVIS CHAIRSIDE CLINICAL COPILOT (v2 Controller + Comprehensive Logs)
  * ==============================================================================
  * - Voice-first hands-free teammate: NO clunky text inputs or patient chat boxes.
  * - Stays continuously ON until explicitly turned OFF by the doctor.
  * - Toggled via Spacebar / dental foot-pedal, on-screen power switch, or "Jarvis off".
- * - Ignores room background chatter unless addressed as "Jarvis, ...".
- * - Sub-second local & cloud command execution across the entire dental platform.
+ * - Intelligent wake filtering: recognizes "Jarvis" or direct clinical directives.
+ * - Detailed real-time console & on-screen diagnostic logging.
  * ==============================================================================
  */
 
-const REQUIRE_NAME = true; // Acts only when addressed with "Jarvis" to protect patient privacy
+// Phonetic regex for Jarvis variations (e.g. javis, jarwis, service)
+const WAKE_REGEX = /\b(jarvis|javis|jarwis|service|travers|jawis|chavis|charvis|dr\s*jarvis)\b/i;
+
+// Direct clinical directives that execute even if the doctor forgets to say "Jarvis" while ON
+const CLINICAL_INTENT_REGEX = /\b(login|sign\s*in|logout|sign\s*out|tooth\s+\d+|caries|decay|rct|crown|implant|missing|digora|nanopix|camera|patient\s+\d+|schedule|calendar|scribe|notes|guidelines)\b/i;
 
 export default function Doctor3DAssistantWidget() {
   const navigate = useNavigate();
@@ -56,10 +61,11 @@ export default function Doctor3DAssistantWidget() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
 
-  // Live HUD Action Feedback (Auto-fades after 4 seconds)
+  // Live HUD Action Feedback (Auto-fades after 4.5 seconds)
   const [lastAction, setLastAction] = useState(null); // { speech, chip, timestamp }
-  const [lastTranscript, setLastTranscript] = useState('');
+  const [liveSubtitle, setLiveSubtitle] = useState(null); // { text, type: 'heard' | 'active' | 'warning' }
   const actionTimerRef = useRef(null);
+  const subtitleTimerRef = useRef(null);
 
   // Active Doctor Information
   const [doctorName, setDoctorName] = useState('Doctor');
@@ -82,16 +88,22 @@ export default function Doctor3DAssistantWidget() {
         if (d?.doctorID) setDoctorId(d.doctorID);
       }
     } catch {}
-  }, []);
+    console.log('%c🎙️ [JARVIS INITIALIZED]', 'background: #10244B; color: #00f2fe; font-size: 11px; font-weight: bold; padding: 2px 6px;', {
+      running: runningRef.current,
+      activeRoute: location.pathname,
+      doctor: doctorName
+    });
+  }, [location.pathname]);
 
   // Screen WakeLock Management
   const requestWakeLock = async () => {
     try {
       if ('wakeLock' in navigator && !wakeLockRef.current) {
         wakeLockRef.current = await navigator.wakeLock.request('screen');
+        console.log('%c🔒 [JARVIS WAKELOCK]', 'color: #00e5ff;', 'Screen WakeLock acquired. Monitor will stay awake.');
       }
     } catch (e) {
-      console.warn('[Jarvis WakeLock] Notice:', e);
+      console.warn('[Jarvis WakeLock Notice]:', e);
     }
   };
 
@@ -100,6 +112,7 @@ export default function Doctor3DAssistantWidget() {
       if (wakeLockRef.current) {
         wakeLockRef.current.release();
         wakeLockRef.current = null;
+        console.log('%c🔓 [JARVIS WAKELOCK]', 'color: #94a3b8;', 'Screen WakeLock released.');
       }
     } catch {}
   };
@@ -115,6 +128,15 @@ export default function Doctor3DAssistantWidget() {
     actionTimerRef.current = setTimeout(() => {
       setLastAction(null);
     }, 4500);
+  };
+
+  // Helper for live on-screen subtitle pill
+  const showLiveSubtitle = (text, type = 'heard', durationMs = 4000) => {
+    if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
+    setLiveSubtitle({ text, type });
+    subtitleTimerRef.current = setTimeout(() => {
+      setLiveSubtitle(null);
+    }, durationMs);
   };
 
   // --------------------------------------------------------------------------
@@ -136,6 +158,7 @@ export default function Doctor3DAssistantWidget() {
       else if (condition.includes('missing')) condition = 'Missing';
       else condition = 'Composite';
 
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Updating Odontogram:', 'color: #00ff88; font-weight: bold;', { tooth: toothNum, surface, condition });
       window.dispatchEvent(new CustomEvent('dentia:voice:chart-update', {
         detail: { toothNumber: toothNum, surface, condition }
       }));
@@ -145,60 +168,108 @@ export default function Doctor3DAssistantWidget() {
         aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
       }
       triggerHudFeedback(reply, `Tooth #${toothNum} • ${condition}`);
+      showLiveSubtitle(`Tooth #${toothNum} marked ${condition}`, 'active');
       return true;
     }
 
     // 2. Hardware: Soredex Digora Scanner
     if (/connect\s+digora|open\s+digora|arm\s+digora/i.test(t)) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Arming Soredex Digora scanner', 'color: #00ff88; font-weight: bold;');
       window.dispatchEvent(new CustomEvent('dentia:voice:open-digora'));
       const reply = "Soredex Digora Optime scanner armed and ready, Doctor.";
       if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
       triggerHudFeedback(reply, "Digora Scanner Armed");
+      showLiveSubtitle("Soredex Digora Armed", 'active');
       return true;
     }
 
     // 3. Hardware: NanoPix RVG Sensor
     if (/open\s+nanopix|connect\s+nanopix|arm\s+sensor/i.test(t)) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Launching NanoPix sensor', 'color: #00ff88; font-weight: bold;');
       window.dispatchEvent(new CustomEvent('dentia:voice:open-nanopix'));
       const reply = "NanoPix RVG sensor modal active, Doctor.";
       if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
       triggerHudFeedback(reply, "NanoPix Sensor Active");
+      showLiveSubtitle("NanoPix Sensor Active", 'active');
       return true;
     }
 
     // 4. Hardware: Intraoral Camera
     if (/open\s+camera|launch\s+camera/i.test(t)) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Launching intraoral camera', 'color: #00ff88; font-weight: bold;');
       window.dispatchEvent(new CustomEvent('dentia:voice:open-camera'));
       const reply = "Intraoral camera view ready for capture, Doctor.";
       if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
       triggerHudFeedback(reply, "Intraoral Camera Ready");
+      showLiveSubtitle("Intraoral Camera Ready", 'active');
       return true;
     }
 
-    // 5. Navigation: Schedule
+    // 5. Patient Chart Lookup (e.g. "open patient 38", "chart 38")
+    const patMatch = t.match(/(?:open|show|chart|load)\s+(?:patient\s+)?(\d+)/i);
+    if (patMatch) {
+      const pid = patMatch[1];
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Opening Patient Chart #' + pid, 'color: #00ff88; font-weight: bold;');
+      const reply = `Opening dental chart for Patient #${pid}, Doctor.`;
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      triggerHudFeedback(reply, `Chart #${pid} Loaded`);
+      showLiveSubtitle(`Navigating to Patient #${pid}`, 'active');
+      navigate(`/chart/${pid}`);
+      return true;
+    }
+
+    // 6. Auto-Login
+    if (/login|sign\s*in|log\s*me\s*in|login\s*karo/i.test(t)) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Triggering Auto-Login', 'color: #00ff88; font-weight: bold;');
+      const reply = "Certainly Doctor, logging you into your workspace now.";
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      triggerHudFeedback(reply, "Doctor Authenticated");
+      showLiveSubtitle("Auto-Login in Progress...", 'active');
+      executeJarvisAction({ type: 'AUTO_LOGIN' }, navigate);
+      return true;
+    }
+
+    // 7. Logout
+    if (/logout|sign\s*out|exit|band\s*karo\s*account/i.test(t)) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Logging out', 'color: #00ff88; font-weight: bold;');
+      const reply = "Logging out and securing your workspace, Doctor.";
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      triggerHudFeedback(reply, "Session Purged");
+      showLiveSubtitle("Logging Out...", 'active');
+      executeJarvisAction({ type: 'LOGOUT' }, navigate);
+      return true;
+    }
+
+    // 8. Navigation: Schedule
     if (/(?:go\s+to|open)\s+schedule|calendar|timetable/i.test(t)) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Opening schedule', 'color: #00ff88; font-weight: bold;');
       navigate('/appointments');
       const reply = "Opening operatory schedule, Doctor.";
       if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
       triggerHudFeedback(reply, "Schedule Loaded");
+      showLiveSubtitle("Opening Schedule", 'active');
       return true;
     }
 
-    // 6. Navigation: Directory
+    // 9. Navigation: Directory
     if (/(?:go\s+to|open)\s+directory|patient\s+list/i.test(t)) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Opening directory', 'color: #00ff88; font-weight: bold;');
       navigate('/directory');
       const reply = "Opening patient directory, Doctor.";
       if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
       triggerHudFeedback(reply, "Directory Loaded");
+      showLiveSubtitle("Opening Directory", 'active');
       return true;
     }
 
-    // 7. Navigation: Guidelines
+    // 10. Navigation: Guidelines
     if (/(?:go\s+to|open)\s+guidelines|manual/i.test(t)) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Opening guidelines', 'color: #00ff88; font-weight: bold;');
       navigate('/guidelines');
       const reply = "Opening clinical guidelines manual, Doctor.";
       if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
       triggerHudFeedback(reply, "Guidelines Opened");
+      showLiveSubtitle("Opening Guidelines", 'active');
       return true;
     }
 
@@ -210,7 +281,8 @@ export default function Doctor3DAssistantWidget() {
   // --------------------------------------------------------------------------
   const processDoctorCommand = async (commandText) => {
     setIsProcessing(true);
-    setLastTranscript(commandText);
+    showLiveSubtitle(`Processing: "${commandText}"`, 'active');
+    console.log('%c🚀 [JARVIS ROUTING COMMAND]', 'background: #4a148c; color: #ea80fc; font-weight: bold; padding: 2px 6px;', commandText);
 
     // Fast path: try local handler first
     if (handleLocalCommand(commandText)) {
@@ -226,6 +298,7 @@ export default function Doctor3DAssistantWidget() {
     const isAuth = Boolean(localStorage.getItem('doctor'));
 
     try {
+      console.log('%c🤖 [JARVIS DISPATCHING TO GROQ]', 'color: #00e5ff;', { commandText, activePatientId, isAuth });
       const jarvisRes = await queryJarvis(commandText, {
         pathname: location.pathname,
         patientId: activePatientId,
@@ -233,6 +306,7 @@ export default function Doctor3DAssistantWidget() {
         isAuthenticated: isAuth
       });
 
+      console.log('%c✨ [JARVIS RESPONSE RECEIVED]', 'background: #004d40; color: #64ffda; font-weight: bold; padding: 2px 6px;', jarvisRes);
       const replySpeech = jarvisRes.reply || jarvisRes.speech || "Done, Doctor.";
 
       // 1. Speak aloud in lady voice
@@ -247,6 +321,7 @@ export default function Doctor3DAssistantWidget() {
       if (jarvisRes.action?.type === 'OPEN_CHART') chipLabel = `Chart #${jarvisRes.action.patientId} Loaded`;
       if (jarvisRes.action?.type === 'AUTO_LOGIN') chipLabel = `Doctor Authenticated`;
       triggerHudFeedback(replySpeech, chipLabel);
+      showLiveSubtitle(replySpeech, 'active', 5000);
 
       // 3. Execute platform action
       if (jarvisRes.action) {
@@ -257,10 +332,11 @@ export default function Doctor3DAssistantWidget() {
         await executeJarvisAction(jarvisRes.action, navigate, activePatientId);
       }
     } catch (err) {
-      console.error('[Jarvis] Execution Error:', err);
+      console.error('%c❌ [JARVIS PROCESSING ERROR]', 'background: #b71c1c; color: #fff; font-weight: bold;', err);
       const fallbackMsg = "Doctor, I am ready. Please repeat the command.";
       if (!isAudioMuted) aiVoice.speak(fallbackMsg, { rate: 1.0 });
       triggerHudFeedback(fallbackMsg, "Awaiting Command");
+      showLiveSubtitle("Command error. Please repeat.", 'warning');
     } finally {
       setIsProcessing(false);
     }
@@ -274,42 +350,61 @@ export default function Doctor3DAssistantWidget() {
     if (!text) return;
 
     const lower = text.toLowerCase();
+    console.log('%c🗣️ [JARVIS AUDIO HEARD]', 'background: #1a237e; color: #82b1ff; font-weight: bold; font-size: 12px; padding: 2px 6px;', `"${rawTranscript}"`);
 
     // 1. Voice Turn OFF (always active)
     if (/jarvis.*(?:off|stop|band\s*karo|so\s*jao)|(?:band\s*karo|so\s*jao)\s*jarvis/i.test(lower)) {
+      console.log('%c🛑 [JARVIS VOICE OFF TRIGGERED]', 'color: #ff5252; font-weight: bold;');
       if (!isAudioMuted) {
         aiVoice.speak('Switching off, Doctor.', { rate: 1.02, pitch: 1.08 });
       }
       triggerHudFeedback('Switching off, Doctor.', 'Jarvis Inactive');
+      showLiveSubtitle("Jarvis switched off", 'warning');
       jarvisOff();
       return;
     }
 
-    // 2. Filtering for "Jarvis" Wake-Word
-    if (REQUIRE_NAME) {
-      if (!lower.includes('jarvis')) {
-        // Ignores doctor-patient chatter during surgery
-        return;
-      }
+    // 2. Check Wake-Word or Direct Clinical Intent
+    const hasWakeWord = WAKE_REGEX.test(lower);
+    const hasClinicalIntent = CLINICAL_INTENT_REGEX.test(lower);
+
+    if (hasWakeWord) {
       // Strip "Jarvis" prefix
-      text = text.replace(/^(?:hey\s+|hi\s+|ok\s+|hello\s+)?jarvis[,:\s]*/i, '').trim();
+      text = text.replace(/^(?:hey\s+|hi\s+|ok\s+|hello\s+)?(?:jarvis|javis|jarwis|service|travers|jawis|chavis|charvis|dr\s*jarvis)[,:\s]*/i, '').trim();
 
       // If doctor called only "Jarvis"
       if (!text) {
+        console.log('%c👋 [JARVIS NAME CALLED]', 'color: #00ff88;', 'Doctor addressed Jarvis alone.');
         const promptReply = "Yes, Doctor?";
         if (!isAudioMuted) aiVoice.speak(promptReply, { rate: 1.05, pitch: 1.1 });
         triggerHudFeedback(promptReply, "Listening...");
+        showLiveSubtitle("Yes, Doctor? (Ready for command)", 'active');
         return;
       }
+
+      console.log('%c✅ [JARVIS WAKE WORD DETECTED]', 'color: #00e5ff; font-weight: bold;', `Cleaned command: "${text}"`);
+      processDoctorCommand(text);
+      return;
     }
 
-    processDoctorCommand(text);
+    // If no "Jarvis" prefix, but has clear clinical intent while Jarvis is already ON:
+    if (hasClinicalIntent) {
+      console.log('%c⚡ [JARVIS DIRECT CLINICAL DIRECTIVE]', 'color: #76ff03; font-weight: bold;', `Direct command accepted: "${text}"`);
+      processDoctorCommand(text);
+      return;
+    }
+
+    // Ambient conversation ignored (saves tokens and prevents interruptions)
+    console.log('%c🔇 [JARVIS AMBIENT FILTER]', 'color: #ffaa00;', `Ignored background conversation: "${rawTranscript}". (Say "Jarvis, ..." to trigger)`);
+    showLiveSubtitle(`Heard: "${rawTranscript}" (Say "Jarvis, ...")`, 'heard', 3500);
+
   }, [isAudioMuted, location.pathname, doctorName]);
 
   const startMic = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      console.warn('[Jarvis] Web Speech API not supported in this browser.');
+      console.error('%c❌ [JARVIS ERROR]', 'background: #b71c1c; color: white;', 'Web Speech API is not supported in this browser. Please use Google Chrome or Microsoft Edge.');
+      showLiveSubtitle("Speech recognition not supported in this browser", 'warning', 6000);
       return;
     }
 
@@ -325,22 +420,30 @@ export default function Doctor3DAssistantWidget() {
 
       rec.onstart = () => {
         setIsListening(true);
+        console.log('%c🟢 [JARVIS MIC LISTENING]', 'background: #004d40; color: #64ffda; font-weight: bold; padding: 2px 6px;', 'Microphone is actively capturing operatory audio.');
       };
 
       rec.onresult = (e) => {
         // Acoustic feedback suppression: don't listen to self while Jarvis speaks
-        if (aiVoice.speaking) return;
+        if (aiVoice.speaking) {
+          console.log('%c🔇 [JARVIS ECHO SUPPRESSION]', 'color: #94a3b8;', 'Suppressed incoming audio while Jarvis is speaking aloud.');
+          return;
+        }
 
         const lastResult = e.results[e.results.length - 1];
-        if (lastResult && lastResult.isFinal) {
+        if (lastResult) {
           const spoken = lastResult[0]?.transcript?.trim();
-          if (spoken) onSpeechResult(spoken);
+          if (spoken) {
+            onSpeechResult(spoken);
+          }
         }
       };
 
       rec.onerror = (e) => {
-        console.warn('[Jarvis Mic Notice]:', e.error);
+        console.warn('%c⚠️ [JARVIS MIC EVENT ERROR]', 'color: #ffb74d;', e.error);
         if (e.error === 'not-allowed') {
+          console.error('%c❌ [JARVIS MIC BLOCKED]', 'background: #b71c1c; color: white;', 'Microphone permission was DENIED by the browser. Please allow microphone in the browser address bar.');
+          showLiveSubtitle("Microphone blocked. Please click URL lock icon to allow mic!", 'warning', 7000);
           jarvisOff();
         }
       };
@@ -351,7 +454,11 @@ export default function Doctor3DAssistantWidget() {
         if (runningRef.current) {
           setTimeout(() => {
             if (runningRef.current) {
-              try { rec.start(); } catch {}
+              try { 
+                rec.start(); 
+              } catch (startErr) {
+                // Ignore already started notices
+              }
             }
           }, 300);
         }
@@ -359,8 +466,9 @@ export default function Doctor3DAssistantWidget() {
 
       rec.start();
       recognitionRef.current = rec;
+      console.log('%c🎤 [JARVIS MIC ATTEMPTED START]', 'color: #00f2fe;', 'Requested browser microphone stream.');
     } catch (err) {
-      console.warn('[Jarvis StartMic Error]:', err);
+      console.error('[Jarvis StartMic Exception]:', err);
     }
   };
 
@@ -371,6 +479,7 @@ export default function Doctor3DAssistantWidget() {
       recognitionRef.current = null;
     }
     setIsListening(false);
+    console.log('%c🛑 [JARVIS MIC STOPPED]', 'color: #f43f5e;', 'Microphone closed.');
   };
 
   // --------------------------------------------------------------------------
@@ -378,6 +487,7 @@ export default function Doctor3DAssistantWidget() {
   // --------------------------------------------------------------------------
   const jarvisOn = async () => {
     if (running) return;
+    console.log('%c⚡ [JARVIS ON]', 'background: #004d40; color: #64ffda; font-weight: bold; padding: 2px 6px;', 'Doctor turned Jarvis ON.');
     setRunning(true);
     runningRef.current = true;
     try { localStorage.setItem('dentia_jarvis_running', 'true'); } catch {}
@@ -385,9 +495,11 @@ export default function Doctor3DAssistantWidget() {
     await requestWakeLock();
     startMic();
     triggerHudFeedback("Jarvis online, Doctor. Say 'Jarvis, ...'", "Active");
+    showLiveSubtitle("Jarvis online • Listening for commands", 'active');
   };
 
   const jarvisOff = () => {
+    console.log('%c⚡ [JARVIS OFF]', 'background: #37474f; color: #cfd8dc; font-weight: bold; padding: 2px 6px;', 'Doctor turned Jarvis OFF.');
     setRunning(false);
     runningRef.current = false;
     try { localStorage.setItem('dentia_jarvis_running', 'false'); } catch {}
@@ -395,6 +507,7 @@ export default function Doctor3DAssistantWidget() {
     stopMic();
     releaseWakeLock();
     aiVoice.stop();
+    showLiveSubtitle("Jarvis turned off", 'warning');
   };
 
   const toggleJarvis = () => (runningRef.current ? jarvisOff() : jarvisOn());
@@ -410,6 +523,7 @@ export default function Doctor3DAssistantWidget() {
       );
       if (e.code === 'Space' && !isInput && !e.repeat) {
         e.preventDefault();
+        console.log('%c⌨️ [JARVIS FOOT-PEDAL/SPACE TRIGGERED]', 'color: #ffaa00;', 'Toggling Jarvis state.');
         toggleJarvis();
       }
     };
@@ -432,6 +546,7 @@ export default function Doctor3DAssistantWidget() {
       stopMic();
       releaseWakeLock();
       if (actionTimerRef.current) clearTimeout(actionTimerRef.current);
+      if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
     };
   }, []);
 
@@ -465,6 +580,28 @@ export default function Doctor3DAssistantWidget() {
                 "{lastAction.speech}"
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* LIVE SUBTITLE TELEMETRY PILL (Shows doctor what Jarvis heard in real-time) */}
+      {liveSubtitle && (
+        <div className="fixed bottom-20 right-6 z-50 animate-in fade-in duration-200 pointer-events-none">
+          <div className={`px-3 py-1.5 rounded-full text-[11px] font-semibold flex items-center gap-2 shadow-lg backdrop-blur-md border ${
+            liveSubtitle.type === 'active' 
+              ? 'bg-emerald-950/85 text-emerald-300 border-emerald-500/40' 
+              : liveSubtitle.type === 'warning'
+                ? 'bg-rose-950/85 text-rose-300 border-rose-500/40'
+                : 'bg-slate-900/85 text-cyan-300 border-cyan-500/30'
+          }`}>
+            <span className={`w-2 h-2 rounded-full ${
+              liveSubtitle.type === 'active' 
+                ? 'bg-emerald-400 animate-pulse' 
+                : liveSubtitle.type === 'warning'
+                  ? 'bg-rose-400'
+                  : 'bg-cyan-400 animate-ping'
+            }`} />
+            <span>{liveSubtitle.text}</span>
           </div>
         </div>
       )}

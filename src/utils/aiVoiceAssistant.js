@@ -177,13 +177,27 @@ class AIVoiceAssistant {
             this.currentText = text;
             this.notifyListeners();
 
+            // Watchdog: In case Chrome SpeechSynthesis pauses or misses onend
+            const maxDurationMs = Math.max(3000, Math.min(15000, text.length * 80));
+            if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
+            this.watchdogTimer = setTimeout(() => {
+                if (this.speaking) {
+                    console.log('[AIVoiceAssistant] Speech watchdog auto-cleared speaking lock');
+                    this.speaking = false;
+                    this.currentText = '';
+                    this.notifyListeners();
+                }
+            }, maxDurationMs);
+
             utterance.onend = () => {
+                if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
                 this.speaking = false;
                 this.currentText = '';
                 this.notifyListeners();
             };
 
             utterance.onerror = (e) => {
+                if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
                 if (e.error !== 'canceled' && e.error !== 'interrupted') {
                     console.warn('[AIVoiceAssistant] Utterance error:', e);
                 }
@@ -194,6 +208,7 @@ class AIVoiceAssistant {
 
             window.speechSynthesis.speak(utterance);
         } catch (err) {
+            if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
             console.warn('[AIVoiceAssistant] Speech error:', err);
             this.speaking = false;
             this.currentText = '';
