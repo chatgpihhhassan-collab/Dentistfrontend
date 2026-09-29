@@ -38,7 +38,7 @@ import { DEFAULT_CLINIC_PATIENTS, searchClinicPatients, syncDynamicPatients } fr
 const WAKE_REGEX = /\b(jarvis|javis|jarwis|service|travers|jawis|chavis|charvis|dr\s*jarvis)\b/i;
 
 // Direct clinical directives that execute even if the doctor forgets to say "Jarvis" while ON
-const CLINICAL_INTENT_REGEX = /\b(login|sign\s*in|log\s*me\s*in|login\s*karo|mujhe\s*login|login\s*karwa\s*do|logout|sign\s*out|exit|band\s*karo|tooth\s+\d+|daant\s+\d+|caries|decay|rct|crown|implant|missing|digora|nanopix|camera|patient\s+\d+|patient|schedule|calendar|timetable|appointments|scribe|notes|guidelines|directory|dashboard|workspace|work\s*space|home|overview|charts?|records?|analytics|can\s+you\s+hear\s+me|are\s+you\s+there|listen)\b/i;
+const CLINICAL_INTENT_REGEX = /\b(login|sign\s*in|log\s*me\s*in|login\s*karo|mujhe\s*login|login\s*karwa\s*do|logout|sign\s*out|exit|band\s*karo|tooth\s+\d+|daant\s+\d+|caries|decay|rct|crown|implant|missing|digora|nanopix|camera|patient\s+\d+|patient|schedule|calendar|timetable|appointments|scribe|notes|guidelines|directory|dashboard|workspacee?s?|work\s*space|work\s*place|pricing|fees?|treatments?|procedures?|new\s*patient|register\s*patient|book\s*appointment|home|overview|charts?|records?|analytics|can\s+you\s+hear\s+me|are\s+you\s+there|listen)\b/i;
 
 export default function Doctor3DAssistantWidget() {
   const navigate = useNavigate();
@@ -321,7 +321,7 @@ export default function Doctor3DAssistantWidget() {
   };
 
   // Autonomous Login Sequence: Glides to Username, types, glides to Password, types, glides to Submit, clicks!
-  const performAutonomousLogin = async (targetDoc = null) => {
+  const performAutonomousLogin = async (targetDoc = null, targetRoute = null) => {
     const docToLogin = targetDoc || pendingDoctorLoginRef.current || matchDoctorInDb('jhangir') || {
       doctorID: 2,
       firstName: 'jhangir',
@@ -406,7 +406,7 @@ export default function Doctor3DAssistantWidget() {
     
     establishDoctorSession(payload, true);
     setTimeout(() => {
-      const destination = isSuper ? '/admin/doctors' : '/dashboard';
+      const destination = isSuper ? '/admin/doctors' : (targetRoute || '/directory');
       navigate(destination, { replace: true });
     }, 900);
 
@@ -688,45 +688,149 @@ export default function Doctor3DAssistantWidget() {
       return true;
     }
 
-    // 11. Navigation: Dashboard / Workspace / Home
-    // Matches: "open my workspace page please", "workspace page", "open workspace", "dashboard", "home", etc.
+    // 11. Navigation: Clinician Patient Workspace
+    // Matches: "open workspace", "open the workspace page", "open workspacee page", "workspace page", "my workspace", "clinician workspace", "workspace", "work space"
     if (
-      /(?:dashboard|workspace|home|analytics)/i.test(t) ||
-      /(?:go\s+to|open|take\s+me\s+to|show)\s+(?:(?:my\s+)?(?:dashboard|workspace|home|analytics|overview|main\s+page))/i.test(t)
+      /(?:work\s*space|workspacee?s?|work\s*place|clinic\s*workspace|doctor\s*workspace|clinician\s*workspace)/i.test(t) ||
+      /(?:go\s+to|open|take\s+me\s+to|show|load)\s+(?:(?:my|the)\s+)?(?:workspacee?s?|work\s*space|workspace\s+page)/i.test(t)
     ) {
-      // If currently on login page and not authenticated yet, prompt for login confirmation
       const isAuth = Boolean(localStorage.getItem('doctor'));
+      // If currently on login page and not authenticated yet:
       if (!isAuth && location.pathname.includes('/login')) {
         const matchedDoc = matchDoctorInDb('jhangir');
         const docDisplayName = matchedDoc.displayName || `Dr. ${matchedDoc.firstName} ${matchedDoc.lastName}`;
-        const questionReply = `We have ${docDisplayName} in our system. Would you like me to log him in to open your workspace?`;
-        pendingDoctorLoginRef.current = matchedDoc;
-        expectingConfirmationRef.current = true;
-        if (confirmationTimeoutRef.current) clearTimeout(confirmationTimeoutRef.current);
-        confirmationTimeoutRef.current = setTimeout(() => {
-          expectingConfirmationRef.current = false;
-          pendingDoctorLoginRef.current = null;
-        }, 14000);
-        if (!isAudioMuted) aiVoice.speak(questionReply, { rate: 1.02, pitch: 1.08 });
-        triggerHudFeedback(questionReply, `${docDisplayName} Found • Awaiting 'Yes'`);
-        showLiveSubtitle(`We have ${docDisplayName}. Say 'Yes' to log in.`, 'active', 8000);
+        console.log('%c⚡ [JARVIS LOCAL ACTION] Signing in to open Clinician Workspace', 'color: #00ff88; font-weight: bold;');
+        const reply = `Logging you into your clinical workspace now, Doctor.`;
+        if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.05, pitch: 1.08 });
+        triggerHudFeedback(reply, "Opening Workspace");
+        showLiveSubtitle(`Logging in ${docDisplayName} and opening workspace...`, 'active', 6000);
+        performAutonomousLogin(matchedDoc, '/directory');
         return true;
       }
 
-      console.log('%c⚡ [JARVIS LOCAL ACTION] Opening clinician workspace', 'color: #00ff88; font-weight: bold;');
-      const navEl = document.querySelector('a[href="/dashboard"], [data-nav="dashboard"]');
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Opening Clinician Workspace', 'color: #00ff88; font-weight: bold;');
+      const doctor = JSON.parse(localStorage.getItem('doctor') || '{}');
+      const targetPath = (doctor && doctor.isSuperAdmin) ? '/admin/doctors' : '/directory';
+      
+      const navEl = document.querySelector('button:has-text("Workspace"), a[href="/directory"], [data-nav="directory"]');
       if (navEl) {
         const rect = navEl.getBoundingClientRect();
         runCursorGlide(rect.left + rect.width / 2, rect.top + rect.height / 2, "Opening Workspace", true);
+      } else {
+        runCursorGlide(window.innerWidth * 0.85, 45, "Opening Workspace", true);
       }
       setTimeout(() => {
         setVirtualCursor(prev => ({ ...prev, visible: false }));
-        navigate('/dashboard');
+        navigate(targetPath);
       }, 450);
       const reply = "Opening your clinician workspace, Doctor.";
       if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
       triggerHudFeedback(reply, "Workspace Loaded");
       showLiveSubtitle("Opening Clinician Workspace", 'active');
+      return true;
+    }
+
+    // 12. Navigation: Practice Dashboard & Home
+    // Matches: "open dashboard", "dashboard", "go home", "main page", "clinic overview", "analytics"
+    if (
+      /(?:dashboard|go\s+home|open\s+(?:my\s+)?dashboard|practice\s+analytics|clinic\s+overview|^home$|^overview$|main\s+page)/i.test(t)
+    ) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Opening practice dashboard', 'color: #00ff88; font-weight: bold;');
+      const doctor = JSON.parse(localStorage.getItem('doctor') || '{}');
+      const targetPath = (doctor && doctor.isSuperAdmin) ? '/admin/doctors' : '/dashboard';
+      const navEl = document.querySelector('a[href="/dashboard"], a[href="/"], [data-nav="dashboard"]');
+      if (navEl) {
+        const rect = navEl.getBoundingClientRect();
+        runCursorGlide(rect.left + rect.width / 2, rect.top + rect.height / 2, "Opening Dashboard", true);
+      }
+      setTimeout(() => {
+        setVirtualCursor(prev => ({ ...prev, visible: false }));
+        navigate(targetPath);
+      }, 450);
+      const reply = "Opening practice dashboard, Doctor.";
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      triggerHudFeedback(reply, "Dashboard Loaded");
+      showLiveSubtitle("Opening Practice Dashboard", 'active');
+      return true;
+    }
+
+    // 13. Navigation: Fee Schedules & Pricing
+    if (/(?:go\s+to|open)\s+(?:pricing|fees|fee\s+schedule|treatment\s+pricing)|pricing|fee\s+schedule|treatment\s+pricing/i.test(t)) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Opening pricing & fee schedules', 'color: #00ff88; font-weight: bold;');
+      const navEl = document.querySelector('a[href*="pricing"], [data-nav="pricing"]');
+      if (navEl) {
+        const rect = navEl.getBoundingClientRect();
+        runCursorGlide(rect.left + rect.width / 2, rect.top + rect.height / 2, "Opening Fee Schedules", true);
+      }
+      setTimeout(() => {
+        setVirtualCursor(prev => ({ ...prev, visible: false }));
+        navigate('/doctor/pricing');
+      }, 450);
+      const reply = "Opening your fee schedules and treatment pricing, Doctor.";
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      triggerHudFeedback(reply, "Pricing Loaded");
+      showLiveSubtitle("Opening Treatment Pricing", 'active');
+      return true;
+    }
+
+    // 14. Navigation: Treatments Catalog
+    if (/(?:go\s+to|open)\s+(?:treatments?|treatment\s+catalog|procedures?)|treatment\s+catalog|^treatments?$/i.test(t)) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Opening treatments catalog', 'color: #00ff88; font-weight: bold;');
+      const navEl = document.querySelector('a[href="/treatment"], [data-nav="treatment"]');
+      if (navEl) {
+        const rect = navEl.getBoundingClientRect();
+        runCursorGlide(rect.left + rect.width / 2, rect.top + rect.height / 2, "Opening Treatments", true);
+      }
+      setTimeout(() => {
+        setVirtualCursor(prev => ({ ...prev, visible: false }));
+        navigate('/treatment');
+      }, 450);
+      const reply = "Opening treatments catalog, Doctor.";
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      triggerHudFeedback(reply, "Treatments Loaded");
+      showLiveSubtitle("Opening Treatments Catalog", 'active');
+      return true;
+    }
+
+    // 15. Navigation: AI Clinical Notes
+    if (/(?:go\s+to|open)\s+(?:ai\s+notes|soap\s+notes|notes|scribe\s+archive)|ai\s+notes|soap\s+notes/i.test(t)) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Opening AI notes', 'color: #00ff88; font-weight: bold;');
+      setTimeout(() => {
+        setVirtualCursor(prev => ({ ...prev, visible: false }));
+        navigate('/ai-notes');
+      }, 450);
+      const reply = "Opening AI clinical notes archive, Doctor.";
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      triggerHudFeedback(reply, "AI Notes Loaded");
+      showLiveSubtitle("Opening AI Notes", 'active');
+      return true;
+    }
+
+    // 16. Navigation: New Patient Intake
+    if (/(?:new\s+patient|register\s+patient|add\s+(?:new\s+)?patient|patient\s+intake)/i.test(t)) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Opening new patient intake', 'color: #00ff88; font-weight: bold;');
+      setTimeout(() => {
+        setVirtualCursor(prev => ({ ...prev, visible: false }));
+        navigate('/new-patient');
+      }, 450);
+      const reply = "Opening new patient registration, Doctor.";
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      triggerHudFeedback(reply, "New Patient Form");
+      showLiveSubtitle("Opening New Patient Intake", 'active');
+      return true;
+    }
+
+    // 17. Navigation: Book Appointment
+    if (/(?:book\s+appointment|schedule\s+appointment|new\s+appointment|book\s+visit)/i.test(t)) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Opening appointment booking', 'color: #00ff88; font-weight: bold;');
+      setTimeout(() => {
+        setVirtualCursor(prev => ({ ...prev, visible: false }));
+        navigate('/book');
+      }, 450);
+      const reply = "Opening appointment booking triage, Doctor.";
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      triggerHudFeedback(reply, "Book Appointment");
+      showLiveSubtitle("Opening Appointment Booking", 'active');
       return true;
     }
 

@@ -1003,14 +1003,27 @@ export function resolveDoctorInstruction(transcript, context = {}) {
     };
   }
 
-  // 2.5 Clinical Dashboard & Workspace ("Workspace", "Dashboard", "Go home", "Main page")
+  // 2.1b Clinician Patient Workspace ("Workspace", "Workspace page", "Open workspace", "My workspace", "Clinician workspace")
   if (
-    /(?:workspace|dashboard|go\s+home|open\s+(?:my\s+)?workspace|open\s+(?:my\s+)?dashboard|practice\s+analytics|clinic\s+overview|^home$|^overview$)/i.test(clean)
+    /(?:work\s*space|workspacee?s?|work\s*place|clinic\s*workspace|doctor\s*workspace|clinician\s*workspace)/i.test(clean) ||
+    /(?:open|show|go\s+to|load|take\s+me\s+to)\s+(?:(?:my|the)\s+)?(?:workspacee?s?|work\s*space|workspace\s+page)/i.test(clean)
   ) {
     return {
-      title: 'Clinician Workspace & Dashboard',
+      title: 'Clinician Patient Workspace',
       category: 'Navigation',
-      text: 'Opening your clinician workspace and practice analytics, Doctor.',
+      text: 'Opening your clinician patient workspace and operatory directory, Doctor.',
+      action: { type: 'NAVIGATE', path: '/directory' }
+    };
+  }
+
+  // 2.5 Practice Dashboard & Home ("Dashboard", "Go home", "Main page", "Practice analytics")
+  if (
+    /(?:dashboard|go\s+home|open\s+(?:my\s+)?dashboard|practice\s+analytics|clinic\s+overview|^home$|^overview$|main\s+page)/i.test(clean)
+  ) {
+    return {
+      title: 'Practice Dashboard & Overview',
+      category: 'Navigation',
+      text: 'Opening your practice overview and clinic dashboard, Doctor.',
       action: { type: 'NAVIGATE', path: '/dashboard' }
     };
   }
@@ -1111,9 +1124,9 @@ export function resolveDoctorInstruction(transcript, context = {}) {
 
   // 3.3 Fallback Patient Lookup via Backend API
   const chartPatterns = [
-    /(?:chart|chat|records|teeth|file|profile)\s+(?:of|for)\s+([a-zA-Z\s]+)/i,
-    /(?:open|show|view|find|go\s+to)\s+(?:chart|chat|records\s+of)?\s*([a-zA-Z\s]+)(?:\s+(?:chart|records|profile|teeth|chat|ka\s+chart|ki\s+profile))?/i,
-    /([a-zA-Z\s]+)\s+(?:chart|records|teeth|ka\s+chart)/i
+    /(?:chart|records|teeth|file|profile)\s+(?:of|for)\s+([a-zA-Z\s]+)/i,
+    /(?:open|show|view|find|go\s+to)\s+(?:patient\s+|chart\s+(?:of\s+)?|records\s+(?:of\s+)?|file\s+(?:of\s+)?)([a-zA-Z\s]+)/i,
+    /([a-zA-Z\s]+)\s+(?:chart|records|teeth|ka\s+chart|ki\s+profile|ka\s+file)/i
   ];
 
   for (const pattern of chartPatterns) {
@@ -1124,10 +1137,10 @@ export function resolveDoctorInstruction(transcript, context = {}) {
         'appointments', 'appointment', 'dashboard', 'directory', 'patient', 'patients', 
         'treatments', 'treatment', 'the', 'a', 'an', 'notes', 'help', 'tooth', 'teeth', 
         'dentist', 'clinic', 'doctor', 'schedule', 'book', 'booking', 'list', 'records', 'chart', '',
-        'workspace', 'page', 'my', 'please', 'app', 'application', 'site', 'website', 'system', 'portal', 'home', 'main',
-        'guideline', 'guidelines', 'manual', 'protocol', 'overview', 'analytics', 'settings'
+        'workspace', 'workspacee', 'page', 'my', 'please', 'app', 'application', 'site', 'website', 'system', 'portal', 'home', 'main',
+        'guideline', 'guidelines', 'manual', 'protocol', 'overview', 'analytics', 'settings', 'pricing', 'fee', 'fees'
       ];
-      const isNavigationKeyword = /workspace|dashboard|guideline|schedule|appointment|directory|settings|analytics|portal|overview|main\s*page/i.test(candidate);
+      const isNavigationKeyword = /workspace|dashboard|guideline|schedule|appointment|directory|settings|analytics|portal|overview|main\s*page|pricing|fees|treatments/i.test(candidate);
       if (!stopWords.includes(candidate) && !isNavigationKeyword && candidate.length > 2) {
         const matches = searchClinicPatients(candidate);
         if (matches && matches.length > 0) {
@@ -1141,13 +1154,16 @@ export function resolveDoctorInstruction(transcript, context = {}) {
           };
         }
 
-        return {
-          title: `Locating Patient: ${candidate}`,
-          category: 'Patient Lookup',
-          text: `Searching dental database for patient "${candidate}", Doctor. Opening patient chart...`,
-          action: { type: 'PATIENT_LOOKUP', patientName: candidate },
-          patientsList: null
-        };
+        // Only search backend DB if candidate was genuinely framed as a patient name
+        if (/(?:patient|chart|records|profile|teeth)/i.test(stripped)) {
+          return {
+            title: `Locating Patient: ${candidate}`,
+            category: 'Patient Lookup',
+            text: `Searching dental database for patient "${candidate}", Doctor. Opening patient chart...`,
+            action: { type: 'PATIENT_LOOKUP', patientName: candidate },
+            patientsList: null
+          };
+        }
       }
     }
   }

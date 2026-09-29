@@ -160,9 +160,19 @@ function cleanAndParseJSON(rawText) {
           data: { modal: args.modal || 'digora' }
         };
       } else if (actName.includes('navigate') || actName.includes('page')) {
-        let targetPath = args.path || '/dashboard';
+        let targetPath = args.path || '/directory';
         if (typeof args === 'string') targetPath = args;
-        if (targetPath.includes('login') || targetPath.includes('auth')) targetPath = '/login';
+        const lowTarget = targetPath.toLowerCase();
+        if (lowTarget.includes('workspace')) targetPath = '/directory';
+        else if (lowTarget.includes('login') || lowTarget.includes('auth')) targetPath = '/login';
+        else if (lowTarget.includes('pricing') || lowTarget.includes('fee')) targetPath = '/doctor/pricing';
+        else if (lowTarget.includes('directory') || lowTarget.includes('patient')) targetPath = '/directory';
+        else if (lowTarget.includes('dashboard') || lowTarget.includes('home')) targetPath = '/dashboard';
+        else if (lowTarget.includes('appointment') || lowTarget.includes('schedule')) targetPath = '/appointments';
+        else if (lowTarget.includes('treatment')) targetPath = '/treatment';
+        else if (lowTarget.includes('guideline') || lowTarget.includes('manual')) targetPath = '/guidelines';
+        else if (lowTarget.includes('note') || lowTarget.includes('scribe')) targetPath = '/ai-notes';
+        else if (lowTarget.includes('book')) targetPath = '/book';
         normAction = {
           type: 'NAVIGATE',
           name: 'navigate',
@@ -381,15 +391,20 @@ export async function executeJarvisAction(action, navigate, activePatientId = nu
 
   // 4. NAVIGATE: Standard route navigation
   if (action.type === 'NAVIGATE' && action.path) {
+    let resolvedPath = action.path;
+    const doc = JSON.parse(localStorage.getItem('doctor') || '{}');
+    if (doc?.isSuperAdmin && (resolvedPath === '/directory' || resolvedPath === '/dashboard')) {
+      resolvedPath = '/admin/doctors';
+    }
     window.dispatchEvent(new CustomEvent('dentia:voice:cursor-glide', {
       detail: {
-        selector: `a[href="${action.path}"], [data-nav="${action.path.replace('/', '')}"]`,
-        label: action.path,
-        path: action.path
+        selector: `a[href="${resolvedPath}"], [data-nav="${resolvedPath.replace('/', '')}"]`,
+        label: resolvedPath,
+        path: resolvedPath
       }
     }));
     setTimeout(() => {
-      navigate(action.path);
+      navigate(resolvedPath);
     }, 500);
     return;
   }

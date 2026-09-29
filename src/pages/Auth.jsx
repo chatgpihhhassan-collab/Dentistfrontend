@@ -103,9 +103,9 @@ export default function Auth() {
 
                 // Strict Role-Based Landing Destination:
                 // SuperAdmin -> /admin/doctors (SuperAdmin Suite)
-                // Regular Doctor -> /dashboard (Doctor Workspace)
+                // Regular Doctor -> /directory (Doctor Workspace & Patient Dossiers)
                 const isSuper = Boolean(data.isSuperAdmin);
-                let targetFrom = isSuper ? '/admin/doctors' : '/dashboard';
+                let targetFrom = isSuper ? '/admin/doctors' : '/directory';
                 if (location.state?.from) {
                     let fromPath = '';
                     if (typeof location.state.from === 'string') {
