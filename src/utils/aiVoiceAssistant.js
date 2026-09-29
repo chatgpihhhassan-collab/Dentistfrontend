@@ -16,6 +16,7 @@ class AIVoiceAssistant {
         }
         this.speaking = false;
         this.currentText = '';
+        this.lastSpokeEndTime = 0;
         this.recentUtterances = [];
         this.listeners = new Set();
     }
@@ -116,6 +117,7 @@ class AIVoiceAssistant {
         } catch (e) {}
         this.speaking = false;
         this.currentText = '';
+        this.lastSpokeEndTime = Date.now();
         this.notifyListeners();
     }
 
@@ -233,6 +235,7 @@ class AIVoiceAssistant {
                 if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
                 this.speaking = false;
                 this.currentText = '';
+                this.lastSpokeEndTime = Date.now();
                 this.notifyListeners();
             };
 
@@ -243,6 +246,7 @@ class AIVoiceAssistant {
                 }
                 this.speaking = false;
                 this.currentText = '';
+                this.lastSpokeEndTime = Date.now();
                 this.notifyListeners();
             };
 
@@ -252,6 +256,7 @@ class AIVoiceAssistant {
             console.warn('[AIVoiceAssistant] Speech error:', err);
             this.speaking = false;
             this.currentText = '';
+            this.lastSpokeEndTime = Date.now();
             this.notifyListeners();
         }
     }

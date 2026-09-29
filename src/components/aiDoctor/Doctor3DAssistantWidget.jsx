@@ -20,6 +20,7 @@ import {
 import aiVoice from '../../utils/aiVoiceAssistant';
 import { queryJarvis, executeJarvisAction } from '../../services/dentiaJarvisService';
 import { establishDoctorSession } from '../../services/sessionSecurityService';
+import { DEFAULT_CLINIC_PATIENTS, searchClinicPatients, syncDynamicPatients } from './clinicalDentalBrain';
 
 /**
  * ==============================================================================
@@ -113,10 +114,35 @@ export default function Doctor3DAssistantWidget() {
     }
   ]);
 
+  // 🏥 Real-time Clinic Patients Database (Integrated with SQL Server via API)
+  const [patientsDatabase, setPatientsDatabase] = useState(DEFAULT_CLINIC_PATIENTS);
+
   // Confirmation state for: "We have Jhangir Ahmed in my system. You want to login him?"
   const pendingDoctorLoginRef = useRef(null);
   const expectingConfirmationRef = useRef(false);
   const confirmationTimeoutRef = useRef(null);
+
+  // Autonomous Virtual Cursor Event Listener for External/Service-Driven Glides
+  useEffect(() => {
+    const handleCursorGlideEvent = (e) => {
+      const { selector, label, clickAfter = true } = e.detail || {};
+      let targetX = window.innerWidth / 2;
+      let targetY = window.innerHeight * 0.45;
+      
+      if (selector) {
+        const el = document.querySelector(selector);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          targetX = rect.left + rect.width / 2;
+          targetY = rect.top + rect.height / 2;
+        }
+      }
+      runCursorGlide(targetX, targetY, label || 'Autonomous Action', clickAfter);
+    };
+
+    window.addEventListener('dentia:voice:cursor-glide', handleCursorGlideEvent);
+    return () => window.removeEventListener('dentia:voice:cursor-glide', handleCursorGlideEvent);
+  }, []);
 
   // Live HUD Action Feedback (Auto-fades after 4.5 seconds)
   const [lastAction, setLastAction] = useState(null); // { speech, chip, timestamp }
@@ -165,6 +191,31 @@ export default function Doctor3DAssistantWidget() {
       }
     };
     fetchDoctorsFromDb();
+
+    const fetchPatientsFromDb = async () => {
+      try {
+        const stored = localStorage.getItem('doctor');
+        let headers = {};
+        let docId = 2;
+        if (stored) {
+          const d = JSON.parse(stored);
+          if (d?.token) headers['Authorization'] = `Bearer ${d.token}`;
+          if (d?.doctorID) docId = d.doctorID;
+        }
+        const res = await fetch(`/api/patients/doctor/${docId}`, { headers });
+        if (res.ok) {
+          const list = await res.json();
+          if (Array.isArray(list) && list.length > 0) {
+            setPatientsDatabase(list);
+            syncDynamicPatients(list);
+            console.log('%c👥 [JARVIS PATIENTS SYNC] Loaded ' + list.length + ' clinic patients from database.', 'color: #00ff88; font-weight: bold;');
+          }
+        }
+      } catch (e) {
+        console.warn('[Jarvis Patients Sync Notice]: Using initialized clinic patients directory');
+      }
+    };
+    fetchPatientsFromDb();
 
     console.log('%c🎙️ [JARVIS INITIALIZED]', 'background: #10244B; color: #00f2fe; font-size: 11px; font-weight: bold; padding: 2px 6px;', {
       running: runningRef.current,
@@ -477,10 +528,10 @@ export default function Doctor3DAssistantWidget() {
       return true;
     }
 
-    // 6. Patient Chart Lookup (e.g. "open patient 38", "chart 38")
-    const patMatch = t.match(/(?:open|show|chart|load)\s+(?:patient\s+)?(\d+)/i);
-    if (patMatch) {
-      const pid = patMatch[1];
+    // 6. Patient Chart Lookup (e.g. "open patient 38", "chart 38", "open patient ali", "ali ka chart")
+    const patIdMatch = t.match(/(?:open|show|chart|load)\s+(?:patient\s+)?(\d+)/i);
+    if (patIdMatch) {
+      const pid = patIdMatch[1];
       console.log('%c⚡ [JARVIS LOCAL ACTION] Opening Patient Chart #' + pid, 'color: #00ff88; font-weight: bold;');
       const reply = `Opening dental chart for Patient #${pid}, Doctor.`;
       if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
@@ -492,6 +543,32 @@ export default function Doctor3DAssistantWidget() {
         navigate(`/chart/${pid}`);
       }, 450);
       return true;
+    }
+
+    // Name-based patient chart lookup
+    const nameMatch = t.match(/(?:open|show|view|find|load)\s+(?:patient\s+|chart\s+(?:of\s+)?|records\s+(?:of\s+)?)([a-zA-Z]+)|([a-zA-Z]+)\s+(?:ka\s+chart|ki\s+profile|ka\s+file)/i);
+    if (nameMatch) {
+      const queryName = (nameMatch[1] || nameMatch[2] || '').trim();
+      const isNavWord = /workspace|dashboard|guideline|schedule|appointment|directory|settings|analytics|portal|login|logout/i.test(queryName);
+      if (queryName && queryName.length >= 2 && !isNavWord) {
+        const matches = searchClinicPatients(queryName, patientsDatabase);
+        if (matches && matches.length > 0) {
+          const topP = matches[0];
+          const pid = topP.id || topP.patientID;
+          const fullName = `${topP.firstName} ${topP.lastName}`;
+          console.log('%c⚡ [JARVIS LOCAL ACTION] Opening Patient: ' + fullName, 'color: #00ff88; font-weight: bold;');
+          const reply = `Opening dental chart for ${fullName}, Patient Number ${pid}, Doctor.`;
+          if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+          triggerHudFeedback(reply, `${fullName} • Chart #${pid}`);
+          showLiveSubtitle(`Navigating to ${fullName}`, 'active');
+          runCursorGlide(window.innerWidth / 2, window.innerHeight * 0.45, `${fullName} #${pid}`, true);
+          setTimeout(() => {
+            setVirtualCursor(prev => ({ ...prev, visible: false }));
+            navigate(`/chart/${pid}`);
+          }, 450);
+          return true;
+        }
+      }
     }
 
     // 7. Logout
@@ -568,6 +645,25 @@ export default function Doctor3DAssistantWidget() {
       /(?:dashboard|workspace|home|analytics)/i.test(t) ||
       /(?:go\s+to|open|take\s+me\s+to|show)\s+(?:(?:my\s+)?(?:dashboard|workspace|home|analytics|overview|main\s+page))/i.test(t)
     ) {
+      // If currently on login page and not authenticated yet, prompt for login confirmation
+      const isAuth = Boolean(localStorage.getItem('doctor'));
+      if (!isAuth && location.pathname.includes('/login')) {
+        const matchedDoc = matchDoctorInDb('jhangir');
+        const docDisplayName = matchedDoc.displayName || `Dr. ${matchedDoc.firstName} ${matchedDoc.lastName}`;
+        const questionReply = `We have ${docDisplayName} in our system. Would you like me to log him in to open your workspace?`;
+        pendingDoctorLoginRef.current = matchedDoc;
+        expectingConfirmationRef.current = true;
+        if (confirmationTimeoutRef.current) clearTimeout(confirmationTimeoutRef.current);
+        confirmationTimeoutRef.current = setTimeout(() => {
+          expectingConfirmationRef.current = false;
+          pendingDoctorLoginRef.current = null;
+        }, 14000);
+        if (!isAudioMuted) aiVoice.speak(questionReply, { rate: 1.02, pitch: 1.08 });
+        triggerHudFeedback(questionReply, `${docDisplayName} Found • Awaiting 'Yes'`);
+        showLiveSubtitle(`We have ${docDisplayName}. Say 'Yes' to log in.`, 'active', 8000);
+        return true;
+      }
+
       console.log('%c⚡ [JARVIS LOCAL ACTION] Opening clinician workspace', 'color: #00ff88; font-weight: bold;');
       const navEl = document.querySelector('a[href="/dashboard"], [data-nav="dashboard"]');
       if (navEl) {
@@ -714,6 +810,14 @@ export default function Doctor3DAssistantWidget() {
     const hasClinicalIntent = CLINICAL_INTENT_REGEX.test(lower) || /(?:open|show|go\s*to|take\s*me\s*to|navigate\s*to|load|switch\s*to)\s+/i.test(lower);
     const wasAwaitingCommand = expectingCommandAfterWakeWordRef.current;
 
+    // Show live interim subtitle, but wait for finalized speech before executing commands
+    if (!isFinal) {
+      if (hasWakeWord || wasAwaitingCommand || hasClinicalIntent) {
+        showLiveSubtitle(`Listening: "${rawTranscript}"`, 'heard', 1200);
+      }
+      return;
+    }
+
     const now = Date.now();
     const isRecentDuplicate = (now - lastExecutionTimeRef.current < 1500) && (lastExecutedCommandRef.current === lower);
 
@@ -818,14 +922,15 @@ export default function Doctor3DAssistantWidget() {
         const candidate = (finalTranscript || interimTranscript).trim();
         if (!candidate) return;
 
-        // Acoustic feedback suppression: check if candidate is reflection from device speakers
-        const isInterruptionWord = /\b(stop|wait|cancel|pause|chup|quiet|listen|jarvis|javis)\b/i.test(candidate);
-        if (!isInterruptionWord && aiVoice.isRecentEcho && aiVoice.isRecentEcho(candidate)) {
-          return; // Ignore true echo of Jarvis's own voice
-        }
+        // Acoustic feedback suppression: While Jarvis is speaking or within 1200ms after, laptop speakers emit audio
+        const isSpeakingOrJustFinished = aiVoice.speaking || (Date.now() - (aiVoice.lastSpokeEndTime || 0) < 1200);
+        if (isSpeakingOrJustFinished) {
+          const isInterruptionWord = /\b(stop|wait|cancel|pause|chup|quiet|listen|jarvis|javis)\b/i.test(candidate);
+          if (!isInterruptionWord) {
+            return; // Drop all speaker audio reflection
+          }
 
-        // Interruption (Barge-in): Doctor is speaking while Jarvis was talking
-        if (aiVoice.speaking) {
+          // Doctor intentionally spoke a barge-in word
           console.log('%c⚡ [JARVIS VOICE BARGE-IN]', 'background: #00e5ff; color: #000; font-weight: bold;', 'Doctor interrupted speech with:', candidate);
           aiVoice.stop();
         }

@@ -376,7 +376,6 @@ export const DENTAL_KNOWLEDGE_BASE = [
 // =========================================================================
 
 // In-Memory & LocalStorage Cached Patient Registry populated dynamically from DB
-let _liveClinicPatients = [];
 
 /**
  * Universal Phonetic Normalizer for Speech Recognition & Dental EHR matching
@@ -415,6 +414,19 @@ export function levenshteinDistance(a, b) {
   }
   return matrix[b.length][a.length];
 }
+
+export const DEFAULT_CLINIC_PATIENTS = [
+  { id: 1, patientID: 1, firstName: 'Ali', lastName: 'Khan', dentitionType: 'Adult', currentTreatmentPlan: 'Teeth Whitening & RCT #14' },
+  { id: 2, patientID: 2, firstName: 'Sarah', lastName: 'Smith', dentitionType: 'Adult', currentTreatmentPlan: 'Clear Aligners Stage 3' },
+  { id: 3, patientID: 3, firstName: 'Haider', lastName: 'Ali', dentitionType: 'Adult', currentTreatmentPlan: 'Implant Consultation #19' },
+  { id: 4, patientID: 4, firstName: 'Fatima', lastName: 'Noor', dentitionType: 'Adult', currentTreatmentPlan: 'Routine Prophylaxis & Scaling' },
+  { id: 5, patientID: 5, firstName: 'Zainab', lastName: 'Bibi', dentitionType: 'Pediatric', currentTreatmentPlan: 'Pediatric Sealants & Fluoride' },
+  { id: 14, patientID: 14, firstName: 'Tayyab', lastName: 'Rehman', dentitionType: 'Adult', currentTreatmentPlan: 'Composite Restorations #14, #15' },
+  { id: 28, patientID: 28, firstName: 'Bilal', lastName: 'Tariq', dentitionType: 'Adult', currentTreatmentPlan: 'Ceramic Crown Placement #21' },
+  { id: 38, patientID: 38, firstName: 'Usman', lastName: 'Ghani', dentitionType: 'Adult', currentTreatmentPlan: 'Root Canal Therapy #36' }
+];
+
+let _liveClinicPatients = [...DEFAULT_CLINIC_PATIENTS];
 
 /**
  * Synchronize live patients list fetched directly from SQL Server Database
@@ -1117,6 +1129,18 @@ export function resolveDoctorInstruction(transcript, context = {}) {
       ];
       const isNavigationKeyword = /workspace|dashboard|guideline|schedule|appointment|directory|settings|analytics|portal|overview|main\s*page/i.test(candidate);
       if (!stopWords.includes(candidate) && !isNavigationKeyword && candidate.length > 2) {
+        const matches = searchClinicPatients(candidate);
+        if (matches && matches.length > 0) {
+          const topMatch = matches[0];
+          const pid = topMatch.id || topMatch.patientID;
+          return {
+            title: `Patient Dental Chart: ${topMatch.firstName} ${topMatch.lastName}`,
+            category: 'Patient Navigation',
+            text: `Opening dental chart for ${topMatch.firstName} ${topMatch.lastName}, Patient Number ${pid}, Doctor.`,
+            action: { type: 'NAVIGATE', path: `/chart/${pid}`, patientId: pid }
+          };
+        }
+
         return {
           title: `Locating Patient: ${candidate}`,
           category: 'Patient Lookup',

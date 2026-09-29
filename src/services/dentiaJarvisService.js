@@ -15,14 +15,16 @@
 import { establishDoctorSession, purgeClinicianSession } from './sessionSecurityService';
 import { DEFAULT_CLINIC_DOCTORS } from '../utils/safeApiUtils';
 import aiVoice from '../utils/aiVoiceAssistant';
-import { resolveDoctorInstruction as localFallbackBrain } from '../components/aiDoctor/clinicalDentalBrain';
+import { resolveDoctorInstruction as localFallbackBrain, getDynamicPatients, searchClinicPatients } from '../components/aiDoctor/clinicalDentalBrain';
 
 const getGroqKey = () => import.meta.env.VITE_GROQ_API_KEY || (typeof window !== 'undefined' && window.__GROQ_KEY__) || ['gsk', 'YIHDxc4gx5S8IRBlqdEkWGdyb3FYY3ht2J3DSJB5s8pbj4qz9sQF'].join('_');
 const GROQ_MODELS = [
-  "qwen/qwen3.8-27b",
   "openai/gpt-oss-20b",
+  "allam-2-7b",
+  "qwen/qwen3.8-27b",
   "openai/gpt-oss-120b"
 ];
+let activeModelIndex = 0;
 
 // Multi-turn conversation history memory (keeps last 6 interactions)
 let conversationHistory = [];
@@ -78,9 +80,10 @@ You are Jarvis, the voice-driven clinical assistant built into the Dentia dental
 - Active Route: "${currentPath}"
 - Clinician Logged In: ${isAuth ? 'YES (' + docName + ')' : 'NO'}
 - Active Patient Chart ID: ${activePid ? '#' + activePid : 'None'}
+- Available Clinic Patients: ${getDynamicPatients().slice(0, 12).map(p => `#${p.patientID || p.id}: ${p.firstName} ${p.lastName}`).join(', ')}
 
 # WHAT YOU CAN CONTROL (FULL WEBSITE COMMAND MAP):
-1. PATIENTS: search_patient, open_patient (patientId)
+1. PATIENTS: open_patient (args: { patientId: number, name: string }). When doctor asks for any patient by name or ID (e.g. "open Ali's chart", "show Sarah", "chart 14"), match from available clinic patients and return action { "name": "open_patient", "args": { "patientId": 1, "name": "Ali Khan" } }
 2. 3D ODONTOGRAM: set_tooth_condition (args: tooth, surface, condition)
 3. HARDWARE & IMAGING: open_imaging (args: modal='digora' | 'camera' | 'nanopix' | 'xray')
 4. SOAP SCRIBE: start_scribe, finalize_soap
@@ -210,7 +213,10 @@ export async function queryJarvis(userInput, context = {}) {
   ];
 
   let lastError = null;
-  for (const model of GROQ_MODELS) {
+  const numModels = GROQ_MODELS.length;
+  for (let offset = 0; offset < numModels; offset++) {
+    const idx = (activeModelIndex + offset) % numModels;
+    const model = GROQ_MODELS[idx];
     try {
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -228,8 +234,9 @@ export async function queryJarvis(userInput, context = {}) {
       });
 
       if (res.status === 429) {
-        console.warn(`[Jarvis LLM Rate Limit]: Model ${model} returned 429. Trying backup model...`);
+        console.warn(`[Jarvis LLM Rate Limit]: Model ${model} returned 429. Switching active model...`);
         lastError = new Error(`Groq HTTP error 429 on ${model}`);
+        activeModelIndex = (idx + 1) % numModels;
         continue;
       }
 
@@ -242,6 +249,7 @@ export async function queryJarvis(userInput, context = {}) {
       const parsed = cleanAndParseJSON(rawContent);
 
       if (parsed && parsed.reply) {
+        activeModelIndex = idx; // Lock in working model
         // Record to history
         conversationHistory.push({ role: "user", content: userInput });
         conversationHistory.push({ role: "assistant", content: rawContent });
@@ -326,25 +334,70 @@ export async function executeJarvisAction(action, navigate, activePatientId = nu
     return;
   }
 
-  // 3. OPEN_CHART: Navigate to specific patient odontogram
-  if (action.type === 'OPEN_CHART' && action.patientId) {
-    setTimeout(() => {
-      navigate(`/chart/${action.patientId}`);
-    }, 800);
-    return;
+  // 3. OPEN_CHART or PATIENT_LOOKUP: Navigate to specific patient odontogram
+  if (action.type === 'OPEN_CHART' || action.type === 'PATIENT_LOOKUP' || action.name === 'open_patient' || action.name === 'search_patient') {
+    let pid = action.patientId || action.data?.patientId || action.args?.patientId;
+    const pName = action.patientName || action.data?.patientName || action.args?.patientName || action.args?.name || '';
+    
+    if (!pid && pName) {
+      const matches = searchClinicPatients(pName);
+      if (matches && matches.length > 0) {
+        pid = matches[0].id || matches[0].patientID;
+      }
+    }
+
+    if (pid) {
+      window.dispatchEvent(new CustomEvent('dentia:voice:cursor-glide', {
+        detail: {
+          selector: `[data-patient-id="${pid}"], a[href*="/chart/${pid}"]`,
+          label: `Chart #${pid}`,
+          path: `/chart/${pid}`
+        }
+      }));
+      setTimeout(() => {
+        navigate(`/chart/${pid}`);
+      }, 500);
+      return;
+    } else {
+      window.dispatchEvent(new CustomEvent('dentia:voice:cursor-glide', {
+        detail: {
+          selector: `a[href="/directory"]`,
+          label: `Patient Directory`,
+          path: `/directory`
+        }
+      }));
+      setTimeout(() => {
+        navigate('/directory');
+      }, 500);
+      return;
+    }
   }
 
   // 4. NAVIGATE: Standard route navigation
   if (action.type === 'NAVIGATE' && action.path) {
+    window.dispatchEvent(new CustomEvent('dentia:voice:cursor-glide', {
+      detail: {
+        selector: `a[href="${action.path}"], [data-nav="${action.path.replace('/', '')}"]`,
+        label: action.path,
+        path: action.path
+      }
+    }));
     setTimeout(() => {
       navigate(action.path);
-    }, 800);
+    }, 500);
     return;
   }
 
   // 5. CHART_UPDATE: Dispatch live 3D odontogram update & persist to DB
   if (action.type === 'CHART_UPDATE') {
     const updateData = action.data || action;
+    const toothNum = updateData.toothNumber;
+    window.dispatchEvent(new CustomEvent('dentia:voice:cursor-glide', {
+      detail: {
+        selector: `[data-tooth="${toothNum}"], #tooth-${toothNum}`,
+        label: `Tooth #${toothNum} (${updateData.condition || 'Update'})`
+      }
+    }));
     window.dispatchEvent(new CustomEvent('dentia:voice:chart-update', { detail: updateData }));
 
     // If active on a chart, also sync directly with DB
