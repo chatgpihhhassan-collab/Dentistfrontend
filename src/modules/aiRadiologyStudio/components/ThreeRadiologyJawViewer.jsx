@@ -1,11 +1,11 @@
-import React, { useRef, useState, useMemo, useEffect } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
-import { ChevronRight, ChevronLeft, RotateCcw, Eye, ZoomIn, Sparkles } from 'lucide-react';
+import { ChevronRight, ChevronLeft, ZoomIn, Eye, Sparkles } from 'lucide-react';
 
 // ============================================================================
-// 1. Procedural 3D Anatomical Tooth (Crown + Roots)
+// 1. Procedural 3D Anatomical Tooth (Enamel Crown + Roots Anchored in Bone)
 // ============================================================================
 function DynamicEnamelTooth({
   toothNumber,
@@ -21,7 +21,6 @@ function DynamicEnamelTooth({
   const meshRef = useRef();
   const [hovered, setHovered] = useState(false);
 
-  // Subtle floating pulse for selected / pathological teeth
   useFrame((state) => {
     if (meshRef.current) {
       if (isSelected || hovered) {
@@ -32,40 +31,38 @@ function DynamicEnamelTooth({
     }
   });
 
-  // Enamel Crown Material (Porcelain Medical Finish)
   const enamelMaterial = useMemo(() => {
     if (hasPathology) {
       return (
         <meshPhysicalMaterial
           color={pathologyColor || '#3B82F6'}
           emissive={pathologyColor || '#3B82F6'}
-          emissiveIntensity={0.6}
-          roughness={0.18}
+          emissiveIntensity={0.65}
+          roughness={0.16}
           clearcoat={1.0}
-          clearcoatRoughness={0.06}
+          clearcoatRoughness={0.05}
         />
       );
     }
     return (
       <meshPhysicalMaterial
-        color={hovered ? '#E0F2FE' : '#FBFBFC'}
-        roughness={0.14}
-        metalness={0.03}
+        color={hovered ? '#E0F2FE' : '#FCFCFE'}
+        roughness={0.12}
+        metalness={0.02}
         clearcoat={1.0}
-        clearcoatRoughness={0.05}
+        clearcoatRoughness={0.04}
         transmission={0.06}
-        ior={1.54}
+        ior={1.55}
       />
     );
   }, [hasPathology, pathologyColor, hovered]);
 
-  // Translucent Root Material (Visible inside transparent bone)
   const rootMaterial = useMemo(() => (
     <meshPhysicalMaterial
-      color={hasPathology ? pathologyColor : '#D1D9E0'}
-      roughness={0.38}
+      color={hasPathology ? pathologyColor : '#D5DDE4'}
+      roughness={0.35}
       metalness={0.02}
-      opacity={0.88}
+      opacity={0.9}
       transparent={true}
     />
   ), [hasPathology, pathologyColor]);
@@ -88,14 +85,12 @@ function DynamicEnamelTooth({
           setHovered(true);
         }}
         onPointerOut={() => setHovered(false)}
-        scale={isSelected ? [1.12, 1.12, 1.12] : [1, 1, 1]}
+        scale={isSelected ? [1.14, 1.14, 1.14] : [1, 1, 1]}
       >
-        {/* Crown - Occlusal Table */}
-        <RoundedBox args={[0.74, 0.48, 0.74]} radius={0.14} smoothness={8} position={[0, 0, 0]}>
+        <RoundedBox args={[0.76, 0.48, 0.76]} radius={0.14} smoothness={8} position={[0, 0, 0]}>
           {enamelMaterial}
         </RoundedBox>
-
-        {/* 4 Occlusal Cusps */}
+        {/* Cusps */}
         <mesh position={[-0.2, 0.24 * (isUpper ? -1 : 1), -0.2]} scale={[1, 0.5, 1]}>
           <sphereGeometry args={[0.09, 16, 16]} />
           {enamelMaterial}
@@ -112,14 +107,13 @@ function DynamicEnamelTooth({
           <sphereGeometry args={[0.09, 16, 16]} />
           {enamelMaterial}
         </mesh>
-
-        {/* Multi-Root System Embedded in Transparent Bone */}
-        <mesh position={[-0.18, 0.36 * rootDir, 0]} rotation={[0, 0, 0.16 * rootDir]}>
-          <cylinderGeometry args={[0.11, 0.02, 0.62, 16]} />
+        {/* Bifurcated Roots */}
+        <mesh position={[-0.18, 0.38 * rootDir, 0]} rotation={[0, 0, 0.16 * rootDir]}>
+          <cylinderGeometry args={[0.11, 0.02, 0.64, 16]} />
           {rootMaterial}
         </mesh>
-        <mesh position={[0.18, 0.36 * rootDir, 0]} rotation={[0, 0, -0.16 * rootDir]}>
-          <cylinderGeometry args={[0.11, 0.02, 0.62, 16]} />
+        <mesh position={[0.18, 0.38 * rootDir, 0]} rotation={[0, 0, -0.16 * rootDir]}>
+          <cylinderGeometry args={[0.11, 0.02, 0.64, 16]} />
           {rootMaterial}
         </mesh>
       </group>
@@ -141,14 +135,13 @@ function DynamicEnamelTooth({
           setHovered(true);
         }}
         onPointerOut={() => setHovered(false)}
-        scale={isSelected ? [1.12, 1.12, 1.12] : [1, 1, 1]}
+        scale={isSelected ? [1.14, 1.14, 1.14] : [1, 1, 1]}
       >
         <RoundedBox args={[0.58, 0.44, 0.58]} radius={0.12} smoothness={8} position={[0, 0, 0]}>
           {enamelMaterial}
         </RoundedBox>
-        {/* Bicuspid Roots */}
-        <mesh position={[0, 0.34 * rootDir, 0]} rotation={[0.06, 0, -0.05]}>
-          <cylinderGeometry args={[0.1, 0.02, 0.56, 16]} />
+        <mesh position={[0, 0.35 * rootDir, 0]} rotation={[0.06, 0, -0.05]}>
+          <cylinderGeometry args={[0.1, 0.02, 0.58, 16]} />
           {rootMaterial}
         </mesh>
       </group>
@@ -170,15 +163,14 @@ function DynamicEnamelTooth({
           setHovered(true);
         }}
         onPointerOut={() => setHovered(false)}
-        scale={isSelected ? [1.12, 1.12, 1.12] : [1, 1, 1]}
+        scale={isSelected ? [1.14, 1.14, 1.14] : [1, 1, 1]}
       >
-        <mesh position={[0, 0, 0]} scale={[0.56, 0.9, 0.56]}>
+        <mesh position={[0, 0, 0]} scale={[0.56, 0.92, 0.56]}>
           <sphereGeometry args={[0.34, 32, 32]} />
           {enamelMaterial}
         </mesh>
-        {/* Long Anchor Root */}
         <mesh position={[0, 0.42 * rootDir, 0]} rotation={[0.05, 0, -0.05]}>
-          <cylinderGeometry args={[0.12, 0.025, 0.74, 16]} />
+          <cylinderGeometry args={[0.12, 0.025, 0.76, 16]} />
           {rootMaterial}
         </mesh>
       </group>
@@ -200,13 +192,13 @@ function DynamicEnamelTooth({
         setHovered(true);
       }}
       onPointerOut={() => setHovered(false)}
-      scale={isSelected ? [1.12, 1.12, 1.12] : [1, 1, 1]}
+      scale={isSelected ? [1.14, 1.14, 1.14] : [1, 1, 1]}
     >
       <RoundedBox args={[0.56, 0.44, 0.24]} radius={0.06} smoothness={8} position={[0, 0, 0]}>
         {enamelMaterial}
       </RoundedBox>
-      <mesh position={[0, 0.36 * rootDir, 0]}>
-        <cylinderGeometry args={[0.1, 0.02, 0.62, 16]} />
+      <mesh position={[0, 0.38 * rootDir, 0]}>
+        <cylinderGeometry args={[0.1, 0.02, 0.64, 16]} />
         {rootMaterial}
       </mesh>
     </group>
@@ -214,20 +206,19 @@ function DynamicEnamelTooth({
 }
 
 // ============================================================================
-// 2. Anatomical Transparent Jawbone Volumes (Maxilla & Mandible)
+// 2. Transparent Anatomical Jawbone Volumes (Glassmorphic X-Ray Bone)
 // ============================================================================
-function TransparentJawBone({ arch = 'mandible' }) {
+function TransparentJawBoneVolume({ arch = 'mandible' }) {
   const isUpper = arch === 'maxilla';
 
-  // Transparent Medical Bone Material (Glassmorphic Alveolar Cortex)
   const transparentBoneMaterial = useMemo(() => (
     <meshPhysicalMaterial
-      color="#E6ECF2"
-      transmission={0.72} // Transparent x-ray depth
-      opacity={0.36}
-      roughness={0.32}
+      color="#E5ECF2"
+      transmission={0.76}
+      opacity={0.34}
+      roughness={0.28}
       metalness={0.02}
-      ior={1.38}
+      ior={1.42}
       transparent={true}
       depthWrite={false}
       side={THREE.DoubleSide}
@@ -235,17 +226,13 @@ function TransparentJawBone({ arch = 'mandible' }) {
   ), []);
 
   if (isUpper) {
-    // Maxilla Upper Arch + Cranium Base Silhouette
     return (
-      <group position={[0, 0.6, 0]}>
-        {/* Maxillary Alveolar Ridge Arc */}
+      <group position={[0, 0.62, 0]}>
         <mesh position={[0, 0.1, 0]} rotation={[Math.PI, 0, 0]}>
-          <torusGeometry args={[3.15, 0.52, 16, 64, Math.PI * 0.95]} />
+          <torusGeometry args={[3.15, 0.54, 16, 64, Math.PI * 0.95]} />
           {transparentBoneMaterial}
         </mesh>
-
-        {/* Zygomatic & Palatine Vault Arch */}
-        <mesh position={[0, 0.45, -0.6]} scale={[2.6, 0.7, 2.2]}>
+        <mesh position={[0, 0.48, -0.6]} scale={[2.6, 0.7, 2.2]}>
           <sphereGeometry args={[1, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.5]} />
           {transparentBoneMaterial}
         </mesh>
@@ -253,23 +240,18 @@ function TransparentJawBone({ arch = 'mandible' }) {
     );
   }
 
-  // Mandible (Lower Jaw) + Ramus, Angle & Condyle Extensions
   return (
-    <group position={[0, -0.6, 0]}>
-      {/* Mandibular Alveolar Bone Horseshoe */}
+    <group position={[0, -0.62, 0]}>
       <mesh position={[0, -0.1, 0]}>
-        <torusGeometry args={[3.0, 0.5, 16, 64, Math.PI * 0.92]} />
+        <torusGeometry args={[3.0, 0.52, 16, 64, Math.PI * 0.92]} />
         {transparentBoneMaterial}
       </mesh>
-
-      {/* Left Ascending Ramus & Mandibular Angle (Transparent) */}
-      <mesh position={[-2.8, 0.6, -1.8]} rotation={[0.2, 0.3, 0.1]} scale={[0.3, 1.4, 0.9]}>
+      {/* Ascending Ramus Wings */}
+      <mesh position={[-2.85, 0.65, -1.8]} rotation={[0.2, 0.3, 0.1]} scale={[0.3, 1.45, 0.9]}>
         <boxGeometry args={[1, 1, 1]} />
         {transparentBoneMaterial}
       </mesh>
-
-      {/* Right Ascending Ramus & Mandibular Angle (Transparent) */}
-      <mesh position={[2.8, 0.6, -1.8]} rotation={[0.2, -0.3, -0.1]} scale={[0.3, 1.4, 0.9]}>
+      <mesh position={[2.85, 0.65, -1.8]} rotation={[0.2, -0.3, -0.1]} scale={[0.3, 1.45, 0.9]}>
         <boxGeometry args={[1, 1, 1]} />
         {transparentBoneMaterial}
       </mesh>
@@ -278,10 +260,9 @@ function TransparentJawBone({ arch = 'mandible' }) {
 }
 
 // ============================================================================
-// 3. Complete Dual Arch Dental System with All 32 Teeth
+// 3. Full Dual Arch Dental Model (32 Dynamic Teeth in Transparent Jaws)
 // ============================================================================
 function DualArchDentalModel({ activeTooth, onSelectTooth }) {
-  // 16 Upper Teeth (Maxilla)
   const upperTeeth = useMemo(() => {
     const list = [];
     const count = 16;
@@ -306,7 +287,6 @@ function DualArchDentalModel({ activeTooth, onSelectTooth }) {
     return list;
   }, []);
 
-  // 16 Lower Teeth (Mandible)
   const lowerTeeth = useMemo(() => {
     const list = [];
     const count = 16;
@@ -333,15 +313,12 @@ function DualArchDentalModel({ activeTooth, onSelectTooth }) {
 
   return (
     <group position={[0, 0, 0]}>
-      {/* Transparent Bone Geometry */}
-      <TransparentJawBone arch="maxilla" />
-      <TransparentJawBone arch="mandible" />
+      <TransparentJawBoneVolume arch="maxilla" />
+      <TransparentJawBoneVolume arch="mandible" />
 
-      {/* Dynamic Upper Teeth */}
       {upperTeeth.map((tooth) => {
-        const isBonePathology = tooth.toothNumber === 7 || tooth.toothNumber === 9; // Tooth 7.9
+        const isBonePathology = tooth.toothNumber === 7 || tooth.toothNumber === 9;
         const isSelected = activeTooth === '7.9' && isBonePathology;
-
         return (
           <DynamicEnamelTooth
             key={tooth.id}
@@ -355,10 +332,9 @@ function DualArchDentalModel({ activeTooth, onSelectTooth }) {
         );
       })}
 
-      {/* Dynamic Lower Teeth */}
       {lowerTeeth.map((tooth) => {
-        const isCavity = tooth.toothNumber === 27; // Tooth 27
-        const isPeriodontitis = tooth.toothNumber === 17; // Tooth 6.17
+        const isCavity = tooth.toothNumber === 27;
+        const isPeriodontitis = tooth.toothNumber === 17;
         const hasPathology = isCavity || isPeriodontitis;
         const color = isCavity ? '#3B82F6' : '#EF4444';
         const isSelected =
@@ -382,16 +358,12 @@ function DualArchDentalModel({ activeTooth, onSelectTooth }) {
 }
 
 // ============================================================================
-// 4. Smooth Cinematic Camera Controller (Left, Front, Right Transitions)
+// 4. Smooth Camera Section Controller (Left, Front, Right)
 // ============================================================================
 function CameraSectionController({ section = 'left', controlsRef }) {
-  // Preset Section Camera Coordinates
   const cameraPresets = useMemo(() => ({
-    // Left Sagittal: Exactly matching the user's reference image!
     left: { pos: [-5.4, 0.35, 2.6], target: [-0.6, 0.05, 0.4] },
-    // Front Coronal: Direct anterior incisors and smile arch
     front: { pos: [0, 0.15, 6.0], target: [0, 0, 0.8] },
-    // Right Sagittal: Right molars and bicuspids lateral view
     right: { pos: [5.4, 0.35, 2.6], target: [0.6, 0.05, 0.4] }
   }), []);
 
@@ -400,7 +372,6 @@ function CameraSectionController({ section = 'left', controlsRef }) {
     const targetPos = new THREE.Vector3(...preset.pos);
     const targetLookAt = new THREE.Vector3(...preset.target);
 
-    // Smooth cinematic spring damping
     state.camera.position.lerp(targetPos, 0.08);
     if (controlsRef.current) {
       controlsRef.current.target.lerp(targetLookAt, 0.08);
@@ -415,7 +386,7 @@ function CameraSectionController({ section = 'left', controlsRef }) {
 // 5. Main Component: ThreeRadiologyJawViewer
 // ============================================================================
 export default function ThreeRadiologyJawViewer({
-  viewMode = '3d',
+  viewMode = '3d', // '3d' for WebGL, '2d' for HD Scan render
   isInverted = false,
   contrastValue = 100,
   brightnessValue = 100,
@@ -428,12 +399,48 @@ export default function ThreeRadiologyJawViewer({
   const [selectedTab, setSelectedTab] = useState('AI analyze');
   const [isZoomed, setIsZoomed] = useState(false);
 
-  // Synchronize section changes from bottom carousel
-  const handleSectionSelect = (sectionKey) => {
-    setSelectedSection(sectionKey);
+  // Transparent Jaw Images generated for each section
+  const sectionImages = {
+    left: '/images/denty_ai/transparent_jaw_left.jpg',
+    front: '/images/denty_ai/transparent_jaw_front.jpg',
+    right: '/images/denty_ai/transparent_jaw_right.jpg'
   };
 
-  // Exact Callout Badges with Speech-Bubble Pointer Tails (Matching Attached Image)
+  // Section details
+  const sectionsData = [
+    {
+      id: 'left',
+      key: 'left',
+      title: 'Left Sagittal View',
+      subtitle: 'Lateral Arch Profile',
+      image: '/images/denty_ai/transparent_jaw_left.jpg',
+      cardThumb: '/images/denty_ai/card_jaw_left.png',
+      markerColor: 'bg-teal-400',
+      activeHotspot: 'Teal Implant Root'
+    },
+    {
+      id: 'front',
+      key: 'front',
+      title: 'Front Coronal View',
+      subtitle: 'Anterior Dual Arch',
+      image: '/images/denty_ai/transparent_jaw_front.jpg',
+      cardThumb: '/images/denty_ai/card_jaw_front.png',
+      markerColor: 'bg-blue-500',
+      activeHotspot: 'Blue Cavity Crown'
+    },
+    {
+      id: 'right',
+      key: 'right',
+      title: 'Right Sagittal View',
+      subtitle: 'Contralateral Molar Arc',
+      image: '/images/denty_ai/transparent_jaw_right.jpg',
+      cardThumb: '/images/denty_ai/card_jaw_right.png',
+      markerColor: 'bg-rose-400',
+      activeHotspot: 'Yellow & Red Pathology'
+    }
+  ];
+
+  // Callout Badges with Speech-Bubble Pointer Tails
   const calloutBadges = [
     {
       id: 'badge-7-9',
@@ -443,8 +450,7 @@ export default function ThreeRadiologyJawViewer({
       circleBg: 'bg-[#FEF08A] text-[#854D0E]',
       position: { top: '16%', left: '38%' },
       tailDirection: 'down',
-      visibleSections: ['left', 'front'],
-      confidence: '98.2%'
+      visibleSections: ['left', 'front']
     },
     {
       id: 'badge-27-cavity',
@@ -454,8 +460,7 @@ export default function ThreeRadiologyJawViewer({
       circleBg: 'bg-[#3B82F6] text-white',
       position: { top: '19%', left: '62%' },
       tailDirection: 'down',
-      visibleSections: ['left', 'front', 'right'],
-      confidence: '99.4%'
+      visibleSections: ['left', 'front', 'right']
     },
     {
       id: 'badge-27-implant',
@@ -465,8 +470,7 @@ export default function ThreeRadiologyJawViewer({
       circleBg: 'bg-[#99F6E4] text-[#0F766E]',
       position: { top: '75%', left: '35%' },
       tailDirection: 'up',
-      visibleSections: ['left', 'front'],
-      confidence: '96.5%'
+      visibleSections: ['left', 'front']
     },
     {
       id: 'badge-6-17',
@@ -476,12 +480,10 @@ export default function ThreeRadiologyJawViewer({
       circleBg: 'bg-[#FECDD3] text-[#9F1239]',
       position: { top: '74%', left: '72%' },
       tailDirection: 'up',
-      visibleSections: ['left', 'right'],
-      confidence: '97.8%'
+      visibleSections: ['left', 'right']
     }
   ];
 
-  // Diagnostic Mode Tabs
   const modeTabs = [
     { id: 'overview', label: 'X-Ray Overview' },
     { id: 'tooth-health', label: 'Tooth Health' },
@@ -489,34 +491,6 @@ export default function ThreeRadiologyJawViewer({
     { id: 'bone-gum', label: 'Bone & Gum Health' },
     { id: 'structure', label: 'Structure & Alignment' },
     { id: 'more', label: 'more >' }
-  ];
-
-  // 3 Section Perspectives (Left, Front, Right)
-  const sectionsData = [
-    {
-      id: 'left',
-      key: 'left',
-      title: 'Left Sagittal View',
-      subtitle: 'Lateral Arch Profile',
-      markerColor: 'bg-teal-400',
-      badgeTag: 'Left Molar & Ramus'
-    },
-    {
-      id: 'front',
-      key: 'front',
-      title: 'Front Coronal View',
-      subtitle: 'Anterior Dual Arch',
-      markerColor: 'bg-blue-500',
-      badgeTag: 'Smile & Occlusion'
-    },
-    {
-      id: 'right',
-      key: 'right',
-      title: 'Right Sagittal View',
-      subtitle: 'Contralateral Molar Arc',
-      markerColor: 'bg-rose-400',
-      badgeTag: 'Right Molar & TMJ'
-    }
   ];
 
   const currentSectionIdx = sectionsData.findIndex((s) => s.key === selectedSection);
@@ -539,94 +513,105 @@ export default function ThreeRadiologyJawViewer({
 
   return (
     <div className="flex flex-col w-full h-full bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-xs relative select-none">
-      {/* Main 3D Viewport with Transparent Jaws & Dynamic Teeth */}
+      {/* Main Viewport Container */}
       <div className="relative w-full h-[380px] sm:h-[420px] md:h-[450px] rounded-2xl overflow-hidden bg-gradient-to-b from-[#F2F6FA] via-[#F8FAFC] to-[#EEF3F8] border border-slate-100/90 flex items-center justify-center">
-        {/* Three.js WebGL Canvas */}
-        <div className="w-full h-full relative" style={filterStyle}>
-          <Canvas
-            camera={{ position: [-5.4, 0.35, 2.6], fov: 44 }}
-            className="w-full h-full cursor-grab active:cursor-grabbing"
-          >
-            {/* Clinical Photographic 3-Point Lighting */}
-            <ambientLight intensity={1.4} />
-            <directionalLight position={[6, 8, 5]} intensity={1.9} />
-            <directionalLight position={[-6, 4, 3]} intensity={1.1} />
-            <pointLight position={[0, -2, 2]} intensity={0.7} color="#B0CDFF" />
-            <pointLight position={[0, 3, -1]} intensity={0.5} color="#FFFFFF" />
-
-            {/* Transparent Jaws & 32 Dynamic Enamel Teeth */}
-            <DualArchDentalModel
-              activeTooth={activeTooth}
-              onSelectTooth={onSelectTooth}
+        {/* Layer A: HD Transparent Jaw Scan Mode */}
+        {viewMode === '2d' ? (
+          <div className="w-full h-full relative flex items-center justify-center overflow-hidden" style={filterStyle}>
+            <img
+              src={sectionImages[selectedSection] || sectionImages.left}
+              alt={`Transparent Jaw ${selectedSection} view`}
+              className="max-h-full max-w-full object-contain pointer-events-none drop-shadow-md select-none transition-all duration-500"
+              onError={(e) => {
+                e.target.src = '/images/denty_ai/jaw_lateral_hd.png';
+              }}
             />
+          </div>
+        ) : (
+          /* Layer B: Interactive 3D WebGL Canvas with Transparent Jawbone & Dynamic Teeth */
+          <div className="w-full h-full relative" style={filterStyle}>
+            <Canvas
+              camera={{ position: [-5.4, 0.35, 2.6], fov: 44 }}
+              className="w-full h-full cursor-grab active:cursor-grabbing"
+            >
+              <ambientLight intensity={1.4} />
+              <directionalLight position={[6, 8, 5]} intensity={1.9} />
+              <directionalLight position={[-6, 4, 3]} intensity={1.1} />
+              <pointLight position={[0, -2, 2]} intensity={0.7} color="#B0CDFF" />
+              <pointLight position={[0, 3, -1]} intensity={0.5} color="#FFFFFF" />
 
-            {/* Smooth Camera Transition for Left, Front, Right Sections */}
-            <CameraSectionController
-              section={selectedSection}
-              controlsRef={controlsRef}
-            />
+              {/* Transparent Jawbone + 32 Dynamic Teeth */}
+              <DualArchDentalModel
+                activeTooth={activeTooth}
+                onSelectTooth={onSelectTooth}
+              />
 
-            {/* Interactive 360 Orbit Controls */}
-            <OrbitControls
-              ref={controlsRef}
-              enablePan={true}
-              enableZoom={true}
-              minDistance={3.0}
-              maxDistance={9.0}
-              maxPolarAngle={Math.PI / 1.7}
-              minPolarAngle={Math.PI / 3.6}
-            />
-          </Canvas>
-        </div>
+              {/* Section Camera Director (Left, Front, Right) */}
+              <CameraSectionController
+                section={selectedSection}
+                controlsRef={controlsRef}
+              />
 
-        {/* Floating Callout Badges with Speech-Bubble Pointer Tails */}
+              <OrbitControls
+                ref={controlsRef}
+                enablePan={true}
+                enableZoom={true}
+                minDistance={3.0}
+                maxDistance={9.0}
+                maxPolarAngle={Math.PI / 1.7}
+                minPolarAngle={Math.PI / 3.6}
+              />
+            </Canvas>
+          </div>
+        )}
+
+        {/* Floating Speech-Bubble Callout Badges */}
         <div className="absolute inset-0 pointer-events-none">
-          {calloutBadges.map((badge) => {
-            const isSelected = activeTooth === badge.toothNo;
+          {calloutBadges
+            .filter((b) => b.visibleSections.includes(selectedSection))
+            .map((badge) => {
+              const isSelected = activeTooth === badge.toothNo;
 
-            return (
-              <div
-                key={badge.id}
-                style={{ top: badge.position.top, left: badge.position.left }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSelectTooth && onSelectTooth(badge.toothNo);
-                }}
-                className={`absolute pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 transition-all duration-300 cursor-pointer flex flex-col items-center ${
-                  isSelected ? 'scale-110 z-30' : 'hover:scale-105 z-20'
-                }`}
-                title={`Tooth ${badge.toothNo}: ${badge.label} (${badge.confidence} AI Confidence)`}
-              >
-                {/* Upward Tail */}
-                {badge.tailDirection === 'up' && (
-                  <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] border-b-white drop-shadow-xs" />
-                )}
-
-                {/* Speech Bubble Card */}
+              return (
                 <div
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-2xl shadow-lg backdrop-blur-md bg-white border transition-all ${
-                    isSelected
-                      ? 'border-blue-500 ring-2 ring-blue-400/40 shadow-blue-500/10'
-                      : 'border-slate-200/90 shadow-slate-900/5'
+                  key={badge.id}
+                  style={{ top: badge.position.top, left: badge.position.left }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectTooth && onSelectTooth(badge.toothNo);
+                  }}
+                  className={`absolute pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 transition-all duration-300 cursor-pointer flex flex-col items-center ${
+                    isSelected ? 'scale-110 z-30' : 'hover:scale-105 z-20'
                   }`}
+                  title={`Tooth ${badge.toothNo}: ${badge.label}`}
                 >
-                  <span
-                    className={`w-6 h-6 rounded-full flex items-center justify-center text-[10.5px] font-black shrink-0 shadow-2xs ${badge.circleBg}`}
-                  >
-                    {badge.toothNo}
-                  </span>
-                  <span className={`text-[12px] font-black whitespace-nowrap tracking-tight ${badge.labelColor}`}>
-                    {badge.label}
-                  </span>
-                </div>
+                  {badge.tailDirection === 'up' && (
+                    <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] border-b-white drop-shadow-xs" />
+                  )}
 
-                {/* Downward Tail */}
-                {badge.tailDirection === 'down' && (
-                  <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-white drop-shadow-xs" />
-                )}
-              </div>
-            );
-          })}
+                  <div
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-2xl shadow-lg backdrop-blur-md bg-white border transition-all ${
+                      isSelected
+                        ? 'border-blue-500 ring-2 ring-blue-400/40 shadow-blue-500/10'
+                        : 'border-slate-200/90 shadow-slate-900/5'
+                    }`}
+                  >
+                    <span
+                      className={`w-6 h-6 rounded-full flex items-center justify-center text-[10.5px] font-black shrink-0 shadow-2xs ${badge.circleBg}`}
+                    >
+                      {badge.toothNo}
+                    </span>
+                    <span className={`text-[12px] font-black whitespace-nowrap tracking-tight ${badge.labelColor}`}>
+                      {badge.label}
+                    </span>
+                  </div>
+
+                  {badge.tailDirection === 'down' && (
+                    <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-white drop-shadow-xs" />
+                  )}
+                </div>
+              );
+            })}
         </div>
 
         {/* Section Quick Switcher Tabs (Top Right of Viewport) */}
@@ -654,7 +639,9 @@ export default function ThreeRadiologyJawViewer({
         {/* Transparent Jawbone Indicator Badge (Top Left of Viewport) */}
         <div className="absolute top-3 left-3 bg-white/85 backdrop-blur-md px-3 py-1 rounded-full border border-slate-200/60 shadow-2xs text-[10.5px] font-bold text-slate-700 flex items-center gap-2 pointer-events-none">
           <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-          <span>Transparent Alveolar Jaw • 3D Dynamic Teeth</span>
+          <span>
+            {viewMode === '3d' ? '3D WebGL Transparent Jaw' : 'HD Transparent Jaw Scan'} • {selectedSection.toUpperCase()}
+          </span>
         </div>
       </div>
 
@@ -683,9 +670,9 @@ export default function ThreeRadiologyJawViewer({
         </div>
       </div>
 
-      {/* Multi-Angle Mini Filmstrip Carousel (Left, Front, Right Views) */}
+      {/* Multi-Angle Mini Filmstrip Carousel (Displaying actual transparent jaw images) */}
       <div className="mt-3 flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
-        {/* 3 Section Perspective Cards */}
+        {/* 3 Section Perspective Cards with Real Transparent Jaw Images */}
         <div className="grid grid-cols-3 gap-2.5 w-full sm:w-auto flex-grow">
           {sectionsData.map((sec, idx) => {
             const isSectionActive = selectedSection === sec.key;
@@ -693,22 +680,25 @@ export default function ThreeRadiologyJawViewer({
             return (
               <div
                 key={sec.id}
-                onClick={() => handleSectionSelect(sec.key)}
-                className={`bg-slate-50/80 hover:bg-slate-100/90 rounded-2xl p-2.5 border transition-all cursor-pointer relative overflow-hidden flex flex-col items-center justify-center text-center select-none ${
+                onClick={() => setSelectedSection(sec.key)}
+                className={`bg-slate-50/80 hover:bg-slate-100/90 rounded-2xl p-2 border transition-all cursor-pointer relative overflow-hidden flex flex-col items-center justify-center text-center select-none ${
                   isSectionActive
                     ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/30'
                     : 'border-slate-200/80'
                 }`}
               >
-                {/* 3D Mini View Indicator */}
-                <div className="w-full h-12 bg-gradient-to-b from-slate-200/60 to-slate-100/40 rounded-xl relative flex items-center justify-center overflow-hidden mb-1">
-                  <div className="w-8 h-8 rounded-full bg-white shadow-xs flex items-center justify-center opacity-90">
-                    <span className="text-sm font-black text-slate-700">
-                      {sec.key === 'left' ? 'LEFT' : sec.key === 'front' ? 'FRONT' : 'RIGHT'}
-                    </span>
-                  </div>
+                {/* Real Transparent Jaw Image Thumbnail */}
+                <div className="w-full h-14 bg-white rounded-xl relative flex items-center justify-center overflow-hidden mb-1 border border-slate-100">
+                  <img
+                    src={sec.cardThumb || sec.image}
+                    alt={sec.title}
+                    className="max-h-full max-w-full object-contain pointer-events-none drop-shadow-2xs"
+                    onError={(e) => {
+                      e.target.src = sec.image;
+                    }}
+                  />
                   <span
-                    className={`absolute bottom-1 w-2 h-2 rounded-full ring-2 ring-white shadow-xs ${sec.markerColor}`}
+                    className={`absolute bottom-1 right-1 w-2.5 h-2.5 rounded-full ring-2 ring-white shadow-xs ${sec.markerColor}`}
                   />
                 </div>
 
@@ -727,7 +717,7 @@ export default function ThreeRadiologyJawViewer({
         <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto shrink-0 px-1">
           {/* Navigation Dots */}
           <div className="flex items-center gap-1.5">
-            {sectionsData.map((sec, idx) => (
+            {sectionsData.map((sec) => (
               <button
                 key={sec.key}
                 type="button"
