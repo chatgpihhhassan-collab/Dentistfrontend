@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   BookOpen, Search, Copy, Check, Printer, Download, ExternalLink, 
   Mic, Sparkles, ArrowLeft, Layers, ShieldCheck, Activity, HelpCircle,
-  FileText, CheckCircle2, ChevronRight, Stethoscope
+  FileText, CheckCircle2, ChevronRight, ChevronDown, Stethoscope
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -11,6 +11,9 @@ export default function ClinicalGuidePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [copiedPrompt, setCopiedPrompt] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+  const [isGuideBannerOpen, setIsGuideBannerOpen] = useState(false);
 
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
@@ -368,6 +371,50 @@ export default function ClinicalGuidePage() {
     });
   }, [allEntries, activeCategory, searchTerm]);
 
+  // Dynamic Category Counts
+  const categoryCounts = useMemo(() => {
+    const counts = { all: allEntries.length };
+    for (const e of allEntries) {
+      counts[e.category] = (counts[e.category] || 0) + 1;
+    }
+    return counts;
+  }, [allEntries]);
+
+  // Comprehensive Category List
+  const categories = useMemo(() => [
+    { id: 'all', label: 'All Guidelines', count: allEntries.length },
+    { id: 'implants', label: '🔩 Implant Plan', count: categoryCounts['implants'] || 0 },
+    { id: 'biopsy', label: '🔬 Biopsy', count: categoryCounts['biopsy'] || 0 },
+    { id: 'aligners', label: '✨ Aligners', count: categoryCounts['aligners'] || 0 },
+    { id: 'restorative', label: 'Restorative', count: categoryCounts['restorative'] || 0 },
+    { id: 'endodontic', label: 'Endodontics', count: categoryCounts['endodontic'] || 0 },
+    { id: 'prosthodontic', label: 'Prosthodontics', count: categoryCounts['prosthodontic'] || 0 },
+    { id: 'surgical', label: 'Oral Surgery', count: categoryCounts['surgical'] || 0 },
+    { id: 'periodontal', label: 'Periodontics & Ortho', count: categoryCounts['periodontal'] || 0 },
+    { id: 'pediatric', label: 'Pediatric (Child)', count: categoryCounts['pediatric'] || 0 },
+    { id: 'young', label: 'Young (Multi-Specialty)', count: categoryCounts['young'] || 0 },
+    { id: 'suites', label: 'Diagnostic Suites', count: categoryCounts['suites'] || 0 }
+  ], [allEntries.length, categoryCounts]);
+
+  // Pagination Calculation
+  const currentEffectivePageSize = pageSize === 'all' ? filteredEntries.length || 1 : pageSize;
+  const totalPages = Math.ceil(filteredEntries.length / currentEffectivePageSize) || 1;
+  const paginatedEntries = useMemo(() => {
+    if (pageSize === 'all') return filteredEntries;
+    const start = (currentPage - 1) * pageSize;
+    return filteredEntries.slice(start, start + pageSize);
+  }, [filteredEntries, currentPage, pageSize]);
+
+  const handleCategoryChange = (catId) => {
+    setActiveCategory(catId);
+    setCurrentPage(1);
+  };
+
+  const handleSearchChange = (val) => {
+    setSearchTerm(val);
+    setCurrentPage(1);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-20">
       {/* Top Clinical Navigation Bar */}
@@ -425,24 +472,38 @@ export default function ClinicalGuidePage() {
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
         
-        {/* Quick Instructions Banner */}
-        <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-2xl text-white p-5 sm:p-6 shadow-md relative overflow-hidden">
-          <div className="absolute right-0 top-0 bottom-0 opacity-10 pointer-events-none flex items-center pr-6">
-            <Stethoscope className="w-64 h-64 text-white" />
-          </div>
-          <div className="relative z-10 max-w-3xl space-y-3">
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-black">
-              <Sparkles className="w-3.5 h-3.5 text-blue-300" />
-              <span>Clinical Doctor's Guidebook</span>
+        {/* Quick Instructions Banner (Compact by default to save vertical height) */}
+        <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-2xl text-white p-3.5 sm:p-4 shadow-xs transition-all relative overflow-hidden">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-300 shrink-0">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-xs sm:text-sm font-black text-white flex items-center gap-2">
+                  <span>How to Apply Clinical Charting</span>
+                  <span className="text-[10px] font-bold text-blue-200 bg-blue-500/25 px-2 py-0.5 rounded-full hidden sm:inline">
+                    Voice • AI Chatbot • 5-Surface UI
+                  </span>
+                </h2>
+                <p className="text-[11px] text-slate-300 font-medium line-clamp-1 sm:line-clamp-none">
+                  Speak into the 🎙️ mic on the Chart Page, paste queries into the AI Chatbot drawer, or click any tooth on the odontogram.
+                </p>
+              </div>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-              How to Apply Charting via Voice, Chatbot, or 5-Surface UI
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-medium">
-              This reference manual documents all 117 clinical dictations verified with the Dentia Odontogram Engine. You can either speak these phrases directly into the microphone, paste them into the AI Copilot Chatbot, or execute them manually in the 5-surface tooth editor.
-            </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+            <button
+              onClick={() => setIsGuideBannerOpen(!isGuideBannerOpen)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-blue-200 hover:text-white border border-white/15 text-xs font-bold transition-all shrink-0 cursor-pointer"
+              title={isGuideBannerOpen ? 'Compact guide view' : 'Show detailed dictation steps'}
+            >
+              <span>{isGuideBannerOpen ? 'Hide Cards' : 'View 3-Step Guide'}</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isGuideBannerOpen ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+
+          {isGuideBannerOpen && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 mt-3 border-t border-white/15 animate-fadeIn">
               <div className="bg-white/10 backdrop-blur-md rounded-xl p-3 border border-white/15">
                 <div className="flex items-center gap-2 text-xs font-black text-blue-300 mb-1">
                   <Mic className="w-3.5 h-3.5" />
@@ -473,7 +534,7 @@ export default function ClinicalGuidePage() {
                 </p>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Live Search & Filter Controls */}
@@ -484,13 +545,13 @@ export default function ClinicalGuidePage() {
               <input
                 type="text"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 placeholder="Search by tooth number, procedure, surface (e.g. MOD, Class V), CDT code (e.g. D2391, D8080), or keyword..."
                 className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm font-medium rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
               />
               {searchTerm && (
                 <button
-                  onClick={() => setSearchTerm('')}
+                  onClick={() => handleSearchChange('')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 font-bold"
                 >
                   Clear
@@ -503,32 +564,26 @@ export default function ClinicalGuidePage() {
             </div>
           </div>
 
-          {/* Specialty Category Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-            {[
-              { id: 'all', label: `All Guidelines (${allEntries.length})` },
-              { id: 'implants', label: '🔩 Implant Plan' },
-              { id: 'biopsy', label: '🔬 Biopsy' },
-              { id: 'aligners', label: '✨ Aligners' },
-              { id: 'restorative', label: 'Restorative' },
-              { id: 'endodontic', label: 'Endodontics' },
-              { id: 'prosthodontic', label: 'Prosthodontics' },
-              { id: 'surgical', label: 'Oral Surgery' },
-              { id: 'periodontal', label: 'Periodontics & Ortho' },
-              { id: 'pediatric', label: 'Pediatric (Child)' },
-              { id: 'young', label: 'Young (Multi-Specialty)' },
-              { id: 'suites', label: 'Diagnostic Suites' }
-            ].map(cat => (
+          {/* Specialty Category Pills (FLEX-WRAP: ZERO HORIZONTAL SCROLLBAR!) */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+            {categories.map(cat => (
               <button
                 key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 cursor-pointer ${
+                onClick={() => handleCategoryChange(cat.id)}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 cursor-pointer text-xs ${
                   activeCategory === cat.id
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-500/25'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-200/80'
                 }`}
               >
-                {cat.label}
+                <span>{cat.label}</span>
+                <span className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded-full ${
+                  activeCategory === cat.id 
+                    ? 'bg-blue-500/40 text-blue-50' 
+                    : 'bg-white text-slate-600 border border-slate-200/60'
+                }`}>
+                  {cat.count}
+                </span>
               </button>
             ))}
           </div>
@@ -538,8 +593,8 @@ export default function ClinicalGuidePage() {
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-100/80 border-b border-slate-200 text-[11px] font-black text-slate-700 uppercase tracking-wider">
+              <thead className="sticky top-0 z-10 bg-slate-100 shadow-2xs border-b border-slate-200">
+                <tr className="text-[11px] font-black text-slate-700 uppercase tracking-wider">
                   <th className="py-3 px-4 w-12 text-center">#</th>
                   <th className="py-3 px-4 min-w-[280px]">Doctor's Dictation / Chatbot Prompt</th>
                   <th className="py-3 px-3 w-28 text-center">Surface</th>
@@ -549,91 +604,182 @@ export default function ClinicalGuidePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/70 text-xs">
-                {filteredEntries.length === 0 ? (
+                {paginatedEntries.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-slate-400 font-medium">
                       No clinical entries matching "{searchTerm}". Try a different keyword or category.
                     </td>
                   </tr>
                 ) : (
-                  filteredEntries.map((item, idx) => (
-                    <tr 
-                      key={idx} 
-                      className={`hover:bg-blue-50/40 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
-                    >
-                      <td className="py-3 px-4 text-center font-bold text-slate-400 text-[11px]">
-                        {idx + 1}
-                      </td>
+                  paginatedEntries.map((item, idx) => {
+                    const rowNumber = (currentPage - 1) * currentEffectivePageSize + idx + 1;
+                    return (
+                      <tr 
+                        key={idx} 
+                        className={`hover:bg-blue-50/40 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
+                      >
+                        <td className="py-2.5 px-4 text-center font-bold text-slate-400 text-[11px]">
+                          {rowNumber}
+                        </td>
 
-                      <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-900 leading-snug">
-                          {item.query}
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-medium mt-0.5 flex items-center gap-1.5">
-                          <span className="font-bold text-blue-600">{item.section}</span>
-                        </div>
-                      </td>
+                        <td className="py-2.5 px-4">
+                          <div className="font-semibold text-slate-900 leading-snug">
+                            {item.query}
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-medium mt-0.5 flex items-center gap-1.5">
+                            <span className="font-bold text-blue-600">{item.section}</span>
+                          </div>
+                        </td>
 
-                      <td className="py-3 px-3 text-center">
-                        <span className={`inline-block px-2 py-0.5 rounded-md text-[10.5px] font-black border ${
-                          item.surface === 'MOD' || item.surface === 'MO' || item.surface === 'DO'
-                            ? 'bg-amber-50 text-amber-800 border-amber-200'
-                            : item.surface === 'Class V' || item.surface === 'L' || item.surface === 'B'
-                            ? 'bg-purple-50 text-purple-800 border-purple-200'
-                            : item.surface === 'O'
-                            ? 'bg-blue-50 text-blue-800 border-blue-200'
-                            : 'bg-slate-100 text-slate-700 border-slate-200'
-                        }`}>
-                          {item.surface}
-                        </span>
-                      </td>
-
-                      <td className="py-3 px-4">
-                        <div className="font-bold text-slate-900">
-                          {item.status}
-                        </div>
-                        <div className="mt-0.5">
-                          <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            CDT: {item.cdt}
+                        <td className="py-2.5 px-3 text-center">
+                          <span className={`inline-block px-2 py-0.5 rounded-md text-[10.5px] font-black border ${
+                            item.surface === 'MOD' || item.surface === 'MO' || item.surface === 'DO'
+                              ? 'bg-amber-50 text-amber-800 border-amber-200'
+                              : item.surface === 'Class V' || item.surface === 'L' || item.surface === 'B'
+                              ? 'bg-purple-50 text-purple-800 border-purple-200'
+                              : item.surface === 'O'
+                              ? 'bg-blue-50 text-blue-800 border-blue-200'
+                              : 'bg-slate-100 text-slate-700 border-slate-200'
+                          }`}>
+                            {item.surface}
                           </span>
-                        </div>
-                      </td>
+                        </td>
 
-                      <td className="py-3 px-4 text-slate-700 leading-snug text-[11.5px]">
-                        <div className="flex items-start gap-1">
-                          <ChevronRight className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
-                          <span>{item.manual}</span>
-                        </div>
-                      </td>
+                        <td className="py-2.5 px-4">
+                          <div className="font-bold text-slate-900">
+                            {item.status}
+                          </div>
+                          <div className="mt-0.5">
+                            <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              CDT: {item.cdt}
+                            </span>
+                          </div>
+                        </td>
 
-                      <td className="py-3 px-3 text-center">
-                        <button
-                          onClick={() => handleCopy(item.query)}
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all cursor-pointer shadow-2xs ${
-                            copiedPrompt === item.query
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-200'
-                          }`}
-                          title="Copy voice prompt to clipboard to paste into Chatbot"
-                        >
-                          {copiedPrompt === item.query ? (
-                            <>
-                              <Check className="w-3 h-3" />
-                              <span>Copied</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3 h-3" />
-                              <span>Copy</span>
-                            </>
-                          )}
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                        <td className="py-2.5 px-4 text-slate-700 leading-snug text-[11.5px]">
+                          <div className="flex items-start gap-1">
+                            <ChevronRight className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
+                            <span>{item.manual}</span>
+                          </div>
+                        </td>
+
+                        <td className="py-2.5 px-3 text-center">
+                          <button
+                            onClick={() => handleCopy(item.query)}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all cursor-pointer shadow-2xs ${
+                              copiedPrompt === item.query
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-200'
+                            }`}
+                            title="Copy voice prompt to clipboard to paste into Chatbot"
+                          >
+                            {copiedPrompt === item.query ? (
+                              <>
+                                <Check className="w-3 h-3" />
+                                <span>Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3" />
+                                <span>Copy</span>
+                              </>
+                            )}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Clean Clinical Pagination Controls Bar */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-slate-50 border-t border-slate-200 text-xs">
+            <div className="flex flex-wrap items-center gap-2 text-slate-600 font-medium">
+              <span>
+                Showing <strong className="text-slate-900 font-bold">{filteredEntries.length === 0 ? 0 : (currentPage - 1) * currentEffectivePageSize + 1}</strong> to <strong className="text-slate-900 font-bold">{Math.min(currentPage * currentEffectivePageSize, filteredEntries.length)}</strong> of <strong className="text-slate-900 font-bold">{filteredEntries.length}</strong> entries
+              </span>
+              <span className="text-slate-300">|</span>
+              <div className="flex items-center gap-1">
+                <span className="text-slate-500">Per page:</span>
+                {[10, 15, 25, 50, 'all'].map(size => (
+                  <button
+                    key={size}
+                    onClick={() => { setPageSize(size); setCurrentPage(1); }}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer transition-colors ${
+                      pageSize === size
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200/80'
+                    }`}
+                  >
+                    {size === 'all' ? 'All' : size}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {pageSize !== 'all' && totalPages > 1 && (
+              <div className="flex items-center gap-1 font-bold">
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  className="px-2 py-1 rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-colors"
+                  title="First Page"
+                >
+                  «
+                </button>
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-2.5 py-1 rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-colors"
+                  title="Previous Page"
+                >
+                  ‹ Prev
+                </button>
+
+                <div className="flex items-center gap-1 px-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                    .map((p, idx, arr) => {
+                      const prev = arr[idx - 1];
+                      const hasEllipsis = prev && p - prev > 1;
+                      return (
+                        <React.Fragment key={p}>
+                          {hasEllipsis && <span className="px-1 text-slate-400">...</span>}
+                          <button
+                            onClick={() => setCurrentPage(p)}
+                            className={`w-7 h-7 rounded text-xs transition-colors cursor-pointer ${
+                              currentPage === p
+                                ? 'bg-blue-600 text-white font-black shadow-xs'
+                                : 'bg-white hover:bg-slate-100 text-slate-700 font-semibold border border-slate-200/60'
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        </React.Fragment>
+                      );
+                    })}
+                </div>
+
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-2.5 py-1 rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-colors"
+                  title="Next Page"
+                >
+                  Next ›
+                </button>
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="px-2 py-1 rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition-colors"
+                  title="Last Page"
+                >
+                  »
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
