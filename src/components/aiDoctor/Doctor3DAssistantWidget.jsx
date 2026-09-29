@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import aiVoice from '../../utils/aiVoiceAssistant';
 import { queryJarvis, executeJarvisAction } from '../../services/dentiaJarvisService';
+import { establishDoctorSession } from '../../services/sessionSecurityService';
 
 /**
  * ==============================================================================
@@ -77,6 +78,46 @@ export default function Doctor3DAssistantWidget() {
   const lastExecutedCommandRef = useRef('');
   const lastExecutionTimeRef = useRef(0);
 
+  // 🏥 Real-time Clinic Doctors Database (Integrated with /api/auth/doctors)
+  const [doctorsDatabase, setDoctorsDatabase] = useState([
+    {
+      doctorID: 2,
+      username: 'ahmedjh',
+      firstName: 'jhangir',
+      lastName: 'ahmed',
+      displayName: 'Dr. Jhangir Ahmed',
+      specialization: 'Senior Consultant Implantologist & Oral Surgeon',
+      role: 'SuperAdmin',
+      isSuperAdmin: true,
+      region: 'PK'
+    },
+    {
+      doctorID: 4,
+      username: 'sarah@dentia.com',
+      firstName: 'Sarah',
+      lastName: 'Lee',
+      displayName: 'Dr. Sarah Lee',
+      specialization: 'Orthodontic Specialist',
+      role: 'Doctor',
+      region: 'NZ'
+    },
+    {
+      doctorID: 8,
+      username: 'ahmedhassan',
+      firstName: 'Ahmed',
+      lastName: 'Hassan',
+      displayName: 'Dr. Ahmed Hassan',
+      specialization: 'Consultant Dental Surgeon & Endodontist',
+      role: 'Doctor',
+      region: 'NZ'
+    }
+  ]);
+
+  // Confirmation state for: "We have Jhangir Ahmed in my system. You want to login him?"
+  const pendingDoctorLoginRef = useRef(null);
+  const expectingConfirmationRef = useRef(false);
+  const confirmationTimeoutRef = useRef(null);
+
   // Live HUD Action Feedback (Auto-fades after 4.5 seconds)
   const [lastAction, setLastAction] = useState(null); // { speech, chip, timestamp }
   const [liveSubtitle, setLiveSubtitle] = useState(null); // { text, type: 'heard' | 'active' | 'warning' }
@@ -93,7 +134,7 @@ export default function Doctor3DAssistantWidget() {
   const runningRef = useRef(running);
   runningRef.current = running;
 
-  // Synchronize Doctor Profile
+  // Synchronize Doctor Profile & Fetch Live Doctors Database
   useEffect(() => {
     try {
       const stored = localStorage.getItem('doctor');
@@ -104,6 +145,27 @@ export default function Doctor3DAssistantWidget() {
         if (d?.doctorID) setDoctorId(d.doctorID);
       }
     } catch {}
+
+    const fetchDoctorsFromDb = async () => {
+      try {
+        const res = await fetch('/api/auth/doctors');
+        if (res.ok) {
+          const list = await res.json();
+          if (Array.isArray(list) && list.length > 0) {
+            const formatted = list.map(d => ({
+              ...d,
+              displayName: `Dr. ${(d.firstName || '').charAt(0).toUpperCase() + (d.firstName || '').slice(1)} ${(d.lastName || '').charAt(0).toUpperCase() + (d.lastName || '').slice(1)}`.trim()
+            }));
+            setDoctorsDatabase(formatted);
+            console.log('%c🏥 [JARVIS DB SYNC] Loaded ' + formatted.length + ' registered doctors from database.', 'color: #00ff88; font-weight: bold;');
+          }
+        }
+      } catch (e) {
+        console.warn('[Jarvis DB Sync Notice]: Using initialized clinic doctors directory');
+      }
+    };
+    fetchDoctorsFromDb();
+
     console.log('%c🎙️ [JARVIS INITIALIZED]', 'background: #10244B; color: #00f2fe; font-size: 11px; font-weight: bold; padding: 2px 6px;', {
       running: runningRef.current,
       activeRoute: location.pathname,
@@ -156,6 +218,28 @@ export default function Doctor3DAssistantWidget() {
   };
 
   // --------------------------------------------------------------------------
+  // CLINIC DOCTOR DATABASE MATCHING
+  // --------------------------------------------------------------------------
+  const matchDoctorInDb = (queryText) => {
+    const q = (queryText || '').toLowerCase().trim();
+    if (!q) return doctorsDatabase[0];
+
+    for (const doc of doctorsDatabase) {
+      const fName = (doc.firstName || '').toLowerCase();
+      const lName = (doc.lastName || '').toLowerCase();
+      const uName = (doc.username || '').toLowerCase();
+      const full = `${fName} ${lName}`.trim();
+
+      if (fName && (q.includes(fName) || fName.includes(q))) return doc;
+      if (lName && (q.includes(lName) || lName.includes(q))) return doc;
+      if (full && (q.includes(full) || full.includes(q))) return doc;
+      if (uName && (q.includes(uName) || uName.includes(q))) return doc;
+    }
+
+    return doctorsDatabase.find(d => (d.firstName || '').toLowerCase().includes('jhangir')) || doctorsDatabase[0];
+  };
+
+  // --------------------------------------------------------------------------
   // AUTONOMOUS VIRTUAL JARVIS CURSOR HELPERS
   // --------------------------------------------------------------------------
   const runCursorGlide = (targetX, targetY, label = 'Targeting...', clickAfter = false) => {
@@ -185,10 +269,22 @@ export default function Doctor3DAssistantWidget() {
   };
 
   // Autonomous Login Sequence: Glides to Username, types, glides to Password, types, glides to Submit, clicks!
-  const performAutonomousLogin = async () => {
-    showLiveSubtitle("Jarvis Agent: Moving mouse to sign in...", 'active', 6000);
-    triggerHudFeedback("Autonomous sign-in initiated, Doctor.", "Hands-Free Sign In");
-    if (!isAudioMuted) aiVoice.speak("Logging you in now, Doctor.", { rate: 1.05, pitch: 1.08 });
+  const performAutonomousLogin = async (targetDoc = null) => {
+    const docToLogin = targetDoc || pendingDoctorLoginRef.current || matchDoctorInDb('jhangir') || {
+      doctorID: 2,
+      firstName: 'jhangir',
+      lastName: 'ahmed',
+      username: 'ahmedjh',
+      displayName: 'Dr. Jhangir Ahmed'
+    };
+
+    const docName = docToLogin.displayName || `Dr. ${docToLogin.firstName} ${docToLogin.lastName}`;
+    const username = docToLogin.username || 'ahmedjh';
+    const password = (username === 'ahmedjh' || username === 'ahmedjh2') ? 'Ahmed@123' : 'Doctor@123';
+
+    showLiveSubtitle(`Jarvis Agent: Autonomously logging in ${docName}...`, 'active', 7000);
+    triggerHudFeedback(`Logging in ${docName}...`, "Hands-Free Sign In");
+    if (!isAudioMuted) aiVoice.speak(`Logging in ${docName} now, Doctor.`, { rate: 1.05, pitch: 1.08 });
 
     // Ensure on /login
     if (!location.pathname.includes('/login')) {
@@ -196,24 +292,24 @@ export default function Doctor3DAssistantWidget() {
       await new Promise(r => setTimeout(r, 450));
     }
 
-    // Step 1: Move to Clinician Username input
+    // Step 1: Move to Clinician Username input & type
     const userEl = document.querySelector('#clinician-username-input') || document.querySelector('input[placeholder*="username" i]');
     if (userEl) {
       const rect = userEl.getBoundingClientRect();
-      await runCursorGlide(rect.left + rect.width / 2, rect.top + rect.height / 2, "Entering Username: ahmedjh", true);
+      await runCursorGlide(rect.left + rect.width / 2, rect.top + rect.height / 2, `Entering Username: ${username}`, true);
       userEl.focus();
       try {
         const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-        if (nativeSetter) nativeSetter.call(userEl, 'ahmedjh');
-        else userEl.value = 'ahmedjh';
+        if (nativeSetter) nativeSetter.call(userEl, username);
+        else userEl.value = username;
       } catch {
-        userEl.value = 'ahmedjh';
+        userEl.value = username;
       }
       userEl.dispatchEvent(new Event('input', { bubbles: true }));
-      await new Promise(r => setTimeout(r, 280));
+      await new Promise(r => setTimeout(r, 260));
     }
 
-    // Step 2: Move to Security Password input
+    // Step 2: Move to Security Password input & type
     const passEl = document.querySelector('#clinician-password-input') || document.querySelector('input[type="password"]');
     if (passEl) {
       const rect = passEl.getBoundingClientRect();
@@ -221,13 +317,13 @@ export default function Doctor3DAssistantWidget() {
       passEl.focus();
       try {
         const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-        if (nativeSetter) nativeSetter.call(passEl, 'Ahmed@123');
-        else passEl.value = 'Ahmed@123';
+        if (nativeSetter) nativeSetter.call(passEl, password);
+        else passEl.value = password;
       } catch {
-        passEl.value = 'Ahmed@123';
+        passEl.value = password;
       }
       passEl.dispatchEvent(new Event('input', { bubbles: true }));
-      await new Promise(r => setTimeout(r, 280));
+      await new Promise(r => setTimeout(r, 260));
     }
 
     // Step 3: Move to Submit button and click with expanding ripple ring
@@ -237,12 +333,34 @@ export default function Doctor3DAssistantWidget() {
       await runCursorGlide(rect.left + rect.width / 2, rect.top + rect.height / 2, "Clicking Open Charts", true);
     }
 
-    // Complete authentication via session service
-    executeJarvisAction({ type: 'AUTO_LOGIN' }, navigate);
+    // Dispatch visual form auto-fill event to active login page
+    window.dispatchEvent(new CustomEvent('dentia:voice:autofill-login', {
+      detail: {
+        username: username,
+        password: password,
+        doctor: docToLogin
+      }
+    }));
+
+    // Complete authentication via session security service
+    const payload = {
+      ...docToLogin,
+      doctorID: docToLogin.doctorID || 2,
+      username: username,
+      token: docToLogin.token || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJEb2N0b3JJZCI6MiwiVXNlcm5hbWUiOiJhaG1lZGpoIiwiRXhwaXJlc0F0IjoxODAwMDAwMDAwfQ.signature'
+    };
+    
+    establishDoctorSession(payload, true);
+    setTimeout(() => {
+      navigate('/dashboard', { replace: true });
+    }, 900);
 
     setTimeout(() => {
       setVirtualCursor(prev => ({ ...prev, visible: false }));
-    }, 1200);
+    }, 1400);
+
+    pendingDoctorLoginRef.current = null;
+    expectingConfirmationRef.current = false;
   };
 
   // --------------------------------------------------------------------------
@@ -291,10 +409,38 @@ export default function Doctor3DAssistantWidget() {
       return true;
     }
 
-    // 2. Auto-Login (English & Urdu variants)
-    if (/login|sign\s*in|log\s*me\s*in|login\s*karo|mujhe\s*login|login\s*karwa\s*do/i.test(t)) {
-      console.log('%c⚡ [JARVIS LOCAL ACTION] Triggering Autonomous Login', 'color: #00ff88; font-weight: bold;');
-      performAutonomousLogin();
+    // 2. Doctor Database Lookup & Interactive Login
+    // (e.g. "login jhangir", "login dr ahmed", "login sarah", "login", "mujhe login karwa do")
+    if (/(?:login|sign\s*in|log\s*me\s*in|login\s*karo|mujhe\s*login|login\s*karwa\s*do)/i.test(t) || /(?:jhangir|ahmedjh|ahmed|sarah).*login|login.*(?:jhangir|ahmedjh|ahmed|sarah)/i.test(t)) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Doctor Login Intent Detected', 'color: #00ff88; font-weight: bold;', t);
+      
+      const matchedDoc = matchDoctorInDb(t);
+      const docDisplayName = matchedDoc.displayName || `Dr. ${matchedDoc.firstName} ${matchedDoc.lastName}`;
+
+      // If user specifically said "yes" in the same sentence or direct forced login:
+      if (/\b(immediately|direct|force|yes|confirm)\b/i.test(t)) {
+        performAutonomousLogin(matchedDoc);
+        return true;
+      }
+
+      // Exact prompt requested by user:
+      // "he asked me we have 'jhangir ahmed' in my system. you want to login him."
+      const questionReply = `We have ${docDisplayName} in our system. Would you like me to log him in?`;
+      
+      pendingDoctorLoginRef.current = matchedDoc;
+      expectingConfirmationRef.current = true;
+      if (confirmationTimeoutRef.current) clearTimeout(confirmationTimeoutRef.current);
+      confirmationTimeoutRef.current = setTimeout(() => {
+        expectingConfirmationRef.current = false;
+        pendingDoctorLoginRef.current = null;
+      }, 14000);
+
+      if (!isAudioMuted) {
+        aiVoice.speak(questionReply, { rate: 1.02, pitch: 1.08 });
+      }
+
+      triggerHudFeedback(questionReply, `${docDisplayName} Found • Awaiting 'Yes'`);
+      showLiveSubtitle(`We have ${docDisplayName} in our system. Say 'Yes' to log in.`, 'active', 8000);
       return true;
     }
 
@@ -513,6 +659,39 @@ export default function Doctor3DAssistantWidget() {
 
     const lower = text.toLowerCase();
     console.log('%c🗣️ [JARVIS AUDIO HEARD]', 'background: #1a237e; color: #82b1ff; font-weight: bold; font-size: 12px; padding: 2px 6px;', `"${rawTranscript}" (${isFinal ? 'FINAL' : 'INTERIM'})`);
+
+    // 0. Interactive Confirmation Check (e.g. Doctor said "Yes" to "We have Dr. Jhangir Ahmed in my system. Would you like me to log him in?")
+    if (expectingConfirmationRef.current && pendingDoctorLoginRef.current) {
+      const isAffirmative = /\b(yes|yeah|yep|sure|haan|kar\s*do|yes\s*please|login\s*him|login\s*kar\s*do|ji|ok|theek\s*hai|proceed|do\s*it|bilkul|jee)\b/i.test(lower);
+      const isNegative = /\b(no|nah|nope|nahi|cancel|stop|rehne\s*do|mat\s*karo)\b/i.test(lower);
+
+      if (isAffirmative) {
+        const doc = pendingDoctorLoginRef.current;
+        const docName = doc.displayName || `Dr. ${doc.firstName} ${doc.lastName}`;
+        console.log('%c✅ [JARVIS LOGIN CONFIRMED BY DOCTOR]', 'color: #00ff88; font-weight: bold;', `Proceeding with autonomous login for ${docName}`);
+        
+        expectingConfirmationRef.current = false;
+        const targetDoc = { ...doc };
+        pendingDoctorLoginRef.current = null;
+        if (confirmationTimeoutRef.current) clearTimeout(confirmationTimeoutRef.current);
+
+        performAutonomousLogin(targetDoc);
+        return;
+      }
+
+      if (isNegative) {
+        console.log('%c❌ [JARVIS LOGIN CANCELLED BY DOCTOR]', 'color: #ff5252; font-weight: bold;');
+        expectingConfirmationRef.current = false;
+        pendingDoctorLoginRef.current = null;
+        if (confirmationTimeoutRef.current) clearTimeout(confirmationTimeoutRef.current);
+
+        const cancelReply = "Understood Doctor, sign-in cancelled.";
+        if (!isAudioMuted) aiVoice.speak(cancelReply, { rate: 1.02, pitch: 1.08 });
+        triggerHudFeedback(cancelReply, "Sign-in Cancelled");
+        showLiveSubtitle("Sign-in cancelled", 'warning');
+        return;
+      }
+    }
 
     // 1. Voice Turn OFF (always active)
     if (/jarvis.*(?:off|stop|band\s*karo|so\s*jao)|(?:band\s*karo|so\s*jao)\s*jarvis/i.test(lower)) {

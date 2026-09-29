@@ -268,15 +268,17 @@ export async function executeJarvisAction(action, navigate, activePatientId = nu
       region: "PK"
     };
     
-    // Check if there is an existing stored doctor or synthesize an active session
-    let doctorData = defaultDoc;
-    try {
-      const stored = localStorage.getItem('doctor');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed.doctorID) doctorData = { ...defaultDoc, ...parsed };
-      }
-    } catch {}
+    // Check if a specific doctor was requested or if there is an existing stored doctor
+    let doctorData = action.doctor || action.data?.doctor || defaultDoc;
+    if (!action.doctor && !action.data?.doctor) {
+      try {
+        const stored = localStorage.getItem('doctor');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed.doctorID) doctorData = { ...defaultDoc, ...parsed };
+        }
+      } catch {}
+    }
 
     // Dispatch visual form auto-fill event to active login page
     window.dispatchEvent(new CustomEvent('dentia:voice:autofill-login', {
