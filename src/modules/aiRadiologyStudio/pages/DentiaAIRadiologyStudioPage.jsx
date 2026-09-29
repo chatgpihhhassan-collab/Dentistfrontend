@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import StudioTopNavBar from '../components/StudioTopNavBar';
-import StudioLeftRail from '../components/StudioLeftRail';
 import DiagnosticRingCards from '../components/DiagnosticRingCards';
 import RadiographToolbar from '../components/RadiographToolbar';
 import ThreeRadiologyJawViewer from '../components/ThreeRadiologyJawViewer';
-import HealthGPTDrawer from '../components/HealthGPTDrawer';
+import AISuggestionsActionPanel from '../components/AISuggestionsActionPanel';
 import DeviceScannerOverlay from '../components/DeviceScannerOverlay';
 import { applyAIFindingsToPatientRecord } from '../services/aiFindingsApplierService';
-import { CheckCircle2, ArrowRight, FileText, Sparkles, X } from 'lucide-react';
+import { CheckCircle2, ArrowRight, FileText, X } from 'lucide-react';
 
 export default function DentiaAIRadiologyStudioPage() {
   const { patientId } = useParams();
@@ -16,7 +15,7 @@ export default function DentiaAIRadiologyStudioPage() {
 
   // State Management
   const [activeTooth, setActiveTooth] = useState('27');
-  const [viewMode, setViewMode] = useState('3d');
+  const [viewMode, setViewMode] = useState('2d'); // Default to HD Anatomical Scan view matching reference
   const [magnifierActive, setMagnifierActive] = useState(false);
   const [isInverted, setIsInverted] = useState(false);
   const [contrastValue, setContrastValue] = useState(100);
@@ -30,13 +29,11 @@ export default function DentiaAIRadiologyStudioPage() {
   // Apply Findings states
   const [isApplying, setIsApplying] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [appliedResult, setAppliedResult] = useState(null);
 
   // Patient Info
   const [patientName, setPatientName] = useState('Patient Record');
 
   useEffect(() => {
-    // If patientId exists, fetch or retrieve name
     if (patientId) {
       try {
         const stored = localStorage.getItem(`patient_${patientId}_info`);
@@ -84,19 +81,19 @@ export default function DentiaAIRadiologyStudioPage() {
   const handleReloadRawScan = () => {
     handleResetFilters();
     setIsScanning(true);
-    setScanningDeviceName('Raw DICOM Server');
+    setScanningDeviceName('Raw DICOM Optical Scan');
   };
 
   const handleToggleFlip = () => {
     setIsFlipped((prev) => !prev);
   };
 
-  // Device Trigger
+  // Hardware Scan Trigger
   const handleTriggerDevice = (deviceKey) => {
     const names = {
-      digora: 'Soredex Digora Optime LAN',
-      nanopix: 'Eighteeth NanoPix RVG Sensor',
-      upload: 'X-Ray / OPG Image Upload'
+      digora: 'Soredex Digora Optime LAN Phosphor Plate',
+      nanopix: 'Eighteeth NanoPix RVG CMOS Sensor',
+      upload: 'X-Ray / CBCT Panoramic Image Upload'
     };
     setScanningDeviceName(names[deviceKey] || 'Dental Radiograph');
     setIsScanning(true);
@@ -110,8 +107,7 @@ export default function DentiaAIRadiologyStudioPage() {
   const handleApplyDone = async () => {
     setIsApplying(true);
     try {
-      const result = await applyAIFindingsToPatientRecord(patientId, { patientName });
-      setAppliedResult(result);
+      await applyAIFindingsToPatientRecord(patientId, { patientName });
       setIsApplying(false);
       setShowSuccessModal(true);
     } catch (err) {
@@ -122,16 +118,16 @@ export default function DentiaAIRadiologyStudioPage() {
 
   return (
     <div
-      className="min-h-screen w-full bg-[#E5E9EE] relative flex flex-col justify-between p-3 sm:p-5 font-sans overflow-x-hidden"
+      className="min-h-screen w-full bg-[#EDF1F5] relative flex flex-col justify-start p-3 sm:p-5 font-sans overflow-x-hidden"
       style={{
-        backgroundImage: `radial-gradient(at 10% 20%, rgba(219, 234, 254, 0.6) 0px, transparent 50%),
-                          radial-gradient(at 90% 80%, rgba(224, 242, 254, 0.7) 0px, transparent 50%),
-                          radial-gradient(at 50% 50%, rgba(248, 250, 252, 0.9) 0px, transparent 100%)`
+        backgroundImage: `radial-gradient(at 10% 20%, rgba(219, 234, 254, 0.5) 0px, transparent 50%),
+                          radial-gradient(at 90% 80%, rgba(224, 242, 254, 0.6) 0px, transparent 50%),
+                          radial-gradient(at 50% 50%, rgba(248, 250, 252, 0.95) 0px, transparent 100%)`
       }}
     >
-      {/* Outer Card Wrapper (Exact aesthetic frame matching user's image) */}
-      <div className="w-full max-w-[1760px] mx-auto flex flex-col gap-4 relative">
-        {/* 1. Top Navigation Bar */}
+      {/* Outer Studio Card Container */}
+      <div className="w-full max-w-[1720px] mx-auto flex flex-col gap-3.5 relative">
+        {/* 1. Top Navigation Header (Denty ai brand, scan filters, user profile) */}
         <StudioTopNavBar
           patientId={patientId}
           patientName={patientName}
@@ -139,13 +135,10 @@ export default function DentiaAIRadiologyStudioPage() {
           isScanning={isScanning}
         />
 
-        {/* 2. Main Studio Grid: Left Rail + Center Workstation + Right Health GPT */}
-        <div className="flex flex-col lg:flex-row gap-4 items-stretch w-full min-h-[760px]">
-          {/* Left Vertical Rail */}
-          <StudioLeftRail patientId={patientId} />
-
-          {/* Center Main Workstation */}
-          <main className="flex-1 flex flex-col gap-3.5 min-w-0">
+        {/* 2. Main Studio Body: Focused 2-Column Clinical Layout (Left Menu & Chat excluded) */}
+        <div className="flex flex-col lg:flex-row gap-4 items-stretch w-full">
+          {/* Left Column: Hero Diagnostic Center (Wide Viewport) */}
+          <main className="flex-1 flex flex-col gap-3 min-w-0">
             {/* Top 4 KPI Ring Cards */}
             <DiagnosticRingCards
               activeTooth={activeTooth}
@@ -170,8 +163,8 @@ export default function DentiaAIRadiologyStudioPage() {
               onToggleFlip={handleToggleFlip}
             />
 
-            {/* 3D Anatomical Jaw Viewport & Multi-Angle Carousel */}
-            <div className="flex-1 min-h-[480px]">
+            {/* Anatomical Lateral Jaw Viewport & Multi-Angle Carousel */}
+            <div className="flex-1 min-h-[440px]">
               <ThreeRadiologyJawViewer
                 viewMode={viewMode}
                 isInverted={isInverted}
@@ -184,11 +177,16 @@ export default function DentiaAIRadiologyStudioPage() {
             </div>
           </main>
 
-          {/* Right Sidebar: Health GPT & AI Suggestions */}
-          <aside className="w-full lg:w-[360px] xl:w-[390px] shrink-0 flex flex-col">
-            <HealthGPTDrawer
+          {/* Right Column: Clean AI Diagnostic Summary & 1-Click Action Panel */}
+          <aside className="w-full lg:w-[340px] xl:w-[370px] shrink-0 flex flex-col">
+            <AISuggestionsActionPanel
+              patientId={patientId}
+              patientName={patientName}
+              activeTooth={activeTooth}
+              onSelectTooth={setActiveTooth}
               onApplyFindings={handleApplyDone}
               isApplying={isApplying}
+              onTriggerScanner={handleTriggerDevice}
             />
           </aside>
         </div>
@@ -206,7 +204,6 @@ export default function DentiaAIRadiologyStudioPage() {
       {showSuccessModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-100 flex flex-col items-center text-center relative animate-scaleUp">
-            {/* Close Cross */}
             <button
               type="button"
               onClick={() => setShowSuccessModal(false)}
@@ -215,7 +212,6 @@ export default function DentiaAIRadiologyStudioPage() {
               <X className="w-5 h-5" />
             </button>
 
-            {/* Checkmark Animation Icon */}
             <div className="w-16 h-16 rounded-full bg-emerald-50 border-4 border-emerald-100 flex items-center justify-center text-emerald-600 mb-4 shadow-md">
               <CheckCircle2 className="w-9 h-9" />
             </div>
@@ -224,14 +220,13 @@ export default function DentiaAIRadiologyStudioPage() {
               AI Diagnostic Findings Applied!
             </h3>
 
-            <p className="text-sm text-slate-600 mb-6 leading-relaxed">
+            <p className="text-sm text-slate-600 mb-5 leading-relaxed">
               All 4 detected conditions have been synchronized to the patient’s{' '}
               <strong className="text-blue-600">3D Odontogram Chart</strong> and an official{' '}
               <strong className="text-indigo-600">AI Clinical SOAP Note</strong> has been archived with CDT billing codes.
             </p>
 
-            {/* Findings Pill Summary */}
-            <div className="w-full bg-slate-50 rounded-2xl p-4 mb-6 border border-slate-100 text-left flex flex-col gap-2">
+            <div className="w-full bg-slate-50 rounded-2xl p-4 mb-5 border border-slate-100 text-left flex flex-col gap-2">
               <div className="text-[11px] font-black uppercase text-slate-400 tracking-wider">
                 Updated Clinical Items:
               </div>
@@ -253,7 +248,6 @@ export default function DentiaAIRadiologyStudioPage() {
               </div>
             </div>
 
-            {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row items-center gap-3 w-full">
               <button
                 type="button"
