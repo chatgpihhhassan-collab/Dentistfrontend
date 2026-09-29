@@ -37,7 +37,7 @@ import { establishDoctorSession } from '../../services/sessionSecurityService';
 const WAKE_REGEX = /\b(jarvis|javis|jarwis|service|travers|jawis|chavis|charvis|dr\s*jarvis)\b/i;
 
 // Direct clinical directives that execute even if the doctor forgets to say "Jarvis" while ON
-const CLINICAL_INTENT_REGEX = /\b(login|sign\s*in|log\s*me\s*in|login\s*karo|mujhe\s*login|login\s*karwa\s*do|logout|sign\s*out|exit|band\s*karo|tooth\s+\d+|daant\s+\d+|caries|decay|rct|crown|implant|missing|digora|nanopix|camera|patient\s+\d+|schedule|calendar|timetable|appointments|scribe|notes|guidelines|directory|dashboard)\b/i;
+const CLINICAL_INTENT_REGEX = /\b(login|sign\s*in|log\s*me\s*in|login\s*karo|mujhe\s*login|login\s*karwa\s*do|logout|sign\s*out|exit|band\s*karo|tooth\s+\d+|daant\s+\d+|caries|decay|rct|crown|implant|missing|digora|nanopix|camera|patient\s+\d+|patient|schedule|calendar|timetable|appointments|scribe|notes|guidelines|directory|dashboard|workspace|work\s*space|home|overview|charts?|records?|analytics)\b/i;
 
 export default function Doctor3DAssistantWidget() {
   const navigate = useNavigate();
@@ -562,22 +562,26 @@ export default function Doctor3DAssistantWidget() {
       return true;
     }
 
-    // 11. Navigation: Dashboard / Home
-    if (/(?:go\s+to|open)\s+(?:dashboard|home|workspace)|dashboard/i.test(t)) {
-      console.log('%c⚡ [JARVIS LOCAL ACTION] Opening dashboard', 'color: #00ff88; font-weight: bold;');
+    // 11. Navigation: Dashboard / Workspace / Home
+    // Matches: "open my workspace page please", "workspace page", "open workspace", "dashboard", "home", etc.
+    if (
+      /(?:dashboard|workspace|home|analytics)/i.test(t) ||
+      /(?:go\s+to|open|take\s+me\s+to|show)\s+(?:(?:my\s+)?(?:dashboard|workspace|home|analytics|overview|main\s+page))/i.test(t)
+    ) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Opening clinician workspace', 'color: #00ff88; font-weight: bold;');
       const navEl = document.querySelector('a[href="/dashboard"], [data-nav="dashboard"]');
       if (navEl) {
         const rect = navEl.getBoundingClientRect();
-        runCursorGlide(rect.left + rect.width / 2, rect.top + rect.height / 2, "Opening Dashboard", true);
+        runCursorGlide(rect.left + rect.width / 2, rect.top + rect.height / 2, "Opening Workspace", true);
       }
       setTimeout(() => {
         setVirtualCursor(prev => ({ ...prev, visible: false }));
         navigate('/dashboard');
       }, 450);
-      const reply = "Opening main clinician workspace, Doctor.";
+      const reply = "Opening your clinician workspace, Doctor.";
       if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
-      triggerHudFeedback(reply, "Dashboard Opened");
-      showLiveSubtitle("Opening Dashboard", 'active');
+      triggerHudFeedback(reply, "Workspace Loaded");
+      showLiveSubtitle("Opening Clinician Workspace", 'active');
       return true;
     }
 
@@ -707,7 +711,7 @@ export default function Doctor3DAssistantWidget() {
 
     // 2. Check Wake-Word or Direct Clinical Intent
     const hasWakeWord = WAKE_REGEX.test(lower);
-    const hasClinicalIntent = CLINICAL_INTENT_REGEX.test(lower);
+    const hasClinicalIntent = CLINICAL_INTENT_REGEX.test(lower) || /(?:open|show|go\s*to|take\s*me\s*to|navigate\s*to|load|switch\s*to)\s+/i.test(lower);
     const wasAwaitingCommand = expectingCommandAfterWakeWordRef.current;
 
     const now = Date.now();
@@ -814,22 +818,14 @@ export default function Doctor3DAssistantWidget() {
         const candidate = (finalTranscript || interimTranscript).trim();
         if (!candidate) return;
 
-        // Acoustic feedback suppression & Interruption (Barge-in)
+        // Acoustic feedback suppression: check if candidate is reflection from device speakers
+        const isInterruptionWord = /\b(stop|wait|cancel|pause|chup|quiet|listen|jarvis|javis)\b/i.test(candidate);
+        if (!isInterruptionWord && aiVoice.isRecentEcho && aiVoice.isRecentEcho(candidate)) {
+          return; // Ignore true echo of Jarvis's own voice
+        }
+
+        // Interruption (Barge-in): Doctor is speaking while Jarvis was talking
         if (aiVoice.speaking) {
-          const lowerCandidate = candidate.toLowerCase();
-          const currentUtterance = (aiVoice.currentText || '').toLowerCase();
-          const isSelfEcho = (
-            lowerCandidate === 'yes doctor' || 
-            lowerCandidate === 'yes doctor?' ||
-            lowerCandidate === 'yes' ||
-            (currentUtterance && currentUtterance.includes(lowerCandidate))
-          );
-
-          if (isSelfEcho) {
-            return; // Ignore true echo of Jarvis's own voice
-          }
-
-          // Doctor is speaking: interrupt Jarvis immediately!
           console.log('%c⚡ [JARVIS VOICE BARGE-IN]', 'background: #00e5ff; color: #000; font-weight: bold;', 'Doctor interrupted speech with:', candidate);
           aiVoice.stop();
         }

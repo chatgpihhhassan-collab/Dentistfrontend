@@ -18,7 +18,11 @@ import aiVoice from '../utils/aiVoiceAssistant';
 import { resolveDoctorInstruction as localFallbackBrain } from '../components/aiDoctor/clinicalDentalBrain';
 
 const getGroqKey = () => import.meta.env.VITE_GROQ_API_KEY || (typeof window !== 'undefined' && window.__GROQ_KEY__) || ['gsk', 'YIHDxc4gx5S8IRBlqdEkWGdyb3FYY3ht2J3DSJB5s8pbj4qz9sQF'].join('_');
-const GROQ_MODEL = "qwen/qwen3.8-27b";
+const GROQ_MODELS = [
+  "qwen/qwen3.8-27b",
+  "openai/gpt-oss-20b",
+  "openai/gpt-oss-120b"
+];
 
 // Multi-turn conversation history memory (keeps last 6 interactions)
 let conversationHistory = [];
@@ -205,39 +209,51 @@ export async function queryJarvis(userInput, context = {}) {
     { role: "user", content: userInput.trim() }
   ];
 
-  try {
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${getGroqKey()}`,
-        "Content-Type": "application/json",
-        "User-Agent": "DentiaJarvis/2.0"
-      },
-      body: JSON.stringify({
-        model: GROQ_MODEL,
-        messages: messages,
-        max_tokens: 350,
-        temperature: 0.3
-      })
-    });
+  let lastError = null;
+  for (const model of GROQ_MODELS) {
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${getGroqKey()}`,
+          "Content-Type": "application/json",
+          "User-Agent": "DentiaJarvis/2.0"
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: messages,
+          max_tokens: 350,
+          temperature: 0.3
+        })
+      });
 
-    if (!res.ok) {
-      throw new Error(`Groq HTTP error ${res.status}`);
+      if (res.status === 429) {
+        console.warn(`[Jarvis LLM Rate Limit]: Model ${model} returned 429. Trying backup model...`);
+        lastError = new Error(`Groq HTTP error 429 on ${model}`);
+        continue;
+      }
+
+      if (!res.ok) {
+        throw new Error(`Groq HTTP error ${res.status}`);
+      }
+
+      const data = await res.json();
+      const rawContent = data.choices?.[0]?.message?.content || "";
+      const parsed = cleanAndParseJSON(rawContent);
+
+      if (parsed && parsed.reply) {
+        // Record to history
+        conversationHistory.push({ role: "user", content: userInput });
+        conversationHistory.push({ role: "assistant", content: rawContent });
+        return parsed;
+      }
+    } catch (err) {
+      lastError = err;
+      console.warn(`[Jarvis LLM Error on ${model}]:`, err.message || err);
     }
-
-    const data = await res.json();
-    const rawContent = data.choices?.[0]?.message?.content || "";
-    const parsed = cleanAndParseJSON(rawContent);
-
-    if (parsed && parsed.reply) {
-      // Record to history
-      conversationHistory.push({ role: "user", content: userInput });
-      conversationHistory.push({ role: "assistant", content: rawContent });
-      return parsed;
-    }
-  } catch (err) {
-    console.warn("⚠️ [Jarvis LLM Network Error - Falling back to local brain]:", err);
   }
+
+  console.warn("⚠️ [Jarvis LLM Network Error - Falling back to local brain]:", lastError);
 
   // Graceful fallback to local rule-based brain if offline
   const fallback = localFallbackBrain(userInput, context);

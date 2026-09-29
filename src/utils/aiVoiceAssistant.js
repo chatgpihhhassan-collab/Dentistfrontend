@@ -16,7 +16,39 @@ class AIVoiceAssistant {
         }
         this.speaking = false;
         this.currentText = '';
+        this.recentUtterances = [];
         this.listeners = new Set();
+    }
+
+    /**
+     * Test if an incoming microphone transcript is acoustic feedback/echo from the device speakers
+     */
+    isRecentEcho(candidate) {
+        if (!candidate) return false;
+        const now = Date.now();
+        this.recentUtterances = this.recentUtterances.filter(u => u.expiresAt > now);
+        const lower = candidate.toLowerCase().trim();
+
+        // 1. Direct prompt echoes
+        if (lower === 'yes doctor' || lower === 'yes doctor?' || lower === 'yes') {
+            return this.speaking;
+        }
+
+        // 2. Check if candidate matches or is contained inside recent spoken phrases
+        for (const item of this.recentUtterances) {
+            if (item.text.includes(lower) || lower.includes(item.text)) {
+                return true;
+            }
+            // Word overlap check for sentences
+            const words = lower.split(/\s+/).filter(w => w.length > 3);
+            if (words.length >= 3) {
+                const matchCount = words.filter(w => item.text.includes(w)).length;
+                if (matchCount / words.length >= 0.45) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     isSupported() {
@@ -175,6 +207,14 @@ class AIVoiceAssistant {
 
             this.speaking = true;
             this.currentText = text;
+            const cleanLower = text.toLowerCase();
+            this.recentUtterances.push({
+                text: cleanLower,
+                expiresAt: Date.now() + 8000
+            });
+            if (this.recentUtterances.length > 6) {
+                this.recentUtterances.shift();
+            }
             this.notifyListeners();
 
             // Watchdog: In case Chrome SpeechSynthesis pauses or misses onend

@@ -991,14 +991,14 @@ export function resolveDoctorInstruction(transcript, context = {}) {
     };
   }
 
-  // 2.5 Clinical Dashboard ("Dashboard", "Go home", "Main page")
+  // 2.5 Clinical Dashboard & Workspace ("Workspace", "Dashboard", "Go home", "Main page")
   if (
-    /(?:dashboard|go\s+home|open\s+dashboard|practice\s+analytics|clinic\s+overview|^home$|^overview$)/i.test(clean)
+    /(?:workspace|dashboard|go\s+home|open\s+(?:my\s+)?workspace|open\s+(?:my\s+)?dashboard|practice\s+analytics|clinic\s+overview|^home$|^overview$)/i.test(clean)
   ) {
     return {
-      title: 'Clinical Dashboard',
+      title: 'Clinician Workspace & Dashboard',
       category: 'Navigation',
-      text: 'Returning to the main clinical dashboard and practice analytics, Doctor.',
+      text: 'Opening your clinician workspace and practice analytics, Doctor.',
       action: { type: 'NAVIGATE', path: '/dashboard' }
     };
   }
@@ -1111,9 +1111,12 @@ export function resolveDoctorInstruction(transcript, context = {}) {
       const stopWords = [
         'appointments', 'appointment', 'dashboard', 'directory', 'patient', 'patients', 
         'treatments', 'treatment', 'the', 'a', 'an', 'notes', 'help', 'tooth', 'teeth', 
-        'dentist', 'clinic', 'doctor', 'schedule', 'book', 'booking', 'list', 'records', 'chart', ''
+        'dentist', 'clinic', 'doctor', 'schedule', 'book', 'booking', 'list', 'records', 'chart', '',
+        'workspace', 'page', 'my', 'please', 'app', 'application', 'site', 'website', 'system', 'portal', 'home', 'main',
+        'guideline', 'guidelines', 'manual', 'protocol', 'overview', 'analytics', 'settings'
       ];
-      if (!stopWords.includes(candidate)) {
+      const isNavigationKeyword = /workspace|dashboard|guideline|schedule|appointment|directory|settings|analytics|portal|overview|main\s*page/i.test(candidate);
+      if (!stopWords.includes(candidate) && !isNavigationKeyword && candidate.length > 2) {
         return {
           title: `Locating Patient: ${candidate}`,
           category: 'Patient Lookup',
