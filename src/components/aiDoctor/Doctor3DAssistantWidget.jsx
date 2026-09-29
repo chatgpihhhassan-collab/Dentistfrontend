@@ -89,8 +89,8 @@ export default function Doctor3DAssistantWidget() {
       lastName: 'ahmed',
       displayName: 'Dr. Jhangir Ahmed',
       specialization: 'Senior Consultant Implantologist & Oral Surgeon',
-      role: 'SuperAdmin',
-      isSuperAdmin: true,
+      role: 'Doctor',
+      isSuperAdmin: false,
       region: 'PK'
     },
     {
@@ -395,16 +395,19 @@ export default function Doctor3DAssistantWidget() {
     }));
 
     // Complete authentication via session security service
+    const isSuper = Boolean(docToLogin.isSuperAdmin);
     const payload = {
       ...docToLogin,
       doctorID: docToLogin.doctorID || 2,
       username: username,
+      isSuperAdmin: isSuper,
       token: docToLogin.token || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJEb2N0b3JJZCI6MiwiVXNlcm5hbWUiOiJhaG1lZGpoIiwiRXhwaXJlc0F0IjoxODAwMDAwMDAwfQ.signature'
     };
     
     establishDoctorSession(payload, true);
     setTimeout(() => {
-      navigate('/dashboard', { replace: true });
+      const destination = isSuper ? '/admin/doctors' : '/dashboard';
+      navigate(destination, { replace: true });
     }, 900);
 
     setTimeout(() => {

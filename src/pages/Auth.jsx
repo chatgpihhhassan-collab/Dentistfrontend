@@ -101,13 +101,25 @@ export default function Auth() {
                 const data = await res.json();
                 establishDoctorSession(data, rememberMe);
 
-                // Default landing destination: Doctor Dashboard
-                let targetFrom = '/dashboard';
+                // Strict Role-Based Landing Destination:
+                // SuperAdmin -> /admin/doctors (SuperAdmin Suite)
+                // Regular Doctor -> /dashboard (Doctor Workspace)
+                const isSuper = Boolean(data.isSuperAdmin);
+                let targetFrom = isSuper ? '/admin/doctors' : '/dashboard';
                 if (location.state?.from) {
+                    let fromPath = '';
                     if (typeof location.state.from === 'string') {
-                        targetFrom = location.state.from;
+                        fromPath = location.state.from;
                     } else if (location.state.from.pathname) {
-                        targetFrom = location.state.from.pathname + (location.state.from.search || '') + (location.state.from.hash || '');
+                        fromPath = location.state.from.pathname + (location.state.from.search || '') + (location.state.from.hash || '');
+                    }
+                    if (fromPath) {
+                        // Ensure SuperAdmin only goes to admin pages, and Doctor only goes to clinical pages
+                        if (isSuper && fromPath.startsWith('/admin')) {
+                            targetFrom = fromPath;
+                        } else if (!isSuper && !fromPath.startsWith('/admin')) {
+                            targetFrom = fromPath;
+                        }
                     }
                 }
                 navigate(targetFrom, { replace: true });

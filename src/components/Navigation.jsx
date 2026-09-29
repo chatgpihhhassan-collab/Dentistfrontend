@@ -51,116 +51,127 @@ export default function Navigation() {
             </div>
 
             <header className="w-full max-w-[1800px] mx-auto bg-gradient-to-r from-white/95 via-white/85 to-[#EAF0FC]/75 backdrop-blur-2xl border border-white/90 h-20 flex items-center justify-between px-6 rounded-full shadow-lg shadow-[#0A1A24]/5 transition-all duration-300">
-                <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate('/')}>
+                <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate(doctor && doctor.isSuperAdmin ? '/admin/doctors' : '/')}>
                     <img src="/images/logo-black.webp" alt="Dentia Logo" className="h-8 object-contain" />
                 </div>
                 
                 <nav className="hidden lg:flex items-center space-x-1.5 bg-gradient-to-r from-[#EAF0FC]/80 via-white/80 to-[#EAF0FC]/95 p-1.5 rounded-full border border-[#4A7CD2]/20 shadow-inner">
-                    <Link 
-                        to="/" 
-                        className={getLinkClass(location.pathname === '/' || location.pathname === '/dashboard')}
-                        title="Home"
-                    >
-                        <Home className="w-5 h-5" />
-                    </Link>
-                    
-                    {doctor && (
+                    {/* 🛡️ SUPERADMIN NAVIGATION: SuperAdmin ONLY has access to Organizations & Doctors */}
+                    {doctor && doctor.isSuperAdmin ? (
                         <>
                             <Link 
-                                to="/directory" 
-                                className={getLinkClass(location.pathname === '/directory' || location.pathname.startsWith('/chart'))}
-                                title="Patient Directory"
+                                to="/admin/organizations" 
+                                className={getLinkClass(location.pathname === '/admin/organizations' || location.pathname === '/admin/hospitals')}
+                                title="Hospital & Organization Management (SuperAdmin)"
                             >
-                                <Users className="w-5 h-5" />
+                                <Building2 className="w-5 h-5 text-indigo-600" />
+                                <span className="text-xs font-bold text-indigo-700 ml-1.5">Organizations</span>
                             </Link>
                             <Link 
-                                to="/appointments" 
-                                className={getLinkClass(location.pathname === '/appointments')}
-                                title="Appointments Hub"
+                                to="/admin/doctors" 
+                                className={getLinkClass(location.pathname === '/admin/doctors')}
+                                title="Doctor Directory & Profiles (SuperAdmin)"
                             >
-                                <Calendar className="w-5 h-5" />
+                                <Shield className="w-5 h-5 text-emerald-600" />
+                                <span className="text-xs font-bold text-emerald-700 ml-1.5">Doctor Management</span>
                             </Link>
+                        </>
+                    ) : (
+                        /* 🩺 CLINICAL DOCTOR & PUBLIC NAVIGATION */
+                        <>
                             <Link 
-                                to="/doctor/pricing" 
-                                className={getLinkClass(location.pathname === '/doctor/pricing' || location.pathname === '/treatment-pricing')}
-                                title="Doctor Fee Schedules & Treatment Pricing"
+                                to="/" 
+                                className={getLinkClass(location.pathname === '/' || location.pathname === '/dashboard')}
+                                title="Home"
                             >
-                                <DollarSign className="w-5 h-5" />
+                                <Home className="w-5 h-5" />
                             </Link>
-                            {doctor.isSuperAdmin && (
+                            
+                            {doctor && (
                                 <>
                                     <Link 
-                                        to="/admin/organizations" 
-                                        className={getLinkClass(location.pathname === '/admin/organizations' || location.pathname === '/admin/hospitals')}
-                                        title="Hospital & Organization Management (SuperAdmin)"
+                                        to="/directory" 
+                                        className={getLinkClass(location.pathname === '/directory' || location.pathname.startsWith('/chart'))}
+                                        title="Patient Directory"
                                     >
-                                        <Building2 className="w-5 h-5 text-indigo-600" />
+                                        <Users className="w-5 h-5" />
                                     </Link>
                                     <Link 
-                                        to="/admin/doctors" 
-                                        className={getLinkClass(location.pathname === '/admin/doctors')}
-                                        title="Doctor Directory & Profiles (SuperAdmin)"
+                                        to="/appointments" 
+                                        className={getLinkClass(location.pathname === '/appointments')}
+                                        title="Appointments Hub"
                                     >
-                                        <Shield className="w-5 h-5 text-emerald-600" />
+                                        <Calendar className="w-5 h-5" />
+                                    </Link>
+                                    <Link 
+                                        to="/doctor/pricing" 
+                                        className={getLinkClass(location.pathname === '/doctor/pricing' || location.pathname === '/treatment-pricing')}
+                                        title="Doctor Fee Schedules & Treatment Pricing"
+                                    >
+                                        <DollarSign className="w-5 h-5" />
                                     </Link>
                                 </>
                             )}
+                            
+                            <Link 
+                                to="/treatment" 
+                                className={getLinkClass(location.pathname === '/treatment')}
+                                title="Treatments"
+                            >
+                                <Stethoscope className="w-5 h-5" />
+                            </Link>
+                            <a 
+                                href="/#about" 
+                                className={getLinkClass(location.hash === '#about')}
+                                title="About Us"
+                            >
+                                <Info className="w-5 h-5" />
+                            </a>
+                            <a 
+                                href="/#team" 
+                                className={getLinkClass(location.hash === '#team')}
+                                title="Our Doctors"
+                            >
+                                <UserCheck className="w-5 h-5" />
+                            </a>
+                            <a 
+                                href="/#reviews" 
+                                className={getLinkClass(location.hash === '#reviews')}
+                                title="Patient Reviews"
+                            >
+                                <Star className="w-5 h-5" />
+                            </a>
                         </>
                     )}
-                    
-                    <Link 
-                        to="/treatment" 
-                        className={getLinkClass(location.pathname === '/treatment')}
-                        title="Treatments"
-                    >
-                        <Stethoscope className="w-5 h-5" />
-                    </Link>
-                    <a 
-                        href="/#about" 
-                        className={getLinkClass(location.hash === '#about')}
-                        title="About Us"
-                    >
-                        <Info className="w-5 h-5" />
-                    </a>
-                    <a 
-                        href="/#team" 
-                        className={getLinkClass(location.hash === '#team')}
-                        title="Our Doctors"
-                    >
-                        <UserCheck className="w-5 h-5" />
-                    </a>
-                    <a 
-                        href="/#reviews" 
-                        className={getLinkClass(location.hash === '#reviews')}
-                        title="Patient Reviews"
-                    >
-                        <Star className="w-5 h-5" />
-                    </a>
                 </nav>
 
                 <div className="flex items-center space-x-3">
-                    {/* Chairside Hardware Connection Badge */}
-                    <HardwareDeviceSyncBadge onOpenCapturePanel={() => {
-                        if (location.pathname.startsWith('/chart')) {
-                            // If on chart page, trigger capture panel modal
-                        } else {
-                            navigate('/directory');
-                        }
-                    }} />
+                    {/* Chairside Hardware Connection Badge (Doctors only) */}
+                    {(!doctor || !doctor.isSuperAdmin) && (
+                        <HardwareDeviceSyncBadge onOpenCapturePanel={() => {
+                            if (location.pathname.startsWith('/chart')) {
+                                // If on chart page, trigger capture panel modal
+                            } else {
+                                navigate('/directory');
+                            }
+                        }} />
+                    )}
 
                     {doctor ? (
                         <div className="flex items-center space-x-3">
                             <div className="flex items-center space-x-2 bg-white pr-4 pl-1.5 py-1.5 rounded-full border border-light-teal shadow-sm whitespace-nowrap">
                                 <div className="w-8 h-8 rounded-full bg-light-teal/50 flex items-center justify-center overflow-hidden flex-shrink-0">
-                                    <img src={`https://ui-avatars.com/api/?name=${doctor.firstName}+${doctor.lastName}&background=EAF0FC&color=4A7CD2`} alt="Doctor" />
+                                    <img src={`https://ui-avatars.com/api/?name=${doctor.firstName || 'Super'}+${doctor.lastName || 'Admin'}&background=EAF0FC&color=4A7CD2`} alt="Doctor" />
                                 </div>
-                                <span className="text-sm font-bold text-dark-slate hidden sm:inline whitespace-nowrap">Dr. {doctor.lastName}</span>
+                                <span className="text-sm font-bold text-dark-slate hidden sm:inline whitespace-nowrap">
+                                    {doctor.isSuperAdmin ? 'SuperAdmin' : `Dr. ${doctor.lastName}`}
+                                </span>
                             </div>
                             <button 
-                                onClick={() => navigate('/directory')}
+                                onClick={() => navigate(doctor.isSuperAdmin ? '/admin/doctors' : '/directory')}
                                 className="bg-primary-teal hover:bg-primary-hover text-white font-bold py-2.5 px-5 rounded-full text-sm transition-all shadow-md cursor-pointer"
                             >
-                                Workspace
+                                {doctor.isSuperAdmin ? 'Admin Suite' : 'Workspace'}
                             </button>
                              <button 
                                 onClick={handleLogout} 

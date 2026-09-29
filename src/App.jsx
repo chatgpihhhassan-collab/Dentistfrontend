@@ -65,19 +65,32 @@ const ProtectedRoute = ({ children }) => {
         
         return <Navigate to={`/login?${redirectParam}`} state={{ from: location, ...alertState }} replace />;
     }
+
+    // SuperAdmin does NOT have access to clinical doctor pages:
+    // "all other pages access dont have superadmin"
+    const doctor = JSON.parse(localStorage.getItem('doctor') || '{}');
+    if (doctor && doctor.isSuperAdmin) {
+        return <Navigate to="/admin/doctors" replace />;
+    }
     
     return children;
 };
 
 const BlockSuperAdmin = ({ children }) => {
+    const doctor = JSON.parse(localStorage.getItem('doctor') || '{}');
+    if (doctor && doctor.token && doctor.isSuperAdmin) {
+        return <Navigate to="/admin/doctors" replace />;
+    }
     return children;
 };
 
 const AdminRoute = ({ children }) => {
-    const doctor = JSON.parse(localStorage.getItem('doctor'));
+    const doctor = JSON.parse(localStorage.getItem('doctor') || '{}');
     
+    // Regular doctor does NOT have access to SuperAdmin pages:
+    // "when doctor login dont load superadmin pages"
     if (!doctor || !doctor.token || !doctor.isSuperAdmin) {
-        return <Navigate to="/" replace />;
+        return <Navigate to="/dashboard" replace />;
     }
     return children;
 };
@@ -141,8 +154,8 @@ export default function App() {
             } />
             
             {/* Public Pages */}
-            <Route path="/clinical-guide" element={<ClinicalGuidePage />} />
-            <Route path="/guidelines" element={<ClinicalGuidePage />} />
+            <Route path="/clinical-guide" element={<BlockSuperAdmin><ClinicalGuidePage /></BlockSuperAdmin>} />
+            <Route path="/guidelines" element={<BlockSuperAdmin><ClinicalGuidePage /></BlockSuperAdmin>} />
             <Route path="/about" element={<BlockSuperAdmin><AboutUs /></BlockSuperAdmin>} />
             <Route path="/terms" element={<BlockSuperAdmin><TermsAndConditions /></BlockSuperAdmin>} />
             <Route path="/privacy" element={<BlockSuperAdmin><PrivacyPolicy /></BlockSuperAdmin>} />

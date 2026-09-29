@@ -316,14 +316,17 @@ export async function executeJarvisAction(action, navigate, activePatientId = nu
       }
     }));
 
+    const isSuper = Boolean(doctorData.isSuperAdmin);
     const payload = {
       ...doctorData,
+      isSuperAdmin: isSuper,
       token: doctorData.token || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJEb2N0b3JJZCI6MiwiVXNlcm5hbWUiOiJhaG1lZGpoIiwiRXhwaXJlc0F0IjoxODAwMDAwMDAwfQ.signature'
     };
     
     establishDoctorSession(payload, true);
     setTimeout(() => {
-      navigate('/dashboard', { replace: true });
+      const targetDestination = isSuper ? '/admin/doctors' : '/dashboard';
+      navigate(targetDestination, { replace: true });
     }, 800);
     return;
   }
