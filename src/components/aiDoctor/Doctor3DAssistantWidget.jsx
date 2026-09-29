@@ -36,7 +36,7 @@ import { queryJarvis, executeJarvisAction } from '../../services/dentiaJarvisSer
 const WAKE_REGEX = /\b(jarvis|javis|jarwis|service|travers|jawis|chavis|charvis|dr\s*jarvis)\b/i;
 
 // Direct clinical directives that execute even if the doctor forgets to say "Jarvis" while ON
-const CLINICAL_INTENT_REGEX = /\b(login|sign\s*in|logout|sign\s*out|tooth\s+\d+|caries|decay|rct|crown|implant|missing|digora|nanopix|camera|patient\s+\d+|schedule|calendar|scribe|notes|guidelines)\b/i;
+const CLINICAL_INTENT_REGEX = /\b(login|sign\s*in|log\s*me\s*in|login\s*karo|mujhe\s*login|login\s*karwa\s*do|logout|sign\s*out|exit|band\s*karo|tooth\s+\d+|daant\s+\d+|caries|decay|rct|crown|implant|missing|digora|nanopix|camera|patient\s+\d+|schedule|calendar|timetable|appointments|scribe|notes|guidelines|directory|dashboard)\b/i;
 
 export default function Doctor3DAssistantWidget() {
   const navigate = useNavigate();
@@ -60,6 +60,22 @@ export default function Doctor3DAssistantWidget() {
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+
+  // 🌟 Autonomous Virtual Jarvis Cursor (Agentic On-Screen Pointer)
+  const [virtualCursor, setVirtualCursor] = useState({
+    visible: false,
+    x: typeof window !== 'undefined' ? window.innerWidth - 120 : 0,
+    y: typeof window !== 'undefined' ? window.innerHeight - 80 : 0,
+    label: 'Jarvis Agent',
+    clicking: false,
+    pulsing: false
+  });
+
+  // Track conversation state following "hello jarvis"
+  const expectingCommandAfterWakeWordRef = useRef(false);
+  const wakeWordTimeoutRef = useRef(null);
+  const lastExecutedCommandRef = useRef('');
+  const lastExecutionTimeRef = useRef(0);
 
   // Live HUD Action Feedback (Auto-fades after 4.5 seconds)
   const [lastAction, setLastAction] = useState(null); // { speech, chip, timestamp }
@@ -140,13 +156,103 @@ export default function Doctor3DAssistantWidget() {
   };
 
   // --------------------------------------------------------------------------
+  // AUTONOMOUS VIRTUAL JARVIS CURSOR HELPERS
+  // --------------------------------------------------------------------------
+  const runCursorGlide = (targetX, targetY, label = 'Targeting...', clickAfter = false) => {
+    return new Promise((resolve) => {
+      setVirtualCursor({
+        visible: true,
+        x: targetX,
+        y: targetY,
+        label,
+        clicking: false,
+        pulsing: true
+      });
+
+      setTimeout(() => {
+        if (clickAfter) {
+          setVirtualCursor(prev => ({ ...prev, clicking: true }));
+          setTimeout(() => {
+            setVirtualCursor(prev => ({ ...prev, clicking: false, pulsing: false }));
+            resolve();
+          }, 350);
+        } else {
+          setVirtualCursor(prev => ({ ...prev, pulsing: false }));
+          resolve();
+        }
+      }, 480);
+    });
+  };
+
+  // Autonomous Login Sequence: Glides to Username, types, glides to Password, types, glides to Submit, clicks!
+  const performAutonomousLogin = async () => {
+    showLiveSubtitle("Jarvis Agent: Moving mouse to sign in...", 'active', 6000);
+    triggerHudFeedback("Autonomous sign-in initiated, Doctor.", "Hands-Free Sign In");
+    if (!isAudioMuted) aiVoice.speak("Logging you in now, Doctor.", { rate: 1.05, pitch: 1.08 });
+
+    // Ensure on /login
+    if (!location.pathname.includes('/login')) {
+      navigate('/login');
+      await new Promise(r => setTimeout(r, 450));
+    }
+
+    // Step 1: Move to Clinician Username input
+    const userEl = document.querySelector('#clinician-username-input') || document.querySelector('input[placeholder*="username" i]');
+    if (userEl) {
+      const rect = userEl.getBoundingClientRect();
+      await runCursorGlide(rect.left + rect.width / 2, rect.top + rect.height / 2, "Entering Username: ahmedjh", true);
+      userEl.focus();
+      try {
+        const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+        if (nativeSetter) nativeSetter.call(userEl, 'ahmedjh');
+        else userEl.value = 'ahmedjh';
+      } catch {
+        userEl.value = 'ahmedjh';
+      }
+      userEl.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 280));
+    }
+
+    // Step 2: Move to Security Password input
+    const passEl = document.querySelector('#clinician-password-input') || document.querySelector('input[type="password"]');
+    if (passEl) {
+      const rect = passEl.getBoundingClientRect();
+      await runCursorGlide(rect.left + rect.width / 2, rect.top + rect.height / 2, "Entering Password", true);
+      passEl.focus();
+      try {
+        const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+        if (nativeSetter) nativeSetter.call(passEl, 'Ahmed@123');
+        else passEl.value = 'Ahmed@123';
+      } catch {
+        passEl.value = 'Ahmed@123';
+      }
+      passEl.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 280));
+    }
+
+    // Step 3: Move to Submit button and click with expanding ripple ring
+    const btnEl = document.querySelector('#clinician-submit-btn') || document.querySelector('button[type="submit"]');
+    if (btnEl) {
+      const rect = btnEl.getBoundingClientRect();
+      await runCursorGlide(rect.left + rect.width / 2, rect.top + rect.height / 2, "Clicking Open Charts", true);
+    }
+
+    // Complete authentication via session service
+    executeJarvisAction({ type: 'AUTO_LOGIN' }, navigate);
+
+    setTimeout(() => {
+      setVirtualCursor(prev => ({ ...prev, visible: false }));
+    }, 1200);
+  };
+
+  // --------------------------------------------------------------------------
   // LOCAL FAST COMMAND ROUTER (0ms Latency, Zero Token Usage)
   // --------------------------------------------------------------------------
   const handleLocalCommand = (rawText) => {
     const t = rawText.toLowerCase().trim();
 
     // 1. Odontogram Tooth Condition Regex (e.g. "tooth 14 occlusal caries", "tooth 21 crown", "tooth 36 rct")
-    const toothMatch = t.match(/tooth\s+(\d{1,2})\s*(?:on\s+([modbl]+))?\s*(?:pe\s+)?(caries|decay|rct|root\s*canal|crown|implant|missing|filling|composite|fracture)/i);
+    const toothMatch = t.match(/(?:tooth|daant)\s+(\d{1,2})\s*(?:on\s+([modbl]+))?\s*(?:pe\s+)?(caries|decay|rct|root\s*canal|crown|implant|missing|filling|composite|fracture)/i);
     if (toothMatch) {
       const toothNum = parseInt(toothMatch[1], 10);
       const surface = (toothMatch[2] || 'O').toUpperCase();
@@ -159,6 +265,19 @@ export default function Doctor3DAssistantWidget() {
       else condition = 'Composite';
 
       console.log('%c⚡ [JARVIS LOCAL ACTION] Updating Odontogram:', 'color: #00ff88; font-weight: bold;', { tooth: toothNum, surface, condition });
+      
+      // Animate virtual cursor to tooth element if present
+      const toothEl = document.querySelector(`[data-tooth="${toothNum}"], #tooth-${toothNum}`);
+      if (toothEl) {
+        const rect = toothEl.getBoundingClientRect();
+        runCursorGlide(rect.left + rect.width / 2, rect.top + rect.height / 2, `Tooth #${toothNum} Locked`, true);
+      } else {
+        runCursorGlide(window.innerWidth / 2, window.innerHeight * 0.4, `Tooth #${toothNum} Odontogram`, true);
+      }
+      setTimeout(() => {
+        setVirtualCursor(prev => ({ ...prev, visible: false }));
+      }, 1500);
+
       window.dispatchEvent(new CustomEvent('dentia:voice:chart-update', {
         detail: { toothNumber: toothNum, surface, condition }
       }));
@@ -172,7 +291,14 @@ export default function Doctor3DAssistantWidget() {
       return true;
     }
 
-    // 2. Hardware: Soredex Digora Scanner
+    // 2. Auto-Login (English & Urdu variants)
+    if (/login|sign\s*in|log\s*me\s*in|login\s*karo|mujhe\s*login|login\s*karwa\s*do/i.test(t)) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Triggering Autonomous Login', 'color: #00ff88; font-weight: bold;');
+      performAutonomousLogin();
+      return true;
+    }
+
+    // 3. Hardware: Soredex Digora Scanner
     if (/connect\s+digora|open\s+digora|arm\s+digora/i.test(t)) {
       console.log('%c⚡ [JARVIS LOCAL ACTION] Arming Soredex Digora scanner', 'color: #00ff88; font-weight: bold;');
       window.dispatchEvent(new CustomEvent('dentia:voice:open-digora'));
@@ -183,7 +309,7 @@ export default function Doctor3DAssistantWidget() {
       return true;
     }
 
-    // 3. Hardware: NanoPix RVG Sensor
+    // 4. Hardware: NanoPix RVG Sensor
     if (/open\s+nanopix|connect\s+nanopix|arm\s+sensor/i.test(t)) {
       console.log('%c⚡ [JARVIS LOCAL ACTION] Launching NanoPix sensor', 'color: #00ff88; font-weight: bold;');
       window.dispatchEvent(new CustomEvent('dentia:voice:open-nanopix'));
@@ -194,7 +320,7 @@ export default function Doctor3DAssistantWidget() {
       return true;
     }
 
-    // 4. Hardware: Intraoral Camera
+    // 5. Hardware: Intraoral Camera
     if (/open\s+camera|launch\s+camera/i.test(t)) {
       console.log('%c⚡ [JARVIS LOCAL ACTION] Launching intraoral camera', 'color: #00ff88; font-weight: bold;');
       window.dispatchEvent(new CustomEvent('dentia:voice:open-camera'));
@@ -205,7 +331,7 @@ export default function Doctor3DAssistantWidget() {
       return true;
     }
 
-    // 5. Patient Chart Lookup (e.g. "open patient 38", "chart 38")
+    // 6. Patient Chart Lookup (e.g. "open patient 38", "chart 38")
     const patMatch = t.match(/(?:open|show|chart|load)\s+(?:patient\s+)?(\d+)/i);
     if (patMatch) {
       const pid = patMatch[1];
@@ -214,23 +340,16 @@ export default function Doctor3DAssistantWidget() {
       if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
       triggerHudFeedback(reply, `Chart #${pid} Loaded`);
       showLiveSubtitle(`Navigating to Patient #${pid}`, 'active');
-      navigate(`/chart/${pid}`);
-      return true;
-    }
-
-    // 6. Auto-Login
-    if (/login|sign\s*in|log\s*me\s*in|login\s*karo/i.test(t)) {
-      console.log('%c⚡ [JARVIS LOCAL ACTION] Triggering Auto-Login', 'color: #00ff88; font-weight: bold;');
-      const reply = "Certainly Doctor, logging you into your workspace now.";
-      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
-      triggerHudFeedback(reply, "Doctor Authenticated");
-      showLiveSubtitle("Auto-Login in Progress...", 'active');
-      executeJarvisAction({ type: 'AUTO_LOGIN' }, navigate);
+      runCursorGlide(window.innerWidth / 2, window.innerHeight / 2, `Chart #${pid}`, true);
+      setTimeout(() => {
+        setVirtualCursor(prev => ({ ...prev, visible: false }));
+        navigate(`/chart/${pid}`);
+      }, 450);
       return true;
     }
 
     // 7. Logout
-    if (/logout|sign\s*out|exit|band\s*karo\s*account/i.test(t)) {
+    if (/logout|sign\s*out|exit|band\s*karo\s*account|logout\s*karwa\s*do/i.test(t)) {
       console.log('%c⚡ [JARVIS LOCAL ACTION] Logging out', 'color: #00ff88; font-weight: bold;');
       const reply = "Logging out and securing your workspace, Doctor.";
       if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
@@ -241,9 +360,17 @@ export default function Doctor3DAssistantWidget() {
     }
 
     // 8. Navigation: Schedule
-    if (/(?:go\s+to|open)\s+schedule|calendar|timetable/i.test(t)) {
+    if (/(?:go\s+to|open)\s+(?:schedule|calendar|timetable|appointments)|schedule|timetable|appointments/i.test(t)) {
       console.log('%c⚡ [JARVIS LOCAL ACTION] Opening schedule', 'color: #00ff88; font-weight: bold;');
-      navigate('/appointments');
+      const navEl = document.querySelector('a[href="/appointments"], [data-nav="appointments"]');
+      if (navEl) {
+        const rect = navEl.getBoundingClientRect();
+        runCursorGlide(rect.left + rect.width / 2, rect.top + rect.height / 2, "Opening Schedule", true);
+      }
+      setTimeout(() => {
+        setVirtualCursor(prev => ({ ...prev, visible: false }));
+        navigate('/appointments');
+      }, 450);
       const reply = "Opening operatory schedule, Doctor.";
       if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
       triggerHudFeedback(reply, "Schedule Loaded");
@@ -252,9 +379,17 @@ export default function Doctor3DAssistantWidget() {
     }
 
     // 9. Navigation: Directory
-    if (/(?:go\s+to|open)\s+directory|patient\s+list/i.test(t)) {
+    if (/(?:go\s+to|open)\s+(?:directory|patient\s+list|patients)|directory|patient\s+list/i.test(t)) {
       console.log('%c⚡ [JARVIS LOCAL ACTION] Opening directory', 'color: #00ff88; font-weight: bold;');
-      navigate('/directory');
+      const navEl = document.querySelector('a[href="/directory"], [data-nav="directory"]');
+      if (navEl) {
+        const rect = navEl.getBoundingClientRect();
+        runCursorGlide(rect.left + rect.width / 2, rect.top + rect.height / 2, "Opening Directory", true);
+      }
+      setTimeout(() => {
+        setVirtualCursor(prev => ({ ...prev, visible: false }));
+        navigate('/directory');
+      }, 450);
       const reply = "Opening patient directory, Doctor.";
       if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
       triggerHudFeedback(reply, "Directory Loaded");
@@ -263,13 +398,40 @@ export default function Doctor3DAssistantWidget() {
     }
 
     // 10. Navigation: Guidelines
-    if (/(?:go\s+to|open)\s+guidelines|manual/i.test(t)) {
+    if (/(?:go\s+to|open)\s+(?:guidelines|manual|protocol)|guidelines|manual/i.test(t)) {
       console.log('%c⚡ [JARVIS LOCAL ACTION] Opening guidelines', 'color: #00ff88; font-weight: bold;');
-      navigate('/guidelines');
+      const navEl = document.querySelector('a[href="/guidelines"], [data-nav="guidelines"]');
+      if (navEl) {
+        const rect = navEl.getBoundingClientRect();
+        runCursorGlide(rect.left + rect.width / 2, rect.top + rect.height / 2, "Opening Guidelines", true);
+      }
+      setTimeout(() => {
+        setVirtualCursor(prev => ({ ...prev, visible: false }));
+        navigate('/guidelines');
+      }, 450);
       const reply = "Opening clinical guidelines manual, Doctor.";
       if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
       triggerHudFeedback(reply, "Guidelines Opened");
       showLiveSubtitle("Opening Guidelines", 'active');
+      return true;
+    }
+
+    // 11. Navigation: Dashboard / Home
+    if (/(?:go\s+to|open)\s+(?:dashboard|home|workspace)|dashboard/i.test(t)) {
+      console.log('%c⚡ [JARVIS LOCAL ACTION] Opening dashboard', 'color: #00ff88; font-weight: bold;');
+      const navEl = document.querySelector('a[href="/dashboard"], [data-nav="dashboard"]');
+      if (navEl) {
+        const rect = navEl.getBoundingClientRect();
+        runCursorGlide(rect.left + rect.width / 2, rect.top + rect.height / 2, "Opening Dashboard", true);
+      }
+      setTimeout(() => {
+        setVirtualCursor(prev => ({ ...prev, visible: false }));
+        navigate('/dashboard');
+      }, 450);
+      const reply = "Opening main clinician workspace, Doctor.";
+      if (!isAudioMuted) aiVoice.speak(reply, { rate: 1.02, pitch: 1.08 });
+      triggerHudFeedback(reply, "Dashboard Opened");
+      showLiveSubtitle("Opening Dashboard", 'active');
       return true;
     }
 
@@ -345,12 +507,12 @@ export default function Doctor3DAssistantWidget() {
   // --------------------------------------------------------------------------
   // SPEECH RECOGNITION (Browser Web Speech API - Continuous Loop)
   // --------------------------------------------------------------------------
-  const onSpeechResult = useCallback((rawTranscript) => {
+  const onSpeechResult = useCallback((rawTranscript, isFinal = false) => {
     let text = rawTranscript.trim();
     if (!text) return;
 
     const lower = text.toLowerCase();
-    console.log('%c🗣️ [JARVIS AUDIO HEARD]', 'background: #1a237e; color: #82b1ff; font-weight: bold; font-size: 12px; padding: 2px 6px;', `"${rawTranscript}"`);
+    console.log('%c🗣️ [JARVIS AUDIO HEARD]', 'background: #1a237e; color: #82b1ff; font-weight: bold; font-size: 12px; padding: 2px 6px;', `"${rawTranscript}" (${isFinal ? 'FINAL' : 'INTERIM'})`);
 
     // 1. Voice Turn OFF (always active)
     if (/jarvis.*(?:off|stop|band\s*karo|so\s*jao)|(?:band\s*karo|so\s*jao)\s*jarvis/i.test(lower)) {
@@ -367,36 +529,70 @@ export default function Doctor3DAssistantWidget() {
     // 2. Check Wake-Word or Direct Clinical Intent
     const hasWakeWord = WAKE_REGEX.test(lower);
     const hasClinicalIntent = CLINICAL_INTENT_REGEX.test(lower);
+    const wasAwaitingCommand = expectingCommandAfterWakeWordRef.current;
+
+    const now = Date.now();
+    const isRecentDuplicate = (now - lastExecutionTimeRef.current < 1500) && (lastExecutedCommandRef.current === lower);
 
     if (hasWakeWord) {
       // Strip "Jarvis" prefix
       text = text.replace(/^(?:hey\s+|hi\s+|ok\s+|hello\s+)?(?:jarvis|javis|jarwis|service|travers|jawis|chavis|charvis|dr\s*jarvis)[,:\s]*/i, '').trim();
 
-      // If doctor called only "Jarvis"
+      // If doctor called only "Jarvis" or "Hello Jarvis"
       if (!text) {
+        if (!isFinal) return; // Wait to see if user speaks a command right after "Jarvis"
+
         console.log('%c👋 [JARVIS NAME CALLED]', 'color: #00ff88;', 'Doctor addressed Jarvis alone.');
+        expectingCommandAfterWakeWordRef.current = true;
+        if (wakeWordTimeoutRef.current) clearTimeout(wakeWordTimeoutRef.current);
+        wakeWordTimeoutRef.current = setTimeout(() => {
+          expectingCommandAfterWakeWordRef.current = false;
+        }, 8000);
+
         const promptReply = "Yes, Doctor?";
         if (!isAudioMuted) aiVoice.speak(promptReply, { rate: 1.05, pitch: 1.1 });
-        triggerHudFeedback(promptReply, "Listening...");
-        showLiveSubtitle("Yes, Doctor? (Ready for command)", 'active');
+        triggerHudFeedback(promptReply, "Listening for Command...");
+        showLiveSubtitle("Yes, Doctor? (Listening for command...)", 'active', 6000);
         return;
       }
 
-      console.log('%c✅ [JARVIS WAKE WORD DETECTED]', 'color: #00e5ff; font-weight: bold;', `Cleaned command: "${text}"`);
+      // User gave command with Jarvis prefix (e.g. "Jarvis login", "Jarvis tooth 14 caries")
+      if (isRecentDuplicate) return;
+
+      console.log('%c✅ [JARVIS WAKE WORD + COMMAND]', 'color: #00e5ff; font-weight: bold;', `Cleaned command: "${text}"`);
+      expectingCommandAfterWakeWordRef.current = false;
+      lastExecutedCommandRef.current = lower;
+      lastExecutionTimeRef.current = now;
       processDoctorCommand(text);
       return;
     }
 
-    // If no "Jarvis" prefix, but has clear clinical intent while Jarvis is already ON:
+    // If doctor said "Hello Jarvis" previously, whatever they say next is the command!
+    if (wasAwaitingCommand && text.length > 2) {
+      if (isRecentDuplicate) return;
+      console.log('%c⚡ [JARVIS COMMAND FOLLOWING WAKE PROMPT]', 'color: #00ff88; font-weight: bold;', `Executing: "${text}"`);
+      expectingCommandAfterWakeWordRef.current = false;
+      lastExecutedCommandRef.current = lower;
+      lastExecutionTimeRef.current = now;
+      processDoctorCommand(text);
+      return;
+    }
+
+    // Direct clinical directives while Jarvis is active
     if (hasClinicalIntent) {
+      if (isRecentDuplicate) return;
       console.log('%c⚡ [JARVIS DIRECT CLINICAL DIRECTIVE]', 'color: #76ff03; font-weight: bold;', `Direct command accepted: "${text}"`);
+      lastExecutedCommandRef.current = lower;
+      lastExecutionTimeRef.current = now;
       processDoctorCommand(text);
       return;
     }
 
     // Ambient conversation ignored (saves tokens and prevents interruptions)
-    console.log('%c🔇 [JARVIS AMBIENT FILTER]', 'color: #ffaa00;', `Ignored background conversation: "${rawTranscript}". (Say "Jarvis, ..." to trigger)`);
-    showLiveSubtitle(`Heard: "${rawTranscript}" (Say "Jarvis, ...")`, 'heard', 3500);
+    if (isFinal) {
+      console.log('%c🔇 [JARVIS AMBIENT FILTER]', 'color: #ffaa00;', `Ignored background conversation: "${rawTranscript}". (Say "Jarvis, ..." to trigger)`);
+      showLiveSubtitle(`Heard: "${rawTranscript}" (Say "Jarvis, ...")`, 'heard', 3000);
+    }
 
   }, [isAudioMuted, location.pathname, doctorName]);
 
@@ -415,7 +611,7 @@ export default function Doctor3DAssistantWidget() {
 
       const rec = new SpeechRecognition();
       rec.continuous = true;
-      rec.interimResults = false;
+      rec.interimResults = true; // ⚡ Sub-100ms instant response without waiting for silence!
       rec.lang = 'en-US';
 
       rec.onstart = () => {
@@ -424,19 +620,43 @@ export default function Doctor3DAssistantWidget() {
       };
 
       rec.onresult = (e) => {
-        // Acoustic feedback suppression: don't listen to self while Jarvis speaks
-        if (aiVoice.speaking) {
-          console.log('%c🔇 [JARVIS ECHO SUPPRESSION]', 'color: #94a3b8;', 'Suppressed incoming audio while Jarvis is speaking aloud.');
-          return;
-        }
+        let interimTranscript = '';
+        let finalTranscript = '';
 
-        const lastResult = e.results[e.results.length - 1];
-        if (lastResult) {
-          const spoken = lastResult[0]?.transcript?.trim();
-          if (spoken) {
-            onSpeechResult(spoken);
+        for (let i = e.resultIndex; i < e.results.length; ++i) {
+          const item = e.results[i];
+          if (item.isFinal) {
+            finalTranscript += item[0].transcript;
+          } else {
+            interimTranscript += item[0].transcript;
           }
         }
+
+        const candidate = (finalTranscript || interimTranscript).trim();
+        if (!candidate) return;
+
+        // Acoustic feedback suppression & Interruption (Barge-in)
+        if (aiVoice.speaking) {
+          const lowerCandidate = candidate.toLowerCase();
+          const currentUtterance = (aiVoice.currentText || '').toLowerCase();
+          const isSelfEcho = (
+            lowerCandidate === 'yes doctor' || 
+            lowerCandidate === 'yes doctor?' ||
+            lowerCandidate === 'yes' ||
+            (currentUtterance && currentUtterance.includes(lowerCandidate))
+          );
+
+          if (isSelfEcho) {
+            return; // Ignore true echo of Jarvis's own voice
+          }
+
+          // Doctor is speaking: interrupt Jarvis immediately!
+          console.log('%c⚡ [JARVIS VOICE BARGE-IN]', 'background: #00e5ff; color: #000; font-weight: bold;', 'Doctor interrupted speech with:', candidate);
+          aiVoice.stop();
+        }
+
+        const isFinal = Boolean(finalTranscript);
+        onSpeechResult(candidate, isFinal);
       };
 
       rec.onerror = (e) => {
@@ -557,6 +777,45 @@ export default function Doctor3DAssistantWidget() {
   // =========================================================================
   return (
     <>
+      {/* 🌟 AUTONOMOUS VIRTUAL JARVIS CURSOR OVERLAY */}
+      {virtualCursor.visible && (
+        <div 
+          className="fixed pointer-events-none z-[999999]"
+          style={{
+            left: `${virtualCursor.x}px`,
+            top: `${virtualCursor.y}px`,
+            transform: 'translate(-50%, -50%)',
+            transition: 'left 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2), top 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2)'
+          }}
+        >
+          {/* Shockwave Ripple Ring on Click */}
+          {virtualCursor.clicking && (
+            <span className="absolute -inset-4 rounded-full border-2 border-cyan-400 bg-cyan-400/20 animate-ping" />
+          )}
+          
+          {/* Glowing AI Target Reticle */}
+          <div className="relative flex items-center justify-center">
+            <div className={`w-8 h-8 rounded-full border-2 border-cyan-400/80 bg-cyan-500/10 backdrop-blur-xs flex items-center justify-center shadow-[0_0_20px_rgba(0,242,254,0.6)] ${virtualCursor.pulsing ? 'scale-110' : 'scale-100'} transition-transform`}>
+              {/* Center Target Dot */}
+              <span className="w-2 h-2 rounded-full bg-cyan-300 shadow-[0_0_10px_#00f2fe]" />
+              
+              {/* Reticle Crosshairs */}
+              <span className="absolute -top-1 w-0.5 h-2 bg-cyan-300" />
+              <span className="absolute -bottom-1 w-0.5 h-2 bg-cyan-300" />
+              <span className="absolute -left-1 w-2 h-0.5 bg-cyan-300" />
+              <span className="absolute -right-1 w-2 h-0.5 bg-cyan-300" />
+            </div>
+
+            {/* Futuristic Floating Telemetry Pill */}
+            <div className="absolute left-10 top-0 whitespace-nowrap bg-[#10244B]/95 text-cyan-200 border border-cyan-400/40 rounded-full px-3 py-1 text-[11px] font-bold shadow-[0_4px_15px_rgba(0,0,0,0.5)] flex items-center gap-1.5 backdrop-blur-md">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+              <span className="text-white font-extrabold tracking-wider">JARVIS</span>
+              <span className="text-cyan-300 font-mono font-medium">| {virtualCursor.label}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* FLOATING ACTION RESPONSE HUD CARD (Appears when Jarvis executes or speaks) */}
       {lastAction && (
         <div className="fixed bottom-24 right-6 z-50 animate-in fade-in slide-in-from-bottom-3 duration-250 max-w-sm pointer-events-auto">

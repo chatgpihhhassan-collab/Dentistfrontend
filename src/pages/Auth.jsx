@@ -440,10 +440,11 @@ export default function Auth() {
                                             )}
                                         </div>
                                         <input 
+                                            id="clinician-username-input"
                                             type="text" 
                                             value={clinicianData.username}
                                             onChange={(e) => setClinicianData({...clinicianData, username: e.target.value})}
-                                            className="w-full pl-10 pr-4 py-3 bg-white border border-light-teal rounded-xl text-xs font-medium text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40"
+                                            className="w-full pl-10 pr-4 py-3 bg-white border border-light-teal rounded-xl text-xs font-medium text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 transition-all"
                                             placeholder="Enter username (e.g. ahmedjh)"
                                             required
                                         />
@@ -457,10 +458,11 @@ export default function Auth() {
                                             <Lock className="h-4 w-4" />
                                         </div>
                                         <input 
+                                            id="clinician-password-input"
                                             type="password" 
                                             value={clinicianData.password}
                                             onChange={(e) => setClinicianData({...clinicianData, password: e.target.value})}
-                                            className="w-full pl-10 pr-4 py-3 bg-white border border-light-teal rounded-xl text-xs font-medium text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40"
+                                            className="w-full pl-10 pr-4 py-3 bg-white border border-light-teal rounded-xl text-xs font-medium text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 transition-all"
                                             placeholder="••••••••"
                                             required
                                         />
@@ -506,6 +508,7 @@ export default function Auth() {
                                 )}
 
                                 <button 
+                                    id="clinician-submit-btn"
                                     type="submit" 
                                     disabled={clinicianLoading}
                                     className="w-full bg-primary-teal hover:bg-primary-hover text-white font-bold py-3.5 px-4 rounded-xl shadow-sm transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center justify-center gap-2"
