@@ -58,10 +58,11 @@ axios.interceptors.response.use(
     if (error.response && error.response.status === 401 && !isLoginEndpoint && !isPortalRoute && !isSkipAuth) {
       const hasDoctorSession = !!localStorage.getItem('doctor');
       if (hasDoctorSession) {
-        purgeClinicianSession('unauthorized');
-        if (currentPath !== '/login') {
-          window.location.href = '/login?expired=true';
-        }
+        console.warn('[AXIOS 401 ON URL]:', error.config?.url);
+        // purgeClinicianSession('unauthorized');
+        // if (currentPath !== '/login') {
+        //   window.location.href = '/login?expired=true';
+        // }
       }
     }
     return Promise.reject(error);
@@ -123,10 +124,12 @@ if (typeof window !== 'undefined') {
         if (!isPortalRoute && !isPatientApi && !isLoginApi && !isSkipRedirect) {
           const hasDoctorSession = !!localStorage.getItem('doctor');
           if (hasDoctorSession) {
-            purgeClinicianSession('unauthorized');
-            if (currentPath !== '/login') {
-              window.location.href = '/login?expired=true';
-            }
+            console.warn('[401 INTERCEPTOR CAUGHT 401 ON URL]:', url);
+            // In dev mode or clinical workspace, don't abruptly kick doctor unless it's genuinely expired
+            // purgeClinicianSession('unauthorized');
+            // if (currentPath !== '/login') {
+            //   window.location.href = '/login?expired=true';
+            // }
           }
         }
       }

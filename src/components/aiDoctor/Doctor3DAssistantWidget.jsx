@@ -175,7 +175,9 @@ export default function Doctor3DAssistantWidget() {
 
     const fetchDoctorsFromDb = async () => {
       try {
-        const res = await fetch('/api/auth/doctors');
+        const res = await fetch('/api/auth/doctors', {
+          headers: { 'X-Skip-Auth-Redirect': 'true' }
+        });
         if (res.ok) {
           const list = await res.json();
           if (Array.isArray(list) && list.length > 0) {
@@ -196,7 +198,7 @@ export default function Doctor3DAssistantWidget() {
     const fetchPatientsFromDb = async () => {
       try {
         const stored = localStorage.getItem('doctor');
-        let headers = {};
+        let headers = { 'X-Skip-Auth-Redirect': 'true' };
         let docId = 2;
         if (stored) {
           const d = JSON.parse(stored);

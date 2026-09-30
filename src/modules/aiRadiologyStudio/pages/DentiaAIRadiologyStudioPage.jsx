@@ -17,7 +17,7 @@ export default function DentiaAIRadiologyStudioPage() {
 
   // State Management
   const [activeTooth, setActiveTooth] = useState('14');
-  const [viewMode, setViewMode] = useState('3d');
+  const [viewMode, setViewMode] = useState('2d');
   const [magnifierActive, setMagnifierActive] = useState(false);
   const [isInverted, setIsInverted] = useState(false);
   const [contrastValue, setContrastValue] = useState(100);
@@ -45,7 +45,10 @@ export default function DentiaAIRadiologyStudioPage() {
     setIsLoading(true);
 
     const doc = JSON.parse(localStorage.getItem('doctor') || '{}');
-    const authHeaders = doc?.token ? { Authorization: `Bearer ${doc.token}` } : {};
+    const authHeaders = {
+      'X-Skip-Auth-Redirect': 'true',
+      ...(doc?.token ? { Authorization: `Bearer ${doc.token}` } : {})
+    };
 
     // 1. Fetch Patient Info & Chart concurrently
     Promise.all([
