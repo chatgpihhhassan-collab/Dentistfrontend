@@ -17,7 +17,6 @@ export default function DentiaAIRadiologyStudioPage() {
 
   // State Management
   const [activeTooth, setActiveTooth] = useState('14');
-  const [viewMode, setViewMode] = useState('2d');
   const [magnifierActive, setMagnifierActive] = useState(false);
   const [isInverted, setIsInverted] = useState(false);
   const [contrastValue, setContrastValue] = useState(100);
@@ -112,10 +111,6 @@ export default function DentiaAIRadiologyStudioPage() {
   }, [patientId]);
 
   // Toolbar Handlers
-  const handleToggleViewMode = () => {
-    setViewMode((prev) => (prev === '3d' ? '2d' : '3d'));
-  };
-
   const handleResetFilters = () => {
     setIsInverted(false);
     setContrastValue(100);
@@ -219,10 +214,8 @@ export default function DentiaAIRadiologyStudioPage() {
               onSelectTooth={setActiveTooth}
             />
 
-            {/* 8-Button Radiograph Toolbar */}
+            {/* 7-Button Radiograph Toolbar */}
             <RadiographToolbar
-              viewMode={viewMode}
-              onToggleViewMode={handleToggleViewMode}
               onResetFilters={handleResetFilters}
               magnifierActive={magnifierActive}
               onToggleMagnifier={handleToggleMagnifier}
@@ -240,7 +233,6 @@ export default function DentiaAIRadiologyStudioPage() {
             {/* Anatomical Lateral Jaw Viewport & Multi-Angle Carousel */}
             <div className="flex-1 min-h-[440px]">
               <ThreeRadiologyJawViewer
-                viewMode={viewMode}
                 isInverted={isInverted}
                 contrastValue={contrastValue}
                 brightnessValue={brightnessValue}

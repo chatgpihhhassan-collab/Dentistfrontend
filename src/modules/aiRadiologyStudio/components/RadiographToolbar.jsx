@@ -6,13 +6,10 @@ import {
   Contrast,
   Sun,
   RefreshCw,
-  ArrowLeftRight,
-  Box
+  ArrowLeftRight
 } from 'lucide-react';
 
 export default function RadiographToolbar({
-  viewMode,
-  onToggleViewMode,
   onResetFilters,
   magnifierActive,
   onToggleMagnifier,
@@ -28,21 +25,8 @@ export default function RadiographToolbar({
 }) {
   return (
     <div className="flex items-center justify-between w-full px-6 py-2.5 bg-white/70 backdrop-blur-xs rounded-2xl border border-slate-100 shadow-2xs select-none overflow-x-auto">
-      <div className="flex items-center justify-between w-full min-w-[620px] gap-2">
-        {/* 1. 3D View */}
-        <button
-          type="button"
-          onClick={onToggleViewMode}
-          className={`flex flex-col items-center gap-1 group py-1 px-3 rounded-xl transition-all cursor-pointer ${
-            viewMode === '3d' ? 'text-blue-600 bg-blue-50/80 font-bold' : 'text-slate-500 hover:text-slate-800'
-          }`}
-          title="Toggle 3D Jaw Mesh or 2D Radiograph"
-        >
-          <Box className={`w-4 h-4 transition-transform ${viewMode === '3d' ? 'scale-110 text-blue-600' : 'group-hover:scale-110'}`} />
-          <span className="text-[11px] font-medium tracking-tight">3D View</span>
-        </button>
-
-        {/* 2. Reset Filter */}
+      <div className="flex items-center justify-between w-full min-w-[560px] gap-2">
+        {/* 1. Reset Filter */}
         <button
           type="button"
           onClick={onResetFilters}
