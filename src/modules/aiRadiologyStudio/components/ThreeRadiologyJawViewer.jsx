@@ -1,11 +1,25 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ChevronRight, ChevronLeft } from 'lucide-react';
-import { ANATOMICAL_SECTION_COORDS, getToothPrimarySection } from '../utils/dentalCalloutMapper';
+import {
+  ChevronRight,
+  ChevronLeft,
+  Eye,
+  Layers,
+  Sparkles,
+  AlertCircle,
+  FileCheck2,
+  Crosshair
+} from 'lucide-react';
+import {
+  ANATOMICAL_SECTION_COORDS,
+  getToothPrimarySection,
+  getToothAnatomicalName,
+  isToothInSection
+} from '../utils/dentalCalloutMapper';
 
 // ============================================================================
 // Clinical Radiograph Viewer & Anatomical Multi-Angle Diagnostic Studio
-// Dedicated exclusively to 2D HD Transparent Jaw Radiographs with Sub-Pixel
-// Target Pointers, Adaptive 3-Tier Staggering, and Multi-Angle Carousel
+// Dedicated exclusively to 2D HD Transparent Jaw Radiographs with Synchronized
+// Active Tooth Inspector, Sub-Pixel Target Reticles, and Zero-Collision Badges
 // ============================================================================
 export default function ThreeRadiologyJawViewer({
   isInverted = false,
@@ -19,9 +33,10 @@ export default function ThreeRadiologyJawViewer({
 }) {
   const [selectedSection, setSelectedSection] = useState('left');
   const [selectedTab, setSelectedTab] = useState('AI analyze');
+  const [displayMode, setDisplayMode] = useState('focus'); // 'focus' | 'all'
   const [isZoomed, setIsZoomed] = useState(false);
 
-  // Automatically switch section when active tooth changes
+  // Automatically rotate radiograph angle when active tooth changes
   useEffect(() => {
     if (activeTooth) {
       const primary = getToothPrimarySection(activeTooth);
@@ -36,7 +51,7 @@ export default function ThreeRadiologyJawViewer({
       id: 'left',
       key: 'left',
       title: 'Left Sagittal View',
-      subtitle: 'Lateral Arch Profile',
+      subtitle: 'Lateral Arch Profile (Teeth 9–24)',
       image: '/images/denty_ai/transparent_jaw_left.jpg',
       cardThumb: '/images/denty_ai/transparent_jaw_left.jpg',
       markerColor: 'bg-teal-400'
@@ -45,7 +60,7 @@ export default function ThreeRadiologyJawViewer({
       id: 'front',
       key: 'front',
       title: 'Front Coronal View',
-      subtitle: 'Anterior Dual Arch',
+      subtitle: 'Anterior Dual Arch Profile',
       image: '/images/denty_ai/transparent_jaw_front.jpg',
       cardThumb: '/images/denty_ai/transparent_jaw_front.jpg',
       markerColor: 'bg-blue-500'
@@ -54,42 +69,85 @@ export default function ThreeRadiologyJawViewer({
       id: 'right',
       key: 'right',
       title: 'Right Sagittal View',
-      subtitle: 'Contralateral Molar Arc',
+      subtitle: 'Contralateral Molar Arc (Teeth 1–8, 25–32)',
       image: '/images/denty_ai/transparent_jaw_right.jpg',
       cardThumb: '/images/denty_ai/transparent_jaw_right.jpg',
       markerColor: 'bg-rose-400'
     }
   ];
 
-  const currentSectionData = sectionsData.find((s) => s.key === selectedSection) || sectionsData[0];
+  const currentSectionData =
+    sectionsData.find((s) => s.key === selectedSection) || sectionsData[0];
 
-  // Quick lookup dictionary for findings by tooth number
-  const findingsMap = useMemo(() => {
-    const map = {};
-    if (Array.isArray(findings)) {
-      findings.forEach((f) => {
-        map[f.toothNumber] = f;
-      });
-    }
-    return map;
+  // Active tooth finding details
+  const activeFinding = useMemo(() => {
+    return (
+      findings.find((f) => String(f.toothNumber) === String(activeTooth)) || {
+        toothNumber: parseInt(activeTooth, 10) || 14,
+        toothNo: String(activeTooth || '14'),
+        label: 'Sound / Evaluated',
+        status: 'Sound',
+        urgency: 'Sound',
+        cdtCode: 'CDT D0150',
+        procedureTitle: `Diagnostic Inspection • Tooth #${activeTooth || '14'}`,
+        comments: 'No active deep lesions detected on this tooth socket.',
+        anatomicalName: getToothAnatomicalName(activeTooth || '14'),
+        badgeBg: 'bg-emerald-600 text-white',
+        circleBg: 'bg-emerald-600 text-white',
+        labelColor: 'text-emerald-600',
+        ringColor: '#10B981'
+      }
+    );
+  }, [findings, activeTooth]);
+
+  // Stepper to navigate through diagnosed teeth
+  const diagnosedTeethNumbers = useMemo(() => {
+    return findings.map((f) => String(f.toothNumber));
   }, [findings]);
 
-  // Filter findings visible in the currently active section & dynamically stagger callouts to eliminate collisions
-  const visibleCallouts = useMemo(() => {
-    if (!findings || findings.length === 0) return [];
+  const handlePrevTooth = () => {
+    if (diagnosedTeethNumbers.length === 0) return;
+    const currentIdx = diagnosedTeethNumbers.indexOf(String(activeTooth));
+    const prevIdx =
+      currentIdx > 0 ? currentIdx - 1 : diagnosedTeethNumbers.length - 1;
+    onSelectTooth && onSelectTooth(diagnosedTeethNumbers[prevIdx]);
+  };
 
+  const handleNextTooth = () => {
+    if (diagnosedTeethNumbers.length === 0) return;
+    const currentIdx = diagnosedTeethNumbers.indexOf(String(activeTooth));
+    const nextIdx =
+      currentIdx < diagnosedTeethNumbers.length - 1 ? currentIdx + 1 : 0;
+    onSelectTooth && onSelectTooth(diagnosedTeethNumbers[nextIdx]);
+  };
+
+  // Filter findings visible in the currently active section
+  const visibleCallouts = useMemo(() => {
     const sectionCoords = ANATOMICAL_SECTION_COORDS[selectedSection] || {};
     const rawList = [];
 
+    // Filter by tab criteria
     findings.forEach((f) => {
       if (selectedTab === 'Tooth Health') {
         const l = (f.label || '').toLowerCase();
-        if (!l.includes('cavity') && !l.includes('caries') && !l.includes('root canal') && !l.includes('crown')) return;
+        if (
+          !l.includes('cavity') &&
+          !l.includes('caries') &&
+          !l.includes('root canal') &&
+          !l.includes('crown')
+        )
+          return;
       } else if (selectedTab === 'Bone & Gum Health') {
         const l = (f.label || '').toLowerCase();
-        if (!l.includes('bone') && !l.includes('gingivitis') && !l.includes('periodont')) return;
+        if (
+          !l.includes('bone') &&
+          !l.includes('gingivitis') &&
+          !l.includes('periodont')
+        )
+          return;
       }
 
+      // Check if tooth coordinates exist in current section
       const coords = sectionCoords[f.toothNumber];
       if (coords) {
         rawList.push({
@@ -103,20 +161,18 @@ export default function ThreeRadiologyJawViewer({
       }
     });
 
-    if (rawList.length === 0 && activeTooth && sectionCoords[activeTooth]) {
-      const coords = sectionCoords[activeTooth];
+    // Ensure active tooth is included if it has coordinates in current section
+    const activeCoords = sectionCoords[activeTooth];
+    if (
+      activeCoords &&
+      !rawList.some((item) => String(item.toothNumber) === String(activeTooth))
+    ) {
       rawList.push({
-        toothNumber: parseInt(activeTooth, 10),
-        toothNo: String(activeTooth),
-        label: 'Clinical Finding',
-        ringColor: '#3B82F6',
-        badgeBg: 'bg-blue-600 text-white',
-        circleBg: 'bg-blue-600 text-white',
-        labelColor: 'text-blue-600',
+        ...activeFinding,
         coords: {
-          ...coords,
-          target: [...coords.target],
-          badge: [...coords.badge]
+          ...activeCoords,
+          target: [...activeCoords.target],
+          badge: [...activeCoords.badge]
         }
       });
     }
@@ -129,44 +185,40 @@ export default function ThreeRadiologyJawViewer({
     upperList.sort((a, b) => a.coords.badge[0] - b.coords.badge[0]);
     lowerList.sort((a, b) => a.coords.badge[0] - b.coords.badge[0]);
 
-    // Dynamic Alternating Stagger for Upper Arch:
-    // If 4+ items, use 3 cascading tiers (85, 135, 185) so 3 consecutive items never share a tier.
-    // If 1-3 items, use 2 alternating tiers (95, 170).
+    // Dynamic Alternating Stagger for Upper Arch (3 tiers: 85, 135, 185)
     const upperTiers = upperList.length >= 4 ? [85, 135, 185] : [95, 170];
     const upperTierStep = upperTiers.length;
     upperList.forEach((item, idx) => {
       item.coords.badge[1] = upperTiers[idx % upperTierStep];
-      item.coords.badge[0] = Math.max(90, Math.min(1110, item.coords.badge[0]));
+      item.coords.badge[0] = Math.max(120, Math.min(1080, item.coords.badge[0]));
     });
 
-    // Ensure horizontal clearance on same tier for Upper Arch (minimum 250px)
+    // Ensure horizontal clearance on same tier for Upper Arch (minimum 260px)
     for (let i = upperTierStep; i < upperList.length; i++) {
       const prevSameTierX = upperList[i - upperTierStep].coords.badge[0];
-      if (upperList[i].coords.badge[0] - prevSameTierX < 250) {
-        upperList[i].coords.badge[0] = Math.min(1110, prevSameTierX + 255);
+      if (upperList[i].coords.badge[0] - prevSameTierX < 260) {
+        upperList[i].coords.badge[0] = Math.min(1080, prevSameTierX + 265);
       }
     }
 
-    // Dynamic Alternating Stagger for Lower Arch:
-    // If 4+ items, use 3 cascading tiers (775, 820, 865).
-    // If 1-3 items, use 2 alternating tiers (785, 860).
+    // Dynamic Alternating Stagger for Lower Arch (3 tiers: 775, 820, 865)
     const lowerTiers = lowerList.length >= 4 ? [775, 820, 865] : [785, 860];
     const lowerTierStep = lowerTiers.length;
     lowerList.forEach((item, idx) => {
       item.coords.badge[1] = lowerTiers[idx % lowerTierStep];
-      item.coords.badge[0] = Math.max(90, Math.min(1110, item.coords.badge[0]));
+      item.coords.badge[0] = Math.max(120, Math.min(1080, item.coords.badge[0]));
     });
 
-    // Ensure horizontal clearance on same tier for Lower Arch (minimum 250px)
+    // Ensure horizontal clearance on same tier for Lower Arch (minimum 260px)
     for (let j = lowerTierStep; j < lowerList.length; j++) {
       const prevSameTierX = lowerList[j - lowerTierStep].coords.badge[0];
-      if (lowerList[j].coords.badge[0] - prevSameTierX < 250) {
-        lowerList[j].coords.badge[0] = Math.min(1110, prevSameTierX + 255);
+      if (lowerList[j].coords.badge[0] - prevSameTierX < 260) {
+        lowerList[j].coords.badge[0] = Math.min(1080, prevSameTierX + 265);
       }
     }
 
     return [...upperList, ...lowerList];
-  }, [findings, selectedSection, selectedTab, activeTooth]);
+  }, [findings, selectedSection, selectedTab, activeTooth, activeFinding]);
 
   const modeTabs = [
     { id: 'overview', label: 'X-Ray Overview' },
@@ -177,15 +229,19 @@ export default function ThreeRadiologyJawViewer({
     { id: 'more', label: 'more >' }
   ];
 
-  const currentSectionIdx = sectionsData.findIndex((s) => s.key === selectedSection);
+  const currentSectionIdx = sectionsData.findIndex(
+    (s) => s.key === selectedSection
+  );
 
   const handlePrevSection = () => {
-    const nextIdx = currentSectionIdx > 0 ? currentSectionIdx - 1 : sectionsData.length - 1;
+    const nextIdx =
+      currentSectionIdx > 0 ? currentSectionIdx - 1 : sectionsData.length - 1;
     setSelectedSection(sectionsData[nextIdx].key);
   };
 
   const handleNextSection = () => {
-    const nextIdx = currentSectionIdx < sectionsData.length - 1 ? currentSectionIdx + 1 : 0;
+    const nextIdx =
+      currentSectionIdx < sectionsData.length - 1 ? currentSectionIdx + 1 : 0;
     setSelectedSection(sectionsData[nextIdx].key);
   };
 
@@ -197,9 +253,115 @@ export default function ThreeRadiologyJawViewer({
 
   return (
     <div className="flex flex-col w-full h-full bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-xs relative select-none">
-      {/* Main Viewport Container */}
+      {/* 1. Synchronized Active Tooth Clinical Inspector HUD Banner */}
+      <div className="w-full bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white rounded-2xl p-3 sm:p-3.5 mb-3 shadow-md border border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        {/* Left: Active Tooth Identification */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-600/90 text-white flex items-center justify-center font-black text-[17px] shadow-sm ring-2 ring-blue-400/40">
+            {activeTooth}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[13.5px] sm:text-[15px] font-black text-white tracking-tight">
+                Tooth #{activeTooth}
+              </span>
+              <span className="text-[10px] font-bold text-blue-300 bg-blue-900/60 px-2 py-0.5 rounded-full border border-blue-700/50">
+                {getToothAnatomicalName(activeTooth)}
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-300 flex items-center gap-2 mt-0.5">
+              <span>Diagnosis:</span>
+              <strong className="text-yellow-300 font-extrabold">
+                {activeFinding.label}
+              </strong>
+              <span>•</span>
+              <span className="text-slate-400">{activeFinding.cdtCode}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Center: Procedure Recommendation */}
+        <div className="hidden md:flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700 text-xs">
+          <FileCheck2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+          <span className="text-slate-200 font-semibold truncate max-w-[280px]">
+            {activeFinding.procedureTitle}
+          </span>
+          <span
+            className={`text-[9.5px] font-black px-1.5 py-0.5 rounded-md ${
+              activeFinding.urgency === 'Urgent'
+                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+            }`}
+          >
+            {activeFinding.urgency}
+          </span>
+        </div>
+
+        {/* Right: Tooth Stepper (< Prev / Next >) */}
+        <div className="flex items-center gap-2">
+          {diagnosedTeethNumbers.length > 0 && (
+            <div className="flex items-center gap-1 bg-slate-800/90 rounded-xl p-1 border border-slate-700">
+              <button
+                type="button"
+                onClick={handlePrevTooth}
+                className="p-1 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition cursor-pointer"
+                title="Previous Diagnosed Tooth"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-[10.5px] font-extrabold text-blue-300 px-1.5">
+                {Math.max(
+                  1,
+                  diagnosedTeethNumbers.indexOf(String(activeTooth)) + 1
+                )}
+                /{diagnosedTeethNumbers.length}
+              </span>
+              <button
+                type="button"
+                onClick={handleNextTooth}
+                className="p-1 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition cursor-pointer"
+                title="Next Diagnosed Tooth"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Display Mode Switcher (Focus vs All) */}
+          <div className="flex items-center bg-slate-800/90 p-0.5 rounded-xl border border-slate-700">
+            <button
+              type="button"
+              onClick={() => setDisplayMode('focus')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-black transition cursor-pointer ${
+                displayMode === 'focus'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Focus on Active Tooth with Clean Socket Pins"
+            >
+              <Crosshair className="w-3 h-3" />
+              <span>Focus Active</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setDisplayMode('all')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-black transition cursor-pointer ${
+                displayMode === 'all'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Show All Staggered Callout Badges"
+            >
+              <Layers className="w-3 h-3" />
+              <span>Show All</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Radiograph Viewport Container */}
       <div className="relative w-full h-[400px] sm:h-[450px] md:h-[490px] rounded-2xl overflow-hidden bg-gradient-to-b from-[#F2F6FA] via-[#F8FAFC] to-[#EEF3F8] border border-slate-100/90 flex items-center justify-center">
-        {/* Layer 1: Content (HD Transparent Jaw Radiograph with aspect-ratio locked alignment) */}
+        {/* Layer 1: Content (HD Transparent Jaw Radiograph) */}
         <div className="w-full h-full relative" style={filterStyle}>
           <div className="w-full h-full relative flex items-center justify-center bg-white overflow-hidden">
             <div
@@ -217,10 +379,11 @@ export default function ThreeRadiologyJawViewer({
               />
 
               {/* Dynamic Tooth Lesion Target Pointers in Alveolar Sockets */}
-              <div className="absolute inset-0 pointer-events-none z-15">
+              <div className="absolute inset-0 pointer-events-none z-20">
                 {visibleCallouts.map((item) => {
                   const { coords } = item;
-                  const isSelected = String(activeTooth) === String(item.toothNumber);
+                  const isSelected =
+                    String(activeTooth) === String(item.toothNumber);
                   const color = item.ringColor || '#3B82F6';
                   const leftPct = (coords.target[0] / 1200) * 100;
                   const topPct = (coords.target[1] / 896) * 100;
@@ -234,35 +397,46 @@ export default function ThreeRadiologyJawViewer({
                         e.stopPropagation();
                         onSelectTooth && onSelectTooth(String(item.toothNumber));
                       }}
-                      title={`Tooth #${item.toothNumber}: ${item.label}`}
+                      title={`Tooth #${item.toothNumber}: ${item.label} (${item.status})`}
                     >
                       <div
-                        className={`w-6 h-6 rounded-full border-2 transition-all flex items-center justify-center ${
-                          isSelected ? 'scale-125 ring-4 ring-blue-400/40 shadow-lg' : 'hover:scale-110 shadow-sm'
+                        className={`transition-all flex items-center justify-center rounded-full font-black text-[10px] ${
+                          isSelected
+                            ? 'w-7 h-7 bg-blue-600 text-white shadow-lg ring-4 ring-blue-400/50 scale-125 z-30'
+                            : 'w-5 h-5 bg-white/95 text-slate-800 border-2 shadow-xs hover:scale-110 hover:bg-blue-50'
                         }`}
                         style={{
-                          borderColor: color,
-                          backgroundColor: `${color}25`
+                          borderColor: isSelected ? '#FFFFFF' : color
                         }}
                       >
-                        <div
-                          className="w-2 h-2 rounded-full animate-ping"
-                          style={{ backgroundColor: color }}
-                        />
+                        {isSelected ? (
+                          <div className="relative flex items-center justify-center">
+                            <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping absolute" />
+                            <span>{item.toothNumber}</span>
+                          </div>
+                        ) : (
+                          <span>{item.toothNumber}</span>
+                        )}
                       </div>
                     </div>
                   );
                 })}
               </div>
 
-              {/* Precision Overlay Leader Lines - Mathematically Locked to 1200 x 896 */}
+              {/* Precision Overlay Leader Lines */}
               <svg
                 className="absolute inset-0 w-full h-full pointer-events-none z-10"
                 viewBox="0 0 1200 896"
                 preserveAspectRatio="none"
               >
                 <defs>
-                  <filter id="lesionGlow3D" x="-50%" y="-50%" width="200%" height="200%">
+                  <filter
+                    id="lesionGlow3D"
+                    x="-50%"
+                    y="-50%"
+                    width="200%"
+                    height="200%"
+                  >
                     <feGaussianBlur stdDeviation="3" result="blur" />
                     <feMerge>
                       <feMergeNode in="blur" />
@@ -272,8 +446,13 @@ export default function ThreeRadiologyJawViewer({
                 </defs>
 
                 {visibleCallouts.map((item) => {
+                  const isSelected =
+                    String(activeTooth) === String(item.toothNumber);
+
+                  // In 'focus' mode, only draw leader line for active tooth
+                  if (displayMode === 'focus' && !isSelected) return null;
+
                   const { coords } = item;
-                  const isSelected = String(activeTooth) === String(item.toothNumber);
                   const color = item.ringColor || '#3B82F6';
                   const targetX = coords.target[0];
                   const targetY = coords.target[1];
@@ -283,20 +462,23 @@ export default function ThreeRadiologyJawViewer({
                   const tailY = isUpper ? badgeY + 22 : badgeY - 22;
 
                   return (
-                    <g key={`overlay-line-${item.toothNumber}`} className="transition-all duration-300">
+                    <g
+                      key={`overlay-line-${item.toothNumber}`}
+                      className="transition-all duration-300"
+                    >
                       <circle
                         cx={targetX}
                         cy={targetY}
-                        r={isSelected ? 11 : 7}
+                        r={isSelected ? 12 : 7}
                         fill="none"
                         stroke={color}
-                        strokeWidth="1.8"
-                        opacity={isSelected ? 0.95 : 0.45}
+                        strokeWidth="2"
+                        opacity={isSelected ? 1 : 0.45}
                       />
                       <circle
                         cx={targetX}
                         cy={targetY}
-                        r={isSelected ? 5.5 : 4.0}
+                        r={isSelected ? 6 : 4}
                         fill={color}
                         stroke="#FFFFFF"
                         strokeWidth="2"
@@ -308,7 +490,7 @@ export default function ThreeRadiologyJawViewer({
                         x2={badgeX}
                         y2={tailY}
                         stroke={isSelected ? color : '#64748B'}
-                        strokeWidth={isSelected ? 2.4 : 1.6}
+                        strokeWidth={isSelected ? 2.5 : 1.6}
                         strokeDasharray={isSelected ? 'none' : '4 3'}
                         opacity={isSelected ? 1 : 0.8}
                       />
@@ -318,10 +500,15 @@ export default function ThreeRadiologyJawViewer({
                 })}
               </svg>
 
-              {/* Speech Bubble Pill Badges - Locked to aspect ratio container */}
+              {/* Speech Bubble Pill Badges */}
               {visibleCallouts.map((item) => {
+                const isSelected =
+                  String(activeTooth) === String(item.toothNumber);
+
+                // In 'focus' mode, only render speech bubble badge for active tooth
+                if (displayMode === 'focus' && !isSelected) return null;
+
                 const { coords } = item;
-                const isSelected = String(activeTooth) === String(item.toothNumber);
                 const isUpper = coords.arch === 'Upper';
                 const leftPct = (coords.badge[0] / 1200) * 100;
                 const topPct = (coords.badge[1] / 896) * 100;
@@ -349,16 +536,22 @@ export default function ThreeRadiologyJawViewer({
                     <div
                       className={`flex items-center gap-2 px-3 py-1.5 rounded-2xl shadow-xl backdrop-blur-md bg-white border transition-all ${
                         isSelected
-                          ? 'border-blue-500 ring-2 ring-blue-400/40 shadow-blue-500/15'
+                          ? 'border-blue-500 ring-2 ring-blue-400/40 shadow-blue-500/20'
                           : 'border-slate-200 shadow-slate-900/8 hover:border-slate-300'
                       }`}
                     >
                       <span
-                        className={`w-5 h-5 rounded-full flex items-center justify-center text-[10.5px] font-black shrink-0 shadow-2xs ${item.circleBg || 'bg-blue-600 text-white'}`}
+                        className={`w-5 h-5 rounded-full flex items-center justify-center text-[10.5px] font-black shrink-0 shadow-2xs ${
+                          item.circleBg || 'bg-blue-600 text-white'
+                        }`}
                       >
                         {item.toothNumber}
                       </span>
-                      <span className={`text-[11.5px] font-black whitespace-nowrap tracking-tight ${item.labelColor || 'text-blue-600'}`}>
+                      <span
+                        className={`text-[11.5px] font-black whitespace-nowrap tracking-tight ${
+                          item.labelColor || 'text-blue-600'
+                        }`}
+                      >
                         {item.label}
                       </span>
                     </div>
@@ -481,7 +674,9 @@ export default function ThreeRadiologyJawViewer({
                 type="button"
                 onClick={() => setSelectedSection(sec.key)}
                 className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                  selectedSection === sec.key ? 'bg-blue-600 w-4' : 'bg-slate-300 w-1.5'
+                  selectedSection === sec.key
+                    ? 'bg-blue-600 w-4'
+                    : 'bg-slate-300 w-1.5'
                 }`}
               />
             ))}

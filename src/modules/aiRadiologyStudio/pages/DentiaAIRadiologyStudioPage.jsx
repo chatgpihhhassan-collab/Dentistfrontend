@@ -6,6 +6,7 @@ import RadiographToolbar from '../components/RadiographToolbar';
 import ThreeRadiologyJawViewer from '../components/ThreeRadiologyJawViewer';
 import AISuggestionsActionPanel from '../components/AISuggestionsActionPanel';
 import DeviceScannerOverlay from '../components/DeviceScannerOverlay';
+import SynchronizedDentitionBar from '../components/SynchronizedDentitionBar';
 import { applyAIFindingsToPatientRecord } from '../services/aiFindingsApplierService';
 import { mapDatabaseTeethToClinicalFindings } from '../utils/dentalCalloutMapper';
 import { fetchWithCache } from '../../../utils/apiCache';
@@ -209,6 +210,13 @@ export default function DentiaAIRadiologyStudioPage() {
           <main className="flex-1 flex flex-col gap-3 min-w-0">
             {/* Top 4 KPI Ring Cards (Linked to DB Findings) */}
             <DiagnosticRingCards
+              findings={clinicalFindings}
+              activeTooth={activeTooth}
+              onSelectTooth={setActiveTooth}
+            />
+
+            {/* Synchronized 32-Tooth Full Dentition Bar */}
+            <SynchronizedDentitionBar
               findings={clinicalFindings}
               activeTooth={activeTooth}
               onSelectTooth={setActiveTooth}
