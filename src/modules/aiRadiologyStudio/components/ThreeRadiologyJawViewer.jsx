@@ -689,12 +689,12 @@ export default function ThreeRadiologyJawViewer({
     return map;
   }, [findings]);
 
-  // Filter findings visible in the currently active section
+  // Filter findings visible in the currently active section & dynamically stagger callouts to eliminate collisions
   const visibleCallouts = useMemo(() => {
     if (!findings || findings.length === 0) return [];
 
     const sectionCoords = ANATOMICAL_SECTION_COORDS[selectedSection] || {};
-    const list = [];
+    const rawList = [];
 
     findings.forEach((f) => {
       if (selectedTab === 'Tooth Health') {
@@ -707,16 +707,20 @@ export default function ThreeRadiologyJawViewer({
 
       const coords = sectionCoords[f.toothNumber];
       if (coords) {
-        list.push({
+        rawList.push({
           ...f,
-          coords
+          coords: {
+            ...coords,
+            target: [...coords.target],
+            badge: [...coords.badge]
+          }
         });
       }
     });
 
-    if (list.length === 0 && activeTooth && sectionCoords[activeTooth]) {
+    if (rawList.length === 0 && activeTooth && sectionCoords[activeTooth]) {
       const coords = sectionCoords[activeTooth];
-      list.push({
+      rawList.push({
         toothNumber: parseInt(activeTooth, 10),
         toothNo: String(activeTooth),
         label: 'Clinical Finding',
@@ -724,11 +728,59 @@ export default function ThreeRadiologyJawViewer({
         badgeBg: 'bg-blue-600 text-white',
         circleBg: 'bg-blue-600 text-white',
         labelColor: 'text-blue-600',
-        coords
+        coords: {
+          ...coords,
+          target: [...coords.target],
+          badge: [...coords.badge]
+        }
       });
     }
 
-    return list;
+    // Split into Upper and Lower Arch callouts
+    const upperList = rawList.filter((item) => item.coords.arch === 'Upper');
+    const lowerList = rawList.filter((item) => item.coords.arch !== 'Upper');
+
+    // Sort by badge X coordinate (left to right)
+    upperList.sort((a, b) => a.coords.badge[0] - b.coords.badge[0]);
+    lowerList.sort((a, b) => a.coords.badge[0] - b.coords.badge[0]);
+
+    // Dynamic Alternating Stagger for Upper Arch:
+    // If 4+ items, use 3 cascading tiers (85, 135, 185) so 3 consecutive items never share a tier.
+    // If 1-3 items, use 2 alternating tiers (95, 170).
+    const upperTiers = upperList.length >= 4 ? [85, 135, 185] : [95, 170];
+    const upperTierStep = upperTiers.length;
+    upperList.forEach((item, idx) => {
+      item.coords.badge[1] = upperTiers[idx % upperTierStep];
+      item.coords.badge[0] = Math.max(90, Math.min(1110, item.coords.badge[0]));
+    });
+
+    // Ensure horizontal clearance on same tier for Upper Arch (minimum 250px)
+    for (let i = upperTierStep; i < upperList.length; i++) {
+      const prevSameTierX = upperList[i - upperTierStep].coords.badge[0];
+      if (upperList[i].coords.badge[0] - prevSameTierX < 250) {
+        upperList[i].coords.badge[0] = Math.min(1110, prevSameTierX + 255);
+      }
+    }
+
+    // Dynamic Alternating Stagger for Lower Arch:
+    // If 4+ items, use 3 cascading tiers (775, 820, 865).
+    // If 1-3 items, use 2 alternating tiers (785, 860).
+    const lowerTiers = lowerList.length >= 4 ? [775, 820, 865] : [785, 860];
+    const lowerTierStep = lowerTiers.length;
+    lowerList.forEach((item, idx) => {
+      item.coords.badge[1] = lowerTiers[idx % lowerTierStep];
+      item.coords.badge[0] = Math.max(90, Math.min(1110, item.coords.badge[0]));
+    });
+
+    // Ensure horizontal clearance on same tier for Lower Arch (minimum 250px)
+    for (let j = lowerTierStep; j < lowerList.length; j++) {
+      const prevSameTierX = lowerList[j - lowerTierStep].coords.badge[0];
+      if (lowerList[j].coords.badge[0] - prevSameTierX < 250) {
+        lowerList[j].coords.badge[0] = Math.min(1110, prevSameTierX + 255);
+      }
+    }
+
+    return [...upperList, ...lowerList];
   }, [findings, selectedSection, selectedTab, activeTooth]);
 
   const modeTabs = [

@@ -6,87 +6,87 @@
 export const ANATOMICAL_SECTION_COORDS = {
   // 1. LEFT SAGITTAL VIEW (Looking at Patient's Left Arch, skull facing right)
   left: {
-    // Upper Arch (Teeth 9–16) - Staggered Y (110 vs 180) with generous horizontal space
-    16: { target: [585, 475], badge: [400, 110],  tail: 'down', arch: 'Upper' },
-    15: { target: [650, 480], badge: [520, 180],  tail: 'down', arch: 'Upper' },
-    14: { target: [720, 485], badge: [630, 110],  tail: 'down', arch: 'Upper' },
-    13: { target: [785, 490], badge: [720, 180],  tail: 'down', arch: 'Upper' },
-    12: { target: [855, 490], badge: [810, 110],  tail: 'down', arch: 'Upper' },
-    11: { target: [930, 485], badge: [900, 180],  tail: 'down', arch: 'Upper' },
-    10: { target: [965, 480], badge: [990, 110],  tail: 'down', arch: 'Upper' },
-    9:  { target: [990, 480], badge: [1080, 180], tail: 'down', arch: 'Upper' },
+    // Upper Arch (Teeth 9–16) - Alternating Y (95 vs 170)
+    16: { target: [585, 475], badge: [370, 95],   tail: 'down', arch: 'Upper' },
+    15: { target: [650, 480], badge: [500, 170],  tail: 'down', arch: 'Upper' },
+    14: { target: [720, 485], badge: [630, 95],   tail: 'down', arch: 'Upper' },
+    13: { target: [785, 490], badge: [730, 170],  tail: 'down', arch: 'Upper' },
+    12: { target: [855, 490], badge: [830, 95],   tail: 'down', arch: 'Upper' },
+    11: { target: [930, 485], badge: [920, 170],  tail: 'down', arch: 'Upper' },
+    10: { target: [965, 480], badge: [1000, 95],  tail: 'down', arch: 'Upper' },
+    9:  { target: [990, 480], badge: [1090, 170], tail: 'down', arch: 'Upper' },
 
-    // Lower Arch (Teeth 17–24) - Staggered Y (785 vs 860) with generous horizontal space
-    17: { target: [580, 545], badge: [340, 860],  tail: 'up', arch: 'Lower' },
-    18: { target: [645, 550], badge: [450, 785],  tail: 'up', arch: 'Lower' },
+    // Lower Arch (Teeth 17–24) - Alternating Y (785 vs 860)
+    17: { target: [580, 545], badge: [330, 860],  tail: 'up', arch: 'Lower' },
+    18: { target: [645, 550], badge: [440, 785],  tail: 'up', arch: 'Lower' },
     19: { target: [715, 555], badge: [560, 860],  tail: 'up', arch: 'Lower' },
-    20: { target: [785, 555], badge: [680, 785],  tail: 'up', arch: 'Lower' },
-    21: { target: [855, 550], badge: [790, 860],  tail: 'up', arch: 'Lower' },
+    20: { target: [785, 555], badge: [670, 785],  tail: 'up', arch: 'Lower' },
+    21: { target: [855, 550], badge: [780, 860],  tail: 'up', arch: 'Lower' },
     22: { target: [925, 545], badge: [890, 785],  tail: 'up', arch: 'Lower' },
     23: { target: [960, 540], badge: [990, 860],  tail: 'up', arch: 'Lower' },
-    24: { target: [980, 535], badge: [1080, 785], tail: 'up', arch: 'Lower' }
+    24: { target: [980, 535], badge: [1085, 785], tail: 'up', arch: 'Lower' }
   },
 
   // 2. FRONT CORONAL VIEW (Anterior Dual Arch Smile Profile)
   front: {
-    // Upper Arch (Teeth 1–16) - Staggered Y (100 vs 165)
-    1:  { target: [265, 420], badge: [100, 100],   tail: 'down', arch: 'Upper' },
-    2:  { target: [300, 430], badge: [190, 165],   tail: 'down', arch: 'Upper' },
-    3:  { target: [340, 440], badge: [280, 100],   tail: 'down', arch: 'Upper' },
-    4:  { target: [385, 450], badge: [360, 165],   tail: 'down', arch: 'Upper' },
-    5:  { target: [425, 455], badge: [435, 100],   tail: 'down', arch: 'Upper' },
-    6:  { target: [475, 455], badge: [505, 165],   tail: 'down', arch: 'Upper' },
-    7:  { target: [525, 445], badge: [565, 100],   tail: 'down', arch: 'Upper' },
-    8:  { target: [575, 440], badge: [615, 165],   tail: 'down', arch: 'Upper' },
-    9:  { target: [625, 440], badge: [665, 100],   tail: 'down', arch: 'Upper' },
-    10: { target: [675, 445], badge: [715, 165],   tail: 'down', arch: 'Upper' },
-    11: { target: [725, 455], badge: [775, 100],   tail: 'down', arch: 'Upper' },
-    12: { target: [775, 455], badge: [845, 165],   tail: 'down', arch: 'Upper' },
-    13: { target: [815, 450], badge: [920, 100],   tail: 'down', arch: 'Upper' },
-    14: { target: [860, 440], badge: [995, 165],   tail: 'down', arch: 'Upper' },
-    15: { target: [900, 430], badge: [1070, 100],  tail: 'down', arch: 'Upper' },
-    16: { target: [935, 420], badge: [1140, 165],  tail: 'down', arch: 'Upper' },
+    // Upper Arch (Teeth 1–16) - Alternating Y (95 vs 165)
+    1:  { target: [265, 420], badge: [95, 95],    tail: 'down', arch: 'Upper' },
+    2:  { target: [300, 430], badge: [180, 165],  tail: 'down', arch: 'Upper' },
+    3:  { target: [340, 440], badge: [270, 95],   tail: 'down', arch: 'Upper' },
+    4:  { target: [385, 450], badge: [355, 165],  tail: 'down', arch: 'Upper' },
+    5:  { target: [425, 455], badge: [435, 95],   tail: 'down', arch: 'Upper' },
+    6:  { target: [475, 455], badge: [510, 165],  tail: 'down', arch: 'Upper' },
+    7:  { target: [525, 445], badge: [575, 95],   tail: 'down', arch: 'Upper' },
+    8:  { target: [575, 440], badge: [625, 165],  tail: 'down', arch: 'Upper' },
+    9:  { target: [625, 440], badge: [675, 95],   tail: 'down', arch: 'Upper' },
+    10: { target: [675, 445], badge: [725, 165],  tail: 'down', arch: 'Upper' },
+    11: { target: [725, 455], badge: [790, 95],   tail: 'down', arch: 'Upper' },
+    12: { target: [775, 455], badge: [865, 165],  tail: 'down', arch: 'Upper' },
+    13: { target: [815, 450], badge: [940, 95],   tail: 'down', arch: 'Upper' },
+    14: { target: [860, 440], badge: [1015, 165], tail: 'down', arch: 'Upper' },
+    15: { target: [900, 430], badge: [1085, 95],  tail: 'down', arch: 'Upper' },
+    16: { target: [935, 420], badge: [1150, 165], tail: 'down', arch: 'Upper' },
 
-    // Lower Arch (Teeth 17–32) - Staggered Y (780 vs 850)
-    32: { target: [270, 515], badge: [100, 850],   tail: 'up', arch: 'Lower' },
-    31: { target: [310, 525], badge: [185, 780],   tail: 'up', arch: 'Lower' },
-    30: { target: [355, 535], badge: [270, 850],   tail: 'up', arch: 'Lower' },
-    29: { target: [400, 545], badge: [350, 780],   tail: 'up', arch: 'Lower' },
-    28: { target: [450, 550], badge: [425, 850],   tail: 'up', arch: 'Lower' },
-    27: { target: [500, 555], badge: [495, 780],   tail: 'up', arch: 'Lower' },
-    26: { target: [545, 545], badge: [560, 850],   tail: 'up', arch: 'Lower' },
-    25: { target: [585, 540], badge: [610, 780],   tail: 'up', arch: 'Lower' },
-    24: { target: [615, 540], badge: [660, 850],   tail: 'up', arch: 'Lower' },
-    23: { target: [655, 545], badge: [710, 780],   tail: 'up', arch: 'Lower' },
-    22: { target: [700, 555], badge: [775, 850],   tail: 'up', arch: 'Lower' },
-    21: { target: [750, 550], badge: [845, 780],   tail: 'up', arch: 'Lower' },
-    20: { target: [800, 545], badge: [920, 850],   tail: 'up', arch: 'Lower' },
-    19: { target: [845, 535], badge: [995, 780],   tail: 'up', arch: 'Lower' },
-    18: { target: [890, 525], badge: [1070, 850],  tail: 'up', arch: 'Lower' },
-    17: { target: [930, 515], badge: [1140, 780],  tail: 'up', arch: 'Lower' }
+    // Lower Arch (Teeth 17–32) - Alternating Y (785 vs 860)
+    32: { target: [270, 515], badge: [95, 860],   tail: 'up', arch: 'Lower' },
+    31: { target: [310, 525], badge: [160, 785],  tail: 'up', arch: 'Lower' },
+    30: { target: [355, 535], badge: [220, 860],  tail: 'up', arch: 'Lower' },
+    29: { target: [400, 545], badge: [330, 785],  tail: 'up', arch: 'Lower' },
+    28: { target: [450, 550], badge: [420, 860],  tail: 'up', arch: 'Lower' },
+    27: { target: [500, 555], badge: [510, 785],  tail: 'up', arch: 'Lower' },
+    26: { target: [545, 545], badge: [620, 860],  tail: 'up', arch: 'Lower' },
+    25: { target: [585, 540], badge: [690, 785],  tail: 'up', arch: 'Lower' },
+    24: { target: [615, 540], badge: [750, 860],  tail: 'up', arch: 'Lower' },
+    23: { target: [655, 545], badge: [805, 785],  tail: 'up', arch: 'Lower' },
+    22: { target: [700, 555], badge: [865, 860],  tail: 'up', arch: 'Lower' },
+    21: { target: [750, 550], badge: [925, 785],  tail: 'up', arch: 'Lower' },
+    20: { target: [800, 545], badge: [940, 860],  tail: 'up', arch: 'Lower' },
+    19: { target: [845, 535], badge: [1015, 785], tail: 'up', arch: 'Lower' },
+    18: { target: [890, 525], badge: [1085, 860], tail: 'up', arch: 'Lower' },
+    17: { target: [930, 515], badge: [1150, 785], tail: 'up', arch: 'Lower' }
   },
 
   // 3. RIGHT SAGITTAL VIEW (Looking at Patient's Right Arch, skull facing left)
   right: {
-    // Upper Arch (Teeth 1–8) - Staggered Y (110 vs 180)
-    8:  { target: [210, 480], badge: [120, 180],  tail: 'down', arch: 'Upper' },
-    7:  { target: [235, 480], badge: [210, 110],  tail: 'down', arch: 'Upper' },
-    6:  { target: [270, 485], badge: [300, 180],  tail: 'down', arch: 'Upper' },
-    5:  { target: [345, 490], badge: [390, 110],  tail: 'down', arch: 'Upper' },
-    4:  { target: [415, 490], badge: [480, 180],  tail: 'down', arch: 'Upper' },
-    3:  { target: [480, 485], badge: [570, 110],  tail: 'down', arch: 'Upper' },
-    2:  { target: [550, 480], badge: [680, 180],  tail: 'down', arch: 'Upper' },
-    1:  { target: [615, 475], badge: [800, 110],  tail: 'down', arch: 'Upper' },
+    // Upper Arch (Teeth 1–8) - Alternating Y (95 vs 170)
+    8:  { target: [210, 480], badge: [120, 170],  tail: 'down', arch: 'Upper' },
+    7:  { target: [235, 480], badge: [200, 95],   tail: 'down', arch: 'Upper' },
+    6:  { target: [270, 485], badge: [290, 170],  tail: 'down', arch: 'Upper' },
+    5:  { target: [345, 490], badge: [380, 95],   tail: 'down', arch: 'Upper' },
+    4:  { target: [415, 490], badge: [470, 170],  tail: 'down', arch: 'Upper' },
+    3:  { target: [480, 485], badge: [560, 95],   tail: 'down', arch: 'Upper' },
+    2:  { target: [550, 480], badge: [690, 170],  tail: 'down', arch: 'Upper' },
+    1:  { target: [615, 475], badge: [830, 95],   tail: 'down', arch: 'Upper' },
 
-    // Lower Arch (Teeth 25–32) - Staggered Y (785 vs 860)
+    // Lower Arch (Teeth 25–32) - Alternating Y (785 vs 860)
     25: { target: [220, 535], badge: [120, 785],  tail: 'up', arch: 'Lower' },
     26: { target: [240, 540], badge: [210, 860],  tail: 'up', arch: 'Lower' },
-    27: { target: [275, 545], badge: [310, 785],  tail: 'up', arch: 'Lower' },
-    28: { target: [345, 550], badge: [410, 860],  tail: 'up', arch: 'Lower' },
-    29: { target: [415, 555], badge: [520, 785],  tail: 'up', arch: 'Lower' },
-    30: { target: [485, 555], badge: [640, 860],  tail: 'up', arch: 'Lower' },
-    31: { target: [555, 550], badge: [750, 785],  tail: 'up', arch: 'Lower' },
-    32: { target: [620, 545], badge: [860, 860],  tail: 'up', arch: 'Lower' }
+    27: { target: [275, 545], badge: [320, 785],  tail: 'up', arch: 'Lower' },
+    28: { target: [345, 550], badge: [430, 860],  tail: 'up', arch: 'Lower' },
+    29: { target: [415, 555], badge: [540, 785],  tail: 'up', arch: 'Lower' },
+    30: { target: [485, 555], badge: [660, 860],  tail: 'up', arch: 'Lower' },
+    31: { target: [555, 550], badge: [770, 785],  tail: 'up', arch: 'Lower' },
+    32: { target: [620, 545], badge: [880, 860],  tail: 'up', arch: 'Lower' }
   }
 };
 

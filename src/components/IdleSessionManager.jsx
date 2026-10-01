@@ -49,6 +49,10 @@ export default function IdleSessionManager() {
     }, [navigate]);
 
     useEffect(() => {
+        if (location.pathname === '/login' || location.pathname.startsWith('/portal')) {
+            return;
+        }
+
         // Immediate synchronous session validation on mount
         const initialCheck = validateClinicianSession();
         if (!initialCheck.isValid && localStorage.getItem('doctor')) {
