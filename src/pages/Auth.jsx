@@ -351,13 +351,13 @@ export default function Auth() {
                     )}
                 </div>
 
-                {/* 🌐 Left Column Real-Time Telemetry HUD (Login Page Only) */}
-                <div className="relative z-10 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-4 shadow-xl">
-                    <div className="flex items-center justify-between text-xs font-bold text-white mb-2.5">
+                {/* 🌐 Left Column Real-Time Telemetry HUD (Login Page Only - Slim Height) */}
+                <div className="relative z-10 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-3 shadow-xl">
+                    <div className="flex items-center justify-between text-xs font-bold text-white mb-2">
                         <div className="flex items-center gap-2">
-                            <span className="relative flex h-2.5 w-2.5">
+                            <span className="relative flex h-2 w-2">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
                             </span>
                             <span className="tracking-wide text-emerald-300 uppercase text-[11px] font-bold">Live Clinical Telemetry</span>
                         </div>
@@ -371,27 +371,23 @@ export default function Auth() {
                             <span>dentistfrontend.vercel.app</span>
                         </a>
                     </div>
-                    <div className="grid grid-cols-2 gap-2.5">
-                        <div className="bg-white/10 rounded-xl p-3 border border-white/15">
+                    <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-white/10 rounded-xl px-2.5 py-1.5 border border-white/15 flex items-center justify-between">
                             <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-300">
                                 <Users className="w-3.5 h-3.5" />
-                                <span>Currently Online</span>
+                                <span>Online</span>
                             </div>
-                            <div className="flex items-baseline gap-1.5 mt-1">
-                                <span className="text-2xl font-black font-mono text-white">{presenceStats.currentOnline}</span>
-                                <span className="text-[11px] text-emerald-300 font-medium">clinicians</span>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-lg font-black font-mono text-white">{presenceStats.currentOnline}</span>
+                                <span className="text-[10px] text-emerald-300 font-medium">active</span>
                             </div>
-                            <span className="text-[10px] text-white/60">Real-time heartbeat active</span>
                         </div>
-                        <div className="bg-white/10 rounded-xl p-3 border border-white/15">
+                        <div className="bg-white/10 rounded-xl px-2.5 py-1.5 border border-white/15 flex items-center justify-between">
                             <div className="flex items-center gap-1 text-[11px] font-semibold text-teal-200">
                                 <Activity className="w-3.5 h-3.5" />
-                                <span>Historical Logins</span>
+                                <span>Historical</span>
                             </div>
-                            <div className="flex items-baseline gap-1 mt-1">
-                                <span className="text-2xl font-black font-mono text-white">{presenceStats.historicalTotal.toLocaleString()}+</span>
-                            </div>
-                            <span className="text-[10px] text-white/60">Audited clinical sessions</span>
+                            <span className="text-lg font-black font-mono text-white">{presenceStats.historicalTotal.toLocaleString()}+</span>
                         </div>
                     </div>
                 </div>
@@ -406,67 +402,56 @@ export default function Auth() {
             <div className="w-full lg:w-[48%] flex flex-col justify-center items-center p-6 sm:p-10 lg:p-14 relative overflow-y-auto">
                 <div className="w-full max-w-md">
 
-                    {/* 🌟 REAL-TIME USER TELEMETRY: CURRENT & HISTORICAL USERS COUNT (LOGIN PAGE ONLY) */}
-                    <div className="mb-6 p-4 bg-gradient-to-br from-dark-slate via-[#0c2e33] to-[#0A1A24] text-white rounded-2xl border border-teal-500/30 shadow-lg shadow-teal-950/20 animate-in fade-in duration-300">
-                        <div className="flex items-center justify-between pb-3 border-b border-white/10 text-xs">
-                            <div className="flex items-center gap-2">
-                                <span className="relative flex h-2.5 w-2.5">
+                    {/* 🌟 SLIM CLINICAL PRESENCE & HISTORICAL COUNTS (MATCHES SITE COLOR SCHEME · LOW PROFILE HEIGHT) */}
+                    <div className="mb-5 p-2 sm:p-2.5 bg-gradient-to-r from-teal-50/80 via-white to-slate-50/80 rounded-2xl border border-teal-200/70 shadow-xs">
+                        <div className="flex items-center justify-between px-1.5 pb-1.5 border-b border-teal-100/70 text-[10px]">
+                            <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-teal-800">
+                                <span className="relative flex h-2 w-2">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                                 </span>
-                                <span className="font-bold text-[11px] uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
-                                    <span>Live Clinician Presence</span>
-                                </span>
+                                <span className="text-[11px] font-extrabold text-teal-900">Live Practice Telemetry</span>
                             </div>
                             <a 
                                 href="https://dentistfrontend.vercel.app/" 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="text-[10px] font-mono text-light-teal/90 hover:text-white bg-white/10 hover:bg-white/15 px-2.5 py-0.5 rounded-full border border-teal-500/20 transition-colors flex items-center gap-1"
+                                className="flex items-center gap-1 text-[10px] font-mono text-teal-700 hover:text-teal-900 font-semibold transition-colors"
                             >
-                                <Globe className="w-3 h-3 text-light-teal" />
+                                <Globe className="w-3 h-3 text-primary-teal" />
                                 <span>dentistfrontend.vercel.app</span>
                             </a>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3 pt-3">
-                            {/* Metric 1: Currently Online Users */}
-                            <div className="bg-white/5 hover:bg-white/10 transition-colors rounded-xl p-3 border border-white/10 flex flex-col justify-between">
-                                <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-bold">
-                                    <Users className="w-3.5 h-3.5 shrink-0" />
-                                    <span>Currently Online</span>
+                        <div className="grid grid-cols-2 gap-2 pt-1.5">
+                            {/* Metric 1: Currently Online */}
+                            <div className="bg-white/95 px-3 py-1.5 rounded-xl border border-slate-200/80 flex items-center justify-between shadow-2xs">
+                                <div className="flex items-center gap-1.5 text-slate-600 text-xs font-semibold">
+                                    <Users className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span className="text-[11px]">Online Now</span>
                                 </div>
-                                <div className="mt-1 flex items-baseline gap-1.5">
-                                    <span className="text-2xl font-mono font-black text-white tracking-tight">{presenceStats.currentOnline}</span>
-                                    <span className="text-[10px] text-emerald-300/90 font-medium">active</span>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-base font-black font-mono text-dark-slate">{presenceStats.currentOnline}</span>
+                                    <span className="text-[10px] text-emerald-600 font-extrabold">active</span>
                                 </div>
-                                <p className="text-[10px] text-slate-300/80 mt-0.5 font-medium">Doctors &amp; Patients Online</p>
                             </div>
 
-                            {/* Metric 2: Total Historical Sessions */}
-                            <div className="bg-white/5 hover:bg-white/10 transition-colors rounded-xl p-3 border border-white/10 flex flex-col justify-between">
-                                <div className="flex items-center gap-1.5 text-teal-300 text-xs font-bold">
-                                    <Activity className="w-3.5 h-3.5 shrink-0" />
-                                    <span>Total Historical</span>
+                            {/* Metric 2: Total Historical */}
+                            <div className="bg-white/95 px-3 py-1.5 rounded-xl border border-slate-200/80 flex items-center justify-between shadow-2xs">
+                                <div className="flex items-center gap-1.5 text-slate-600 text-xs font-semibold">
+                                    <Activity className="w-3.5 h-3.5 text-primary-teal shrink-0" />
+                                    <span className="text-[11px]">Historical</span>
                                 </div>
-                                <div className="mt-1 flex items-baseline gap-1">
-                                    <span className="text-2xl font-mono font-black text-white tracking-tight">{presenceStats.historicalTotal.toLocaleString()}+</span>
+                                <div className="flex items-baseline gap-0.5">
+                                    <span className="text-base font-black font-mono text-dark-slate">{presenceStats.historicalTotal.toLocaleString()}</span>
+                                    <span className="text-[11px] font-extrabold text-primary-teal">+</span>
                                 </div>
-                                <p className="text-[10px] text-slate-300/80 mt-0.5 font-medium">Sessions &amp; Logins Recorded</p>
                             </div>
-                        </div>
-
-                        <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center justify-between text-[10px] text-slate-300/70 font-medium">
-                            <span className="flex items-center gap-1">
-                                <Wifi className="w-3 h-3 text-emerald-400" />
-                                <span>Realtime Heartbeat Pulse: 45s</span>
-                            </span>
-                            <span>HIPAA/GDPR Audited</span>
                         </div>
                     </div>
 
                     {/* 🌟 TOP SEGMENTED ROLE SWITCHER (DOCTOR VS PATIENT) */}
-                    <div className="p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/90 mb-8 shadow-xs">
+                    <div className="p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/90 mb-6 shadow-xs">
                         <div className="text-[11px] font-bold text-muted-text uppercase tracking-wider px-2 py-1 flex items-center justify-between">
                             <span>Select Your Portal</span>
                             <span className="text-primary-teal font-extrabold">{activeRole === 'clinician' ? 'Clinician' : 'Patient'}</span>
