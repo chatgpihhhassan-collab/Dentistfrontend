@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Auth from './pages/Auth';
 import LandingDashboard from './pages/LandingDashboard';
@@ -94,10 +94,28 @@ const AdminRoute = ({ children }) => {
     }
     return children;
 };
+
+// 📊 Google Analytics 4 (GA4) Page View Tracker for Single Page App Route Changes
+const AnalyticsPageTracker = () => {
+    const location = useLocation();
+
+    useEffect(() => {
+        if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
+            window.gtag('config', 'G-0N049FD35F', {
+                page_path: location.pathname + location.search,
+                page_location: window.location.href,
+                page_title: document.title
+            });
+        }
+    }, [location]);
+
+    return null;
+};
  
 export default function App() {
   return (
     <BrowserRouter>
+      <AnalyticsPageTracker />
       <ErrorBoundary>
         <IdleSessionManager />
         <Suspense fallback={<PageFallback />}>
