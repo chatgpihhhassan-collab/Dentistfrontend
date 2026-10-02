@@ -126,6 +126,21 @@ export default function PrivacyPolicy() {
                         </p>
                     </section>
 
+                    {/* Section 7: Analytics, IP Telemetry & Session Monitoring */}
+                    <section className="space-y-3">
+                        <h2 className="text-lg md:text-xl font-black text-[#0E3B43] flex items-center gap-2">
+                            <Database className="w-5 h-5 text-teal-600" /> 7. Real-Time Analytics &amp; IP Geolocation Telemetry
+                        </h2>
+                        <p className="text-sm text-slate-600 leading-relaxed">
+                            To ensure high platform availability and maintain statutory HIPAA/GDPR clinical security audit trails on <span className="font-semibold text-teal-700">https://dentistfrontend.vercel.app/</span>:
+                        </p>
+                        <ul className="list-disc list-inside space-y-1.5 text-xs md:text-sm text-slate-600">
+                            <li><strong>Google Analytics 4 (GA4):</strong> Public visitor traffic is tracked in aggregate using GA4 with IP anonymization (<code className="bg-slate-100 px-1.5 py-0.5 rounded text-teal-800">anonymize_ip: true</code>). No personal medical data is ever sent to GA4.</li>
+                            <li><strong>Clinical Session Heartbeats &amp; IP Audits:</strong> For authenticated clinicians and patients, our servers log client IP addresses, approximate geographic location (country/city resolved via privacy-compliant geo-services), and 30–60 second session heartbeat pings.</li>
+                            <li><strong>Security &amp; Intrusion Prevention:</strong> This telemetry is strictly used to verify active doctor sessions, prevent unauthorized multi-device access, and satisfy clinical compliance audit standards. Telemetry is never sold or shared with commercial advertising brokers.</li>
+                        </ul>
+                    </section>
+
                     {/* Support & Contact Card */}
                     <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
                         <div className="space-y-1 text-center md:text-left">

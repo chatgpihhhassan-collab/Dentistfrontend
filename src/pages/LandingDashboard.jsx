@@ -219,9 +219,20 @@ export default function LandingDashboard() {
         {/* ── HERO SECTION ── */}
         <section className="max-w-[1440px] mx-auto px-4 sm:px-6 py-8 md:py-12 grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-center">
           <div className="space-y-5 animate-fade-in-up">
-            <div className="inline-flex items-center space-x-2 bg-light-teal px-4 py-1.5 rounded-full text-xs font-bold border border-light-teal/30 text-primary-teal">
-              <Star className="w-3.5 h-3.5 fill-accent-gold text-accent-gold" />
-              <span>Family Dental Care &amp; Clinical Excellence</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center space-x-2 bg-light-teal px-4 py-1.5 rounded-full text-xs font-bold border border-light-teal/30 text-primary-teal">
+                <Star className="w-3.5 h-3.5 fill-accent-gold text-accent-gold" />
+                <span>Family Dental Care &amp; Clinical Excellence</span>
+              </div>
+              <a
+                href="https://dentistfrontend.vercel.app/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center space-x-1.5 bg-white/90 hover:bg-white px-3 py-1.5 rounded-full text-xs font-bold border border-slate-200 text-slate-700 shadow-xs transition-all hover:text-primary-teal hover:border-primary-teal/40"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Live Cloud: <strong className="text-primary-teal">https://dentistfrontend.vercel.app/</strong></span>
+              </a>
             </div>
             
             <h1 className="text-5xl md:text-6xl font-serif font-bold text-dark-slate leading-[1.12] tracking-tight">

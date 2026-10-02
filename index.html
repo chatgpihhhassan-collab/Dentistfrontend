@@ -6,6 +6,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dentia — Dentist & Dental Clinic Workspace</title>
     <meta name="description" content="Dentia — Modern Dentist & Dental Clinic Website Workspace with Voice-Activated Charting">
+    <link rel="canonical" href="https://dentistfrontend.vercel.app/" />
+
+    <!-- Open Graph & Production Domain Metadata -->
+    <meta property="og:title" content="Dentia — Dentist & Dental Clinic Workspace" />
+    <meta property="og:description" content="Modern Dentist & Dental Clinic Website Workspace with Voice-Activated Charting and Real-Time Practice Analytics." />
+    <meta property="og:url" content="https://dentistfrontend.vercel.app/" />
+    <meta property="og:type" content="website" />
+
+    <!-- Google Analytics 4 (GA4 Realtime Tracking) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-7B93V5Y6K7"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-7B93V5Y6K7', {
+        cookie_domain: 'dentistfrontend.vercel.app',
+        page_location: window.location.href,
+        anonymize_ip: true
+      });
+    </script>
+
     <!-- Speculative background cache-warming hints for jaw arch odontogram templates -->
     <link rel="prefetch" href="/empty_maxilla_jaw.webp" as="image" type="image/webp" />
     <link rel="prefetch" href="/empty_mandible_jaw.webp" as="image" type="image/webp" />
