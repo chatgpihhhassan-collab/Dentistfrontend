@@ -261,7 +261,7 @@ export default function Auth() {
         <div className="min-h-screen bg-warm-cream flex font-sans">
             {/* Left Column (Adaptive Brand & Feature Showcase) */}
             <div 
-                className="hidden lg:flex w-[56%] relative flex-col justify-between p-12 overflow-hidden border-r border-light-teal bg-cover bg-center"
+                className="hidden lg:flex w-[52%] relative flex-col justify-between p-12 overflow-hidden border-r border-light-teal bg-cover bg-center"
                 style={{ backgroundImage: `url('/premium_ai_dental_login.png')` }}
             >
                 {/* Contrast overlay */}
@@ -399,12 +399,12 @@ export default function Auth() {
             </div>
 
             {/* Right Column (Dual-Role Authentication Panel) */}
-            <div className="w-full lg:w-[44%] flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8 relative overflow-y-auto bg-slate-50/80">
-                <div className="w-full max-w-[470px] bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-xl shadow-slate-200/50">
+            <div className="w-full lg:w-[48%] flex flex-col justify-center items-center p-6 sm:p-10 lg:p-14 relative overflow-y-auto">
+                <div className="w-full max-w-md">
 
-                    {/* 🌟 SLIM CLINICAL PRESENCE & HISTORICAL COUNTS (COHESIVE & TIGHT SPACING) */}
+                    {/* 🌟 SLIM CLINICAL PRESENCE & HISTORICAL COUNTS (MATCHES SITE COLOR SCHEME · LOW PROFILE HEIGHT) */}
                     <div className="mb-5 p-2 sm:p-2.5 bg-gradient-to-r from-teal-50/80 via-white to-slate-50/80 rounded-2xl border border-teal-200/70 shadow-xs">
-                        <div className="flex items-center justify-between px-2 pb-1.5 border-b border-teal-100/70 text-[10px]">
+                        <div className="flex items-center justify-between px-1.5 pb-1.5 border-b border-teal-100/70 text-[10px]">
                             <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-teal-800">
                                 <span className="relative flex h-2 w-2">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -425,22 +425,26 @@ export default function Auth() {
 
                         <div className="grid grid-cols-2 gap-2 pt-1.5">
                             {/* Metric 1: Currently Online */}
-                            <div className="bg-white/95 px-2.5 py-1.5 rounded-xl border border-slate-200/80 flex items-center justify-center gap-2 shadow-2xs">
-                                <Users className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                <span className="text-[11px] font-semibold text-slate-600">Online:</span>
+                            <div className="bg-white/95 px-3 py-1.5 rounded-xl border border-slate-200/80 flex items-center justify-between shadow-2xs">
+                                <div className="flex items-center gap-1.5 text-slate-600 text-xs font-semibold">
+                                    <Users className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span className="text-[11px]">Online Now</span>
+                                </div>
                                 <div className="flex items-baseline gap-1">
-                                    <span className="text-sm font-black font-mono text-dark-slate">{presenceStats.currentOnline}</span>
-                                    <span className="text-[10px] text-emerald-600 font-bold">active</span>
+                                    <span className="text-base font-black font-mono text-dark-slate">{presenceStats.currentOnline}</span>
+                                    <span className="text-[10px] text-emerald-600 font-extrabold">active</span>
                                 </div>
                             </div>
 
                             {/* Metric 2: Total Historical */}
-                            <div className="bg-white/95 px-2.5 py-1.5 rounded-xl border border-slate-200/80 flex items-center justify-center gap-2 shadow-2xs">
-                                <Activity className="w-3.5 h-3.5 text-primary-teal shrink-0" />
-                                <span className="text-[11px] font-semibold text-slate-600">Historical:</span>
+                            <div className="bg-white/95 px-3 py-1.5 rounded-xl border border-slate-200/80 flex items-center justify-between shadow-2xs">
+                                <div className="flex items-center gap-1.5 text-slate-600 text-xs font-semibold">
+                                    <Activity className="w-3.5 h-3.5 text-primary-teal shrink-0" />
+                                    <span className="text-[11px]">Historical</span>
+                                </div>
                                 <div className="flex items-baseline gap-0.5">
-                                    <span className="text-sm font-black font-mono text-dark-slate">{presenceStats.historicalTotal.toLocaleString()}</span>
-                                    <span className="text-[10px] font-extrabold text-primary-teal">+</span>
+                                    <span className="text-base font-black font-mono text-dark-slate">{presenceStats.historicalTotal.toLocaleString()}</span>
+                                    <span className="text-[11px] font-extrabold text-primary-teal">+</span>
                                 </div>
                             </div>
                         </div>
@@ -854,7 +858,7 @@ export default function Auth() {
                     )}
 
                     {/* Common Security Footer */}
-                    <div className="mt-6 flex items-center justify-center space-x-2 text-xs text-primary-teal font-bold bg-light-teal/40 border border-light-teal py-2.5 rounded-full">
+                    <div className="mt-8 flex items-center justify-center space-x-2 text-xs text-primary-teal font-bold bg-light-teal/40 border border-light-teal py-2.5 rounded-full">
                         <ShieldCheck className="w-4 h-4 text-primary-teal" />
                         <span>Encrypted Session · HIPAA & GDPR Compliant</span>
                     </div>
