@@ -115,7 +115,7 @@ export const DEFAULT_CLINIC_DOCTORS = [
         ]),
         education: "BDS - King Edward Medical University (2009)\r\nMDS (Oral & Maxillofacial Surgery) - Postgraduate Institute of Dental Sciences (2014)\r\nFellowship in Advanced Implantology - International Congress of Oral Implantologists (ICOI USA, 2017)",
         certifications: "Diplomate & Fellow ICOI (USA), Digital Guided Implant Surgery Specialist, BLS/ACLS Certified",
-        consultationFee: 180,
+        consultationFee: 1800,
         avatar: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=400",
         languages: "English, Urdu, Punjabi",
         rating: 4.97,

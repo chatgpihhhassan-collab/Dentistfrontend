@@ -30,6 +30,30 @@ import {
     ArrowRight
 } from 'lucide-react';
 
+// Tailored Currency Formatter based on Doctor's Practice Region (PK: Rs, NZ: $, UK: £, US: $)
+export const formatDoctorFeeByRegion = (fee, region) => {
+    const num = Number(fee) || 0;
+    const r = String(region || 'NZ').toUpperCase().trim();
+    if (r === 'PK') {
+        return `Rs ${num.toLocaleString('en-PK')}`;
+    }
+    if (r === 'UK') {
+        return `£${num.toLocaleString('en-GB')}`;
+    }
+    if (r === 'EUR' || r === 'EU') {
+        return `€${num.toLocaleString('de-DE')}`;
+    }
+    return `$${num.toLocaleString('en-US')}`;
+};
+
+export const getCurrencySymbolByRegion = (region) => {
+    const r = String(region || 'NZ').toUpperCase().trim();
+    if (r === 'PK') return 'Rs';
+    if (r === 'UK') return '£';
+    if (r === 'EUR' || r === 'EU') return '€';
+    return '$';
+};
+
 export default function DoctorManagement() {
     const navigate = useNavigate();
     const currentSuperAdmin = JSON.parse(localStorage.getItem('doctor') || '{}');
@@ -580,7 +604,7 @@ export default function DoctorManagement() {
                                                     <span>{doc.yearsOfExperience || 5} Yrs</span>
                                                 </div>
                                                 <div className="text-[11px] text-muted-text font-bold mt-1">
-                                                    ${doc.consultationFee || 100} / visit
+                                                    {formatDoctorFeeByRegion(doc.consultationFee || (doc.region === 'PK' ? 1500 : 100), doc.region)} / visit
                                                 </div>
                                             </td>
 
@@ -770,26 +794,41 @@ export default function DoctorManagement() {
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-xs font-bold text-muted-text uppercase tracking-wider">Consultation Fee ($)</label>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                value={editingDoctor.consultationFee}
-                                                onChange={e => setEditingDoctor({ ...editingDoctor, consultationFee: e.target.value })}
-                                                className="w-full px-4 py-2.5 bg-light-teal/20 border border-light-teal/60 rounded-xl text-xs font-medium text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal"
-                                            />
+                                            <label className="text-xs font-bold text-muted-text uppercase tracking-wider">
+                                                Consultation Fee ({getCurrencySymbolByRegion(editingDoctor.region)})
+                                            </label>
+                                            <div className="relative">
+                                                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-text">
+                                                    {getCurrencySymbolByRegion(editingDoctor.region)}
+                                                </span>
+                                                <input
+                                                    type="number"
+                                                    step="any"
+                                                    value={editingDoctor.consultationFee}
+                                                    onChange={e => setEditingDoctor({ ...editingDoctor, consultationFee: e.target.value })}
+                                                    className="w-full pl-10 pr-4 py-2.5 bg-light-teal/20 border border-light-teal/60 rounded-xl text-xs font-medium text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal"
+                                                    placeholder={editingDoctor.region === 'PK' ? "1500" : "120"}
+                                                />
+                                            </div>
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-xs font-bold text-muted-text uppercase tracking-wider">Region</label>
                                             <select
                                                 value={editingDoctor.region}
-                                                onChange={e => setEditingDoctor({ ...editingDoctor, region: e.target.value })}
+                                                onChange={e => {
+                                                    const selectedRegion = e.target.value;
+                                                    setEditingDoctor(prev => ({
+                                                        ...prev,
+                                                        region: selectedRegion,
+                                                        consultationFee: selectedRegion === 'PK' && (Number(prev.consultationFee) <= 200 || !prev.consultationFee) ? 1500.00 : prev.consultationFee
+                                                    }));
+                                                }}
                                                 className="w-full px-4 py-2.5 bg-light-teal/20 border border-light-teal/60 rounded-xl text-xs font-medium text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal"
                                             >
-                                                <option value="NZ">New Zealand (NZ)</option>
-                                                <option value="PK">Pakistan (PK)</option>
-                                                <option value="US">United States (US)</option>
-                                                <option value="UK">United Kingdom (UK)</option>
+                                                <option value="NZ">New Zealand (NZ) - NZD ($)</option>
+                                                <option value="PK">Pakistan (PK) - PKR (Rs)</option>
+                                                <option value="US">United States (US) - USD ($)</option>
+                                                <option value="UK">United Kingdom (UK) - GBP (£)</option>
                                             </select>
                                         </div>
                                     </div>
@@ -1068,26 +1107,41 @@ export default function DoctorManagement() {
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
-                                    <label className="text-xs font-bold text-muted-text uppercase">Consultation Fee ($)</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        value={newDocForm.consultationFee}
-                                        onChange={e => setNewDocForm({ ...newDocForm, consultationFee: e.target.value })}
-                                        className="w-full px-4 py-2.5 bg-light-teal/20 border border-light-teal/60 rounded-xl text-xs font-medium text-dark-slate focus:outline-none"
-                                    />
+                                    <label className="text-xs font-bold text-muted-text uppercase">
+                                        Consultation Fee ({getCurrencySymbolByRegion(newDocForm.region)})
+                                    </label>
+                                    <div className="relative">
+                                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-text">
+                                            {getCurrencySymbolByRegion(newDocForm.region)}
+                                        </span>
+                                        <input
+                                            type="number"
+                                            step="any"
+                                            value={newDocForm.consultationFee}
+                                            onChange={e => setNewDocForm({ ...newDocForm, consultationFee: e.target.value })}
+                                            className="w-full pl-10 pr-4 py-2.5 bg-light-teal/20 border border-light-teal/60 rounded-xl text-xs font-medium text-dark-slate focus:outline-none"
+                                            placeholder={newDocForm.region === 'PK' ? "1500" : "120"}
+                                        />
+                                    </div>
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold text-muted-text uppercase">Practice Region</label>
                                     <select
                                         value={newDocForm.region}
-                                        onChange={e => setNewDocForm({ ...newDocForm, region: e.target.value })}
+                                        onChange={e => {
+                                            const selectedRegion = e.target.value;
+                                            setNewDocForm(prev => ({
+                                                ...prev,
+                                                region: selectedRegion,
+                                                consultationFee: selectedRegion === 'PK' && (prev.consultationFee === 120.00 || !prev.consultationFee) ? 1500.00 : (selectedRegion !== 'PK' && prev.consultationFee === 1500.00 ? 120.00 : prev.consultationFee)
+                                            }));
+                                        }}
                                         className="w-full px-4 py-2.5 bg-light-teal/20 border border-light-teal/60 rounded-xl text-xs font-medium text-dark-slate focus:outline-none"
                                     >
-                                        <option value="NZ">New Zealand (NZ)</option>
-                                        <option value="PK">Pakistan (PK)</option>
-                                        <option value="US">United States (US)</option>
-                                        <option value="UK">United Kingdom (UK)</option>
+                                        <option value="NZ">New Zealand (NZ) - NZD ($)</option>
+                                        <option value="PK">Pakistan (PK) - PKR (Rs)</option>
+                                        <option value="US">United States (US) - USD ($)</option>
+                                        <option value="UK">United Kingdom (UK) - GBP (£)</option>
                                     </select>
                                 </div>
                             </div>
