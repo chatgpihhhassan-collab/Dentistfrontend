@@ -205,7 +205,7 @@ export default function DentiaAIRadiologyStudioPage() {
         )}
 
         {/* 2. Main Studio Body: Focused 2-Column Clinical Layout */}
-        <div className="flex flex-col lg:flex-row gap-4 items-stretch w-full">
+        <div className="flex flex-col lg:flex-row gap-4 items-start w-full">
           {/* Left Column: Hero Diagnostic Center (Wide Viewport) */}
           <main className="flex-1 flex flex-col gap-3 min-w-0">
             {/* Top 4 KPI Ring Cards (Linked to DB Findings) */}
@@ -254,7 +254,7 @@ export default function DentiaAIRadiologyStudioPage() {
           </main>
 
           {/* Right Column: Clean AI Diagnostic Summary & 1-Click Action Panel */}
-          <aside className="w-full lg:w-[340px] xl:w-[370px] shrink-0 flex flex-col">
+          <aside className="w-full lg:w-[350px] xl:w-[375px] shrink-0 sticky top-3 flex flex-col">
             <AISuggestionsActionPanel
               patientId={patientId}
               patientName={patientName}

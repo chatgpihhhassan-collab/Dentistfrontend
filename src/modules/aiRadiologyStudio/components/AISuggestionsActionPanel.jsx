@@ -143,7 +143,7 @@ export default function AISuggestionsActionPanel({
       {/* ========================================================================= */}
       {/* PANEL 2: Targeted Procedures & Treatment Action Engine                    */}
       {/* ========================================================================= */}
-      <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-xs flex-1 flex flex-col justify-between gap-3 min-h-0">
+      <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-xs flex flex-col gap-3 shrink-0">
         {/* Header & Filter Controls */}
         <div className="flex flex-col gap-2 shrink-0">
           <div className="flex items-center justify-between text-[12px] font-black text-slate-900 px-0.5">
@@ -193,8 +193,8 @@ export default function AISuggestionsActionPanel({
           </div>
         </div>
 
-        {/* Dynamic Scrollable Procedure Queue (Expands to fill available vertical space) */}
-        <div className="flex flex-col gap-2 flex-1 min-h-[220px] overflow-y-auto pr-1 my-0.5">
+        {/* Dynamic Scrollable Procedure Queue (Hugs content, max-height 360px with smooth scroll) */}
+        <div className="flex flex-col gap-2 max-h-[360px] overflow-y-auto pr-1 my-0.5">
           {filteredSuggestions.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-6 text-center text-slate-400 gap-2 flex-1">
               <CheckCircle2 className="w-8 h-8 text-emerald-500" />
