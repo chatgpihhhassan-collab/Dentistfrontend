@@ -15,16 +15,50 @@ export const NanoPixPatientPromptModal = ({ isOpen, onClose, onSelectPatient }) 
     const fetchPatients = async () => {
       setLoading(true);
       try {
-        let res = await fetch('/api/patients');
-        if (!res.ok) {
-          res = await fetch('https://dentist-api-dev.vitonta.com/api/patients');
+        let docId = 1;
+        try {
+          const storedDoc = localStorage.getItem('doctor');
+          if (storedDoc) {
+            const parsed = JSON.parse(storedDoc);
+            docId = parsed.doctorID || parsed.id || 1;
+          }
+        } catch (e) {}
+
+        let patientList = [];
+        try {
+          const res = await fetch(`/api/patients/doctor/${docId}`);
+          const cType = res.headers.get('content-type') || '';
+          if (res.ok && cType.includes('application/json')) {
+            const data = await res.json();
+            if (Array.isArray(data)) patientList = data;
+          }
+        } catch (e) {}
+
+        if (patientList.length === 0) {
+          try {
+            const res = await fetch('https://dentist-api-dev.vitonta.com/api/patients');
+            const cType = res.headers.get('content-type') || '';
+            if (res.ok && cType.includes('application/json')) {
+              const data = await res.json();
+              if (Array.isArray(data)) patientList = data;
+            }
+          } catch (e) {}
         }
-        if (res.ok) {
-          const data = await res.json();
-          setPatients(Array.isArray(data) ? data : []);
+
+        // Fallback to active session patients if available in local storage
+        if (patientList.length === 0) {
+          try {
+            const cached = localStorage.getItem('clinic_patients_cache');
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              if (Array.isArray(parsed)) patientList = parsed;
+            }
+          } catch (e) {}
         }
+
+        setPatients(patientList);
       } catch (err) {
-        console.error('Failed to load clinic patients:', err);
+        console.warn('Clinic patients query fallback:', err);
       } finally {
         setLoading(false);
       }

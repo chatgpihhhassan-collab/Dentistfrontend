@@ -605,6 +605,9 @@ export default function PatientDirectory() {
                 if (isCancelled) return [];
                 setPatients(data || []);
                 if (data && data.length > 0) {
+                    try {
+                        localStorage.setItem('clinic_patients_cache', JSON.stringify(data));
+                    } catch (e) {}
                     setSelectedPatient(prev => prev || data[0]);
                     // Speculatively prefetch top patient chart & prescriptions for instant click-through
                     const topP = data[0];
