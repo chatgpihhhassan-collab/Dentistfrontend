@@ -216,6 +216,53 @@ function broadcastSSE(event, data) {
   });
 }
 
+// Find the latest existing scan file across all watch folders
+function getLatestScanFromFolders() {
+  let newestFile = null;
+  let newestMtime = 0;
+
+  WATCH_FOLDERS.forEach(folder => {
+    try {
+      if (fs.existsSync(folder)) {
+        const files = fs.readdirSync(folder);
+        files.forEach(file => {
+          const ext = path.extname(file).toLowerCase();
+          if (['.png', '.jpg', '.jpeg', '.tiff', '.tif', '.dcm'].includes(ext)) {
+            const fullPath = path.join(folder, file);
+            const stat = fs.statSync(fullPath);
+            if (stat.mtimeMs > newestMtime) {
+              newestMtime = stat.mtimeMs;
+              newestFile = fullPath;
+            }
+          }
+        });
+      }
+    } catch (e) {}
+  });
+
+  if (newestFile) {
+    const dataUrl = fileToDataUrl(newestFile);
+    if (dataUrl) {
+      return {
+        id: newestMtime,
+        timestamp: new Date(newestMtime).toISOString(),
+        filename: path.basename(newestFile),
+        dataUrl: dataUrl,
+        toothKey: '19',
+        patientId: activePatientId || '1',
+        source: 'NanoPix Hot-Folder Storage (' + path.basename(newestFile) + ')'
+      };
+    }
+  }
+  return null;
+}
+
+// Initial check on startup
+latestScan = getLatestScanFromFolders();
+if (latestScan) {
+  console.log(`[NANOPIX BRIDGE] 📄 Loaded existing radiograph: ${latestScan.filename}`);
+}
+
 // HTTP API Server
 const server = http.createServer((req, res) => {
   // Enable CORS
@@ -234,6 +281,7 @@ const server = http.createServer((req, res) => {
   // 1. Status
   if (url.pathname === '/nanopix/status') {
     usbConnected = checkPhysicalUsbHardware();
+    if (!latestScan) latestScan = getLatestScanFromFolders();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       bridgeOnline: true,
@@ -242,15 +290,19 @@ const server = http.createServer((req, res) => {
       serialNumber: 'NP2-2026-9814',
       status: 'Ready (Armed)',
       hotFolders: WATCH_FOLDERS,
-      hasPendingScan: Boolean(latestScan)
+      hasPendingScan: Boolean(latestScan),
+      latestFile: latestScan ? latestScan.filename : null
     }));
     return;
   }
 
   // 2. Latest Scan Polling
   if (url.pathname === '/nanopix/latest-scan') {
+    if (!latestScan) {
+      latestScan = getLatestScanFromFolders();
+    }
     const scan = latestScan;
-    // Clear after reading if queried
+    // Clear after reading if queried with consume
     if (url.searchParams.get('consume') === 'true') {
       latestScan = null;
     }
