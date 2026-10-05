@@ -547,9 +547,11 @@ export function useDigoraHardwareSync({
   }, [patientId, autoArm, operatoryId, armScanner]);
 
   // 12. Hardware Bridge Auto-Acquisition Poller (Polls for scans dropped by physical hardware / hot folder)
+  // 12. Hardware Bridge Auto-Acquisition Poller (Polls for scans dropped by physical hardware / hot folder)
   useEffect(() => {
     if (!patientId) return;
 
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
     let isSubscribed = true;
     let timerId = null;
     let consecutiveErrors = 0;
@@ -558,11 +560,15 @@ export function useDigoraHardwareSync({
       if (!isSubscribed) return;
 
       try {
-        const bridgeUrl = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
-          ? '/digora/latest-scan'
-          : 'http://127.0.0.1:5055/digora/latest-scan';
+        const bridgeUrl = isLocal ? '/digora/latest-scan' : 'http://127.0.0.1:5055/digora/latest-scan';
 
-        const res = await fetch(bridgeUrl).catch(() => null);
+        // 1.5s timeout controller to avoid browser hanging
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 1500);
+
+        const res = await fetch(bridgeUrl, { signal: controller.signal }).catch(() => null);
+        clearTimeout(timeout);
+
         if (res && res.ok) {
           consecutiveErrors = 0;
           const data = await res.json().catch(() => null);
@@ -583,14 +589,15 @@ export function useDigoraHardwareSync({
       }
 
       if (isSubscribed) {
-        // If local Digora bridge is offline/502, relax polling to 15s instead of spamming console every 1.5s
-        const nextDelay = consecutiveErrors > 1 ? 15000 : 2000;
+        // If on production Vercel or local bridge is offline, do NOT spam console
+        // Relax timer to 45s if offline
+        const nextDelay = consecutiveErrors >= 1 ? (isLocal ? 20000 : 45000) : 2500;
         timerId = setTimeout(pollBridge, nextDelay);
       }
     };
 
-    // Initial poll
-    timerId = setTimeout(pollBridge, 1500);
+    // Only start polling immediately on localhost, or delay 5s on production
+    timerId = setTimeout(pollBridge, isLocal ? 2000 : 5000);
 
     return () => {
       isSubscribed = false;
