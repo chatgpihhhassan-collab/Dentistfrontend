@@ -359,14 +359,25 @@ const server = http.createServer((req, res) => {
   if (url.pathname === '/nanopix/events') {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive'
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+      'Access-Control-Allow-Origin': '*'
     });
 
     res.write(`event: connected\ndata: ${JSON.stringify({ model: 'Eighteeth Nano-Pix 2', serial: 'NP2-2026-9814' })}\n\n`);
     sseClients.push(res);
 
+    const heartbeat = setInterval(() => {
+      try {
+        res.write(': keepalive\n\n');
+      } catch (e) {
+        clearInterval(heartbeat);
+      }
+    }, 10000);
+
     req.on('close', () => {
+      clearInterval(heartbeat);
       sseClients = sseClients.filter(client => client !== res);
     });
     return;
