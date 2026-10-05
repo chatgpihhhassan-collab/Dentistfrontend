@@ -203,6 +203,34 @@ export const NanoPixCaptureModal = ({
     return () => window.removeEventListener('paste', handlePaste);
   }, [isOpen, activeSlotKey]);
 
+  // Automatic Real-Time Hardware Bridge Auto-Acquisition
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleAutoScan = async (scanData) => {
+      if (!scanData || !scanData.dataUrl) return;
+      nanoPixService.log('SUCCESS', `Auto-ingesting new radiograph from Nano-Pix Bridge: ${scanData.filename || 'Direct Exposure'}`);
+      
+      try {
+        const res = await fetch(scanData.dataUrl);
+        const blob = await res.blob();
+        const file = new File([blob], scanData.filename || `NanoPix_${activeSlotKey}_Exposure.png`, { type: 'image/png' });
+        await processImageForActiveSlot(file, scanData.filename);
+      } catch (err) {
+        console.error('Failed to parse scan dataUrl:', err);
+      }
+    };
+
+    const unsub = nanoPixService.subscribe('scan-acquired', handleAutoScan);
+    const onCustomScan = (e) => handleAutoScan(e.detail);
+    window.addEventListener('nanopix:scan-acquired', onCustomScan);
+
+    return () => {
+      if (typeof unsub === 'function') unsub();
+      window.removeEventListener('nanopix:scan-acquired', onCustomScan);
+    };
+  }, [isOpen, activeSlotKey]);
+
   if (!isOpen) return null;
 
   // ---------------------------------------------------------------------------

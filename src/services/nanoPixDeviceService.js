@@ -39,6 +39,57 @@ class NanoPixDeviceService {
 
     // Auto-init connection listeners if browser supports WebUSB/WebHID/MediaDevices
     this.initHardwareHooks();
+    this.initBridgeSync();
+  }
+
+  // ---------------------------------------------------------------------------
+  // AUTO-SYNC WITH LOCAL NANOPIX HARDWARE BRIDGE (PORT 5066)
+  // ---------------------------------------------------------------------------
+  initBridgeSync() {
+    if (typeof window === 'undefined') return;
+
+    let isPolling = false;
+    const pollBridge = async () => {
+      if (isPolling) return;
+      isPolling = true;
+      try {
+        const res = await fetch('/nanopix/latest-scan?consume=true');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.hasScan && data.scan) {
+            this.log('EXPOSURE', `⚡ Real-time Scan auto-received from Nano-Pix Bridge: ${data.scan.filename || 'Direct Exposure'}`, data.scan);
+            this.playConnectChime();
+            this.emit('scan-acquired', data.scan);
+            window.dispatchEvent(new CustomEvent('nanopix:scan-acquired', { detail: data.scan }));
+          }
+        }
+      } catch (e) {
+        // Bridge standby
+      } finally {
+        isPolling = false;
+      }
+    };
+
+    // Poll every 1.2s for incoming X-rays
+    setInterval(pollBridge, 1200);
+
+    // Also attempt SSE live stream
+    try {
+      if (typeof EventSource !== 'undefined') {
+        const es = new EventSource('/nanopix/events');
+        es.addEventListener('scan', (event) => {
+          try {
+            const scan = JSON.parse(event.data);
+            if (scan) {
+              this.log('EXPOSURE', `⚡ Instant SSE Radiograph Stream Received: ${scan.filename}`, scan);
+              this.playConnectChime();
+              this.emit('scan-acquired', scan);
+              window.dispatchEvent(new CustomEvent('nanopix:scan-acquired', { detail: scan }));
+            }
+          } catch (err) {}
+        });
+      }
+    } catch (e) {}
   }
 
   // ---------------------------------------------------------------------------

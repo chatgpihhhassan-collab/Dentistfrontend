@@ -22,6 +22,21 @@ export default defineConfig({
           });
         }
       },
+      '/nanopix': {
+        target: 'http://127.0.0.1:5066',
+        changeOrigin: true,
+        secure: false,
+        timeout: 3000,
+        proxyTimeout: 3000,
+        configure: (proxy) => {
+          proxy.on('error', (_err, _req, res) => {
+            if (!res.headersSent && res.writeHead) {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ bridgeOnline: false, hasScan: false, note: 'NanoPix hardware bridge is standby' }));
+            }
+          });
+        }
+      },
       '/hubs': {
         target: 'https://dentist-api-dev.vitonta.com',
         changeOrigin: true,
