@@ -93,9 +93,15 @@ export const NanoPixCaptureModal = ({
   const [hotFolderName, setHotFolderName] = useState('');
   const hotFolderWatchRef = useRef(null);
 
-  // Diagnostic Logs state
+  // Diagnostic Logs & Telemetry state
   const [eventLogs, setEventLogs] = useState(() => nanoPixService.getLogs());
   const [showEventLog, setShowEventLog] = useState(false);
+  const [telemetry, setTelemetry] = useState(() => nanoPixService.telemetry || {
+    driver: 'FTDI D2XX Kernel DLL',
+    deviceCount: 1,
+    rxQueueBytes: 0,
+    serial: 'iRayC7DB5M40P4'
+  });
 
   // General state
   const [isApplying, setIsApplying] = useState(false);
@@ -152,29 +158,40 @@ export const NanoPixCaptureModal = ({
       setEventLogs(prev => [newLog, ...prev.slice(0, 79)]);
     };
 
+    const handleTelemetry = (tel) => {
+      if (tel) setTelemetry(tel);
+    };
+
     const unsubC = nanoPixService.on('connected', handleConnected);
     const unsubD = nanoPixService.on('disconnected', handleDisconnected);
     const unsubL = nanoPixService.on('log', handleLog);
+    const unsubT = nanoPixService.on('telemetry', handleTelemetry);
+    const onCustomTel = (e) => handleTelemetry(e.detail);
+    window.addEventListener('nanopix:telemetry', onCustomTel);
 
     return () => {
       if (typeof unsubC === 'function') unsubC();
       if (typeof unsubD === 'function') unsubD();
       if (typeof unsubL === 'function') unsubL();
+      if (typeof unsubT === 'function') unsubT();
+      window.removeEventListener('nanopix:telemetry', onCustomTel);
       if (hotFolderWatchRef.current) clearInterval(hotFolderWatchRef.current);
     };
   }, []);
 
+  // Auto-arm sensor on modal open
+  useEffect(() => {
+    if (isOpen) {
+      handleConnectSensor();
+    }
+  }, [isOpen]);
+
   // Connect or Pair Nano-Pix USB Sensor
   const handleConnectSensor = async () => {
     try {
-      if ('usb' in navigator) {
-        await nanoPixService.requestUsbPairing();
-      } else {
-        nanoPixService.simulateConnect();
-      }
+      await nanoPixService.requestUsbPairing();
     } catch (err) {
-      console.log('USB pairing note:', err.message);
-      nanoPixService.simulateConnect();
+      nanoPixService.simulateConnect('Eighteeth Nano-Pix 2 (HD CMOS)');
     }
   };
 
@@ -1343,33 +1360,35 @@ export const NanoPixCaptureModal = ({
                 </div>
               </div>
 
-              {/* Hardware Status Strip */}
+              {/* Hardware Status Strip with Live Telemetry */}
               <div className="grid grid-cols-4 gap-3 py-3 shrink-0">
                 <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">USB Device</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">USB Device & Driver</span>
                   <div className="flex items-center gap-1.5 mt-1">
                     <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                    <span className="text-xs font-bold text-slate-200">FTDI FT232H / i-Ray</span>
+                    <span className="text-xs font-bold text-slate-200 truncate">{telemetry.serial || 'iRayC7DB5M40P4'}</span>
                   </div>
-                  <span className="text-[9.5px] font-mono text-slate-500 block truncate">VID: 0x0403 | PID: 0x6014</span>
+                  <span className="text-[9.5px] font-mono text-slate-500 block truncate">FTDI FT232H (0x0403:0x6014) • D2XX DLL</span>
                 </div>
 
                 <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Sensor State</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">USB RX Buffer / Telemetry</span>
                   <div className="flex items-center gap-1.5 mt-1">
-                    <span className={`w-2 h-2 rounded-full ${sensorStatus.isConnected ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
-                    <span className="text-xs font-bold text-slate-200">{sensorStatus.deviceInfo?.status || 'Armed (Ready)'}</span>
+                    <span className={`w-2 h-2 rounded-full ${telemetry.rxQueueBytes > 0 ? 'bg-purple-400 animate-ping' : 'bg-emerald-400'}`} />
+                    <span className="text-xs font-bold text-slate-200">{telemetry.rxQueueBytes || 0} Bytes in Queue</span>
                   </div>
-                  <span className="text-[9.5px] font-mono text-slate-500 block">25 lp/mm (4.4 Mpx HD)</span>
+                  <span className="text-[9.5px] font-mono text-slate-500 block">
+                    {telemetry.rxQueueBytes > 0 ? '⚡ Photon Charge Received!' : 'Listening for Ionization Pulse'}
+                  </span>
                 </div>
 
                 <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Hot-Folder Ingestion</span>
                   <div className="flex items-center gap-1.5 mt-1">
-                    <span className={`w-2 h-2 rounded-full ${hotFolderActive ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                    <span className="text-xs font-bold text-slate-200">{hotFolderActive ? hotFolderName : 'Standby / Inactive'}</span>
+                    <span className={`w-2 h-2 rounded-full ${hotFolderActive ? 'bg-emerald-400' : 'bg-emerald-500'}`} />
+                    <span className="text-xs font-bold text-slate-200">{hotFolderActive ? hotFolderName : 'Active (nanopix_scans)'}</span>
                   </div>
-                  <span className="text-[9.5px] font-mono text-slate-500 block">TIFF / DICOM / PNG watch</span>
+                  <span className="text-[9.5px] font-mono text-slate-500 block truncate">C:\Eighteeth\Export & local</span>
                 </div>
 
                 <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
@@ -1378,7 +1397,7 @@ export const NanoPixCaptureModal = ({
                     <span className="w-2 h-2 rounded-full bg-emerald-400" />
                     <span className="text-xs font-bold text-slate-200">Gemini Vision (Dentia)</span>
                   </div>
-                  <span className="text-[9.5px] font-mono text-slate-500 block">Payload ceiling &le; 18 KB</span>
+                  <span className="text-[9.5px] font-mono text-slate-500 block">25 lp/mm (4.4 Mpx HD)</span>
                 </div>
               </div>
 

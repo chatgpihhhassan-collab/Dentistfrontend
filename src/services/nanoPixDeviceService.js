@@ -63,6 +63,14 @@ class NanoPixDeviceService {
       window.dispatchEvent(new CustomEvent('nanopix:scan-acquired', { detail: scan }));
     };
 
+    this.telemetry = {
+      driver: 'FTDI D2XX Kernel DLL',
+      deviceCount: 1,
+      rxQueueBytes: 0,
+      txQueueBytes: 0,
+      serial: 'iRayC7DB5M40P4'
+    };
+
     const pollBridge = async () => {
       if (isPolling) return;
       isPolling = true;
@@ -74,6 +82,17 @@ class NanoPixDeviceService {
             handleIncomingScan(data.scan);
           }
         }
+
+        // Also fetch live USB telemetry
+        const tRes = await fetch('/nanopix/telemetry');
+        if (tRes.ok) {
+          const tData = await tRes.json();
+          if (tData && tData.telemetry) {
+            this.telemetry = tData.telemetry;
+            this.emit('telemetry', this.telemetry);
+            window.dispatchEvent(new CustomEvent('nanopix:telemetry', { detail: this.telemetry }));
+          }
+        }
       } catch (e) {
         // Bridge standby
       } finally {
@@ -81,8 +100,8 @@ class NanoPixDeviceService {
       }
     };
 
-    // Poll every 2.0s for incoming X-rays
-    setInterval(pollBridge, 2000);
+    // Poll every 1.5s for incoming X-rays and USB bus telemetry
+    setInterval(pollBridge, 1500);
 
     // Also attempt SSE live stream
     try {
@@ -93,6 +112,15 @@ class NanoPixDeviceService {
             const scan = JSON.parse(event.data);
             if (scan) {
               handleIncomingScan(scan);
+            }
+          } catch (err) {}
+        });
+
+        es.addEventListener('log', (event) => {
+          try {
+            const item = JSON.parse(event.data);
+            if (item) {
+              this.log(item.type, item.message, item.details);
             }
           } catch (err) {}
         });
