@@ -22,11 +22,15 @@ const userProfileScansFolder = process.env.USERPROFILE
   ? path.join(process.env.USERPROFILE, 'Dentia', 'NanoPixScans') 
   : projectScansFolder;
 const eighteethDefaultExport = 'C:\\Eighteeth\\Export';
+const nanoPixActiveDataDir = 'D:\\PatientData';
+const nanoPixDownloadsDir = path.join(process.env.USERPROFILE || 'C:\\Users\\lenovo', 'Downloads', 'NanoPix');
 
 const WATCH_FOLDERS = [
+  nanoPixActiveDataDir,
   projectScansFolder,
   userProfileScansFolder,
-  eighteethDefaultExport
+  eighteethDefaultExport,
+  nanoPixDownloadsDir
 ];
 
 // Ensure local folders exist
@@ -261,12 +265,33 @@ function handleNewScanFile(filePath) {
   console.log(`[NANOPIX BRIDGE] ✅ Radiograph broadcasted to ${sseClients.length} web client(s)!`);
 }
 
-// Setup Watchers on Hot Folders
+// Recursive file collector for nested directories
+function getAllScanFilesInDir(dir, maxDepth = 3) {
+  let results = [];
+  try {
+    if (!fs.existsSync(dir)) return results;
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory() && maxDepth > 0) {
+        results = results.concat(getAllScanFilesInDir(fullPath, maxDepth - 1));
+      } else if (entry.isFile()) {
+        const ext = path.extname(entry.name).toLowerCase();
+        if (['.png', '.jpg', '.jpeg', '.tiff', '.tif', '.dcm'].includes(ext)) {
+          results.push(fullPath);
+        }
+      }
+    }
+  } catch (e) {}
+  return results;
+}
+
+// Setup Watchers on Hot Folders (Recursive on Windows)
 WATCH_FOLDERS.forEach(folder => {
   try {
     if (fs.existsSync(folder)) {
       console.log(`[NANOPIX BRIDGE] 📁 Watching directory for X-rays: ${folder}`);
-      fs.watch(folder, (eventType, filename) => {
+      fs.watch(folder, { recursive: true }, (eventType, filename) => {
         if (!filename) return;
         const fullPath = path.join(folder, filename);
         const ext = path.extname(filename).toLowerCase();
@@ -304,29 +329,23 @@ function broadcastLog(type, message, details = null) {
   broadcastSSE('log', logItem);
 }
 
-// Find any NEW scan file across all watch folders
+// Find any NEW scan file across all watch folders & nested patient folders
 function getLatestScanFromFolders() {
   let newestFile = null;
   let newestMtime = 0;
 
   WATCH_FOLDERS.forEach(folder => {
-    try {
-      if (fs.existsSync(folder)) {
-        const files = fs.readdirSync(folder);
-        files.forEach(file => {
-          const ext = path.extname(file).toLowerCase();
-          if (['.png', '.jpg', '.jpeg', '.tiff', '.tif', '.dcm'].includes(ext)) {
-            const fullPath = path.join(folder, file);
-            const stat = fs.statSync(fullPath);
-            const fileKey = `${stat.mtimeMs}_${file}`;
-            if (stat.mtimeMs > newestMtime && !consumedScanIds.has(fileKey)) {
-              newestMtime = stat.mtimeMs;
-              newestFile = fullPath;
-            }
-          }
-        });
-      }
-    } catch (e) {}
+    const allFiles = getAllScanFilesInDir(folder, 3);
+    allFiles.forEach(fullPath => {
+      try {
+        const stat = fs.statSync(fullPath);
+        const fileKey = `${stat.mtimeMs}_${path.basename(fullPath)}`;
+        if (stat.mtimeMs > newestMtime && !consumedScanIds.has(fileKey)) {
+          newestMtime = stat.mtimeMs;
+          newestFile = fullPath;
+        }
+      } catch (e) {}
+    });
   });
 
   if (newestFile) {
@@ -341,7 +360,7 @@ function getLatestScanFromFolders() {
         dataUrl: dataUrl,
         toothKey: '19',
         patientId: activePatientId || '1',
-        source: 'NanoPix Hot-Folder Storage (' + fileName + ')'
+        source: 'NanoPix Live Data Folder (' + fileName + ')'
       };
     }
   }
