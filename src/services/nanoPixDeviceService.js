@@ -106,24 +106,35 @@ class NanoPixDeviceService {
     // Also attempt SSE live stream
     try {
       if (typeof EventSource !== 'undefined') {
-        const es = new EventSource('/nanopix/events');
-        es.addEventListener('scan', (event) => {
-          try {
-            const scan = JSON.parse(event.data);
-            if (scan) {
-              handleIncomingScan(scan);
-            }
-          } catch (err) {}
-        });
+        const sseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+          ? 'http://127.0.0.1:5066/nanopix/events'
+          : '/nanopix/events';
 
-        es.addEventListener('log', (event) => {
-          try {
-            const item = JSON.parse(event.data);
-            if (item) {
-              this.log(item.type, item.message, item.details);
-            }
-          } catch (err) {}
-        });
+        let es = null;
+        try {
+          es = new EventSource(sseUrl);
+          es.addEventListener('scan', (event) => {
+            try {
+              const scan = JSON.parse(event.data);
+              if (scan) {
+                handleIncomingScan(scan);
+              }
+            } catch (err) {}
+          });
+
+          es.addEventListener('log', (event) => {
+            try {
+              const item = JSON.parse(event.data);
+              if (item) {
+                this.log(item.type, item.message, item.details);
+              }
+            } catch (err) {}
+          });
+
+          es.onerror = () => {
+            // Keep silent; polling loop handles telemetry & scans seamlessly
+          };
+        } catch (e) {}
       }
     } catch (e) {}
   }

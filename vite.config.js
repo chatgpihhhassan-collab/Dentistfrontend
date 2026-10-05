@@ -26,8 +26,7 @@ export default defineConfig({
         target: 'http://127.0.0.1:5066',
         changeOrigin: true,
         secure: false,
-        timeout: 3000,
-        proxyTimeout: 3000,
+        ws: true,
         configure: (proxy) => {
           proxy.on('error', (_err, _req, res) => {
             if (!res.headersSent && res.writeHead) {

@@ -482,6 +482,7 @@ const server = http.createServer((req, res) => {
       'Access-Control-Allow-Origin': '*'
     });
 
+    res.write(`: connected\n\n`);
     res.write(`event: connected\ndata: ${JSON.stringify({ model: hardwareTelemetry.description, serial: hardwareTelemetry.serial })}\n\n`);
     sseClients.push(res);
 
@@ -491,9 +492,13 @@ const server = http.createServer((req, res) => {
       } catch (e) {
         clearInterval(heartbeat);
       }
-    }, 10000);
+    }, 3000);
 
     req.on('close', () => {
+      clearInterval(heartbeat);
+      sseClients = sseClients.filter(client => client !== res);
+    });
+    req.on('error', () => {
       clearInterval(heartbeat);
       sseClients = sseClients.filter(client => client !== res);
     });
