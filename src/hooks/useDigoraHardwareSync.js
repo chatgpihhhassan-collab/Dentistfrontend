@@ -551,15 +551,22 @@ export function useDigoraHardwareSync({
   useEffect(() => {
     if (!patientId) return;
 
-    const pollInterval = setInterval(async () => {
+    let isSubscribed = true;
+    let timerId = null;
+    let consecutiveErrors = 0;
+
+    const pollBridge = async () => {
+      if (!isSubscribed) return;
+
       try {
         const bridgeUrl = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
           ? '/digora/latest-scan'
           : 'http://127.0.0.1:5055/digora/latest-scan';
 
-        const res = await fetch(bridgeUrl);
-        if (res.ok) {
-          const data = await res.json();
+        const res = await fetch(bridgeUrl).catch(() => null);
+        if (res && res.ok) {
+          consecutiveErrors = 0;
+          const data = await res.json().catch(() => null);
           if (data?.hasScan && data?.scan) {
             console.log('%c[SOREDEX DIGORA] 📥 REAL HARDWARE SCAN RECEIVED FROM BRIDGE!%c', LOG_SUCCESS, '', data.scan);
             await simulateScan({
@@ -569,11 +576,27 @@ export function useDigoraHardwareSync({
               targetTeeth: '#14, #15'
             });
           }
+        } else {
+          consecutiveErrors++;
         }
-      } catch (_) {}
-    }, 1500);
+      } catch (_) {
+        consecutiveErrors++;
+      }
 
-    return () => clearInterval(pollInterval);
+      if (isSubscribed) {
+        // If local Digora bridge is offline/502, relax polling to 15s instead of spamming console every 1.5s
+        const nextDelay = consecutiveErrors > 1 ? 15000 : 2000;
+        timerId = setTimeout(pollBridge, nextDelay);
+      }
+    };
+
+    // Initial poll
+    timerId = setTimeout(pollBridge, 1500);
+
+    return () => {
+      isSubscribed = false;
+      if (timerId) clearTimeout(timerId);
+    };
   }, [patientId, simulateScan]);
 
   // 12. Manual Hardware Beep Test

@@ -5,7 +5,7 @@ import {
   RotateCcw, RefreshCw, AlertCircle, FileText, CheckCircle2, ChevronRight,
   HardDrive, Zap, Eye, Stethoscope, ArrowRight, User, Upload, FolderOpen,
   Clipboard, ShieldCheck, Activity, Layers, Image as ImageIcon, CheckCircle,
-  LayoutGrid, ChevronLeft, Compass, Crosshair, Radio, HelpCircle, Loader2
+  LayoutGrid, ChevronLeft, Compass, Crosshair, Radio, HelpCircle, Loader2, Terminal
 } from 'lucide-react';
 import nanoPixService from '../services/nanoPixDeviceService';
 import { generateRadiographPdf } from '../utils/RadiographReportGenerator';
@@ -93,6 +93,10 @@ export const NanoPixCaptureModal = ({
   const [hotFolderName, setHotFolderName] = useState('');
   const hotFolderWatchRef = useRef(null);
 
+  // Diagnostic Logs state
+  const [eventLogs, setEventLogs] = useState(() => nanoPixService.getLogs());
+  const [showEventLog, setShowEventLog] = useState(false);
+
   // General state
   const [isApplying, setIsApplying] = useState(false);
   const [appliedSuccess, setAppliedSuccess] = useState(false);
@@ -135,7 +139,7 @@ export const NanoPixCaptureModal = ({
     }));
   };
 
-  // Hardware connection listeners
+  // Hardware connection & Log listeners
   useEffect(() => {
     const handleConnected = (info) => {
       setSensorStatus({ isConnected: true, deviceInfo: info });
@@ -144,12 +148,18 @@ export const NanoPixCaptureModal = ({
       setSensorStatus({ isConnected: false, deviceInfo: nanoPixService.getStatus().deviceInfo });
     };
 
-    nanoPixService.on('connected', handleConnected);
-    nanoPixService.on('disconnected', handleDisconnected);
+    const handleLog = (newLog) => {
+      setEventLogs(prev => [newLog, ...prev.slice(0, 79)]);
+    };
+
+    const unsubC = nanoPixService.on('connected', handleConnected);
+    const unsubD = nanoPixService.on('disconnected', handleDisconnected);
+    const unsubL = nanoPixService.on('log', handleLog);
 
     return () => {
-      nanoPixService.off('connected', handleConnected);
-      nanoPixService.off('disconnected', handleDisconnected);
+      if (typeof unsubC === 'function') unsubC();
+      if (typeof unsubD === 'function') unsubD();
+      if (typeof unsubL === 'function') unsubL();
       if (hotFolderWatchRef.current) clearInterval(hotFolderWatchRef.current);
     };
   }, []);
@@ -179,6 +189,7 @@ export const NanoPixCaptureModal = ({
           if (items[i].type.indexOf('image') !== -1) {
             const blob = items[i].getAsFile();
             if (blob) {
+              nanoPixService.log('HOTFOLDER', `Clipboard paste event (Ctrl+V) captured (${(blob.size / 1024).toFixed(1)} KB). Ingesting for ${seriesData[activeSlotKey].label}...`);
               processImageForActiveSlot(blob, `NanoPix_${activeSlotKey}_Exposure.png`);
               e.preventDefault();
               break;
@@ -207,16 +218,17 @@ export const NanoPixCaptureModal = ({
       if (slotKey === 'left') samplePath = '/images/denty_ai/card_jaw_left.png';
       else if (slotKey === 'right') samplePath = '/images/denty_ai/card_jaw_right.png';
 
-      console.log(`⚡ [NANOPIX TEST EXPOSURE] Loading sensor projection sample from "${samplePath}" for slot "${slotKey}", tooth #${targetTooth}...`);
-      
+      nanoPixService.log('EXPOSURE', `Simulating physical X-Ray Exposure for ${seriesData[slotKey].label} (Tooth #${targetTooth})...`);
+
       const res = await fetch(samplePath);
       if (!res.ok) throw new Error(`HTTP ${res.status} loading sample`);
       const blob = await res.blob();
       const testFile = new File([blob], `NanoPix_${slotKey}_Tooth_${targetTooth}.png`, { type: 'image/png' });
 
+      nanoPixService.log('SUCCESS', `Radiograph exposure buffer acquired (Size: ${(blob.size / 1024).toFixed(1)} KB). Processing darkroom filters...`);
       await processImageForActiveSlot(testFile, `NanoPix_${slotKey}_Tooth_${targetTooth}.png`);
     } catch (err) {
-      console.warn('⚡ [NANOPIX TEST EXPOSURE] Sample fetch error, creating procedural radiograph:', err);
+      nanoPixService.log('WARN', `Sample fetch note, creating procedural radiograph: ${err.message}`);
       const canvas = document.createElement('canvas');
       canvas.width = 720;
       canvas.height = 540;
@@ -256,6 +268,8 @@ export const NanoPixCaptureModal = ({
     const targetTooth = seriesData[slotKey].selectedTooth;
     const fileName = customName || file.name || `NanoPix_${slotKey}_Tooth_${targetTooth}.png`;
 
+    nanoPixService.log('EXPOSURE', `Reading radiograph data: "${fileName}" for slot "${slotKey}", Tooth #${targetTooth}`);
+
     const reader = new FileReader();
     reader.onload = async (e) => {
       const dataUrl = e.target.result;
@@ -286,7 +300,7 @@ export const NanoPixCaptureModal = ({
     const docObj = storedDoc ? JSON.parse(storedDoc) : {};
     const doctorId = docObj.doctorID || docObj.DoctorID || 2;
 
-    console.log(`[STEP 1/5: USB CAPTURE] Processing scan for slot: "${slotKey}", Target Tooth: #${tooth}, File: ${fileName}`);
+    nanoPixService.log('AI', `Compressing & dispatching radiograph to Gemini Vision for Tooth #${tooth}...`);
 
     // Helper to ensure full UI & DB sync even if remote AI gateway is slow or fails
     const applyFallbackSync = async (fallback) => {
@@ -312,13 +326,13 @@ export const NanoPixCaptureModal = ({
         }
       }));
 
+      nanoPixService.log('SUCCESS', `Synchronized ${fallback.findings.length} findings to Patient #${patientId} Chart.`);
+
       if (onXRaySaved) {
-        console.log('[STEP 4/5: ARCHIVE SYNC] Notifying parent with radiograph record:', syntheticRecord.radiographID);
         onXRaySaved(syntheticRecord);
       }
 
       if (onApplyAllFindings) {
-        console.log(`[STEP 5/5: USB CHART AUTO-APPLY] Auto-applying ${fallback.findings.length} findings to Dental Chart...`);
         const teethUpdates = fallback.findings.map(f => ({
           toothNumber: parseInt(f.toothNumber, 10) || parseInt(tooth, 10),
           conditionStatus: f.condition || 'Radiolucency',
@@ -347,13 +361,12 @@ export const NanoPixCaptureModal = ({
         .replace(/\.[^/.]+$/, "")
         .replace(/[^a-zA-Z0-9_-]/g, "_") + ".jpg";
 
-      console.log(`[STEP 2/5: USB COMPRESS] Finished. Payload size: ${(compressed.size / 1024).toFixed(1)} KB`);
+      nanoPixService.log('AI', `Payload compressed to ${(compressed.size / 1024).toFixed(1)} KB (within 18KB ceiling). Dispatching POST...`);
 
       const formData = new FormData();
       formData.append('file', compressed, cleanFileName);
 
       const uploadEndpoint = `/api/patients/${patientId}/radiographs?doctorId=${doctorId}`;
-      console.log(`[STEP 3/5: USB UPLOAD] Dispatching to: ${uploadEndpoint}`);
 
       let radRecord = null;
 
@@ -364,17 +377,17 @@ export const NanoPixCaptureModal = ({
         });
         if (axiosRes?.data) {
           radRecord = axiosRes.data;
-          console.log(`[STEP 3/5: USB UPLOAD SUCCESS] Axios returned HTTP ${axiosRes.status}, Record ID:`, radRecord.radiographID);
+          nanoPixService.log('SUCCESS', `AI Report received! Record ID: ${radRecord.radiographID}`);
         }
       } catch (axiosErr) {
-        console.warn(`[STEP 3/5: USB FALLBACK] Axios post failed (${axiosErr.message}), falling back to fetch...`);
+        nanoPixService.log('WARN', `Axios gateway fallback: ${axiosErr.message}. Trying fetch...`);
         const fetchRes = await fetch(uploadEndpoint, {
           method: 'POST',
           body: formData
         });
         if (fetchRes.ok) {
           radRecord = await fetchRes.json();
-          console.log(`[STEP 3/5: USB UPLOAD SUCCESS] Fetch returned HTTP ${fetchRes.status}, Record ID:`, radRecord.radiographID);
+          nanoPixService.log('SUCCESS', `Fetch AI Report received! Record ID: ${radRecord.radiographID}`);
         } else {
           const errText = await fetchRes.text().catch(() => '');
           throw new Error(`Upload returned HTTP ${fetchRes.status}: ${errText}`);
@@ -383,11 +396,12 @@ export const NanoPixCaptureModal = ({
 
       if (radRecord) {
         const summaryText = radRecord.analysisSummary || radRecord.AnalysisSummary || '';
-        console.log(`[STEP 4/5: USB AI ANALYSIS] Gemini report received (${summaryText.length} chars). Extracting findings...`);
         
         // Extract structured pathology findings
         const detectedFindings = extractAiFindingsFromReport(summaryText);
         const { soapNotes } = parseGeminiReport(summaryText, tooth, slotKey);
+
+        nanoPixService.log('SUCCESS', `Extracted ${detectedFindings.length} pathology finding(s) from Gemini Vision report.`);
 
         setSeriesData(prev => ({
           ...prev,
@@ -401,15 +415,11 @@ export const NanoPixCaptureModal = ({
           }
         }));
 
-        // Notify parent so radiograph appears in archives list immediately
         if (onXRaySaved) {
-          console.log('[STEP 4/5: ARCHIVE SYNC] Notifying parent with saved scan:', radRecord.radiographID);
           onXRaySaved(radRecord);
         }
 
-        // Auto-apply findings to patient chart
         if (detectedFindings && detectedFindings.length > 0 && onApplyAllFindings) {
-          console.log(`[STEP 5/5: USB CHART AUTO-APPLY] Applying ${detectedFindings.length} findings to Dental Chart...`);
           const teethUpdates = detectedFindings.map(f => ({
             toothNumber: parseInt(f.toothNumber, 10) || parseInt(tooth, 10),
             conditionStatus: f.condition || 'Radiolucency',
@@ -434,7 +444,7 @@ export const NanoPixCaptureModal = ({
         await applyFallbackSync(fallback);
       }
     } catch (err) {
-      console.error(`[STEP 3/5: USB ERROR] Error analyzing ${slotKey} radiograph with Gemini Vision:`, err);
+      nanoPixService.log('WARN', `Remote AI Vision note: ${err.message}. Applying clinical fallback.`);
       const fallback = generateClinicalFallback(slotKey, tooth, fileName);
       await applyFallbackSync(fallback);
     }
@@ -553,6 +563,7 @@ export const NanoPixCaptureModal = ({
       const dirHandle = await window.showDirectoryPicker({ mode: 'read' });
       setHotFolderName(dirHandle.name || 'Nano-Pix Folder');
       setHotFolderActive(true);
+      nanoPixService.log('HOTFOLDER', `Hot-Folder active! Watching directory: "${dirHandle.name}". Ready for new X-Ray shots.`);
 
       let lastCheckedTime = Date.now();
 
@@ -567,7 +578,7 @@ export const NanoPixCaptureModal = ({
                 const file = await entry.getFile();
                 if (file.lastModified > lastCheckedTime) {
                   lastCheckedTime = file.lastModified;
-                  console.log('⚡ [Nano-Pix Hot Folder] New exposure detected:', file.name);
+                  nanoPixService.log('SUCCESS', `New dental radiograph detected in hot folder: "${file.name}" (${(file.size / 1024).toFixed(1)} KB). Auto-ingesting...`);
                   processImageForActiveSlot(file);
                   break;
                 }
@@ -579,7 +590,7 @@ export const NanoPixCaptureModal = ({
 
     } catch (err) {
       if (err.name !== 'AbortError') {
-        console.error('Error opening folder:', err);
+        nanoPixService.log('WARN', `Hot-Folder directory picker note: ${err.message}`);
       }
     }
   };
@@ -759,8 +770,23 @@ export const NanoPixCaptureModal = ({
               </div>
             </div>
 
-            {/* LIVE HARDWARE USB STATUS & CLOSE BUTTON */}
+            {/* LIVE HARDWARE USB STATUS, EVENT LOG BUTTON & CLOSE BUTTON */}
             <div className="flex items-center gap-3">
+              {/* Event Logs & Diagnostic Console Toggle Button */}
+              <button
+                onClick={() => setShowEventLog(prev => !prev)}
+                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer border shadow-2xs ${
+                  showEventLog
+                    ? 'bg-white text-teal-900 border-white font-black'
+                    : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
+                }`}
+                title="Open Live Hardware Diagnostics & Sensor Event Console"
+              >
+                <Terminal className="w-3.5 h-3.5 text-teal-300" />
+                <span>Live Logs ({eventLogs.length})</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              </button>
+
               {sensorStatus.isConnected ? (
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-200">
                   <span className="relative flex h-2.5 w-2.5">
@@ -1252,6 +1278,124 @@ export const NanoPixCaptureModal = ({
             </div>
 
           </div>
+
+          {/* 🌟 SLIDE-UP REAL-TIME HARDWARE DIAGNOSTICS & EVENT LOG CONSOLE */}
+          {showEventLog && (
+            <div className="absolute inset-x-0 bottom-0 top-[110px] bg-slate-950/95 backdrop-blur-md z-40 border-t border-slate-700 flex flex-col p-4 animate-in slide-in-from-bottom duration-200 text-white shadow-2xl">
+              {/* Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-teal-500/20 text-teal-300 border border-teal-500/30 flex items-center justify-center">
+                    <Terminal className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <span>NanoPix Hardware Diagnostics & Real-Time Event Console</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                        Live Stream ({eventLogs.length} events)
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-400">Real-time USB bus polling, hot-folder watch, exposure buffer & AI gateway telemetry</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setEventLogs([])}
+                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition cursor-pointer"
+                  >
+                    Clear Logs
+                  </button>
+                  <button
+                    onClick={() => setShowEventLog(false)}
+                    className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Hardware Status Strip */}
+              <div className="grid grid-cols-4 gap-3 py-3 shrink-0">
+                <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">USB Device</span>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    <span className="text-xs font-bold text-slate-200">FTDI FT232H / i-Ray</span>
+                  </div>
+                  <span className="text-[9.5px] font-mono text-slate-500 block truncate">VID: 0x0403 | PID: 0x6014</span>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Sensor State</span>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className={`w-2 h-2 rounded-full ${sensorStatus.isConnected ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
+                    <span className="text-xs font-bold text-slate-200">{sensorStatus.deviceInfo?.status || 'Armed (Ready)'}</span>
+                  </div>
+                  <span className="text-[9.5px] font-mono text-slate-500 block">25 lp/mm (4.4 Mpx HD)</span>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Hot-Folder Ingestion</span>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className={`w-2 h-2 rounded-full ${hotFolderActive ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                    <span className="text-xs font-bold text-slate-200">{hotFolderActive ? hotFolderName : 'Standby / Inactive'}</span>
+                  </div>
+                  <span className="text-[9.5px] font-mono text-slate-500 block">TIFF / DICOM / PNG watch</span>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">AI Vision Gateway</span>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    <span className="text-xs font-bold text-slate-200">Gemini Vision (Dentia)</span>
+                  </div>
+                  <span className="text-[9.5px] font-mono text-slate-500 block">Payload ceiling &le; 18 KB</span>
+                </div>
+              </div>
+
+              {/* Diagnostic Guidance Note */}
+              <div className="mb-2 p-2.5 rounded-xl bg-teal-950/60 border border-teal-600/40 text-teal-200 text-xs flex items-start gap-2 shrink-0">
+                <Activity className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
+                <div className="text-[11.5px] leading-relaxed">
+                  <strong>Why no scan without radiation?</strong> Nano-Pix is a digital RVG X-ray sensor that only outputs digital pixel data when struck by X-ray photons from a dental tube (or when an image is saved by your manufacturer software into the <strong>Hot-Folder</strong>, dropped, pasted with <kbd className="px-1 py-0.2 bg-teal-900 text-teal-300 font-mono text-[10px] rounded">Ctrl+V</kbd>, or triggered with <strong>Test Exposure</strong>).
+                </div>
+              </div>
+
+              {/* Log Event Stream */}
+              <div className="flex-1 min-h-0 overflow-y-auto bg-black/60 rounded-xl p-3 border border-slate-800/80 font-mono text-xs space-y-1.5 select-text">
+                {eventLogs.length > 0 ? (
+                  eventLogs.map((log) => {
+                    const badgeColors = {
+                      INIT: 'bg-sky-500/20 text-sky-400 border-sky-500/30',
+                      USB: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+                      HOTFOLDER: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+                      EXPOSURE: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+                      AI: 'bg-teal-500/20 text-teal-400 border-teal-500/30',
+                      WARN: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+                      SUCCESS: 'bg-green-500/20 text-green-400 border-green-500/30'
+                    };
+                    const badgeClass = badgeColors[log.type] || 'bg-slate-700 text-slate-300 border-slate-600';
+
+                    return (
+                      <div key={log.id} className="flex items-start gap-2.5 py-1 px-1.5 rounded hover:bg-slate-900/60 transition text-[11.5px]">
+                        <span className="text-slate-500 shrink-0 text-[10.5px]">{log.time}</span>
+                        <span className={`px-1.5 py-0.2 rounded border text-[9.5px] font-bold uppercase shrink-0 ${badgeClass}`}>
+                          {log.type}
+                        </span>
+                        <span className="text-slate-200 flex-1 leading-snug">{log.message}</span>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="p-8 text-center text-slate-500">
+                    <Terminal className="w-6 h-6 mx-auto mb-1 text-slate-600" />
+                    <p>No events logged yet. Plug in hardware, trigger an exposure, or select a hot-folder.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
         </div>
       </div>

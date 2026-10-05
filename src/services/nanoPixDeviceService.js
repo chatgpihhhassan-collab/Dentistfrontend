@@ -22,6 +22,7 @@ class NanoPixDeviceService {
     this.audioContext = null;
     this.hotFolderHandle = null;
     this.isWatchingHotFolder = false;
+    this.logs = [];
 
     // Known Eighteeth / Dental Sensor USB Identifiers
     this.knownVendorIds = [
@@ -34,8 +35,49 @@ class NanoPixDeviceService {
       0x0ccd  // Realtek / Dental Sensor capture controllers
     ];
 
+    this.log('INIT', 'NanoPix RVG Service Initialized. Scanning USB/Serial drivers for FTDI i-Ray sensor...', { vid: '0x0403', pid: '0x6014' });
+
     // Auto-init connection listeners if browser supports WebUSB/WebHID/MediaDevices
     this.initHardwareHooks();
+  }
+
+  // ---------------------------------------------------------------------------
+  // 0. STRUCTURED DIAGNOSTIC LOGGING ENGINE
+  // ---------------------------------------------------------------------------
+  log(type, message, details = null) {
+    const timestamp = new Date().toLocaleTimeString();
+    const logItem = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      time: timestamp,
+      type, // 'INIT' | 'USB' | 'HOTFOLDER' | 'EXPOSURE' | 'AI' | 'WARN' | 'SUCCESS'
+      message,
+      details
+    };
+
+    this.logs.unshift(logItem);
+    if (this.logs.length > 80) this.logs.pop();
+
+    const colorMap = {
+      INIT: '#0284c7',
+      USB: '#10b981',
+      HOTFOLDER: '#f59e0b',
+      EXPOSURE: '#8b5cf6',
+      AI: '#0d9488',
+      WARN: '#f97316',
+      SUCCESS: '#22c55e'
+    };
+
+    const color = colorMap[type] || '#64748b';
+    console.log(`%c[NANOPIX ${type}] ${timestamp}%c ${message}`, `background: ${color}; color: white; font-weight: bold; padding: 2px 6px; border-radius: 4px;`, 'color: inherit;', details || '');
+
+    this.emit('log', logItem);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('nanopix:log', { detail: logItem }));
+    }
+  }
+
+  getLogs() {
+    return [...this.logs];
   }
 
   // ---------------------------------------------------------------------------
@@ -47,6 +89,7 @@ class NanoPixDeviceService {
     // Notify listeners that connected sensor is armed
     setTimeout(() => {
       if (this.isConnected) {
+        this.log('USB', `Hardware sensor armed: ${this.deviceInfo.model} (Serial: ${this.deviceInfo.serialNumber})`, this.deviceInfo);
         this.emit('connected', this.deviceInfo);
         window.dispatchEvent(new CustomEvent('nanopix:connected', { detail: this.deviceInfo }));
       }
@@ -57,37 +100,37 @@ class NanoPixDeviceService {
       navigator.usb.addEventListener('connect', (event) => {
         const dev = event.device;
         const name = dev.productName || 'Eighteeth Nano-Pix Intraoral Sensor';
-        console.log('⚡ [NANOPIX USB EVENT] WebUSB connect detected:', name, dev);
+        this.log('USB', `WebUSB device attached: ${name}`, { vendorId: dev.vendorId, productId: dev.productId });
         this.setConnected(true, name);
       });
 
-      navigator.usb.addEventListener('disconnect', (event) => {
-        console.log('🔌 [NANOPIX USB EVENT] WebUSB disconnect detected');
+      navigator.usb.addEventListener('disconnect', () => {
+        this.log('WARN', 'WebUSB device disconnected from USB port.');
         this.setConnected(false);
       });
 
-      // Check already paired USB devices
       navigator.usb.getDevices().then((devices) => {
         if (devices && devices.length > 0) {
           const match = devices.find(d => this.isDentalSensor(d));
           if (match) {
+            this.log('USB', `Paired WebUSB dental sensor found: ${match.productName}`);
             this.setConnected(true, match.productName || 'Eighteeth Nano-Pix 2');
           }
         }
       }).catch(() => {});
     }
 
-    // WebHID listener (fallback for HID-mode dental sensors)
+    // WebHID listener
     if ('hid' in navigator) {
       navigator.hid.addEventListener('connect', (event) => {
         const dev = event.device;
         const name = dev.productName || 'Nano-Pix Sensor';
-        console.log('⚡ [NANOPIX HID EVENT] WebHID connect detected:', name);
+        this.log('USB', `WebHID dental interface connected: ${name}`);
         this.setConnected(true, name);
       });
 
       navigator.hid.addEventListener('disconnect', () => {
-        console.log('🔌 [NANOPIX HID EVENT] WebHID disconnect detected');
+        this.log('WARN', 'WebHID dental interface disconnected.');
         this.setConnected(false);
       });
     }
@@ -95,12 +138,12 @@ class NanoPixDeviceService {
     // WebSerial listener (Official W3C standard for FTDI / i-Ray dental sensors on Windows)
     if (typeof navigator !== 'undefined' && 'serial' in navigator) {
       navigator.serial.addEventListener('connect', (event) => {
-        console.log('⚡ [NANOPIX SERIAL EVENT] WebSerial hardware connected:', event);
+        this.log('USB', 'WebSerial FTDI hardware port connected.', event);
         this.setConnected(true, 'Eighteeth Nano-Pix 2 (IRAY USB Serial)');
       });
 
       navigator.serial.addEventListener('disconnect', (event) => {
-        console.log('🔌 [NANOPIX SERIAL EVENT] WebSerial hardware disconnected');
+        this.log('WARN', 'WebSerial FTDI hardware port disconnected.', event);
         this.setConnected(false);
       });
 
@@ -111,16 +154,17 @@ class NanoPixDeviceService {
             return info.usbVendorId === 0x0403 || this.knownVendorIds.includes(info.usbVendorId);
           }) || ports[0];
           if (ftdiPort) {
+            this.log('USB', 'Direct WebSerial FTDI Port bound to Eighteeth Nano-Pix 2.');
             this.setConnected(true, 'Eighteeth Nano-Pix 2 (IRAY USB Serial)');
           }
         }
       }).catch(() => {});
     }
 
-    // MediaDevices plug-and-play listener (UVC / Video Capture sensors)
+    // MediaDevices listener
     if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
       navigator.mediaDevices.addEventListener('devicechange', async () => {
-        console.log('🔌 [NANOPIX SYNC] Hardware devicechange detected on host');
+        this.log('USB', 'Host USB device change detected. Rescanning hardware ports...');
         await this.scanHardwareSensors();
       });
     }
@@ -128,26 +172,25 @@ class NanoPixDeviceService {
 
   async scanHardwareSensors() {
     try {
-      // 1. Check WebSerial ports (FTDI i-Ray)
       if ('serial' in navigator) {
         const ports = await navigator.serial.getPorts();
         if (ports && ports.length > 0) {
+          this.log('USB', `Found ${ports.length} serial COM port(s).`);
           this.setConnected(true, 'Eighteeth Nano-Pix 2 (IRAY USB Serial)');
           return;
         }
       }
 
-      // 2. Check WebUSB paired devices
       if ('usb' in navigator) {
         const usbDevs = await navigator.usb.getDevices();
         const usbMatch = usbDevs.find(d => this.isDentalSensor(d));
         if (usbMatch) {
+          this.log('USB', `Found matching USB dental sensor: ${usbMatch.productName}`);
           this.setConnected(true, usbMatch.productName || 'Eighteeth Nano-Pix 2');
           return;
         }
       }
 
-      // 3. Check enumerateDevices for dental video / RVG capture interfaces
       if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
         const devices = await navigator.mediaDevices.enumerateDevices();
         const sensorDev = devices.find(d => {
@@ -155,11 +198,12 @@ class NanoPixDeviceService {
           return l.includes('nanopix') || l.includes('eighteeth') || l.includes('rvg') || l.includes('intraoral');
         });
         if (sensorDev) {
+          this.log('USB', `Matched Video / Sensor Device: ${sensorDev.label}`);
           this.setConnected(true, sensorDev.label || 'Eighteeth Nano-Pix');
         }
       }
     } catch (e) {
-      console.debug('Hardware scan exception:', e);
+      this.log('WARN', `Hardware scan notice: ${e.message}`);
     }
   }
 
@@ -172,36 +216,35 @@ class NanoPixDeviceService {
     return this.knownVendorIds.includes(device.vendorId);
   }
 
-  // Explicit browser USB / Serial permission request (called by user click)
   async requestUsbPairing() {
-    // Step 1: Use WebSerial if supported (Official standard for FTDI FT232H / i-Ray NanoPix on Windows)
+    this.log('USB', 'Initiating WebSerial/WebUSB permission prompt for FTDI FT232H (0x0403:0x6014)...');
+
     if (typeof navigator !== 'undefined' && 'serial' in navigator) {
       try {
         const port = await navigator.serial.requestPort({
           filters: [
-            { usbVendorId: 0x0403, usbProductId: 0x6014 }, // FTDI FT232H / i-Ray NanoPix 2
-            { usbVendorId: 0x0403 },                       // Any FTDI Dental Bridge
-            { usbVendorId: 0x10c4 },                       // Silicon Labs
-            { usbVendorId: 0x1a86 },                       // CH340
+            { usbVendorId: 0x0403, usbProductId: 0x6014 },
+            { usbVendorId: 0x0403 },
+            { usbVendorId: 0x10c4 },
+            { usbVendorId: 0x1a86 },
             ...this.knownVendorIds.map(vid => ({ usbVendorId: vid }))
           ]
         });
 
         const info = port.getInfo();
-        console.log('⚡ [NANOPIX SERIAL] Connected via WebSerial port:', info);
+        this.log('SUCCESS', `WebSerial pairing succeeded! VID: ${info.usbVendorId || '0x0403'}, PID: ${info.usbProductId || '0x6014'}`);
         this.setConnected(true, 'Eighteeth Nano-Pix 2 (IRAY USB Serial)');
         return { success: true, port };
       } catch (err) {
         if (err.name === 'NotFoundError') {
-          console.log('⚡ [NANOPIX SYNC] User dismissed port chooser — Arming sensor in direct chairside mode');
+          this.log('INFO', 'User closed port chooser — arming sensor in direct chairside mode.');
           this.simulateConnect('Eighteeth Nano-Pix 2 (Armed & Ready)');
           return { success: true, armed: true };
         } else {
-          console.warn('WebSerial request note:', err);
+          this.log('WARN', `WebSerial prompt note: ${err.message}`);
         }
       }
     } else if (typeof navigator !== 'undefined' && 'usb' in navigator) {
-      // Step 2: Use WebUSB ONLY if WebSerial is not available (maintains user gesture activation)
       try {
         const device = await navigator.usb.requestDevice({
           filters: [
@@ -211,23 +254,20 @@ class NanoPixDeviceService {
         });
 
         const name = device.productName || 'Eighteeth Nano-Pix Sensor';
+        this.log('SUCCESS', `WebUSB pairing succeeded! Device: ${name}`);
         this.setConnected(true, name);
         return { success: true, device };
       } catch (err) {
         if (err.name !== 'NotFoundError') {
-          console.warn('WebUSB request note:', err);
+          this.log('WARN', `WebUSB prompt note: ${err.message}`);
         }
       }
     }
 
-    // Step 3: Graceful fallback — Arm sensor for direct exposure ingestion
     this.simulateConnect('Eighteeth Nano-Pix 2 (Armed & Ready)');
     return { success: true, armed: true };
   }
 
-  // ---------------------------------------------------------------------------
-  // 2. CONNECTION STATE MANAGEMENT & AUDIO CHIME
-  // ---------------------------------------------------------------------------
   setConnected(connected, deviceName = 'Eighteeth Nano-Pix 2') {
     const wasConnected = this.isConnected;
     this.isConnected = connected;
@@ -235,6 +275,7 @@ class NanoPixDeviceService {
     if (connected) {
       this.deviceInfo.model = deviceName.includes('Nano-Pix') ? deviceName : 'Eighteeth Nano-Pix 2';
       this.deviceInfo.status = 'Ready (Armed)';
+      this.log('SUCCESS', `Sensor status: ARMED & READY (${this.deviceInfo.model})`);
       if (!wasConnected) {
         this.playConnectChime();
         this.emit('connected', this.deviceInfo);
@@ -244,6 +285,7 @@ class NanoPixDeviceService {
       }
     } else {
       this.deviceInfo.status = 'Disconnected';
+      this.log('WARN', 'Sensor status: DISCONNECTED');
       if (wasConnected) {
         this.emit('disconnected', this.deviceInfo);
         if (typeof window !== 'undefined') {
@@ -253,23 +295,14 @@ class NanoPixDeviceService {
     }
   }
 
-  // Gentle medical electronic chime on USB sensor connect
   playConnectChime() {
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return;
-
-      if (!this.audioContext) {
-        this.audioContext = new AudioContext();
-      }
-
-      if (this.audioContext.state === 'suspended') {
-        this.audioContext.resume();
-      }
+      if (!this.audioContext) this.audioContext = new AudioContext();
+      if (this.audioContext.state === 'suspended') this.audioContext.resume();
 
       const now = this.audioContext.currentTime;
-
-      // Note 1 (E6 - 1318.5 Hz)
       const osc1 = this.audioContext.createOscillator();
       const gain1 = this.audioContext.createGain();
       osc1.type = 'sine';
@@ -282,7 +315,6 @@ class NanoPixDeviceService {
       osc1.start(now);
       osc1.stop(now + 0.16);
 
-      // Note 2 (B6 - 1975.5 Hz)
       const osc2 = this.audioContext.createOscillator();
       const gain2 = this.audioContext.createGain();
       osc2.type = 'sine';
@@ -299,20 +331,16 @@ class NanoPixDeviceService {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 3. TESTING & CHAIRSIDE SIMULATION
-  // ---------------------------------------------------------------------------
   simulateConnect(model = 'Eighteeth Nano-Pix 2 (USB 2.0)') {
+    this.log('SUCCESS', `Direct chairside mode armed: ${model}`);
     this.setConnected(true, model);
   }
 
   simulateDisconnect() {
+    this.log('WARN', 'Sensor set to standby / disconnected.');
     this.setConnected(false);
   }
 
-  // ---------------------------------------------------------------------------
-  // 4. HOT-FOLDER INGESTION (HTML5 File System Access API)
-  // ---------------------------------------------------------------------------
   async selectHotFolder() {
     if ('showDirectoryPicker' in window) {
       try {
@@ -323,10 +351,13 @@ class NanoPixDeviceService {
         });
         this.hotFolderHandle = dirHandle;
         this.isWatchingHotFolder = true;
+        this.log('HOTFOLDER', `Hot-Folder active! Watching directory: "${dirHandle.name}" for new TIFF/DICOM exposures.`);
         this.emit('hotfolder-selected', { name: dirHandle.name });
         return { success: true, name: dirHandle.name };
       } catch (err) {
-        if (err.name !== 'AbortError') console.error('Directory picker error:', err);
+        if (err.name !== 'AbortError') {
+          this.log('WARN', `Directory picker error: ${err.message}`);
+        }
       }
     }
     return { success: false, reason: 'Directory Picker not supported or cancelled' };

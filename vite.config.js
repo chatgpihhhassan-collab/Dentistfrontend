@@ -11,8 +11,16 @@ export default defineConfig({
         target: 'http://127.0.0.1:5055',
         changeOrigin: true,
         secure: false,
-        timeout: 10000,
-        proxyTimeout: 10000
+        timeout: 3000,
+        proxyTimeout: 3000,
+        configure: (proxy) => {
+          proxy.on('error', (_err, _req, res) => {
+            if (!res.headersSent && res.writeHead) {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ bridgeOnline: false, hasScan: false, note: 'Digora hardware bridge is standby/offline' }));
+            }
+          });
+        }
       },
       '/api': {
         target: 'https://dentist-api-dev.vitonta.com',
