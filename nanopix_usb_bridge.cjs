@@ -66,7 +66,12 @@ let hardwareTelemetry = {
 
 try {
   const koffi = require('koffi');
-  const dllPath = 'C:\\Windows\\System32\\ftd2xx.dll';
+  const candidateDlls = [
+    path.join(__dirname, 'drivers', 'nanopix', 'ftd2xx.dll'),
+    path.join(__dirname, 'drivers', 'nanopix', 'ftd2xx64.dll'),
+    'C:\\Windows\\System32\\ftd2xx.dll'
+  ];
+  const dllPath = candidateDlls.find(p => fs.existsSync(p)) || 'C:\\Windows\\System32\\ftd2xx.dll';
   if (fs.existsSync(dllPath)) {
     ftdiLib = koffi.load(dllPath);
     FT_CreateDeviceInfoList = ftdiLib.func('uint32 FT_CreateDeviceInfoList(_Out_ uint32* lpdwNumDevs)');
