@@ -18,8 +18,8 @@ export default defineConfig({
         target: 'https://dentist-api-dev.vitonta.com',
         changeOrigin: true,
         secure: false,
-        timeout: 10000,
-        proxyTimeout: 10000,
+        timeout: 120000,
+        proxyTimeout: 120000,
         configure: (proxy, options) => {
           proxy.on('error', (err, req, res) => {
             console.error(`\x1b[31m[PROXY ERROR]\x1b[0m ${req.method} ${req.url} -> Error: ${err.message}`);

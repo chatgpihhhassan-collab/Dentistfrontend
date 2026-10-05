@@ -119,6 +119,7 @@ export default function ThreeDentalJawArch({
     : (isMaxilla ? 'MAXILLA (UPPER JAW - 16 TEETH)' : 'MANDIBLE (LOWER JAW - 16 TEETH)');
 
   const [hoveredTooth, setHoveredTooth] = useState(null);
+  const [webglError, setWebglError] = useState(false);
   const highlightedTeethRef = useRef(highlightedTeeth);
   useEffect(() => {
     highlightedTeethRef.current = highlightedTeeth;
@@ -147,12 +148,24 @@ export default function ThreeDentalJawArch({
     camera.position.set(0, 0, 10);
     camera.lookAt(0, 0, 0);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
-    container.replaceChildren(renderer.domElement);
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        failIfMajorPerformanceCaveat: false,
+        powerPreference: 'default'
+      });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.1;
+      container.replaceChildren(renderer.domElement);
+    } catch (err) {
+      console.warn('⚠️ [ThreeDentalJawArch] WebGL context creation failed (Windows 7 / legacy GPU):', err);
+      setWebglError(true);
+      return;
+    }
 
     // 2. Realistic Studio Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 1.4);
@@ -1067,11 +1080,13 @@ function createClinicalOverlayCanvas(status, comments, toothNum, isMaxilla) {
         container.removeEventListener('click', handleClick);
       }
       try {
-        renderer.forceContextLoss();
-        if (renderer.domElement && renderer.domElement.parentNode) {
-          renderer.domElement.parentNode.removeChild(renderer.domElement);
+        if (renderer) {
+          renderer.forceContextLoss();
+          if (renderer.domElement && renderer.domElement.parentNode) {
+            renderer.domElement.parentNode.removeChild(renderer.domElement);
+          }
+          renderer.dispose();
         }
-        renderer.dispose();
       } catch (e) {}
     };
   }, [jawType, teethState, highlightedTeeth]);

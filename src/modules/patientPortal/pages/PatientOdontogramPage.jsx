@@ -68,12 +68,18 @@ function SingleTooth3DCanvas({ toothNum, shape, color }) {
         const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
         camera.position.set(0, 0, 3.4);
 
-        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-        renderer.setSize(width, height);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        container.innerHTML = '';
-        container.appendChild(renderer.domElement);
+        let renderer;
+        try {
+          renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, failIfMajorPerformanceCaveat: false });
+          renderer.setSize(width, height);
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+          renderer.toneMapping = THREE.ACESFilmicToneMapping;
+          container.innerHTML = '';
+          container.appendChild(renderer.domElement);
+        } catch (err) {
+          console.warn('⚠️ WebGL failed in PatientOdontogramPage:', err);
+          return;
+        }
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 2.0);
         scene.add(ambientLight);

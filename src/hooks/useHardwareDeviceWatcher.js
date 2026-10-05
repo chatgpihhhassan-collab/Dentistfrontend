@@ -56,6 +56,8 @@ export const useHardwareDeviceWatcher = () => {
 
       // Explicit dental hardware signatures
       const dentalSignatures = [
+        { key: 'nanopix', brand: 'Eighteeth Nano-Pix', type: 'rvg_sensor' },
+        { key: 'eighteeth', brand: 'Eighteeth Nano-Pix', type: 'rvg_sensor' },
         { key: 'apple dental', brand: 'Apple Dental', type: 'intraoral_camera' },
         { key: 'coxo', brand: 'Coxo', type: 'intraoral_camera' },
         { key: 'magenta', brand: 'Magenta', type: 'intraoral_camera' },

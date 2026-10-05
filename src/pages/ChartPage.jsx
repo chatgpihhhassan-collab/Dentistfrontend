@@ -1908,12 +1908,19 @@ export default function ChartPage() {
     const connectHandler = (device) => {
       setNanoPixStatus({ isConnected: true, deviceInfo: device });
       console.log('⚡ [ChartPage] Eighteeth Nano-Pix Intraoral Sensor connected for patient:', patientId);
+      setShowNanoPixModal(true);
     };
 
     const disconnectHandler = () => {
       setNanoPixStatus({ isConnected: false, deviceInfo: null });
       console.log('🔌 [ChartPage] Eighteeth Nano-Pix Intraoral Sensor disconnected');
     };
+
+    const windowConnectHandler = (e) => {
+      setNanoPixStatus({ isConnected: true, deviceInfo: e.detail });
+      setShowNanoPixModal(true);
+    };
+    window.addEventListener('nanopix:connected', windowConnectHandler);
 
     const unsubConnect = typeof nanoPixService?.subscribe === 'function'
       ? nanoPixService.subscribe('connected', connectHandler)
@@ -1928,6 +1935,7 @@ export default function ChartPage() {
       : () => {};
 
     return () => {
+      window.removeEventListener('nanopix:connected', windowConnectHandler);
       if (typeof unsubConnect === 'function') unsubConnect();
       if (typeof unsubDisconnect === 'function') unsubDisconnect();
     };

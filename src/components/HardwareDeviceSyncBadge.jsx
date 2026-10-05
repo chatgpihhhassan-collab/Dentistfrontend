@@ -3,9 +3,11 @@ import { createPortal } from 'react-dom';
 import { Camera, CheckCircle2, HardDrive, RefreshCw, Sparkles, X, Usb, Activity, Radio, AlertCircle, Video } from 'lucide-react';
 import { useHardwareDeviceWatcher } from '../hooks/useHardwareDeviceWatcher';
 import { CameraCapturePanel } from './CameraCapturePanel';
+import nanoPixService from '../services/nanoPixDeviceService';
 
 export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
   const { isConnected, deviceName, deviceBrand, deviceType, deviceList, hasBuiltInCamera, status, refreshDevices } = useHardwareDeviceWatcher();
+  const [nanoPixStatus, setNanoPixStatus] = useState(() => nanoPixService.getStatus());
   const [showModal, setShowModal] = useState(false);
   const [showCapturePanel, setShowCapturePanel] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -13,7 +15,22 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
 
   useEffect(() => {
     setMounted(true);
+
+    const onConnect = (info) => setNanoPixStatus({ isConnected: true, deviceInfo: info });
+    const onDisconnect = () => setNanoPixStatus({ isConnected: false, deviceInfo: null });
+    const unsubC = nanoPixService.subscribe('connected', onConnect);
+    const unsubD = nanoPixService.subscribe('disconnected', onDisconnect);
+
+    return () => {
+      if (typeof unsubC === 'function') unsubC();
+      if (typeof unsubD === 'function') unsubD();
+    };
   }, []);
+
+  const isHardwareActive = isConnected || Boolean(nanoPixStatus?.isConnected);
+  const activeBrand = nanoPixStatus?.isConnected ? 'Eighteeth NanoPix' : (deviceBrand || 'Generic UVC');
+  const activeName = nanoPixStatus?.isConnected ? (nanoPixStatus?.deviceInfo?.model || 'Eighteeth Nano-Pix 2') : (deviceName || 'No USB camera connected');
+  const activeProtocol = nanoPixStatus?.isConnected ? 'Direct USB 2.0 (RVG WebUSB)' : (deviceType === 'intraoral_camera' ? 'UVC MediaStream' : 'TWAIN / Hot Folder');
 
   // Close on Escape key
   useEffect(() => {
@@ -116,24 +133,24 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Connection State</span>
             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
-              isConnected 
+              isHardwareActive 
                 ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
                 : 'bg-slate-200 text-slate-700'
             }`}>
-              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
-              {isConnected ? 'Active & Synced' : 'Offline / Standby'}
+              <span className={`w-2 h-2 rounded-full ${isHardwareActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+              {isHardwareActive ? 'Active & Synced' : 'Offline / Standby'}
             </span>
           </div>
 
           <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200/60">
             <div>
               <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Hardware Brand</span>
-              <span className="text-xs font-bold text-slate-800">{deviceBrand || 'Generic UVC'}</span>
+              <span className="text-xs font-bold text-slate-800">{activeBrand}</span>
             </div>
             <div>
               <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Pipeline Protocol</span>
               <span className="text-xs font-medium text-teal-700">
-                {deviceType === 'intraoral_camera' ? 'UVC MediaStream' : 'TWAIN / Hot Folder'}
+                {activeProtocol}
               </span>
             </div>
           </div>
@@ -141,7 +158,7 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
           <div className="pt-2 border-t border-slate-200/60">
             <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-0.5">Primary Active Device</span>
             <span className="text-xs font-mono text-slate-700 block truncate bg-white px-2.5 py-1.5 rounded-lg border border-slate-200">
-              {deviceName || 'No USB camera connected'}
+              {activeName}
             </span>
           </div>
         </div>
@@ -280,20 +297,20 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
       <button
         onClick={() => setShowModal(true)}
         className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all shadow-xs border cursor-pointer select-none ${
-          isConnected
+          isHardwareActive
             ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-800 hover:bg-emerald-500/25 hover:border-emerald-600/50'
             : 'bg-slate-100/90 border-slate-300 text-slate-600 hover:bg-slate-200/80 hover:text-slate-800'
         }`}
         title="Click to view Chairside Hardware Connection Details"
       >
-        {isConnected ? (
+        {isHardwareActive ? (
           <>
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
             <Usb className="w-3.5 h-3.5 text-emerald-700" />
-            <span className="truncate max-w-[130px] font-semibold text-emerald-900">{deviceBrand}: Synced</span>
+            <span className="truncate max-w-[130px] font-semibold text-emerald-900">{activeBrand}: Synced</span>
           </>
         ) : (
           <>
