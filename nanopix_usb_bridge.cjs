@@ -216,7 +216,11 @@ function broadcastSSE(event, data) {
   });
 }
 
-// Find the latest existing scan file across all watch folders
+// Track consumed scan IDs so we NEVER loop-deliver the same scan repeatedly
+const consumedScanIds = new Set();
+let lastDeliveredMtime = Date.now(); // Only deliver files added or modified after startup, or on explicit exposure
+
+// Find any NEW scan file across all watch folders
 function getLatestScanFromFolders() {
   let newestFile = null;
   let newestMtime = 0;
@@ -230,7 +234,8 @@ function getLatestScanFromFolders() {
           if (['.png', '.jpg', '.jpeg', '.tiff', '.tif', '.dcm'].includes(ext)) {
             const fullPath = path.join(folder, file);
             const stat = fs.statSync(fullPath);
-            if (stat.mtimeMs > newestMtime) {
+            // Check if this file has not been consumed yet and is newer
+            if (stat.mtimeMs > newestMtime && !consumedScanIds.has(String(stat.mtimeMs))) {
               newestMtime = stat.mtimeMs;
               newestFile = fullPath;
             }
@@ -244,7 +249,7 @@ function getLatestScanFromFolders() {
     const dataUrl = fileToDataUrl(newestFile);
     if (dataUrl) {
       return {
-        id: newestMtime,
+        id: String(newestMtime),
         timestamp: new Date(newestMtime).toISOString(),
         filename: path.basename(newestFile),
         dataUrl: dataUrl,
@@ -255,12 +260,6 @@ function getLatestScanFromFolders() {
     }
   }
   return null;
-}
-
-// Initial check on startup
-latestScan = getLatestScanFromFolders();
-if (latestScan) {
-  console.log(`[NANOPIX BRIDGE] 📄 Loaded existing radiograph: ${latestScan.filename}`);
 }
 
 // HTTP API Server
@@ -281,7 +280,6 @@ const server = http.createServer((req, res) => {
   // 1. Status
   if (url.pathname === '/nanopix/status') {
     usbConnected = checkPhysicalUsbHardware();
-    if (!latestScan) latestScan = getLatestScanFromFolders();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       bridgeOnline: true,
@@ -296,14 +294,15 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 2. Latest Scan Polling
+  // 2. Latest Scan Polling (Consumes each scan once)
   if (url.pathname === '/nanopix/latest-scan') {
     if (!latestScan) {
       latestScan = getLatestScanFromFolders();
     }
     const scan = latestScan;
-    // Clear after reading if queried with consume
-    if (url.searchParams.get('consume') === 'true') {
+    // Clear and mark consumed after reading
+    if (scan) {
+      consumedScanIds.add(String(scan.id));
       latestScan = null;
     }
     res.writeHead(200, { 'Content-Type': 'application/json' });
