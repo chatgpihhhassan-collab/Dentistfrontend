@@ -22,6 +22,20 @@ export default defineConfig({
           });
         }
       },
+      '/hubs': {
+        target: 'https://dentist-api-dev.vitonta.com',
+        changeOrigin: true,
+        ws: true,
+        secure: false,
+        configure: (proxy) => {
+          proxy.on('error', (_err, _req, res) => {
+            if (!res.headersSent && res.writeHead) {
+              res.writeHead(503, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'SignalR Hub proxy unavailable in local dev' }));
+            }
+          });
+        }
+      },
       '/api': {
         target: 'https://dentist-api-dev.vitonta.com',
         changeOrigin: true,

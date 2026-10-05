@@ -490,8 +490,7 @@ export function useDigoraHardwareSync({
 
     const connection = new signalR.HubConnectionBuilder()
       .withUrl(hubUrl, {
-        transport: signalR.HttpTransportType.WebSockets,
-        skipNegotiation: true
+        transport: signalR.HttpTransportType.WebSockets | signalR.HttpTransportType.LongPolling
       })
       .withAutomaticReconnect([0, 2000, 5000, 10000, 20000])
       .configureLogging(signalR.LogLevel.None)
