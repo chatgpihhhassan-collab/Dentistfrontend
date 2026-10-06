@@ -117,7 +117,7 @@ function initFtdiDriver() {
 
 initFtdiDriver();
 
-// Poll physical FTDI USB bus for device status and queue telemetry
+// Poll physical FTDI USB bus for device status and queue telemetry (Non-intrusive)
 function pollFtdiHardwareBus() {
   if (!ftdiLib || !FT_CreateDeviceInfoList) return;
 
@@ -143,22 +143,6 @@ function pollFtdiHardwareBus() {
         hardwareTelemetry.description = 'Eighteeth Nano-Pix 2 (HD CMOS)';
       }
       if (id[0]) hardwareTelemetry.chipId = '0x' + id[0].toString(16).toUpperCase();
-
-      // Check RX queue status if openable
-      const openBuf = [null];
-      const openRes = FT_Open(0, openBuf);
-      if (openRes === 0 && openBuf[0]) {
-        const rxBuf = [0], txBuf = [0], evBuf = [0];
-        FT_GetStatus(openBuf[0], rxBuf, txBuf, evBuf);
-        hardwareTelemetry.rxQueueBytes = rxBuf[0];
-        hardwareTelemetry.txQueueBytes = txBuf[0];
-        FT_Close(openBuf[0]);
-
-        if (rxBuf[0] > 0) {
-          console.log(`[FLOW 2/5 - HARDWARE ACTIVITY] ⚡ ${rxBuf[0]} incoming bytes detected on FTDI Bus from ${hardwareTelemetry.serial}!`);
-          broadcastLog('USB', `⚡ RX Packet Activity: ${rxBuf[0]} bytes arriving from ${hardwareTelemetry.serial}`);
-        }
-      }
     }
   } catch (_) {}
 }
@@ -392,8 +376,59 @@ function broadcastLog(type, message, details = null) {
   broadcastSSE('log', logItem);
 }
 
+// Find newest genuine physical radiograph file from manufacturer engine
+function getRealScanFromDisk() {
+  const allFoundFiles = [];
+  WATCH_FOLDERS.forEach(folder => {
+    const files = getAllScanFilesInDir(folder, 3);
+    files.forEach(fullPath => {
+      try {
+        const fname = path.basename(fullPath);
+        // Exclude test filenames
+        if (fname.startsWith('Test_')) return;
+        const stat = fs.statSync(fullPath);
+        allFoundFiles.push({
+          fullPath,
+          stat,
+          mtimeMs: stat.mtimeMs
+        });
+      } catch (_) {}
+    });
+  });
+
+  allFoundFiles.sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+  if (allFoundFiles.length > 0) {
+    const target = allFoundFiles[0];
+    const dataUrl = fileToDataUrl(target.fullPath);
+    if (dataUrl) {
+      const fileName = path.basename(target.fullPath);
+      const fileSizeKb = (target.stat.size / 1024).toFixed(1);
+      return {
+        id: `${target.mtimeMs}_${fileName}`,
+        timestamp: new Date(target.mtimeMs).toISOString(),
+        filename: fileName,
+        filePath: target.fullPath,
+        folder: path.dirname(target.fullPath),
+        fileSizeKb: fileSizeKb,
+        dataUrl: dataUrl,
+        toothKey: '19',
+        patientId: activePatientId || '46',
+        source: `Physical Eighteeth NanoPix Sensor Radiograph (${fileName})`
+      };
+    }
+  }
+  return null;
+}
+
 // Find newest scan file across all watch folders
 function getLatestScanFromFolders(forceNewest = false) {
+  // First try to get real sensor scan
+  const realScan = getRealScanFromDisk();
+  if (realScan && forceNewest) {
+    return realScan;
+  }
+
   let newestFile = null;
   let newestMtime = 0;
 
@@ -422,9 +457,10 @@ function getLatestScanFromFolders(forceNewest = false) {
         filename: fileName,
         filePath: newestFile,
         folder: path.dirname(newestFile),
+        fileSizeKb: (fs.statSync(newestFile).size / 1024).toFixed(1),
         dataUrl: dataUrl,
         toothKey: '19',
-        patientId: activePatientId || '1',
+        patientId: activePatientId || '46',
         source: 'NanoPix Live Data Folder (' + fileName + ')'
       };
     }
@@ -536,6 +572,60 @@ const server = http.createServer((req, res) => {
       totalFilesOnDisk: allFoundFiles.length,
       latestFile: allFoundFiles[0] || null,
       recentFiles: allFoundFiles.slice(0, 10)
+    }));
+    return;
+  }
+
+  // 1d. Force Ingest Real Physical Sensor Scan from Disk
+  if (url.pathname === '/nanopix/load-real-scan') {
+    const realScan = getRealScanFromDisk();
+    if (realScan) {
+      realScan.patientId = url.searchParams.get('patientId') || activePatientId || '46';
+      latestScan = realScan;
+      broadcastSSE('scan', realScan);
+      broadcastLog('SUCCESS', `🎯 [GENUINE SCAN LOADED] Original Physical Radiograph "${realScan.filename}" (${realScan.fileSizeKb} KB) loaded from disk!`, realScan);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        message: `Genuine physical scan ${realScan.filename} successfully loaded!`,
+        scan: realScan
+      }));
+    } else {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: false,
+        message: 'No genuine physical scan found in D:\\PatientData yet.'
+      }));
+    }
+    return;
+  }
+
+  // 1e. Detector Driver Log Telemetry (FpdSys.log)
+  if (url.pathname === '/nanopix/detector-log') {
+    const logCandidates = [
+      path.join(__dirname, 'drivers', 'eighteeth_engine', 'FpdSys.log'),
+      'C:\\Users\\lenovo\\Downloads\\NanoPix\\NanoPix\\1.1.1.9\\FpdSys.log',
+      'C:\\NanoPix\\1.1.1.9\\FpdSys.log'
+    ];
+    let logContent = '';
+    for (const p of logCandidates) {
+      try {
+        if (fs.existsSync(p)) {
+          logContent = fs.readFileSync(p, 'utf8');
+          if (logContent) break;
+        }
+      } catch (_) {}
+    }
+    const lines = logContent.split('\n').filter(Boolean);
+    const lastLines = lines.slice(-25);
+    const isArmed = lastLines.some(l => l.includes('Create detector object succeed') && !lastLines.slice(lastLines.indexOf(l)).some(x => x.includes('Detector object destroyed')));
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      logFound: Boolean(logContent),
+      isArmed: isArmed,
+      lastStatus: lastLines[lastLines.length - 1] || 'No log entries',
+      recentLines: lastLines
     }));
     return;
   }

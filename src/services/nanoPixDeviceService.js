@@ -234,6 +234,47 @@ class NanoPixDeviceService {
   }
 
   // ---------------------------------------------------------------------------
+  // FORCE LOAD GENUINE PHYSICAL RADIOGRAPH FROM DISK
+  // ---------------------------------------------------------------------------
+  async loadRealPhysicalScan(patientId = '46') {
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const baseUrl = isLocal ? '' : 'http://127.0.0.1:5066';
+    try {
+      this.log('HOTFOLDER', '🔍 Searching for latest genuine physical sensor scan on disk...');
+      const res = await fetch(`${baseUrl}/nanopix/load-real-scan?patientId=${patientId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.scan) {
+          this.log('SUCCESS', `🎯 Original Physical Sensor Radiograph "${data.scan.filename}" loaded! Mounting...`, data.scan);
+          this.emit('scan-acquired', data.scan);
+          window.dispatchEvent(new CustomEvent('nanopix:scan-acquired', { detail: data.scan }));
+          return data.scan;
+        }
+      } else {
+        this.log('WARN', 'No previous genuine physical scan found in D:\\PatientData.');
+      }
+    } catch (err) {
+      this.log('WARN', `Load real scan note: ${err.message}`);
+    }
+    return null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // QUERY DETECTOR DRIVER STATE (FpdSys.log)
+  // ---------------------------------------------------------------------------
+  async getDetectorLogs() {
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const baseUrl = isLocal ? '' : 'http://127.0.0.1:5066';
+    try {
+      const res = await fetch(`${baseUrl}/nanopix/detector-log`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  // ---------------------------------------------------------------------------
   // QUERY PHYSICAL DISK & HOT-FOLDER STATUS
   // ---------------------------------------------------------------------------
   async getDiskStatus() {

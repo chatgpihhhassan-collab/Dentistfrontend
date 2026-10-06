@@ -340,8 +340,21 @@ export const NanoPixCaptureModal = ({
   };
 
   // ---------------------------------------------------------------------------
-  // PROCESS REAL IMAGE FOR THE CURRENT ACTIVE SLOT
+  // FORCE LOAD GENUINE PHYSICAL RADIOGRAPH FROM DISK
   // ---------------------------------------------------------------------------
+  const handleLoadRealPhysicalScan = async () => {
+    try {
+      const pid = patient?.patientID || patient?.id || '46';
+      nanoPixService.log('HOTFOLDER', `Loading newest genuine physical radiograph from disk for Patient #${pid}...`);
+      const scan = await nanoPixService.loadRealPhysicalScan(pid);
+      if (scan && scan.dataUrl) {
+        await handleAutoScan(scan);
+        setTestSuccessMessage(`Loaded genuine X-ray: ${scan.filename}`);
+      }
+    } catch (err) {
+      nanoPixService.log('WARN', `Load real scan note: ${err.message}`);
+    }
+  };
   const processImageForActiveSlot = async (file, customName = null) => {
     if (!file) return;
 
@@ -976,6 +989,16 @@ export const NanoPixCaptureModal = ({
 
             {/* Quick Tools & Counter */}
             <div className="flex items-center gap-2 text-xs">
+              {/* Load Original Sensor Scan Button */}
+              <button
+                onClick={handleLoadRealPhysicalScan}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs border border-blue-400/40 active:scale-95"
+                title="Load the latest genuine real radiograph from D:\PatientData without test prefix"
+              >
+                <ImageIcon className="w-3.5 h-3.5 text-blue-200" />
+                <span>Load Real X-Ray</span>
+              </button>
+
               {/* Test Sensor & Disk Pipeline Button */}
               <button
                 onClick={handleTriggerTestExposure}
@@ -1492,6 +1515,14 @@ export const NanoPixCaptureModal = ({
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={handleLoadRealPhysicalScan}
+                    className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[11px] font-bold transition cursor-pointer flex items-center gap-1 border border-blue-400/40 shadow-xs active:scale-95"
+                    title="Load original unaltered X-ray scan from sensor without test prefix"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5 text-blue-200" />
+                    <span>Load Real X-Ray</span>
+                  </button>
                   <button
                     onClick={refreshDiskStatus}
                     className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-semibold transition cursor-pointer flex items-center gap-1 border border-slate-700"
