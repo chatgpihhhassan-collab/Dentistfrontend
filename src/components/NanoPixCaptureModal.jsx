@@ -231,7 +231,8 @@ export const NanoPixCaptureModal = ({
       try {
         const res = await fetch(scanData.dataUrl);
         const blob = await res.blob();
-        const file = new File([blob], scanData.filename || `NanoPix_${activeSlotKey}_Exposure.png`, { type: 'image/png' });
+        const mime = blob.type || (scanData.filename?.endsWith('.png') ? 'image/png' : 'image/jpeg');
+        const file = new File([blob], scanData.filename || `NanoPix_${activeSlotKey}_Exposure.jpg`, { type: mime });
         await processImageForActiveSlot(file, scanData.filename);
       } catch (err) {
         console.error('Failed to parse scan dataUrl:', err);
