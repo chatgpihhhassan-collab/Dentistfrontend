@@ -35,3 +35,9 @@ lerna-debug.log*
 
 # Local Clinic Scans
 scans/
+nanopix_scans/
+drivers/eighteeth_engine/FinCloud/
+drivers/eighteeth_engine/crash/
+drivers/eighteeth_engine/cache/
+drivers/eighteeth_engine/logs/
+drivers/eighteeth_engine/temp/

@@ -141,6 +141,56 @@ function pollFtdiHardwareBus() {
   }
 }
 
+// -----------------------------------------------------------------------------
+// AUTOMATED EIGHTEETH BACKGROUND ACQUISITION ENGINE SUPERVISOR
+// -----------------------------------------------------------------------------
+const bundledEngineExe = path.join(__dirname, 'drivers', 'eighteeth_engine', 'NanoPix.exe');
+const bundledEngineDir = path.join(__dirname, 'drivers', 'eighteeth_engine');
+
+function ensureEighteethEngineRunning() {
+  try {
+    let isRunning = false;
+    try {
+      const output = execSync('tasklist /fi "imagename eq NanoPix.exe"', { stdio: ['ignore', 'pipe', 'ignore'], timeout: 3000 }).toString();
+      isRunning = output.toLowerCase().includes('nanopix.exe');
+    } catch (_) {
+      isRunning = false;
+    }
+
+    if (!isRunning) {
+      const candidatePaths = [
+        bundledEngineExe,
+        'C:\\Users\\lenovo\\Downloads\\NanoPix\\NanoPix\\1.1.1.9\\NanoPix.exe',
+        path.join(__dirname, 'drivers', 'eighteeth_engine', 'Launch.exe'),
+        'C:\\Users\\lenovo\\Downloads\\NanoPix\\NanoPix\\Launch.exe'
+      ];
+      const targetExe = candidatePaths.find(p => fs.existsSync(p));
+      if (targetExe) {
+        const engineWorkingDir = path.dirname(targetExe);
+        ['crash/db', 'cache', 'logs', 'temp'].forEach(d => {
+          try { fs.mkdirSync(path.join(engineWorkingDir, d), { recursive: true }); } catch (_) {}
+        });
+
+        console.log(`[AUTO-ENGINE] 🚀 Starting Eighteeth Driver Engine automatically in background: ${targetExe}`);
+        const { spawn } = require('child_process');
+        const child = spawn(targetExe, [], {
+          cwd: engineWorkingDir,
+          detached: true,
+          stdio: 'ignore'
+        });
+        child.unref();
+        console.log(`[AUTO-ENGINE] ✅ Driver Engine active in background (PID: ${child.pid}). Hardware Sensor is ARMED.`);
+      }
+    }
+  } catch (err) {
+    // Non-fatal supervisor check
+  }
+}
+
+// Auto-start and supervise engine on bridge startup
+ensureEighteethEngineRunning();
+setInterval(ensureEighteethEngineRunning, 10000);
+
 // Run hardware polling every 1.5s
 setInterval(pollFtdiHardwareBus, 1500);
 
@@ -500,6 +550,17 @@ const server = http.createServer((req, res) => {
       },
       hotFolders: WATCH_FOLDERS,
       hasPendingScan: Boolean(latestScan)
+    }));
+    return;
+  }
+
+  // 1b. Trigger Engine Launch on Demand
+  if (url.pathname === '/nanopix/launch-engine') {
+    ensureEighteethEngineRunning();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      message: 'Eighteeth Hardware Acquisition Engine invoked and active in background.'
     }));
     return;
   }
