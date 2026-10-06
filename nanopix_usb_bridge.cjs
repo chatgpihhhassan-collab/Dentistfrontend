@@ -493,14 +493,19 @@ const server = http.createServer((req, res) => {
 
   // 2. Latest Scan Polling (Consumes each scan once or returns latest from disk)
   if (url.pathname === '/nanopix/latest-scan') {
+    const patientId = url.searchParams.get('patientId') || activePatientId || '46';
+    activePatientId = patientId;
     const force = url.searchParams.get('force') === 'true' || url.searchParams.get('initial') === 'true';
     if (!latestScan) {
       latestScan = getLatestScanFromFolders(force || consumedScanIds.size === 0);
     }
     const scan = latestScan;
-    if (scan && url.searchParams.get('consume') === 'true') {
-      consumedScanIds.add(String(scan.id));
-      latestScan = null;
+    if (scan) {
+      scan.patientId = patientId;
+      if (url.searchParams.get('consume') === 'true') {
+        consumedScanIds.add(String(scan.id));
+        latestScan = null;
+      }
     }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({

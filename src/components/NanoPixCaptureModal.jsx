@@ -221,23 +221,23 @@ export const NanoPixCaptureModal = ({
   }, [isOpen, activeSlotKey]);
 
   // Automatic Real-Time Hardware Bridge Auto-Acquisition
+  const handleAutoScan = async (scanData) => {
+    if (!scanData || !scanData.dataUrl) return;
+    nanoPixService.log('SUCCESS', `Auto-ingesting new radiograph from Nano-Pix Bridge: ${scanData.filename || 'Direct Exposure'}`);
+    
+    try {
+      const res = await fetch(scanData.dataUrl);
+      const blob = await res.blob();
+      const mime = blob.type || (scanData.filename?.endsWith('.png') ? 'image/png' : 'image/jpeg');
+      const file = new File([blob], scanData.filename || `NanoPix_${activeSlotKey}_Exposure.jpg`, { type: mime });
+      await processImageForActiveSlot(file, scanData.filename);
+    } catch (err) {
+      console.error('Failed to parse scan dataUrl:', err);
+    }
+  };
+
   useEffect(() => {
     if (!isOpen) return;
-
-    const handleAutoScan = async (scanData) => {
-      if (!scanData || !scanData.dataUrl) return;
-      nanoPixService.log('SUCCESS', `Auto-ingesting new radiograph from Nano-Pix Bridge: ${scanData.filename || 'Direct Exposure'}`);
-      
-      try {
-        const res = await fetch(scanData.dataUrl);
-        const blob = await res.blob();
-        const mime = blob.type || (scanData.filename?.endsWith('.png') ? 'image/png' : 'image/jpeg');
-        const file = new File([blob], scanData.filename || `NanoPix_${activeSlotKey}_Exposure.jpg`, { type: mime });
-        await processImageForActiveSlot(file, scanData.filename);
-      } catch (err) {
-        console.error('Failed to parse scan dataUrl:', err);
-      }
-    };
 
     const unsub = nanoPixService.subscribe('scan-acquired', handleAutoScan);
     const onCustomScan = (e) => handleAutoScan(e.detail);
