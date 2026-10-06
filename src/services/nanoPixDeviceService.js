@@ -77,83 +77,77 @@ class NanoPixDeviceService {
 
     const pollBridge = async () => {
       if (isPolling) return;
-      if (consecutiveErrors > 5 && consecutiveErrors % 10 !== 0) {
-        // Backoff when bridge is offline
-        consecutiveErrors++;
-        return;
-      }
       isPolling = true;
       try {
         const res = await fetch(`${baseUrl}/nanopix/latest-scan?consume=true`, {
-          signal: AbortSignal.timeout(1200)
-        });
-        if (res.ok) {
+          signal: AbortSignal.timeout(1500)
+        }).catch(() => null);
+
+        if (res && res.ok) {
           consecutiveErrors = 0;
-          const data = await res.json();
+          const data = await res.json().catch(() => null);
           if (data && data.hasScan && data.scan) {
             handleIncomingScan(data.scan);
           }
+
+          // Also fetch live USB telemetry when bridge is active
+          const tRes = await fetch(`${baseUrl}/nanopix/telemetry`, {
+            signal: AbortSignal.timeout(1500)
+          }).catch(() => null);
+
+          if (tRes && tRes.ok) {
+            const tData = await tRes.json().catch(() => null);
+            if (tData && tData.telemetry) {
+              this.telemetry = tData.telemetry;
+              this.emit('telemetry', this.telemetry);
+              window.dispatchEvent(new CustomEvent('nanopix:telemetry', { detail: this.telemetry }));
+            }
+          }
         } else {
           consecutiveErrors++;
-        }
-
-        // Also fetch live USB telemetry
-        const tRes = await fetch(`${baseUrl}/nanopix/telemetry`, {
-          signal: AbortSignal.timeout(1200)
-        });
-        if (tRes.ok) {
-          consecutiveErrors = 0;
-          const tData = await tRes.json();
-          if (tData && tData.telemetry) {
-            this.telemetry = tData.telemetry;
-            this.emit('telemetry', this.telemetry);
-            window.dispatchEvent(new CustomEvent('nanopix:telemetry', { detail: this.telemetry }));
-          }
         }
       } catch (e) {
         consecutiveErrors++;
       } finally {
         isPolling = false;
+        // Smart backoff: poll frequently (2s) when bridge is online, relax (20s on local, 45s on prod) when offline
+        const nextDelay = consecutiveErrors >= 1 ? (isLocal ? 20000 : 45000) : 2000;
+        setTimeout(pollBridge, nextDelay);
       }
     };
 
-    // Poll every 1.5s for incoming X-rays and USB bus telemetry
-    setInterval(pollBridge, 1500);
+    // Initial check delayed slightly to allow page load
+    setTimeout(pollBridge, isLocal ? 1500 : 4000);
 
-    // Also attempt SSE live stream
-    try {
-      if (typeof EventSource !== 'undefined') {
-        const sseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-          ? 'http://127.0.0.1:5066/nanopix/events'
-          : '/nanopix/events';
+    // Also attempt SSE live stream on local environments
+    if (isLocal && typeof EventSource !== 'undefined') {
+      try {
+        const sseUrl = 'http://127.0.0.1:5066/nanopix/events';
+        const es = new EventSource(sseUrl);
+        es.addEventListener('scan', (event) => {
+          try {
+            const scan = JSON.parse(event.data);
+            if (scan) {
+              handleIncomingScan(scan);
+            }
+          } catch (err) {}
+        });
 
-        let es = null;
-        try {
-          es = new EventSource(sseUrl);
-          es.addEventListener('scan', (event) => {
-            try {
-              const scan = JSON.parse(event.data);
-              if (scan) {
-                handleIncomingScan(scan);
-              }
-            } catch (err) {}
-          });
+        es.addEventListener('log', (event) => {
+          try {
+            const item = JSON.parse(event.data);
+            if (item) {
+              this.log(item.type, item.message, item.details);
+            }
+          } catch (err) {}
+        });
 
-          es.addEventListener('log', (event) => {
-            try {
-              const item = JSON.parse(event.data);
-              if (item) {
-                this.log(item.type, item.message, item.details);
-              }
-            } catch (err) {}
-          });
-
-          es.onerror = () => {
-            // Keep silent; polling loop handles telemetry & scans seamlessly
-          };
-        } catch (e) {}
-      }
-    } catch (e) {}
+        es.onerror = () => {
+          // Keep silent; polling loop handles telemetry & scans seamlessly
+          try { es.close(); } catch (_) {}
+        };
+      } catch (e) {}
+    }
   }
 
   // ---------------------------------------------------------------------------
