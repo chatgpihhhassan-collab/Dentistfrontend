@@ -1057,9 +1057,9 @@ export default function ChartPage() {
       const imgName = scan.filename || `NanoPix_Tooth_${tKey}_${new Date().toLocaleTimeString().replace(/:/g, '-')}.png`;
 
       console.log(
-        `%c[NANOPIX AUTO-LOAD] ⚡ Received Eighteeth Nano-Pix Scan Payload%c Tooth #${tKey} for Patient #${patientId}`,
-        'background: #10B981; color: #FFF; font-weight: bold; padding: 2px 6px; border-radius: 4px;',
-        'color: #065F46; font-weight: 700;'
+        `%c[NANOPIX STEP 4/4 - CHART & ODONTOGRAM MOUNTED] ✨ Radiograph Mounted on Dental Chart!%c\n• Patient: #${patientId}\n• Tooth: #${tKey}\n• Filename: ${imgName}\n• Source Folder: ${scan.folder || scan.source || 'D:\\PatientData'}\n• Image Length: ${scan.dataUrl.length} chars\n• Odontogram Tooth #${tKey} spotlighted!`,
+        'background: #059669; color: white; font-weight: 900; font-size: 11px; padding: 3px 8px; border-radius: 4px;',
+        'color: #047857; font-weight: bold;'
       );
 
       const newScan = {
@@ -1099,7 +1099,7 @@ export default function ChartPage() {
 
       setToast({
         visible: true,
-        message: `⚡ Eighteeth Nano-Pix X-Ray auto-loaded & saved for Tooth #${tKey} (Patient #${patientId})!`
+        message: `✨ [STEP 4/4] Eighteeth Nano-Pix X-Ray auto-mounted on Chart for Tooth #${tKey} (Patient #${patientId})!`
       });
       setTimeout(() => setToast({ visible: false, message: '' }), 5000);
 

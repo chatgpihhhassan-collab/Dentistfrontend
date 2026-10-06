@@ -280,8 +280,10 @@ function generateDentalRadiographDataUrl(toothKey = '19', label = 'Mandibular Le
 
 // Ingest a newly arrived scan file
 function handleNewScanFile(filePath) {
+  let fileSizeKb = 0;
   try {
     const stat = fs.statSync(filePath);
+    fileSizeKb = (stat.size / 1024).toFixed(1);
     const fileKey = `${stat.mtimeMs}_${path.basename(filePath)}`;
     if (consumedScanIds.has(fileKey)) {
       return;
@@ -291,29 +293,50 @@ function handleNewScanFile(filePath) {
     return;
   }
 
-  console.log(`[NANOPIX BRIDGE] ⚡ New scan file detected in hot-folder: ${filePath}`);
-  const dataUrl = fileToDataUrl(filePath);
-  if (!dataUrl) return;
-
   const fileName = path.basename(filePath);
+  const folderDir = path.dirname(filePath);
+
+  console.log(`================================================================`);
+  console.log(`📁 [NANOPIX STEP 1/4 - DISK FOLDER VERIFIED]`);
+  console.log(`   📂 Folder:   ${folderDir}`);
+  console.log(`   📄 File:     ${fileName}`);
+  console.log(`   💾 Size:     ${fileSizeKb} KB`);
+  console.log(`   ⏰ Time:     ${new Date().toLocaleTimeString()}`);
+  console.log(`   ✅ Status:   File successfully saved to Hard Drive!`);
+  console.log(`================================================================`);
+
+  const dataUrl = fileToDataUrl(filePath);
+  if (!dataUrl) {
+    console.error(`[NANOPIX STEP 2/4 - BRIDGE ERROR] Failed to read ${filePath} into memory.`);
+    return;
+  }
+
   const scanRecord = {
     id: `${Date.now()}_${fileName}`,
     timestamp: new Date().toISOString(),
     filename: fileName,
+    filePath: filePath,
+    folder: folderDir,
+    fileSizeKb: fileSizeKb,
     dataUrl: dataUrl,
     toothKey: '19',
     patientId: activePatientId || '1',
-    source: 'NanoPix USB Hot-Folder Auto-Sync (' + fileName + ')'
+    source: `NanoPix Hot-Folder (${folderDir}\\${fileName})`
   };
 
   latestScan = scanRecord;
   scanQueue.push(scanRecord);
   consumedScanIds.add(String(scanRecord.id));
 
+  console.log(`📡 [NANOPIX STEP 2/4 - BROADCASTING TO DENTIA CHART]`);
+  console.log(`   🔗 Web Clients connected via SSE: ${sseClients.length}`);
+  console.log(`   📦 DataURL prefix: ${dataUrl.slice(0, 35)}...`);
+  console.log(`   🚀 Dispatching to http://127.0.0.1:5066/nanopix/latest-scan & SSE Stream`);
+  console.log(`================================================================`);
+
   // Broadcast to all connected web clients via SSE
   broadcastSSE('scan', scanRecord);
-  broadcastLog('SUCCESS', `✅ New radiograph auto-ingested from Hot-Folder: ${fileName}`, scanRecord);
-  console.log(`[NANOPIX BRIDGE] ✅ Radiograph broadcasted to ${sseClients.length} web client(s)!`);
+  broadcastLog('SUCCESS', `📁 [STEP 1&2/4] X-Ray detected in folder "${folderDir}" (${fileSizeKb} KB) & pushed to Chart!`, scanRecord);
 }
 
 // Recursive file collector for nested directories

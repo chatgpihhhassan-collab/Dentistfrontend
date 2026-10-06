@@ -57,7 +57,13 @@ class NanoPixDeviceService {
       if (this.lastProcessedScanId === scanKey) return;
       this.lastProcessedScanId = scanKey;
 
-      this.log('EXPOSURE', `⚡ Real-time Scan auto-received from Nano-Pix Bridge: ${scan.filename || 'Direct Exposure'}`, scan);
+      console.log(
+        `%c[NANOPIX STEP 3/4 - BROWSER INGESTION] 📥 Radiograph Arrived from Hardware Bridge!%c\n• File: ${scan.filename}\n• Folder: ${scan.folder || 'D:\\PatientData'}\n• Size: ${scan.fileSizeKb || '~8.0'} KB\n• Tooth: #${scan.toothKey || '19'}\n• Patient: #${scan.patientId || 'Active'}`,
+        'background: #0284C7; color: white; font-weight: 900; font-size: 11px; padding: 3px 8px; border-radius: 4px;',
+        'color: #0369A1; font-weight: bold;'
+      );
+
+      this.log('EXPOSURE', `⚡ [STEP 3/4] Scan received from folder "${scan.folder || 'D:\\PatientData'}": ${scan.filename}`, scan);
       this.playConnectChime();
       this.emit('scan-acquired', scan);
       window.dispatchEvent(new CustomEvent('nanopix:scan-acquired', { detail: scan }));
