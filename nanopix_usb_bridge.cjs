@@ -145,11 +145,25 @@ function pollFtdiHardwareBus() {
 setInterval(pollFtdiHardwareBus, 1500);
 
 // Bridge State
+const bridgeBootTime = Date.now();
 let latestScan = null;
 let scanQueue = [];
 let sseClients = [];
 let activePatientId = null;
 const consumedScanIds = new Set();
+
+// Pre-seed consumedScanIds with all pre-existing files so they aren't treated as new X-rays
+WATCH_FOLDERS.forEach(folder => {
+  try {
+    const existing = getAllScanFilesInDir(folder, 3);
+    existing.forEach(f => {
+      try {
+        const stat = fs.statSync(f);
+        consumedScanIds.add(`${stat.mtimeMs}_${path.basename(f)}`);
+      } catch (_) {}
+    });
+  } catch (_) {}
+});
 
 // Convert image file to base64 Data URL
 function fileToDataUrl(filePath) {
@@ -251,6 +265,21 @@ function generateDentalRadiographDataUrl(toothKey = '19', label = 'Mandibular Le
 
 // Ingest a newly arrived scan file
 function handleNewScanFile(filePath) {
+  try {
+    const stat = fs.statSync(filePath);
+    // Ignore old historical files (only accept new files created or modified after bridge boot)
+    if (stat.mtimeMs < bridgeBootTime) {
+      return;
+    }
+    const fileKey = `${stat.mtimeMs}_${path.basename(filePath)}`;
+    if (consumedScanIds.has(fileKey)) {
+      return;
+    }
+    consumedScanIds.add(fileKey);
+  } catch (_) {
+    return;
+  }
+
   console.log(`[NANOPIX BRIDGE] ⚡ New scan file detected in hot-folder: ${filePath}`);
   const dataUrl = fileToDataUrl(filePath);
   if (!dataUrl) return;
@@ -343,7 +372,7 @@ function broadcastLog(type, message, details = null) {
 // Find any NEW scan file across all watch folders & nested patient folders
 function getLatestScanFromFolders() {
   let newestFile = null;
-  let newestMtime = 0;
+  let newestMtime = bridgeBootTime;
 
   WATCH_FOLDERS.forEach(folder => {
     const allFiles = getAllScanFilesInDir(folder, 3);
