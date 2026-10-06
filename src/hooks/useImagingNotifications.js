@@ -3,6 +3,8 @@ import { useEffect } from 'react';
 export const useImagingNotifications = ({ patientId, onNewRadiograph, onFindingsReady, onAnalysisFailed }) => {
   useEffect(() => {
     if (!patientId) return;
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    if (!isLocal) return; // REST API mode on cloud deployment
 
     let connection = null;
     let isCancelled = false;
@@ -20,9 +22,9 @@ export const useImagingNotifications = ({ patientId, onNewRadiograph, onFindings
         connection
           .start()
           .then(() => {
-            connection.invoke('JoinPatientSession', patientId.toString()).catch(console.error);
+            connection.invoke('JoinPatientSession', patientId.toString()).catch(() => {});
           })
-          .catch((err) => console.warn('SignalR Hub Connection Notice:', err.message));
+          .catch(() => {});
 
         connection.on('imaging:new', (data) => {
           if (onNewRadiograph) onNewRadiograph(data);

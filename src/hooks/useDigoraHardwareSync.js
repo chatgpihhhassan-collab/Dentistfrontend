@@ -481,9 +481,9 @@ export function useDigoraHardwareSync({
     };
   }, [isArmed, remainingSeconds > 0, operatoryId]);
 
-  // 10. WebSocket Channel (With SkipNegotiation to prevent wildcard CORS blocks)
+  // 10. WebSocket Channel (Skip on REST-only cloud API to prevent 405 Method Not Allowed)
   useEffect(() => {
-    if (!patientId) return;
+    if (!patientId || cleanBaseUrl.includes('vitonta.com')) return;
 
     let isSubscribed = true;
     const hubUrl = `${cleanBaseUrl}/hubs/imaging`;
