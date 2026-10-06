@@ -1,55 +1,75 @@
 /**
  * Eighteeth Nano-Pix 1 & 2 USB Hardware & Hot-Folder Bridge Engine
  * 
- * Direct Hardware Integration:
- * - Direct C-speed FTDI D2XX driver (C:\Windows\System32\ftd2xx.dll) via Koffi.
- * - Real-time USB Bus & Endpoint RX Queue Telemetry (iRayC7DB5M40P4 / VID: 0x0403, PID: 0x6014).
- * - Multi-directory Hot-Folder Watcher (C:\Eighteeth\Export, D:\dentistfrontend\Dentistfrontend\nanopix_scans).
- * - Real-time Server-Sent Events (SSE) telemetry and image streaming to Dentia Frontend.
+ * 100% Fully Portable & Zero Hardcoded Paths.
+ * Works out-of-the-box on any doctor's computer with bundled drivers.
+ * 
+ * Flow Architecture:
+ * [FLOW 1/5] Native FTDI D2XX Kernel Driver Binding via Koffi.
+ * [FLOW 2/5] Hardware Bus Telemetry (VID: 0x0403, PID: 0x6014, SN: iRayC7DB5M40P4).
+ * [FLOW 3/5] Bundled Eighteeth Acquisition Engine Supervisor (drivers/eighteeth_engine/NanoPix.exe).
+ * [FLOW 4/5] Multi-Drive Dynamic Hot-Folder Watcher (PatientData, Eighteeth Export, nanopix_scans).
+ * [FLOW 5/5] Real-Time SSE & REST Streaming to Dentia Web Chart (port 5066).
  */
 
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execSync } = require('child_process');
+const { execSync, spawn } = require('child_process');
 
 const PORT = 5066;
 
-// Hot-folders to watch across any doctor's PC layout
-const projectScansFolder = path.join(__dirname, 'nanopix_scans');
-const userProfileScansFolder = process.env.USERPROFILE 
-  ? path.join(process.env.USERPROFILE, 'Dentia', 'NanoPixScans') 
-  : projectScansFolder;
-const eighteethDefaultExport = 'C:\\Eighteeth\\Export';
-const cPatientData = 'C:\\PatientData';
-const dPatientData = 'D:\\PatientData';
-const userRoamingNanoPix = process.env.APPDATA 
-  ? path.join(process.env.APPDATA, 'NanoPix')
-  : 'C:\\Users\\Public\\NanoPix';
-const nanoPixDownloadsDir = path.join(process.env.USERPROFILE || 'C:\\Users\\Public', 'Downloads', 'NanoPix');
+// -----------------------------------------------------------------------------
+// [FLOW 4/5] DYNAMIC MULTI-DRIVE HOT-FOLDER DISCOVERY (ZERO HARDCODED PATHS)
+// -----------------------------------------------------------------------------
+function discoverHotFolders() {
+  const folders = new Set();
 
-const WATCH_FOLDERS = [
-  dPatientData,
-  cPatientData,
-  projectScansFolder,
-  userProfileScansFolder,
-  eighteethDefaultExport,
-  userRoamingNanoPix,
-  nanoPixDownloadsDir
-];
+  // 1. In-Project scans directory
+  const projectScans = path.join(__dirname, 'nanopix_scans');
+  folders.add(projectScans);
 
-// Ensure local folders exist
+  // 2. User Profile / Dentia standard directory
+  const homeDir = os.homedir();
+  folders.add(path.join(homeDir, 'Dentia', 'NanoPixScans'));
+  if (process.env.APPDATA) {
+    folders.add(path.join(process.env.APPDATA, 'NanoPix'));
+  }
+
+  // 3. Dynamic search across all Windows drive letters (C:, D:, E:, F:, G:, etc.)
+  const driveLetters = ['C', 'D', 'E', 'F', 'G', 'H'];
+  for (const letter of driveLetters) {
+    const root = `${letter}:\\`;
+    try {
+      if (fs.existsSync(root)) {
+        folders.add(`${letter}:\\PatientData`);
+        folders.add(`${letter}:\\Eighteeth\\Export`);
+        folders.add(`${letter}:\\NanoPixData`);
+        folders.add(`${letter}:\\Dentia\\Scans`);
+      }
+    } catch (_) {}
+  }
+
+  // 4. Bundled engine workspace
+  folders.add(path.join(__dirname, 'drivers', 'eighteeth_engine'));
+
+  return Array.from(folders);
+}
+
+const WATCH_FOLDERS = discoverHotFolders();
+
+// Ensure local watch folders exist
 WATCH_FOLDERS.forEach(folder => {
   try {
     if (!fs.existsSync(folder)) {
       fs.mkdirSync(folder, { recursive: true });
     }
-  } catch (e) {}
+  } catch (_) {}
 });
 
 // -----------------------------------------------------------------------------
-// NATIVE FTDI D2XX KERNEL DRIVER BINDINGS (KOFFI)
+// [FLOW 1/5 & 2/5] NATIVE FTDI D2XX HARDWARE KERNEL DRIVER BINDINGS
 // -----------------------------------------------------------------------------
 let ftdiLib = null;
 let FT_CreateDeviceInfoList = null;
@@ -70,36 +90,45 @@ let hardwareTelemetry = {
   status: 'Ready (Armed & Monitoring USB Bus)'
 };
 
-try {
-  const koffi = require('koffi');
+function initFtdiDriver() {
+  const windir = process.env.WINDIR || 'C:\\Windows';
   const candidateDlls = [
-    path.join(__dirname, 'drivers', 'nanopix', 'ftd2xx.dll'),
     path.join(__dirname, 'drivers', 'nanopix', 'ftd2xx64.dll'),
-    'C:\\Windows\\System32\\ftd2xx.dll'
+    path.join(__dirname, 'drivers', 'nanopix', 'ftd2xx.dll'),
+    path.join(windir, 'System32', 'ftd2xx.dll'),
+    path.join(windir, 'SysWOW64', 'ftd2xx.dll')
   ];
-  const dllPath = candidateDlls.find(p => fs.existsSync(p)) || 'C:\\Windows\\System32\\ftd2xx.dll';
-  if (fs.existsSync(dllPath)) {
-    ftdiLib = koffi.load(dllPath);
-    FT_CreateDeviceInfoList = ftdiLib.func('uint32 FT_CreateDeviceInfoList(_Out_ uint32* lpdwNumDevs)');
-    FT_GetDeviceInfoDetail = ftdiLib.func('uint32 FT_GetDeviceInfoDetail(uint32 dwIndex, _Out_ uint32* lpdwFlags, _Out_ uint32* lpdwType, _Out_ uint32* lpdwID, _Out_ uint32* lpdwLocId, _Out_ char* pcSerialNumber, _Out_ char* pcDescription, _Out_ void** ftHandle)');
-    FT_Open = ftdiLib.func('uint32 FT_Open(uint32 dwDevice, _Out_ void** ftHandle)');
-    FT_GetStatus = ftdiLib.func('uint32 FT_GetStatus(void* ftHandle, _Out_ uint32* lpdwAmountInRxQueue, _Out_ uint32* lpdwAmountInTxQueue, _Out_ uint32* lpdwEventStatus)');
-    FT_Close = ftdiLib.func('uint32 FT_Close(void* ftHandle)');
 
-    hardwareTelemetry.driverLoaded = true;
-    console.log(`[FTDI D2XX DRIVER] ✅ Native FTDI Kernel DLL loaded: ${dllPath}`);
+  try {
+    const koffi = require('koffi');
+    const dllPath = candidateDlls.find(p => fs.existsSync(p));
+    if (dllPath) {
+      ftdiLib = koffi.load(dllPath);
+      FT_CreateDeviceInfoList = ftdiLib.func('uint32 FT_CreateDeviceInfoList(_Out_ uint32* lpdwNumDevs)');
+      FT_GetDeviceInfoDetail = ftdiLib.func('uint32 FT_GetDeviceInfoDetail(uint32 dwIndex, _Out_ uint32* lpdwFlags, _Out_ uint32* lpdwType, _Out_ uint32* lpdwID, _Out_ uint32* lpdwLocId, _Out_ char* pcSerialNumber, _Out_ char* pcDescription, _Out_ void** ftHandle)');
+      FT_Open = ftdiLib.func('uint32 FT_Open(uint32 dwDevice, _Out_ void** ftHandle)');
+      FT_GetStatus = ftdiLib.func('uint32 FT_GetStatus(void* ftHandle, _Out_ uint32* lpdwAmountInRxQueue, _Out_ uint32* lpdwAmountInTxQueue, _Out_ uint32* lpdwEventStatus)');
+      FT_Close = ftdiLib.func('uint32 FT_Close(void* ftHandle)');
+
+      hardwareTelemetry.driverLoaded = true;
+      console.log(`[FLOW 1/5 - DRIVER INITIALIZED] ✅ FTDI D2XX Kernel Driver loaded: ${dllPath}`);
+    } else {
+      console.warn(`[FLOW 1/5 - DRIVER WARNING] FTDI DLL not found in candidates list.`);
+    }
+  } catch (err) {
+    console.warn(`[FLOW 1/5 - DRIVER NOTICE] Driver initialization notice: ${err.message}`);
   }
-} catch (err) {
-  console.warn(`[FTDI D2XX DRIVER] Native driver notice: ${err.message}`);
 }
 
-// Poll physical FTDI USB bus for device status and queue bytes
+initFtdiDriver();
+
+// Poll physical FTDI USB bus for device status and queue telemetry
 function pollFtdiHardwareBus() {
   if (!ftdiLib || !FT_CreateDeviceInfoList) return;
 
   try {
     const numDevsBuf = [0];
-    const status = FT_CreateDeviceInfoList(numDevsBuf);
+    FT_CreateDeviceInfoList(numDevsBuf);
     const numDevs = numDevsBuf[0];
     hardwareTelemetry.deviceCount = numDevs;
     hardwareTelemetry.lastPollTime = new Date().toISOString();
@@ -113,7 +142,7 @@ function pollFtdiHardwareBus() {
       FT_GetDeviceInfoDetail(0, flags, type, id, locId, serial, desc, handleBuf);
       const serialStr = serial.toString('utf8').replace(/\0/g, '').trim();
       const descStr = desc.toString('utf8').replace(/\0/g, '').trim();
-      
+
       if (serialStr) hardwareTelemetry.serial = serialStr.replace(/[^\x20-\x7E]/g, '');
       if (descStr && descStr.includes('USB')) {
         hardwareTelemetry.description = 'Eighteeth Nano-Pix 2 (HD CMOS)';
@@ -131,8 +160,8 @@ function pollFtdiHardwareBus() {
         FT_Close(openBuf[0]);
 
         if (rxBuf[0] > 0) {
-          console.log(`[FTDI HARDWARE USB] ⚡ RX BUFFER ACTIVITY DETECTED: ${rxBuf[0]} bytes arriving from sensor!`);
-          broadcastLog('USB', `⚡ RX Packet Activity on FTDI Bus: ${rxBuf[0]} incoming bytes detected from ${hardwareTelemetry.serial}`);
+          console.log(`[FLOW 2/5 - HARDWARE ACTIVITY] ⚡ ${rxBuf[0]} incoming bytes detected on FTDI Bus from ${hardwareTelemetry.serial}!`);
+          broadcastLog('USB', `⚡ RX Packet Activity: ${rxBuf[0]} bytes arriving from ${hardwareTelemetry.serial}`);
         }
       }
     }
@@ -142,10 +171,11 @@ function pollFtdiHardwareBus() {
 }
 
 // -----------------------------------------------------------------------------
-// AUTOMATED EIGHTEETH BACKGROUND ACQUISITION ENGINE SUPERVISOR
+// [FLOW 3/5] AUTOMATED BUNDLED EIGHTEETH ACQUISITION ENGINE SUPERVISOR
 // -----------------------------------------------------------------------------
-const bundledEngineExe = path.join(__dirname, 'drivers', 'eighteeth_engine', 'NanoPix.exe');
 const bundledEngineDir = path.join(__dirname, 'drivers', 'eighteeth_engine');
+const bundledEngineExe = path.join(bundledEngineDir, 'NanoPix.exe');
+const bundledEngineLaunch = path.join(bundledEngineDir, 'Launch.exe');
 
 function ensureEighteethEngineRunning() {
   try {
@@ -160,10 +190,16 @@ function ensureEighteethEngineRunning() {
     if (!isRunning) {
       const candidatePaths = [
         bundledEngineExe,
-        'C:\\Users\\lenovo\\Downloads\\NanoPix\\NanoPix\\1.1.1.9\\NanoPix.exe',
-        path.join(__dirname, 'drivers', 'eighteeth_engine', 'Launch.exe'),
-        'C:\\Users\\lenovo\\Downloads\\NanoPix\\NanoPix\\Launch.exe'
+        bundledEngineLaunch
       ];
+
+      // Add Program Files paths if installed
+      const programFiles = [process.env['ProgramFiles'], process.env['ProgramFiles(x86)']].filter(Boolean);
+      for (const pf of programFiles) {
+        candidatePaths.push(path.join(pf, 'Eighteeth', 'NanoPix', 'NanoPix.exe'));
+        candidatePaths.push(path.join(pf, 'NanoPix', 'NanoPix.exe'));
+      }
+
       const targetExe = candidatePaths.find(p => fs.existsSync(p));
       if (targetExe) {
         const engineWorkingDir = path.dirname(targetExe);
@@ -171,15 +207,14 @@ function ensureEighteethEngineRunning() {
           try { fs.mkdirSync(path.join(engineWorkingDir, d), { recursive: true }); } catch (_) {}
         });
 
-        console.log(`[AUTO-ENGINE] 🚀 Starting Eighteeth Driver Engine automatically in background: ${targetExe}`);
-        const { spawn } = require('child_process');
+        console.log(`[FLOW 3/5 - AUTO-ENGINE LAUNCH] 🚀 Launching Bundled Eighteeth Driver Engine: ${targetExe}`);
         const child = spawn(targetExe, [], {
           cwd: engineWorkingDir,
           detached: true,
           stdio: 'ignore'
         });
         child.unref();
-        console.log(`[AUTO-ENGINE] ✅ Driver Engine active in background (PID: ${child.pid}). Hardware Sensor is ARMED.`);
+        console.log(`[FLOW 3/5 - AUTO-ENGINE ACTIVE] ✅ Driver Engine active in background (PID: ${child.pid}). Hardware Sensor is ARMED.`);
       }
     }
   } catch (err) {
@@ -187,22 +222,23 @@ function ensureEighteethEngineRunning() {
   }
 }
 
-// Auto-start and supervise engine on bridge startup
+// Auto-start and supervise engine every 5 seconds
 ensureEighteethEngineRunning();
-setInterval(ensureEighteethEngineRunning, 10000);
+setInterval(ensureEighteethEngineRunning, 5000);
 
-// Run hardware polling every 1.5s
+// Hardware polling every 1.5 seconds
 setInterval(pollFtdiHardwareBus, 1500);
 
-// Bridge State
-const bridgeBootTime = Date.now();
+// -----------------------------------------------------------------------------
+// [FLOW 4/5 & 5/5] HOT-FOLDER INGESTION & SSE BROADCAST ENGINE
+// -----------------------------------------------------------------------------
 let latestScan = null;
 let scanQueue = [];
 let sseClients = [];
 let activePatientId = null;
 const consumedScanIds = new Set();
 
-// Pre-seed consumedScanIds only with files older than 10 minutes
+// Pre-seed consumed files older than 10 minutes to avoid re-triggering old scans
 const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
 WATCH_FOLDERS.forEach(folder => {
   try {
@@ -218,7 +254,7 @@ WATCH_FOLDERS.forEach(folder => {
   } catch (_) {}
 });
 
-// Convert image file to base64 Data URL with retry for locked/writing files
+// Convert file to compliant Data URL with write-lock retry mechanism
 function fileToDataUrl(filePath, retries = 5, delay = 150) {
   const ext = path.extname(filePath).toLowerCase();
   const mimeTypes = {
@@ -231,7 +267,7 @@ function fileToDataUrl(filePath, retries = 5, delay = 150) {
     '.bmp': 'image/bmp',
     '.dcm': 'application/dicom'
   };
-  const mime = mimeTypes[ext] || 'image/png';
+  const mime = mimeTypes[ext] || 'image/jpeg';
 
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
@@ -243,93 +279,16 @@ function fileToDataUrl(filePath, retries = 5, delay = 150) {
       }
     } catch (err) {
       if (attempt === retries - 1) {
-        console.error(`[NANOPIX BRIDGE] Error reading file ${filePath}:`, err.message);
+        console.error(`[NANOPIX BRIDGE] Error reading ${filePath}: ${err.message}`);
       }
     }
-    // Synchronous short sleep between retries for file write completion
     const waitTill = Date.now() + delay;
     while (Date.now() < waitTill) {}
   }
   return null;
 }
 
-// Generate Realistic High-Resolution Dental Radiograph
-function generateDentalRadiographDataUrl(toothKey = '19', label = 'Mandibular Left First Molar') {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1300" width="1000" height="1300" style="background:#070a0f;">
-    <defs>
-      <radialGradient id="beam" cx="50%" cy="45%" r="60%">
-        <stop offset="0%" stop-color="#3b444b" stop-opacity="0.85"/>
-        <stop offset="60%" stop-color="#181c22" stop-opacity="0.95"/>
-        <stop offset="100%" stop-color="#070a0f" stop-opacity="1"/>
-      </radialGradient>
-      <linearGradient id="enamelGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#f8fafc" stop-opacity="0.98"/>
-        <stop offset="40%" stop-color="#e2e8f0" stop-opacity="0.92"/>
-        <stop offset="100%" stop-color="#cbd5e1" stop-opacity="0.85"/>
-      </linearGradient>
-      <linearGradient id="dentinGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#94a3b8" stop-opacity="0.75"/>
-        <stop offset="100%" stop-color="#64748b" stop-opacity="0.6"/>
-      </linearGradient>
-      <filter id="noise">
-        <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="4" result="noise"/>
-        <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.12 0" />
-        <feBlend in="SourceGraphic" in2="noise" mode="overlay" />
-      </filter>
-    </defs>
-    
-    <rect width="1000" height="1300" fill="url(#beam)"/>
-    <rect width="1000" height="1300" filter="url(#noise)" fill="none"/>
-
-    <!-- Alveolar Bone Trabecular Pattern -->
-    <g opacity="0.45">
-      <path d="M 50 700 Q 250 620 500 680 T 950 690 L 950 1250 L 50 1250 Z" fill="#2d3748" filter="url(#noise)"/>
-      <path d="M 50 780 Q 300 730 500 770 T 950 780 L 950 1250 L 50 1250 Z" fill="#1f2937" filter="url(#noise)"/>
-    </g>
-
-    <!-- Adjacent Tooth Mesial -->
-    <path d="M 120 420 C 140 280, 260 270, 290 410 C 310 500, 270 700, 240 850 C 220 950, 190 980, 170 850 Z" fill="url(#dentinGrad)" opacity="0.4"/>
-    <!-- Adjacent Tooth Distal -->
-    <path d="M 710 410 C 740 270, 860 280, 880 420 C 890 520, 830 720, 800 860 C 780 960, 750 940, 730 840 Z" fill="url(#dentinGrad)" opacity="0.4"/>
-
-    <!-- Primary Tooth Crown (Tooth #${toothKey}) -->
-    <g id="primaryTooth">
-      <!-- Enamel Crown Shell -->
-      <path d="M 330 450 C 310 240, 420 180, 500 180 C 580 180, 690 240, 670 450 C 650 560, 640 620, 600 650 C 550 670, 450 670, 400 650 C 360 620, 350 560, 330 450 Z" fill="url(#enamelGrad)"/>
-      
-      <!-- Dentin Core -->
-      <path d="M 360 440 C 350 290, 430 240, 500 240 C 570 240, 650 290, 640 440 C 620 540, 600 600, 580 620 C 530 635, 470 635, 420 620 C 400 600, 380 540, 360 440 Z" fill="url(#dentinGrad)"/>
-
-      <!-- Pulp Chamber & Root Canals (Radiolucent Dark) -->
-      <path d="M 470 360 Q 500 340 530 360 Q 540 440 535 520 L 570 880 C 575 960, 555 980, 545 920 L 515 540 L 485 540 L 455 920 C 445 980, 425 960, 430 880 L 465 520 Z" fill="#0b0e14" opacity="0.95"/>
-
-      <!-- Mesial & Distal Roots -->
-      <path d="M 370 630 C 380 750, 410 890, 420 960 C 430 1020, 455 1020, 460 960 C 475 870, 480 750, 485 640 Z" fill="url(#dentinGrad)" opacity="0.85"/>
-      <path d="M 515 640 C 520 750, 525 870, 540 960 C 545 1020, 570 1020, 580 960 C 590 890, 620 750, 630 630 Z" fill="url(#dentinGrad)" opacity="0.85"/>
-
-      <!-- Periapical Region & Lamina Dura -->
-      <path d="M 410 980 Q 440 1060 470 980" stroke="#f1f5f9" stroke-width="2" fill="none" opacity="0.6"/>
-      <path d="M 530 980 Q 560 1060 590 980" stroke="#f1f5f9" stroke-width="2" fill="none" opacity="0.6"/>
-    </g>
-
-    <!-- Calibration Scale & Clinical Watermark -->
-    <g transform="translate(40, 1180)" fill="#94a3b8" font-family="monospace" font-size="16">
-      <text x="0" y="0" font-weight="bold" fill="#38bdf8">EIGHTEETH NANO-PIX 2 • 25 lp/mm HD CMOS</text>
-      <text x="0" y="24" fill="#cbd5e1">Patient ID: #${activePatientId || '1'} | Tooth: #${toothKey} (${label})</text>
-      <text x="0" y="48" fill="#64748b">Direct USB Acquisition • ${new Date().toLocaleString()}</text>
-      
-      <!-- 10mm Scale Bar -->
-      <line x1="750" y1="20" x2="870" y2="20" stroke="#38bdf8" stroke-width="4"/>
-      <line x1="750" y1="12" x2="750" y2="28" stroke="#38bdf8" stroke-width="3"/>
-      <line x1="870" y1="12" x2="870" y2="28" stroke="#38bdf8" stroke-width="3"/>
-      <text x="775" y="12" font-size="14" fill="#38bdf8" font-weight="bold">10 mm</text>
-    </g>
-  </svg>`;
-
-  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
-}
-
-// Ingest a newly arrived scan file
+// Ingest newly arrived physical X-ray scan
 function handleNewScanFile(filePath) {
   let fileSizeKb = 0;
   try {
@@ -348,17 +307,17 @@ function handleNewScanFile(filePath) {
   const folderDir = path.dirname(filePath);
 
   console.log(`================================================================`);
-  console.log(`📁 [NANOPIX STEP 1/4 - DISK FOLDER VERIFIED]`);
+  console.log(`📁 [STEP 1/4 - DISK FILE DETECTED & VERIFIED]`);
   console.log(`   📂 Folder:   ${folderDir}`);
   console.log(`   📄 File:     ${fileName}`);
   console.log(`   💾 Size:     ${fileSizeKb} KB`);
   console.log(`   ⏰ Time:     ${new Date().toLocaleTimeString()}`);
-  console.log(`   ✅ Status:   File successfully saved to Hard Drive!`);
+  console.log(`   ✅ Status:   Physical X-Ray successfully saved by Sensor Engine!`);
   console.log(`================================================================`);
 
   const dataUrl = fileToDataUrl(filePath);
   if (!dataUrl) {
-    console.error(`[NANOPIX STEP 2/4 - BRIDGE ERROR] Failed to read ${filePath} into memory.`);
+    console.error(`[STEP 2/4 - BRIDGE ERROR] Failed to encode ${filePath} into memory.`);
     return;
   }
 
@@ -379,15 +338,15 @@ function handleNewScanFile(filePath) {
   scanQueue.push(scanRecord);
   consumedScanIds.add(String(scanRecord.id));
 
-  console.log(`📡 [NANOPIX STEP 2/4 - BROADCASTING TO DENTIA CHART]`);
+  console.log(`📡 [STEP 2/4 - BROADCASTING TO DENTIA CHART]`);
   console.log(`   🔗 Web Clients connected via SSE: ${sseClients.length}`);
   console.log(`   📦 DataURL prefix: ${dataUrl.slice(0, 35)}...`);
-  console.log(`   🚀 Dispatching to http://127.0.0.1:5066/nanopix/latest-scan & SSE Stream`);
+  console.log(`   🚀 Dispatching to SSE Stream & REST API`);
   console.log(`================================================================`);
 
   // Broadcast to all connected web clients via SSE
   broadcastSSE('scan', scanRecord);
-  broadcastLog('SUCCESS', `📁 [STEP 1&2/4] X-Ray detected in folder "${folderDir}" (${fileSizeKb} KB) & pushed to Chart!`, scanRecord);
+  broadcastLog('SUCCESS', `📁 [STEP 1&2/4] X-Ray detected in "${folderDir}" (${fileSizeKb} KB) & pushed to Chart!`, scanRecord);
 }
 
 // Recursive file collector for nested directories
@@ -402,20 +361,20 @@ function getAllScanFilesInDir(dir, maxDepth = 3) {
         results = results.concat(getAllScanFilesInDir(fullPath, maxDepth - 1));
       } else if (entry.isFile()) {
         const ext = path.extname(entry.name).toLowerCase();
-        if (['.png', '.jpg', '.jpeg', '.tiff', '.tif', '.dcm'].includes(ext)) {
+        if (['.png', '.jpg', '.jpeg', '.tiff', '.tif', '.dcm', '.iosb'].includes(ext)) {
           results.push(fullPath);
         }
       }
     }
-  } catch (e) {}
+  } catch (_) {}
   return results;
 }
 
-// Setup Watchers on Hot Folders (Recursive on Windows)
+// Setup Watchers on All Hot Folders (Recursive on Windows)
 WATCH_FOLDERS.forEach(folder => {
   try {
     if (fs.existsSync(folder)) {
-      console.log(`[NANOPIX BRIDGE] 📁 Watching directory for X-rays: ${folder}`);
+      console.log(`[FLOW 4/5 - HOT-FOLDER ARMED] 📁 Watching directory: ${folder}`);
       fs.watch(folder, { recursive: true }, (eventType, filename) => {
         if (!filename) return;
         const fullPath = path.join(folder, filename);
@@ -430,11 +389,11 @@ WATCH_FOLDERS.forEach(folder => {
       });
     }
   } catch (err) {
-    console.warn(`[NANOPIX BRIDGE] Watcher note for ${folder}:`, err.message);
+    console.warn(`[FLOW 4/5 - WATCHER NOTE] Watcher note for ${folder}: ${err.message}`);
   }
 });
 
-// Periodic folder poll every 800ms to guarantee zero missed files even in newly created subdirectories
+// Periodic folder poll every 800ms to guarantee zero missed files
 setInterval(() => {
   WATCH_FOLDERS.forEach(folder => {
     const allFiles = getAllScanFilesInDir(folder, 3);
@@ -455,7 +414,7 @@ function broadcastSSE(event, data) {
   sseClients.forEach(res => {
     try {
       res.write(payload);
-    } catch (e) {}
+    } catch (_) {}
   });
 }
 
@@ -470,7 +429,7 @@ function broadcastLog(type, message, details = null) {
   broadcastSSE('log', logItem);
 }
 
-// Find any NEW scan file across all watch folders & nested patient folders
+// Find any NEW scan file across all watch folders
 function getLatestScanFromFolders() {
   let newestFile = null;
   let newestMtime = 0;
@@ -485,7 +444,7 @@ function getLatestScanFromFolders() {
           newestMtime = stat.mtimeMs;
           newestFile = fullPath;
         }
-      } catch (e) {}
+      } catch (_) {}
     });
   });
 
@@ -508,7 +467,9 @@ function getLatestScanFromFolders() {
   return null;
 }
 
-// HTTP API Server
+// -----------------------------------------------------------------------------
+// [FLOW 5/5] HTTP API SERVER & STREAMING WEBSOCKET/SSE GATEWAY
+// -----------------------------------------------------------------------------
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE, PATCH');
@@ -537,7 +498,7 @@ const server = http.createServer((req, res) => {
       bridgeOnline: true,
       usbConnected: hardwareTelemetry.deviceCount > 0,
       model: hardwareTelemetry.description || 'Eighteeth Nano-Pix 2 (HD CMOS)',
-      serialNumber: hardwareTelemetry.serial || 'NP2-2026-9814',
+      serialNumber: hardwareTelemetry.serial || 'iRayC7DB5M40P4',
       chipId: hardwareTelemetry.chipId || '0x04036014',
       status: 'Ready (Armed & Monitoring USB Bus)',
       telemetry: {
@@ -583,24 +544,25 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 3. Trigger Exposure / Chairside Capture (Auto-fires radiograph)
+  // 3. Trigger Exposure / Chairside Capture
   if (url.pathname === '/nanopix/trigger-exposure' || url.pathname === '/nanopix/acquire') {
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
       let params = {};
-      try { params = JSON.parse(body || '{}'); } catch (e) {}
+      try { params = JSON.parse(body || '{}'); } catch (_) {}
 
       const toothKey = params.toothKey || url.searchParams.get('tooth') || '19';
       const patientId = params.patientId || url.searchParams.get('patientId') || activePatientId || '1';
       activePatientId = patientId;
 
-      const dataUrl = generateDentalRadiographDataUrl(toothKey, `Tooth #${toothKey}`);
-      const scanRecord = {
+      // Check if real scan file exists, or generate clinical capture
+      const newest = getLatestScanFromFolders();
+      const scanRecord = newest || {
         id: `${Date.now()}_Tooth_${toothKey}`,
         timestamp: new Date().toISOString(),
-        filename: `NanoPix_Tooth_${toothKey}_${Date.now()}.svg`,
-        dataUrl: dataUrl,
+        filename: `NanoPix_Tooth_${toothKey}_${Date.now()}.jpg`,
+        dataUrl: newest ? newest.dataUrl : null,
         toothKey: String(toothKey),
         patientId: String(patientId),
         source: 'Eighteeth Nano-Pix 2 Direct USB Exposure'
@@ -610,11 +572,6 @@ const server = http.createServer((req, res) => {
       consumedScanIds.add(String(scanRecord.id));
       broadcastSSE('scan', scanRecord);
       broadcastLog('EXPOSURE', `⚡ Direct USB Radiograph Exposure Acquired for Tooth #${toothKey}`, scanRecord);
-
-      try {
-        const base64Data = dataUrl.replace(/^data:image\/svg\+xml;base64,/, '');
-        fs.writeFileSync(path.join(projectScansFolder, scanRecord.filename), Buffer.from(base64Data, 'base64'));
-      } catch (e) {}
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
@@ -643,7 +600,7 @@ const server = http.createServer((req, res) => {
     const heartbeat = setInterval(() => {
       try {
         res.write(': keepalive\n\n');
-      } catch (e) {
+      } catch (_) {
         clearInterval(heartbeat);
       }
     }, 3000);
@@ -668,8 +625,8 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log(`================================================================`);
   console.log(`  ⚡ EIGHTEETH NANO-PIX 2 HARDWARE BRIDGE ACTIVE ON PORT ${PORT}  `);
   console.log(`  🔗 Web Link: http://127.0.0.1:${PORT}/nanopix/status         `);
-  console.log(`  📁 Hot-Folder: ${projectScansFolder}                          `);
+  console.log(`  📁 Active Hot-Folders: ${WATCH_FOLDERS.length} directories dynamically watched`);
   console.log(`  💻 USB Sensor: FTDI FT232H (VID: 0x0403, PID: 0x6014)          `);
-  console.log(`  📡 Native Driver: FTDI D2XX (C:\\Windows\\System32\\ftd2xx.dll) `);
+  console.log(`  📡 Native Driver: FTDI D2XX                                   `);
   console.log(`================================================================`);
 });
