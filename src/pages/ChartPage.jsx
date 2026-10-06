@@ -2790,6 +2790,31 @@ export default function ChartPage() {
     }
   };
 
+  // ---------------------------------------------------------------------------
+  // GLOBAL NANO-PIX RVG SENSOR SCAN AUTO-INGESTION (ZERO-TOUCH)
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    const handleGlobalNanoPixScan = async (scan) => {
+      if (!scan || !scan.dataUrl) return;
+      console.log('⚡ [ZERO-TOUCH SENSOR CAPTURE] Global radiograph arrived from bridge for Patient:', patientId, scan);
+      try {
+        const res = await fetch(scan.dataUrl);
+        const blob = await res.blob();
+        const mime = blob.type || (scan.filename?.endsWith('.png') ? 'image/png' : 'image/jpeg');
+        const file = new File([blob], scan.filename || `NanoPix_Patient_${patientId}_${Date.now()}.jpg`, { type: mime });
+        await handleUploadXray({ target: { files: [file] } });
+      } catch (err) {
+        console.error('Failed to auto-ingest hardware scan into chart:', err);
+      }
+    };
+
+    const onCustomScan = (e) => handleGlobalNanoPixScan(e.detail);
+    window.addEventListener('nanopix:scan-acquired', onCustomScan);
+    return () => {
+      window.removeEventListener('nanopix:scan-acquired', onCustomScan);
+    };
+  }, [patientId]);
+
   useEffect(() => {
     if (selectedRadiograph) {
       setEditingXrayText(getHumanReadableReport(selectedRadiograph.analysisSummary || selectedRadiograph.AnalysisSummary || ''));
