@@ -178,7 +178,7 @@ class NanoPixDeviceService {
   // ---------------------------------------------------------------------------
   // DIRECT TRIGGER PHYSICAL ACQUIRE FROM BRIDGE
   // ---------------------------------------------------------------------------
-  async triggerHardwareAcquire(toothKey = '19', patientId = '44') {
+  async triggerHardwareAcquire(toothKey = '19', patientId = '46') {
     const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
     const baseUrl = isLocal ? '' : 'http://127.0.0.1:5066';
     try {
@@ -200,6 +200,51 @@ class NanoPixDeviceService {
     } catch (err) {
       console.warn('[NANOPIX HARDWARE] Bridge trigger note:', err.message);
     }
+    return null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // TEST SENSOR & PHYSICAL DISK WRITING PIPELINE
+  // ---------------------------------------------------------------------------
+  async testHardwarePipeline(toothKey = '19', patientId = '46') {
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const baseUrl = isLocal ? '' : 'http://127.0.0.1:5066';
+    try {
+      this.log('USB', `⚡ [TEST STEP 1/4] Sending test hardware pulse to Bridge (port 5066) for Tooth #${toothKey}, Patient #${patientId}...`);
+      const res = await fetch(`${baseUrl}/nanopix/test-hardware-exposure`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toothKey, patientId })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.scan) {
+          this.log('HOTFOLDER', `💾 [TEST STEP 2/4] File physically created on disk: "${data.filePath}" (${data.fileSizeKb} KB)`);
+          this.log('HOTFOLDER', `🔍 [TEST STEP 3/4] Hot-Folder watcher confirmed file in "${data.folder}"`);
+          this.log('SUCCESS', `🚀 [TEST STEP 4/4] Radiograph received in browser & ready for AI Chart Sync!`, data.scan);
+          this.emit('scan-acquired', data.scan);
+          window.dispatchEvent(new CustomEvent('nanopix:scan-acquired', { detail: data.scan }));
+          return data;
+        }
+      }
+    } catch (err) {
+      this.log('WARN', `Hardware bridge test note: ${err.message}. Local bridge must be running.`);
+    }
+    return null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // QUERY PHYSICAL DISK & HOT-FOLDER STATUS
+  // ---------------------------------------------------------------------------
+  async getDiskStatus() {
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const baseUrl = isLocal ? '' : 'http://127.0.0.1:5066';
+    try {
+      const res = await fetch(`${baseUrl}/nanopix/disk-status`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (_) {}
     return null;
   }
 

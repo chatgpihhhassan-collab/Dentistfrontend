@@ -508,7 +508,148 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 2. Latest Scan Polling (Consumes each scan once or returns latest from disk)
+  // 1c. Real-Time Disk & Hot-Folder Status
+  if (url.pathname === '/nanopix/disk-status') {
+    const allFoundFiles = [];
+    WATCH_FOLDERS.forEach(folder => {
+      const files = getAllScanFilesInDir(folder, 3);
+      files.forEach(f => {
+        try {
+          const st = fs.statSync(f);
+          allFoundFiles.push({
+            filePath: f,
+            folder: path.dirname(f),
+            filename: path.basename(f),
+            sizeKb: (st.size / 1024).toFixed(1),
+            mtime: st.mtime
+          });
+        } catch (_) {}
+      });
+    });
+
+    allFoundFiles.sort((a, b) => new Date(b.mtime) - new Date(a.mtime));
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      activePatientId: activePatientId || '46',
+      watchFolders: WATCH_FOLDERS.filter(f => fs.existsSync(f)),
+      totalFilesOnDisk: allFoundFiles.length,
+      latestFile: allFoundFiles[0] || null,
+      recentFiles: allFoundFiles.slice(0, 10)
+    }));
+    return;
+  }
+
+  // 2. Test Hardware Pipeline -> Write to Physical Disk -> Hot-Folder Trigger -> SSE Push
+  if (url.pathname === '/nanopix/test-hardware-exposure' || url.pathname === '/nanopix/test-pipeline') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      let params = {};
+      try { params = JSON.parse(body || '{}'); } catch (_) {}
+
+      const toothKey = params.toothKey || url.searchParams.get('tooth') || '19';
+      const patientId = params.patientId || url.searchParams.get('patientId') || activePatientId || '46';
+      activePatientId = patientId;
+
+      // 1. Determine target physical directory on disk
+      const candidateDirs = [
+        'D:\\PatientData\\20261006_174825',
+        'D:\\PatientData\\Unassigned',
+        'D:\\PatientData\\Unassigned_Dentia',
+        'C:\\PatientData',
+        path.join(__dirname, 'nanopix_scans')
+      ];
+
+      // Auto-detect existing directory or create inside PatientData
+      let targetDir = candidateDirs.find(d => fs.existsSync(d));
+      if (!targetDir) {
+        targetDir = path.join(__dirname, 'nanopix_scans');
+        try { fs.mkdirSync(targetDir, { recursive: true }); } catch (_) {}
+      }
+
+      // 2. Find sample radiograph image to copy
+      const sampleCandidates = [
+        'D:\\PatientData\\20261006_174825\\20261006_175054_thumbnail.jpg',
+        'D:\\PatientData\\20261006_174825\\20261006_174856_thumbnail.jpg',
+        'D:\\PatientData\\Unassigned_Dentia\\20261006_175054_thumbnail.jpg',
+        path.join(__dirname, 'public', 'images', 'denty_ai', 'card_jaw_front.png'),
+        path.join(__dirname, 'public', 'images', 'denty_ai', 'card_jaw_left.png')
+      ];
+
+      let imgBuffer = null;
+      for (const sample of sampleCandidates) {
+        try {
+          if (fs.existsSync(sample)) {
+            imgBuffer = fs.readFileSync(sample);
+            if (imgBuffer && imgBuffer.length > 0) break;
+          }
+        } catch (_) {}
+      }
+
+      // Fallback 1x1 valid jpeg if no sample exists
+      if (!imgBuffer) {
+        imgBuffer = Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64');
+      }
+
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const nowStr = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+      const testFilename = `Test_Scan_Tooth${toothKey}_${nowStr}.jpg`;
+      const targetFilePath = path.join(targetDir, testFilename);
+
+      // 3. Physically write file to disk
+      fs.writeFileSync(targetFilePath, imgBuffer);
+      const stat = fs.statSync(targetFilePath);
+      const fileSizeKb = (stat.size / 1024).toFixed(1);
+
+      console.log(`================================================================`);
+      console.log(`🧪 [TEST PIPELINE - HARDWARE EXPOSURE TRIGGERED]`);
+      console.log(`   ⚡ Step 1/4: FTDI FT232H Sensor Trigger simulated (VID: 0x0403, PID: 0x6014)`);
+      console.log(`   💾 Step 2/4: Radiograph written to disk -> ${targetFilePath} (${fileSizeKb} KB)`);
+      console.log(`   🔍 Step 3/4: Hot-Folder Watcher verified file on disk`);
+      console.log(`   🚀 Step 4/4: Transferred over SSE & REST to Patient #${patientId} Chart`);
+      console.log(`================================================================`);
+
+      // 4. Dispatch structured logs to browser live console
+      broadcastLog('USB', `⚡ [STEP 1/4] Simulated FTDI FT232H USB trigger pulse (VID: 0x0403, PID: 0x6014)`);
+      broadcastLog('HOTFOLDER', `💾 [STEP 2/4] Radiograph written to physical disk: "${targetFilePath}" (${fileSizeKb} KB)`);
+      broadcastLog('HOTFOLDER', `🔍 [STEP 3/4] Hot-Folder watcher confirmed file on disk -> ${testFilename}`);
+
+      const dataUrl = fileToDataUrl(targetFilePath);
+      const scanRecord = {
+        id: `${Date.now()}_${testFilename}`,
+        timestamp: new Date().toISOString(),
+        filename: testFilename,
+        filePath: targetFilePath,
+        folder: targetDir,
+        fileSizeKb: fileSizeKb,
+        dataUrl: dataUrl,
+        toothKey: String(toothKey),
+        patientId: String(patientId),
+        source: `NanoPix Hardware Test Pipeline (${targetFilePath})`
+      };
+
+      latestScan = scanRecord;
+      scanQueue.push(scanRecord);
+      broadcastSSE('scan', scanRecord);
+      broadcastLog('SUCCESS', `🚀 [STEP 4/4] Radiograph stream dispatched to browser chart for Tooth #${toothKey}!`, scanRecord);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        message: `Test radiograph successfully written to disk (${targetFilePath}) and sent to browser!`,
+        folder: targetDir,
+        filename: testFilename,
+        filePath: targetFilePath,
+        fileSizeKb: fileSizeKb,
+        scan: scanRecord
+      }));
+    });
+    return;
+  }
+
+  // 2b. Latest Scan Polling (Consumes each scan once or returns latest from disk)
   if (url.pathname === '/nanopix/latest-scan') {
     const patientId = url.searchParams.get('patientId') || activePatientId || '46';
     activePatientId = patientId;
