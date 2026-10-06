@@ -126,11 +126,10 @@ export const useHardwareDeviceWatcher = () => {
           lastSyncTime: new Date(),
         });
       } else {
-        // Only laptop's built-in webcam is present (or no camera permission granted yet with 1 device)
         const primaryDev = videoInputs[0];
-        const primaryLabel = primaryDev.label || 'Laptop Built-in Webcam';
+        const primaryLabel = primaryDev?.label || 'Laptop Built-in Webcam';
 
-        console.log(`[HARDWARE SYNC LOG] Standby: Built-in laptop webcam detected (${primaryLabel}). No external dental USB attached.`);
+        console.log(`[OPTICAL CAMERA SYNC] Standby: Built-in laptop webcam detected (${primaryLabel}). External intraoral video camera idle. (NanoPix RVG Sensor operates independently via USB Bridge).`);
 
         setDeviceState({
           isConnected: false, // NOT connected to a chairside dental device
