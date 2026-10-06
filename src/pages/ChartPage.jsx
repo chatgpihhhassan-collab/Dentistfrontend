@@ -1046,6 +1046,108 @@ export default function ChartPage() {
     }
   });
 
+  // 🌟 Eighteeth Nano-Pix Intraoral RVG Zero-Click Hardware Auto-Sync (Direct USB & Hot-Folder Ingestion)
+  useEffect(() => {
+    if (!patientId) return;
+
+    const handleNanoPixIncomingScan = async (scan) => {
+      if (!scan || !scan.dataUrl) return;
+      const radId = scan.id || `NP_${Date.now()}`;
+      const tKey = scan.toothKey || (detailedTooth ? String(detailedTooth) : '19');
+      const imgName = scan.filename || `NanoPix_Tooth_${tKey}_${new Date().toLocaleTimeString().replace(/:/g, '-')}.png`;
+
+      console.log(
+        `%c[NANOPIX AUTO-LOAD] ⚡ Received Eighteeth Nano-Pix Scan Payload%c Tooth #${tKey} for Patient #${patientId}`,
+        'background: #10B981; color: #FFF; font-weight: bold; padding: 2px 6px; border-radius: 4px;',
+        'color: #065F46; font-weight: 700;'
+      );
+
+      const newScan = {
+        radiographID: radId,
+        RadiographID: radId,
+        patientID: Number(patientId),
+        PatientID: Number(patientId),
+        imageName: imgName,
+        ImageName: imgName,
+        mimeType: scan.mimeType || 'image/png',
+        uploadedAt: scan.timestamp || new Date().toISOString(),
+        analysisSummary: scan.analysisSummary || '',
+        AnalysisSummary: scan.analysisSummary || '',
+        source: scan.source || 'Eighteeth Nano-Pix 2 (HD CMOS)',
+        imageUrl: scan.dataUrl,
+        dataUrl: scan.dataUrl,
+        imageData: scan.dataUrl.startsWith('data:') ? scan.dataUrl.split(',')[1] : null
+      };
+
+      setRadiographs(prev => {
+        const filtered = prev.filter(r => (r.radiographID || r.RadiographID) !== radId);
+        return [newScan, ...filtered];
+      });
+
+      setSelectedRadiograph(newScan);
+      setRadiographBlobUrl(scan.dataUrl);
+      setRadiographImgLoading(false);
+      setRadiographImgError(false);
+
+      if (tKey) {
+        const tNum = parseInt(tKey, 10);
+        if (!isNaN(tNum) && tNum >= 1 && tNum <= 32) {
+          setDetailedTooth(tNum);
+          setHighlightedTeeth([tNum]);
+        }
+      }
+
+      setToast({
+        visible: true,
+        message: `⚡ Eighteeth Nano-Pix X-Ray auto-loaded & saved for Tooth #${tKey} (Patient #${patientId})!`
+      });
+      setTimeout(() => setToast({ visible: false, message: '' }), 5000);
+
+      // Asynchronously upload and run Gemini AI diagnostics if server is reachable
+      try {
+        const res = await fetch(scan.dataUrl);
+        const blob = await res.blob();
+        const file = new File([blob], imgName, { type: blob.type || 'image/png' });
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
+        const doctorId = doctorData.doctorID || doctorData.DoctorID || 1;
+
+        const uploadRes = await fetch(`/api/patients/${patientId}/radiographs?doctorId=${doctorId}`, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (uploadRes.ok) {
+          const savedRecord = await uploadRes.json();
+          if (savedRecord) {
+            setRadiographs(prev => {
+              const filtered = prev.filter(r => (r.radiographID || r.RadiographID) !== radId && (r.radiographID || r.RadiographID) !== savedRecord.radiographID);
+              return [savedRecord, ...filtered];
+            });
+            setSelectedRadiograph(savedRecord);
+            const findings = extractAiFindingsFromReport(savedRecord.analysisSummary || savedRecord.AnalysisSummary);
+            if (findings && findings.length > 0 && handleApplyAiFindingsRef.current) {
+              handleApplyAiFindingsRef.current(findings, savedRecord);
+            }
+          }
+        }
+      } catch (err) {
+        console.debug('Background AI upload notice:', err);
+      }
+    };
+
+    const unsub = nanoPixService.subscribe('scan-acquired', handleNanoPixIncomingScan);
+    const onCustomEvent = (e) => handleNanoPixIncomingScan(e.detail);
+    window.addEventListener('nanopix:scan-acquired', onCustomEvent);
+
+    return () => {
+      if (typeof unsub === 'function') unsub();
+      window.removeEventListener('nanopix:scan-acquired', onCustomEvent);
+    };
+  }, [patientId, detailedTooth]);
+
   // Operatory Workspace View Mode & 3D Arch Density States
   const [workspaceMode, setWorkspaceMode] = useState('split'); // 'split' | 'radiology' | 'chart'
   const [jawDensity, setJawDensity] = useState('standard'); // 'standard' | 'compact' | '2d_only'

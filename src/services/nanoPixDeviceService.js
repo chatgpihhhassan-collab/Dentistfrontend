@@ -119,14 +119,14 @@ class NanoPixDeviceService {
         consecutiveErrors++;
       } finally {
         isPolling = false;
-        // Smart backoff: poll frequently (2s) when bridge is online, relax (20s on local, 45s on prod) when offline
-        const nextDelay = consecutiveErrors >= 1 ? (isLocal ? 20000 : 45000) : 2000;
+        // Fast responsive polling: 1.5s when active, max 4s if temporary standby
+        const nextDelay = consecutiveErrors >= 3 ? 4000 : 1500;
         setTimeout(pollBridge, nextDelay);
       }
     };
 
-    // Initial check delayed slightly to allow page load
-    setTimeout(pollBridge, isLocal ? 1500 : 3000);
+    // Initial check starts immediately
+    setTimeout(pollBridge, 500);
 
     // Also attempt SSE live stream on local environments
     if (isLocal && typeof EventSource !== 'undefined') {

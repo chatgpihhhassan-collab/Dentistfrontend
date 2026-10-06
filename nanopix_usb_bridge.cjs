@@ -152,14 +152,17 @@ let sseClients = [];
 let activePatientId = null;
 const consumedScanIds = new Set();
 
-// Pre-seed consumedScanIds with all pre-existing files so they aren't treated as new X-rays
+// Pre-seed consumedScanIds only with files older than 10 minutes
+const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
 WATCH_FOLDERS.forEach(folder => {
   try {
     const existing = getAllScanFilesInDir(folder, 3);
     existing.forEach(f => {
       try {
         const stat = fs.statSync(f);
-        consumedScanIds.add(`${stat.mtimeMs}_${path.basename(f)}`);
+        if (stat.mtimeMs < tenMinutesAgo) {
+          consumedScanIds.add(`${stat.mtimeMs}_${path.basename(f)}`);
+        }
       } catch (_) {}
     });
   } catch (_) {}
@@ -279,10 +282,6 @@ function generateDentalRadiographDataUrl(toothKey = '19', label = 'Mandibular Le
 function handleNewScanFile(filePath) {
   try {
     const stat = fs.statSync(filePath);
-    // Ignore old historical files (only accept new files created or modified after bridge boot)
-    if (stat.mtimeMs < bridgeBootTime) {
-      return;
-    }
     const fileKey = `${stat.mtimeMs}_${path.basename(filePath)}`;
     if (consumedScanIds.has(fileKey)) {
       return;
@@ -361,6 +360,22 @@ WATCH_FOLDERS.forEach(folder => {
   }
 });
 
+// Periodic folder poll every 800ms to guarantee zero missed files even in newly created subdirectories
+setInterval(() => {
+  WATCH_FOLDERS.forEach(folder => {
+    const allFiles = getAllScanFilesInDir(folder, 3);
+    allFiles.forEach(fullPath => {
+      try {
+        const stat = fs.statSync(fullPath);
+        const fileKey = `${stat.mtimeMs}_${path.basename(fullPath)}`;
+        if (!consumedScanIds.has(fileKey)) {
+          handleNewScanFile(fullPath);
+        }
+      } catch (_) {}
+    });
+  });
+}, 800);
+
 function broadcastSSE(event, data) {
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   sseClients.forEach(res => {
@@ -384,7 +399,7 @@ function broadcastLog(type, message, details = null) {
 // Find any NEW scan file across all watch folders & nested patient folders
 function getLatestScanFromFolders() {
   let newestFile = null;
-  let newestMtime = bridgeBootTime;
+  let newestMtime = 0;
 
   WATCH_FOLDERS.forEach(folder => {
     const allFiles = getAllScanFilesInDir(folder, 3);
