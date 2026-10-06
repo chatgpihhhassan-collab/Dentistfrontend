@@ -16,20 +16,26 @@ const { execSync } = require('child_process');
 
 const PORT = 5066;
 
-// Hot-folders to watch
+// Hot-folders to watch across any doctor's PC layout
 const projectScansFolder = path.join(__dirname, 'nanopix_scans');
 const userProfileScansFolder = process.env.USERPROFILE 
   ? path.join(process.env.USERPROFILE, 'Dentia', 'NanoPixScans') 
   : projectScansFolder;
 const eighteethDefaultExport = 'C:\\Eighteeth\\Export';
-const nanoPixActiveDataDir = 'D:\\PatientData';
-const nanoPixDownloadsDir = path.join(process.env.USERPROFILE || 'C:\\Users\\lenovo', 'Downloads', 'NanoPix');
+const cPatientData = 'C:\\PatientData';
+const dPatientData = 'D:\\PatientData';
+const userRoamingNanoPix = process.env.APPDATA 
+  ? path.join(process.env.APPDATA, 'NanoPix')
+  : 'C:\\Users\\Public\\NanoPix';
+const nanoPixDownloadsDir = path.join(process.env.USERPROFILE || 'C:\\Users\\Public', 'Downloads', 'NanoPix');
 
 const WATCH_FOLDERS = [
-  nanoPixActiveDataDir,
+  dPatientData,
+  cPatientData,
   projectScansFolder,
   userProfileScansFolder,
   eighteethDefaultExport,
+  userRoamingNanoPix,
   nanoPixDownloadsDir
 ];
 

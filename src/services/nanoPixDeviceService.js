@@ -71,21 +71,38 @@ class NanoPixDeviceService {
       serial: 'iRayC7DB5M40P4'
     };
 
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const baseUrl = isLocal ? '' : 'http://127.0.0.1:5066';
+    let consecutiveErrors = 0;
+
     const pollBridge = async () => {
       if (isPolling) return;
+      if (consecutiveErrors > 5 && consecutiveErrors % 10 !== 0) {
+        // Backoff when bridge is offline
+        consecutiveErrors++;
+        return;
+      }
       isPolling = true;
       try {
-        const res = await fetch('/nanopix/latest-scan?consume=true');
+        const res = await fetch(`${baseUrl}/nanopix/latest-scan?consume=true`, {
+          signal: AbortSignal.timeout(1200)
+        });
         if (res.ok) {
+          consecutiveErrors = 0;
           const data = await res.json();
           if (data && data.hasScan && data.scan) {
             handleIncomingScan(data.scan);
           }
+        } else {
+          consecutiveErrors++;
         }
 
         // Also fetch live USB telemetry
-        const tRes = await fetch('/nanopix/telemetry');
+        const tRes = await fetch(`${baseUrl}/nanopix/telemetry`, {
+          signal: AbortSignal.timeout(1200)
+        });
         if (tRes.ok) {
+          consecutiveErrors = 0;
           const tData = await tRes.json();
           if (tData && tData.telemetry) {
             this.telemetry = tData.telemetry;
@@ -94,7 +111,7 @@ class NanoPixDeviceService {
           }
         }
       } catch (e) {
-        // Bridge standby
+        consecutiveErrors++;
       } finally {
         isPolling = false;
       }
