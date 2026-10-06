@@ -165,26 +165,38 @@ WATCH_FOLDERS.forEach(folder => {
   } catch (_) {}
 });
 
-// Convert image file to base64 Data URL
-function fileToDataUrl(filePath) {
-  try {
-    const ext = path.extname(filePath).toLowerCase();
-    const mimeTypes = {
-      '.png': 'image/png',
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.tiff': 'image/tiff',
-      '.tif': 'image/tiff',
-      '.bmp': 'image/bmp',
-      '.dcm': 'application/dicom'
-    };
-    const mime = mimeTypes[ext] || 'image/png';
-    const buffer = fs.readFileSync(filePath);
-    return `data:${mime};base64,${buffer.toString('base64')}`;
-  } catch (err) {
-    console.error(`[NANOPIX BRIDGE] Error reading file ${filePath}:`, err.message);
-    return null;
+// Convert image file to base64 Data URL with retry for locked/writing files
+function fileToDataUrl(filePath, retries = 5, delay = 150) {
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeTypes = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.tiff': 'image/tiff',
+    '.tif': 'image/tiff',
+    '.bmp': 'image/bmp',
+    '.dcm': 'application/dicom'
+  };
+  const mime = mimeTypes[ext] || 'image/png';
+
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      if (fs.existsSync(filePath)) {
+        const buffer = fs.readFileSync(filePath);
+        if (buffer && buffer.length > 0) {
+          return `data:${mime};base64,${buffer.toString('base64')}`;
+        }
+      }
+    } catch (err) {
+      if (attempt === retries - 1) {
+        console.error(`[NANOPIX BRIDGE] Error reading file ${filePath}:`, err.message);
+      }
+    }
+    // Synchronous short sleep between retries for file write completion
+    const waitTill = Date.now() + delay;
+    while (Date.now() < waitTill) {}
   }
+  return null;
 }
 
 // Generate Realistic High-Resolution Dental Radiograph
