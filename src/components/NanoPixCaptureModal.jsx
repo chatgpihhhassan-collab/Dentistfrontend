@@ -259,6 +259,14 @@ export const NanoPixCaptureModal = ({
       const slotKey = activeSlotKey;
       const targetTooth = seriesData[slotKey].selectedTooth;
 
+      // 1. First probe physical Hardware Bridge on Port 5066
+      const bridgeScan = await nanoPixService.triggerHardwareAcquire(targetTooth, patient?.id || patient?.patientID || '44');
+      if (bridgeScan && bridgeScan.dataUrl) {
+        nanoPixService.log('SUCCESS', `Direct Physical Bridge radiograph acquired for Tooth #${targetTooth}!`);
+        handleAutoScan(bridgeScan);
+        return;
+      }
+
       let samplePath = '/images/denty_ai/card_jaw_front.png';
       if (slotKey === 'left') samplePath = '/images/denty_ai/card_jaw_left.png';
       else if (slotKey === 'right') samplePath = '/images/denty_ai/card_jaw_right.png';

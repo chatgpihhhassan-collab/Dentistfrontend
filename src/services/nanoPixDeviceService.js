@@ -84,9 +84,13 @@ class NanoPixDeviceService {
         }).catch(() => null);
 
         if (res && res.ok) {
+          if (consecutiveErrors > 0) {
+            console.log('%c[NANOPIX STEP 1/3] 🔌 Connected to Local Hardware Bridge: http://127.0.0.1:5066', 'color: #38bdf8; font-weight: bold;');
+          }
           consecutiveErrors = 0;
           const data = await res.json().catch(() => null);
           if (data && data.hasScan && data.scan) {
+            console.log('%c[NANOPIX EXPOSURE] 📥 Real Radiograph scan received from Hardware Bridge!', 'color: #34d399; font-weight: bold;', data.scan.filename);
             handleIncomingScan(data.scan);
           }
 
@@ -98,6 +102,11 @@ class NanoPixDeviceService {
           if (tRes && tRes.ok) {
             const tData = await tRes.json().catch(() => null);
             if (tData && tData.telemetry) {
+              if (!this.telemetryLogged) {
+                this.telemetryLogged = true;
+                console.log(`%c[NANOPIX STEP 2/3] 🦷 Active Physical Device: ${this.deviceInfo.model} | Serial: ${tData.telemetry.serial || 'iRayC7DB5M40P4'}`, 'color: #34d399; font-weight: bold;');
+                console.log('%c[NANOPIX STEP 3/3] ⚡ SENSOR ARMED: Ready to receive real X-Rays from D:\\PatientData & C:\\Eighteeth\\Export', 'color: #a78bfa; font-weight: bold;');
+              }
               this.telemetry = tData.telemetry;
               this.emit('telemetry', this.telemetry);
               window.dispatchEvent(new CustomEvent('nanopix:telemetry', { detail: this.telemetry }));
@@ -117,7 +126,7 @@ class NanoPixDeviceService {
     };
 
     // Initial check delayed slightly to allow page load
-    setTimeout(pollBridge, isLocal ? 1500 : 4000);
+    setTimeout(pollBridge, isLocal ? 1500 : 3000);
 
     // Also attempt SSE live stream on local environments
     if (isLocal && typeof EventSource !== 'undefined') {
@@ -143,11 +152,38 @@ class NanoPixDeviceService {
         });
 
         es.onerror = () => {
-          // Keep silent; polling loop handles telemetry & scans seamlessly
           try { es.close(); } catch (_) {}
         };
       } catch (e) {}
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // DIRECT TRIGGER PHYSICAL ACQUIRE FROM BRIDGE
+  // ---------------------------------------------------------------------------
+  async triggerHardwareAcquire(toothKey = '19', patientId = '44') {
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const baseUrl = isLocal ? '' : 'http://127.0.0.1:5066';
+    try {
+      console.log(`%c[NANOPIX HARDWARE] ⚡ Requesting live acquisition from Bridge for Tooth #${toothKey}, Patient #${patientId}...`, 'color: #38bdf8; font-weight: bold;');
+      const res = await fetch(`${baseUrl}/nanopix/trigger-exposure`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toothKey, patientId })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.scan) {
+          console.log('%c[NANOPIX HARDWARE] ✅ Live Radiograph successfully received from Hardware Bridge!', 'color: #34d399; font-weight: bold;', data.scan);
+          this.emit('scan-acquired', data.scan);
+          window.dispatchEvent(new CustomEvent('nanopix:scan-acquired', { detail: data.scan }));
+          return data.scan;
+        }
+      }
+    } catch (err) {
+      console.warn('[NANOPIX HARDWARE] Bridge trigger note:', err.message);
+    }
+    return null;
   }
 
   // ---------------------------------------------------------------------------
