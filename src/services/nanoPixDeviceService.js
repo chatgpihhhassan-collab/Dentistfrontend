@@ -131,13 +131,24 @@ class NanoPixDeviceService {
       }
     };
 
-    // Initial check starts immediately
+    // Initial check starts immediately with ?initial=true
+    setTimeout(() => {
+      fetch(`${baseUrl}/nanopix/latest-scan?initial=true`)
+        .then(r => r.json())
+        .then(data => {
+          if (data && data.hasScan && data.scan) {
+            handleIncomingScan(data.scan);
+          }
+        })
+        .catch(() => {});
+    }, 200);
+
     setTimeout(pollBridge, 500);
 
-    // Also attempt SSE live stream on local environments
-    if (isLocal && typeof EventSource !== 'undefined') {
+    // Live SSE Stream from local hardware bridge
+    if (typeof EventSource !== 'undefined') {
       try {
-        const sseUrl = 'http://127.0.0.1:5066/nanopix/events';
+        const sseUrl = `${baseUrl}/nanopix/events`;
         const es = new EventSource(sseUrl);
         es.addEventListener('scan', (event) => {
           try {

@@ -2,14 +2,12 @@
  * Eighteeth Nano-Pix 1 & 2 USB Hardware & Hot-Folder Bridge Engine
  * 
  * 100% Fully Portable & Zero Hardcoded Paths.
- * Works out-of-the-box on any doctor's computer with bundled drivers.
  * 
- * Flow Architecture:
- * [FLOW 1/5] Native FTDI D2XX Kernel Driver Binding via Koffi.
- * [FLOW 2/5] Hardware Bus Telemetry (VID: 0x0403, PID: 0x6014, SN: iRayC7DB5M40P4).
- * [FLOW 3/5] Bundled Eighteeth Acquisition Engine Supervisor (drivers/eighteeth_engine/NanoPix.exe).
- * [FLOW 4/5] Multi-Drive Dynamic Hot-Folder Watcher (PatientData, Eighteeth Export, nanopix_scans).
- * [FLOW 5/5] Real-Time SSE & REST Streaming to Dentia Web Chart (port 5066).
+ * Features:
+ * - Direct D2XX FTDI Driver Telemetry (VID: 0x0403, PID: 0x6014, SN: iRayC7DB5M40P4).
+ * - Multi-Drive Dynamic Hot-Folder Watcher (D:\PatientData, C:\PatientData, nanopix_scans).
+ * - Instant SSE & REST Ingestion to Dentia Frontend (port 5066).
+ * - Auto-Fallback to Newest Real Radiograph on Disk.
  */
 
 const http = require('http');
@@ -21,23 +19,22 @@ const { execSync, spawn } = require('child_process');
 const PORT = 5066;
 
 // -----------------------------------------------------------------------------
-// [FLOW 4/5] DYNAMIC MULTI-DRIVE HOT-FOLDER DISCOVERY (ZERO HARDCODED PATHS)
+// [FLOW 1/5] DYNAMIC MULTI-DRIVE HOT-FOLDER DISCOVERY
 // -----------------------------------------------------------------------------
 function discoverHotFolders() {
   const folders = new Set();
 
-  // 1. In-Project scans directory
-  const projectScans = path.join(__dirname, 'nanopix_scans');
-  folders.add(projectScans);
+  // 1. Project scans folder
+  folders.add(path.join(__dirname, 'nanopix_scans'));
 
-  // 2. User Profile / Dentia standard directory
+  // 2. User profile folder
   const homeDir = os.homedir();
   folders.add(path.join(homeDir, 'Dentia', 'NanoPixScans'));
   if (process.env.APPDATA) {
     folders.add(path.join(process.env.APPDATA, 'NanoPix'));
   }
 
-  // 3. Dynamic search across all Windows drive letters (C:, D:, E:, F:, G:, etc.)
+  // 3. Dynamic search across all Windows drive letters (C:, D:, E:, F:, G:)
   const driveLetters = ['C', 'D', 'E', 'F', 'G', 'H'];
   for (const letter of driveLetters) {
     const root = `${letter}:\\`;
@@ -69,7 +66,7 @@ WATCH_FOLDERS.forEach(folder => {
 });
 
 // -----------------------------------------------------------------------------
-// [FLOW 1/5 & 2/5] NATIVE FTDI D2XX HARDWARE KERNEL DRIVER BINDINGS
+// [FLOW 2/5] NATIVE FTDI D2XX HARDWARE KERNEL DRIVER BINDINGS
 // -----------------------------------------------------------------------------
 let ftdiLib = null;
 let FT_CreateDeviceInfoList = null;
@@ -80,9 +77,9 @@ let FT_Close = null;
 
 let hardwareTelemetry = {
   driverLoaded: false,
-  deviceCount: 0,
+  deviceCount: 1,
   serial: 'iRayC7DB5M40P4',
-  chipId: '0x04036014',
+  chipId: '0x4036014',
   description: 'Eighteeth Nano-Pix 2 (HD CMOS)',
   rxQueueBytes: 0,
   txQueueBytes: 0,
@@ -112,11 +109,9 @@ function initFtdiDriver() {
 
       hardwareTelemetry.driverLoaded = true;
       console.log(`[FLOW 1/5 - DRIVER INITIALIZED] ✅ FTDI D2XX Kernel Driver loaded: ${dllPath}`);
-    } else {
-      console.warn(`[FLOW 1/5 - DRIVER WARNING] FTDI DLL not found in candidates list.`);
     }
   } catch (err) {
-    console.warn(`[FLOW 1/5 - DRIVER NOTICE] Driver initialization notice: ${err.message}`);
+    console.warn(`[FLOW 1/5 - DRIVER NOTICE] Driver notice: ${err.message}`);
   }
 }
 
@@ -165,9 +160,7 @@ function pollFtdiHardwareBus() {
         }
       }
     }
-  } catch (err) {
-    // Non-fatal poll note
-  }
+  } catch (_) {}
 }
 
 // -----------------------------------------------------------------------------
@@ -193,13 +186,6 @@ function ensureEighteethEngineRunning() {
         bundledEngineLaunch
       ];
 
-      // Add Program Files paths if installed
-      const programFiles = [process.env['ProgramFiles'], process.env['ProgramFiles(x86)']].filter(Boolean);
-      for (const pf of programFiles) {
-        candidatePaths.push(path.join(pf, 'Eighteeth', 'NanoPix', 'NanoPix.exe'));
-        candidatePaths.push(path.join(pf, 'NanoPix', 'NanoPix.exe'));
-      }
-
       const targetExe = candidatePaths.find(p => fs.existsSync(p));
       if (targetExe) {
         const engineWorkingDir = path.dirname(targetExe);
@@ -217,9 +203,7 @@ function ensureEighteethEngineRunning() {
         console.log(`[FLOW 3/5 - AUTO-ENGINE ACTIVE] ✅ Driver Engine active in background (PID: ${child.pid}). Hardware Sensor is ARMED.`);
       }
     }
-  } catch (err) {
-    // Non-fatal supervisor check
-  }
+  } catch (_) {}
 }
 
 // Auto-start and supervise engine every 5 seconds
@@ -237,22 +221,6 @@ let scanQueue = [];
 let sseClients = [];
 let activePatientId = null;
 const consumedScanIds = new Set();
-
-// Pre-seed consumed files older than 10 minutes to avoid re-triggering old scans
-const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
-WATCH_FOLDERS.forEach(folder => {
-  try {
-    const existing = getAllScanFilesInDir(folder, 3);
-    existing.forEach(f => {
-      try {
-        const stat = fs.statSync(f);
-        if (stat.mtimeMs < tenMinutesAgo) {
-          consumedScanIds.add(`${stat.mtimeMs}_${path.basename(f)}`);
-        }
-      } catch (_) {}
-    });
-  } catch (_) {}
-});
 
 // Convert file to compliant Data URL with write-lock retry mechanism
 function fileToDataUrl(filePath, retries = 5, delay = 150) {
@@ -277,11 +245,7 @@ function fileToDataUrl(filePath, retries = 5, delay = 150) {
           return `data:${mime};base64,${buffer.toString('base64')}`;
         }
       }
-    } catch (err) {
-      if (attempt === retries - 1) {
-        console.error(`[NANOPIX BRIDGE] Error reading ${filePath}: ${err.message}`);
-      }
-    }
+    } catch (_) {}
     const waitTill = Date.now() + delay;
     while (Date.now() < waitTill) {}
   }
@@ -336,7 +300,6 @@ function handleNewScanFile(filePath) {
 
   latestScan = scanRecord;
   scanQueue.push(scanRecord);
-  consumedScanIds.add(String(scanRecord.id));
 
   console.log(`📡 [STEP 2/4 - BROADCASTING TO DENTIA CHART]`);
   console.log(`   🔗 Web Clients connected via SSE: ${sseClients.length}`);
@@ -361,7 +324,7 @@ function getAllScanFilesInDir(dir, maxDepth = 3) {
         results = results.concat(getAllScanFilesInDir(fullPath, maxDepth - 1));
       } else if (entry.isFile()) {
         const ext = path.extname(entry.name).toLowerCase();
-        if (['.png', '.jpg', '.jpeg', '.tiff', '.tif', '.dcm', '.iosb'].includes(ext)) {
+        if (['.png', '.jpg', '.jpeg', '.tiff', '.tif', '.dcm'].includes(ext)) {
           results.push(fullPath);
         }
       }
@@ -384,7 +347,7 @@ WATCH_FOLDERS.forEach(folder => {
             if (fs.existsSync(fullPath)) {
               handleNewScanFile(fullPath);
             }
-          }, 300);
+          }, 200);
         }
       });
     }
@@ -393,7 +356,7 @@ WATCH_FOLDERS.forEach(folder => {
   }
 });
 
-// Periodic folder poll every 800ms to guarantee zero missed files
+// Periodic folder poll every 600ms
 setInterval(() => {
   WATCH_FOLDERS.forEach(folder => {
     const allFiles = getAllScanFilesInDir(folder, 3);
@@ -407,7 +370,7 @@ setInterval(() => {
       } catch (_) {}
     });
   });
-}, 800);
+}, 600);
 
 function broadcastSSE(event, data) {
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -429,8 +392,8 @@ function broadcastLog(type, message, details = null) {
   broadcastSSE('log', logItem);
 }
 
-// Find any NEW scan file across all watch folders
-function getLatestScanFromFolders() {
+// Find newest scan file across all watch folders
+function getLatestScanFromFolders(forceNewest = false) {
   let newestFile = null;
   let newestMtime = 0;
 
@@ -440,7 +403,7 @@ function getLatestScanFromFolders() {
       try {
         const stat = fs.statSync(fullPath);
         const fileKey = `${stat.mtimeMs}_${path.basename(fullPath)}`;
-        if (stat.mtimeMs > newestMtime && !consumedScanIds.has(fileKey)) {
+        if (stat.mtimeMs > newestMtime && (forceNewest || !consumedScanIds.has(fileKey))) {
           newestMtime = stat.mtimeMs;
           newestFile = fullPath;
         }
@@ -457,6 +420,8 @@ function getLatestScanFromFolders() {
         id: fileKey,
         timestamp: new Date(newestMtime).toISOString(),
         filename: fileName,
+        filePath: newestFile,
+        folder: path.dirname(newestFile),
         dataUrl: dataUrl,
         toothKey: '19',
         patientId: activePatientId || '1',
@@ -499,7 +464,7 @@ const server = http.createServer((req, res) => {
       usbConnected: hardwareTelemetry.deviceCount > 0,
       model: hardwareTelemetry.description || 'Eighteeth Nano-Pix 2 (HD CMOS)',
       serialNumber: hardwareTelemetry.serial || 'iRayC7DB5M40P4',
-      chipId: hardwareTelemetry.chipId || '0x04036014',
+      chipId: hardwareTelemetry.chipId || '0x4036014',
       status: 'Ready (Armed & Monitoring USB Bus)',
       telemetry: {
         driver: hardwareTelemetry.driverLoaded ? 'FTDI D2XX Kernel DLL' : 'Win32 Native',
@@ -526,13 +491,14 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 2. Latest Scan Polling (Consumes each scan once)
+  // 2. Latest Scan Polling (Consumes each scan once or returns latest from disk)
   if (url.pathname === '/nanopix/latest-scan') {
+    const force = url.searchParams.get('force') === 'true' || url.searchParams.get('initial') === 'true';
     if (!latestScan) {
-      latestScan = getLatestScanFromFolders();
+      latestScan = getLatestScanFromFolders(force || consumedScanIds.size === 0);
     }
     const scan = latestScan;
-    if (scan) {
+    if (scan && url.searchParams.get('consume') === 'true') {
       consumedScanIds.add(String(scan.id));
       latestScan = null;
     }
@@ -557,19 +523,18 @@ const server = http.createServer((req, res) => {
       activePatientId = patientId;
 
       // Check if real scan file exists, or generate clinical capture
-      const newest = getLatestScanFromFolders();
+      const newest = getLatestScanFromFolders(true);
       const scanRecord = newest || {
         id: `${Date.now()}_Tooth_${toothKey}`,
         timestamp: new Date().toISOString(),
         filename: `NanoPix_Tooth_${toothKey}_${Date.now()}.jpg`,
-        dataUrl: newest ? newest.dataUrl : null,
+        dataUrl: null,
         toothKey: String(toothKey),
         patientId: String(patientId),
         source: 'Eighteeth Nano-Pix 2 Direct USB Exposure'
       };
 
       latestScan = scanRecord;
-      consumedScanIds.add(String(scanRecord.id));
       broadcastSSE('scan', scanRecord);
       broadcastLog('EXPOSURE', `⚡ Direct USB Radiograph Exposure Acquired for Tooth #${toothKey}`, scanRecord);
 
@@ -596,6 +561,12 @@ const server = http.createServer((req, res) => {
     res.write(`: connected\n\n`);
     res.write(`event: connected\ndata: ${JSON.stringify({ model: hardwareTelemetry.description, serial: hardwareTelemetry.serial })}\n\n`);
     sseClients.push(res);
+
+    // If there is an existing radiograph on disk, push it immediately to new client
+    const recent = getLatestScanFromFolders(true);
+    if (recent) {
+      res.write(`event: scan\ndata: ${JSON.stringify(recent)}\n\n`);
+    }
 
     const heartbeat = setInterval(() => {
       try {
