@@ -1126,18 +1126,21 @@ export default function ChartPage() {
       }
 
       setIsRefreshingEngine(true);
-      const res = await fetch('/api/ai-dental-notes/engine-status');
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.activeEngine) {
-          setEngineDiagnostics(data);
-          try {
-            sessionStorage.setItem('dentia_engine_diagnostics', JSON.stringify({ timestamp: Date.now(), data }));
-          } catch (e) {}
+      const res = await fetch('/api/ai-dental-notes/engine-status').catch(() => null);
+      if (res && res.ok) {
+        const cType = res.headers.get('content-type') || '';
+        if (cType.includes('application/json')) {
+          const data = await res.json().catch(() => null);
+          if (data && data.activeEngine) {
+            setEngineDiagnostics(data);
+            try {
+              sessionStorage.setItem('dentia_engine_diagnostics', JSON.stringify({ timestamp: Date.now(), data }));
+            } catch (e) {}
+          }
         }
       }
-    } catch (err) {
-      console.warn('Failed to fetch engine diagnostics:', err);
+    } catch (_) {
+      // Non-critical fallback
     } finally {
       setIsRefreshingEngine(false);
     }
