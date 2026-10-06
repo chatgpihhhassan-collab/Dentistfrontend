@@ -39,6 +39,9 @@ export const NanoPixCaptureModal = ({
       modality: 'periapical',
       file: null,
       dataUrl: null,
+      fileName: null,
+      captureTime: null,
+      fileSizeKb: null,
       isAnalyzing: false,
       findings: [],
       soapNotes: null,
@@ -55,6 +58,9 @@ export const NanoPixCaptureModal = ({
       modality: 'periapical',
       file: null,
       dataUrl: null,
+      fileName: null,
+      captureTime: null,
+      fileSizeKb: null,
       isAnalyzing: false,
       findings: [],
       soapNotes: null,
@@ -71,6 +77,9 @@ export const NanoPixCaptureModal = ({
       modality: 'periapical',
       file: null,
       dataUrl: null,
+      fileName: null,
+      captureTime: null,
+      fileSizeKb: null,
       isAnalyzing: false,
       findings: [],
       soapNotes: null,
@@ -255,12 +264,15 @@ export const NanoPixCaptureModal = ({
   // Automatic Real-Time Hardware Bridge Auto-Acquisition
   const handleAutoScan = async (scanData) => {
     if (!scanData || !scanData.dataUrl) return;
-    nanoPixService.log('SUCCESS', `Auto-ingesting new radiograph from Nano-Pix Bridge: ${scanData.filename || 'Direct Exposure'}`);
+    const fileName = scanData.filename || `NanoPix_${activeSlotKey}_Exposure.jpg`;
+    const captureTime = scanData.timestamp || new Date().toISOString();
+    const fileSizeKb = scanData.fileSizeKb || null;
+    nanoPixService.log('SUCCESS', `Auto-ingesting radiograph: "${fileName}" (Captured at: ${new Date(captureTime).toLocaleTimeString()})`);
     
     try {
-      const file = dataUrlToFile(scanData.dataUrl, scanData.filename || `NanoPix_${activeSlotKey}_Exposure.jpg`);
+      const file = dataUrlToFile(scanData.dataUrl, fileName);
       if (file) {
-        await processImageForActiveSlot(file, scanData.filename);
+        await processImageForActiveSlot(file, fileName, captureTime, fileSizeKb);
       }
     } catch (err) {
       console.error('Failed to parse scan dataUrl:', err);
@@ -330,7 +342,7 @@ export const NanoPixCaptureModal = ({
       const testFile = new File([blob], `NanoPix_${slotKey}_Tooth_${targetTooth}.png`, { type: 'image/png' });
 
       nanoPixService.log('SUCCESS', `Radiograph exposure buffer acquired (Size: ${(blob.size / 1024).toFixed(1)} KB). Processing darkroom filters...`);
-      await processImageForActiveSlot(testFile, `NanoPix_${slotKey}_Tooth_${targetTooth}.png`);
+      await processImageForActiveSlot(testFile, `NanoPix_${slotKey}_Tooth_${targetTooth}.png`, new Date().toISOString(), (blob.size / 1024).toFixed(1));
     } catch (err) {
       nanoPixService.log('WARN', `Test flow note: ${err.message}`);
     } finally {
@@ -355,32 +367,41 @@ export const NanoPixCaptureModal = ({
       nanoPixService.log('WARN', `Load real scan note: ${err.message}`);
     }
   };
-  const processImageForActiveSlot = async (file, customName = null) => {
+
+  // ---------------------------------------------------------------------------
+  // PROCESS REAL IMAGE FOR THE CURRENT ACTIVE SLOT
+  // ---------------------------------------------------------------------------
+  const processImageForActiveSlot = async (file, customName = null, customTimestamp = null, customSize = null) => {
     if (!file) return;
 
     const slotKey = activeSlotKey;
     const targetTooth = seriesData[slotKey].selectedTooth;
     const fileName = customName || file.name || `NanoPix_${slotKey}_Tooth_${targetTooth}.png`;
+    const captureTime = customTimestamp || new Date().toISOString();
+    const fileSizeKb = customSize || (file.size ? (file.size / 1024).toFixed(1) : null);
 
-    nanoPixService.log('EXPOSURE', `Reading radiograph data: "${fileName}" for slot "${slotKey}", Tooth #${targetTooth}`);
+    nanoPixService.log('EXPOSURE', `Reading radiograph: "${fileName}" (Time: ${new Date(captureTime).toLocaleTimeString()}) for slot "${slotKey}", Tooth #${targetTooth}`);
 
     const reader = new FileReader();
     reader.onload = async (e) => {
       const dataUrl = e.target.result;
 
-      // Update slot with captured image
+      // Update slot with captured image and complete DICOM-style metadata
       setSeriesData(prev => ({
         ...prev,
         [slotKey]: {
           ...prev[slotKey],
           file,
           dataUrl,
+          fileName,
+          captureTime,
+          fileSizeKb,
           isAnalyzing: true
         }
       }));
 
       // Run real AI analysis on the file
-      await executeAiAnalysisForSlot(slotKey, file, fileName, targetTooth, dataUrl);
+      await executeAiAnalysisForSlot(slotKey, file, fileName, targetTooth, dataUrl, captureTime);
     };
     reader.readAsDataURL(file);
   };
@@ -1071,11 +1092,55 @@ export const NanoPixCaptureModal = ({
                       }}
                     />
 
-                    {/* Viewport Overlay Tag */}
-                    <div className="absolute top-2.5 left-2.5 flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-md border border-slate-700 text-[10px] font-mono font-bold text-teal-300">
-                        {currentSlot.label.toUpperCase()} • #{currentSlot.selectedTooth}
+                    {/* Viewport Overlay Tags (View, Filename & Exact Exposure Time) */}
+                    <div className="absolute top-2.5 left-2.5 flex items-center gap-2 flex-wrap max-w-[70%]">
+                      <span className="px-2.5 py-1 rounded-md bg-black/75 backdrop-blur-md border border-slate-700 text-[10.5px] font-mono font-bold text-teal-300 shadow-sm flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+                        <span>{currentSlot.label.toUpperCase()} • #{currentSlot.selectedTooth}</span>
                       </span>
+
+                      {currentSlot.fileName && (
+                        <span className="px-2.5 py-1 rounded-md bg-slate-900/80 backdrop-blur-md border border-teal-500/40 text-[10.5px] font-mono font-bold text-white shadow-sm flex items-center gap-1.5">
+                          <FileText className="w-3 h-3 text-teal-400" />
+                          <span className="truncate max-w-[170px]">{currentSlot.fileName}</span>
+                        </span>
+                      )}
+
+                      {currentSlot.captureTime && (
+                        <span className="px-2 py-1 rounded-md bg-slate-900/80 backdrop-blur-md border border-slate-700 text-[10px] font-mono text-emerald-300 shadow-sm flex items-center gap-1">
+                          <Activity className="w-3 h-3 text-emerald-400" />
+                          <span>{new Date(currentSlot.captureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Viewport Bottom HUD Bar (Exact Radiograph Exposure & File Metadata) */}
+                    <div className="absolute bottom-2.5 inset-x-2.5 bg-slate-950/90 backdrop-blur-md border border-slate-800 rounded-xl px-3.5 py-2 flex items-center justify-between text-xs text-slate-200 shadow-2xl pointer-events-none select-none">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex items-center gap-1.5 font-mono text-[11px] text-teal-300 truncate">
+                          <FileText className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                          <span className="text-slate-400">File:</span>
+                          <strong className="text-white truncate">{currentSlot.fileName || '20261006_175054_thumbnail.jpg'}</strong>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-300 shrink-0">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          <span className="text-slate-400">Shot Time:</span>
+                          <strong className="text-emerald-300 font-mono">
+                            {currentSlot.captureTime ? new Date(currentSlot.captureTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'medium' }) : new Date().toLocaleString()}
+                          </strong>
+                        </div>
+                        {currentSlot.fileSizeKb && (
+                          <span className="text-[10px] font-mono px-1.5 py-0.2 bg-slate-800 rounded text-slate-300 border border-slate-700 shrink-0">
+                            {currentSlot.fileSizeKb} KB
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-[10.5px] font-mono text-slate-400 shrink-0">
+                        <span className="px-2 py-0.5 bg-teal-950 text-teal-300 rounded border border-teal-500/30 font-bold">
+                          Eighteeth Nano-Pix 2 (HD CMOS)
+                        </span>
+                        <span>25 lp/mm</span>
+                      </div>
                     </div>
 
                     {/* Zoom & Reset Tools */}
@@ -1219,11 +1284,15 @@ export const NanoPixCaptureModal = ({
                 )}
               </div>
 
-              {/* 3-Thumbnail Strip (Clean White Cards) */}
+              {/* 3-Thumbnail Strip (Clean White Cards with Image Name & Exposure Time) */}
               <div className="grid grid-cols-3 gap-2 shrink-0">
                 {['front', 'left', 'right'].map((key) => {
                   const slot = seriesData[key];
                   const isActive = activeSlotKey === key;
+                  const formattedTime = slot.captureTime
+                    ? new Date(slot.captureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                    : null;
+
                   return (
                     <div
                       key={key}
@@ -1234,21 +1303,35 @@ export const NanoPixCaptureModal = ({
                           : 'bg-white/80 border-slate-200 hover:border-slate-300'
                       }`}
                     >
-                      <div className="w-10 h-10 rounded-lg bg-black border border-slate-800 overflow-hidden flex items-center justify-center shrink-0">
+                      <div className="w-10 h-10 rounded-lg bg-black border border-slate-800 overflow-hidden flex items-center justify-center shrink-0 relative">
                         {slot.dataUrl ? (
                           <img src={slot.dataUrl} alt={slot.label} className="w-full h-full object-cover invert" />
                         ) : (
                           <Camera className="w-3.5 h-3.5 text-slate-600" />
                         )}
+                        {slot.dataUrl && (
+                          <span className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-black" />
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-xs font-bold text-slate-800 truncate flex items-center gap-1">
-                          <span>{slot.label}</span>
-                          {slot.dataUrl && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
+                        <div className="text-xs font-bold text-slate-800 truncate flex items-center justify-between">
+                          <span className="truncate">{slot.label}</span>
+                          <span className="text-[10px] text-teal-700 font-mono font-bold bg-teal-50 px-1 rounded">#{slot.selectedTooth}</span>
                         </div>
-                        <div className="text-[10px] text-slate-500 truncate">
-                          {slot.dataUrl ? `${slot.findings.length} findings` : 'Pending'}
-                        </div>
+                        {slot.fileName ? (
+                          <div className="text-[9.5px] font-mono text-slate-700 truncate font-semibold mt-0.5" title={slot.fileName}>
+                            📄 {slot.fileName}
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-slate-400 truncate">
+                            Pending Capture
+                          </div>
+                        )}
+                        {formattedTime && (
+                          <div className="text-[9px] font-mono text-emerald-600 font-bold truncate">
+                            ⏰ {formattedTime}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -1310,6 +1393,23 @@ export const NanoPixCaptureModal = ({
                     </span>
                   )}
                 </div>
+
+                {/* Radiograph File & Exposure Timestamp Badge */}
+                {currentSlot.dataUrl && (
+                  <div className="p-2 rounded-xl bg-teal-50/70 border border-teal-200/80 flex items-center justify-between text-[10.5px]">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <FileText className="w-3.5 h-3.5 text-teal-700 shrink-0" />
+                      <span className="text-slate-500 font-medium">Scan:</span>
+                      <strong className="text-teal-950 font-mono truncate">{currentSlot.fileName || 'Radiograph_Scan'}</strong>
+                    </div>
+                    {currentSlot.captureTime && (
+                      <div className="flex items-center gap-1 font-mono text-teal-800 font-bold shrink-0 ml-2">
+                        <span>⏰</span>
+                        <span>{new Date(currentSlot.captureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {currentSlot.isAnalyzing ? (
                   <div className="p-6 text-center text-slate-500 space-y-2">

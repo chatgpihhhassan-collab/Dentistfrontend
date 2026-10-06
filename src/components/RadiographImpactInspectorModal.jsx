@@ -125,12 +125,18 @@ export default function RadiographImpactInspectorModal({
                 <h3 className="text-base font-bold text-slate-100">
                   Diagnostic Radiograph Inspector
                 </h3>
-                <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-800">
-                  {radiograph.imageName}
+                <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-800 truncate max-w-[240px]">
+                  {radiograph.imageName || radiograph.fileName || 'Radiograph'}
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Scan ID: #{radiograph.radiographID} • {radiograph.uploadedAt ? new Date(radiograph.uploadedAt).toLocaleString() : 'Recent Scan'}
+              <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5 font-mono">
+                <span>Scan ID: #{radiograph.radiographID || radiograph.RadiographID}</span>
+                <span>•</span>
+                <span className="text-emerald-300 font-bold">
+                  ⏰ {radiograph.capturedAt 
+                    ? new Date(radiograph.capturedAt).toLocaleString() 
+                    : (radiograph.uploadedAt ? new Date(radiograph.uploadedAt).toLocaleString() : 'Recent Scan')}
+                </span>
               </p>
             </div>
           </div>

@@ -714,14 +714,20 @@ export default function ChartRadiographFilmstrip({
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col">
                   {/* Stage Top Bar: Active Scan Metadata & Quick Tools Palette */}
                   <div className="px-3.5 py-2.5 bg-gradient-to-r from-slate-100/90 via-white to-slate-100/90 border-b border-slate-200/80 flex items-center justify-between gap-2 flex-wrap">
-                    {/* Active Modality & Scan Title */}
-                    <div className="flex items-center gap-2 min-w-0">
+                    {/* Active Modality & Scan Title & Exact Exposure Time */}
+                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
                       <span className="px-2 py-0.5 rounded text-[10px] font-black bg-[#10244B] text-cyan-300 tracking-wider">
                         {currentMeta.modality}
                       </span>
-                      <span className="text-xs font-black text-slate-900 truncate max-w-[200px]" title={currentRadiograph.imageName}>
-                        {currentRadiograph.imageName || `Scan #${currentScanId}`}
+                      <span className="text-xs font-black text-slate-900 truncate max-w-[200px]" title={currentRadiograph.imageName || currentRadiograph.fileName}>
+                        {currentRadiograph.imageName || currentRadiograph.fileName || `Scan #${currentScanId}`}
                       </span>
+                      {(currentRadiograph.capturedAt || currentRadiograph.uploadedAt) && (
+                        <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 font-mono font-bold flex items-center gap-1 shadow-2xs">
+                          <span>⏰</span>
+                          <span>{new Date(currentRadiograph.capturedAt || currentRadiograph.uploadedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                        </span>
+                      )}
                       <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">
                         • {currentMeta.device}
                       </span>
@@ -957,9 +963,18 @@ export default function ChartRadiographFilmstrip({
                       )}
                     </div>
 
-                    {/* Modality & Date Tag */}
-                    <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md bg-slate-900/85 text-slate-300 text-[9.5px] font-mono border border-slate-700 shadow-sm">
-                      {currentRadiograph.uploadedAt ? new Date(currentRadiograph.uploadedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent Scan'}
+                    {/* Modality, Filename & Exact Date/Time Tag */}
+                    <div className="absolute bottom-2.5 right-2.5 px-2.5 py-1 rounded-lg bg-slate-950/85 backdrop-blur-xs text-slate-200 text-[10px] font-mono border border-slate-700 shadow-md flex items-center gap-2">
+                      <div className="flex items-center gap-1 text-teal-300 font-bold truncate max-w-[160px]" title={currentRadiograph.imageName || currentRadiograph.fileName}>
+                        <FileText className="w-3 h-3 text-teal-400 shrink-0" />
+                        <span className="truncate">{currentRadiograph.imageName || currentRadiograph.fileName || 'Radiograph'}</span>
+                      </div>
+                      <span className="text-slate-500">•</span>
+                      <div className="text-emerald-300 font-bold shrink-0">
+                        {currentRadiograph.capturedAt 
+                          ? new Date(currentRadiograph.capturedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'medium' }) 
+                          : (currentRadiograph.uploadedAt ? new Date(currentRadiograph.uploadedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'medium' }) : 'Recent Scan')}
+                      </div>
                     </div>
                   </div>
 
@@ -1271,8 +1286,8 @@ export default function ChartRadiographFilmstrip({
                         {/* Thumbnail Footer Info */}
                         <div className="p-1.5 bg-white flex flex-col gap-0.5">
                           <div className="flex items-center justify-between gap-1">
-                            <span className="text-[10.5px] font-bold text-slate-900 truncate flex-1" title={r.imageName}>
-                              {r.imageName || `Scan #${rId}`}
+                            <span className="text-[10.5px] font-bold text-slate-900 truncate flex-1" title={r.imageName || r.fileName}>
+                              {r.imageName || r.fileName || `Scan #${rId}`}
                             </span>
                             {onDeleteRadiograph && (
                               <button
@@ -1282,15 +1297,19 @@ export default function ChartRadiographFilmstrip({
                                   onDeleteRadiograph(rId, e);
                                 }}
                                 className="p-0.5 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer shrink-0 opacity-70 group-hover:opacity-100"
-                                title={`Delete ${r.imageName || 'scan'}`}
+                                title={`Delete ${r.imageName || r.fileName || 'scan'}`}
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>
                             )}
                           </div>
-                          <div className="flex items-center justify-between text-[9px] text-slate-400 font-mono">
-                            <span>{r.uploadedAt ? new Date(r.uploadedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}</span>
-                            <span className="font-sans font-bold text-[#2563EB]">
+                          <div className="flex items-center justify-between text-[9px] text-slate-500 font-mono">
+                            <span className="truncate">
+                              {r.capturedAt 
+                                ? new Date(r.capturedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+                                : (r.uploadedAt ? new Date(r.uploadedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '')}
+                            </span>
+                            <span className="font-sans font-bold text-[#2563EB] shrink-0 ml-1">
                               {isSelected ? 'Active' : 'Inspect'}
                             </span>
                           </div>

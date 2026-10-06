@@ -271,7 +271,7 @@ function handleNewScanFile(filePath) {
 
   const scanRecord = {
     id: `${Date.now()}_${fileName}`,
-    timestamp: new Date().toISOString(),
+    timestamp: (typeof stat !== 'undefined' && stat.mtime) ? new Date(stat.mtime).toISOString() : new Date().toISOString(),
     filename: fileName,
     filePath: filePath,
     folder: folderDir,
