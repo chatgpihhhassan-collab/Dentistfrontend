@@ -175,6 +175,7 @@ function fileToDataUrl(filePath, retries = 5, delay = 150) {
     '.png': 'image/png',
     '.jpg': 'image/jpeg',
     '.jpeg': 'image/jpeg',
+    '.svg': 'image/svg+xml',
     '.tiff': 'image/tiff',
     '.tif': 'image/tiff',
     '.bmp': 'image/bmp',
@@ -537,7 +538,7 @@ const server = http.createServer((req, res) => {
       const scanRecord = {
         id: `${Date.now()}_Tooth_${toothKey}`,
         timestamp: new Date().toISOString(),
-        filename: `NanoPix_Tooth_${toothKey}_${Date.now()}.png`,
+        filename: `NanoPix_Tooth_${toothKey}_${Date.now()}.svg`,
         dataUrl: dataUrl,
         toothKey: String(toothKey),
         patientId: String(patientId),

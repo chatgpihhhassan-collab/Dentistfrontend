@@ -190,8 +190,9 @@ export const compressImageForUpload = (file, targetMaxBytes = 18 * 1024) => {
     const origKb = (file.size / 1024).toFixed(1);
     console.log(`[STEP 2/5: COMPRESS START] Original size: ${origKb} KB, Target: <= ${(targetMaxBytes / 1024).toFixed(1)} KB`);
 
-    if (file.size <= targetMaxBytes) {
-      console.log(`[STEP 2/5: COMPRESS COMPLETE] Image is already under target (${origKb} KB <= ${(targetMaxBytes / 1024).toFixed(1)} KB). No compression needed.`);
+    const isAlreadyJpeg = (file.type === 'image/jpeg' || file.type === 'image/jpg') && !file.name?.toLowerCase().endsWith('.svg');
+    if (isAlreadyJpeg && file.size <= targetMaxBytes) {
+      console.log(`[STEP 2/5: COMPRESS COMPLETE] Image is already valid JPEG under target (${origKb} KB <= ${(targetMaxBytes / 1024).toFixed(1)} KB). No compression needed.`);
       return resolve(file);
     }
 
