@@ -1,10 +1,25 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import legacy from '@vitejs/plugin-legacy'
 import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    legacy({
+      targets: [
+        'chrome >= 80',
+        'edge >= 80',
+        'firefox >= 78',
+        'safari >= 13',
+        'not dead'
+      ],
+      additionalLegacyPolyfills: ['regenerator-runtime/runtime'],
+      renderModernChunks: true
+    })
+  ],
   server: {
     proxy: {
       '/digora': {
@@ -77,7 +92,8 @@ export default defineConfig({
     }
   },
   build: {
-    target: 'esnext',
+    target: ['chrome80', 'es2020'],
+    cssTarget: 'chrome80',
     chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {

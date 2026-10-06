@@ -41,6 +41,7 @@ const PatientDoctors = lazy(() => import('./modules/patientPortal/pages/PatientD
 import PatientProtectedRoute from './modules/patientPortal/components/PatientProtectedRoute';
 
 import FullPageSkeletonLoader from './components/FullPageSkeletonLoader';
+import LegacyBrowserBanner from './components/LegacyBrowserBanner';
 
 import { validateClinicianSession } from './services/sessionSecurityService';
 
@@ -116,6 +117,7 @@ const AnalyticsPageTracker = () => {
 export default function App() {
   return (
     <BrowserRouter>
+      <LegacyBrowserBanner />
       <AnalyticsPageTracker />
       <ErrorBoundary>
         <IdleSessionManager />

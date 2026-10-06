@@ -2,6 +2,20 @@
 
 @import "tailwindcss";
 
+:root {
+  --font-serif: "Urbanist", sans-serif;
+  --font-sans: "Inter", sans-serif;
+  
+  --color-primary-teal: #4A7CD2;
+  --color-primary-hover: #3665B7;
+  --color-light-teal: #EAF0FC;
+  --color-light-teal-hover: #D4E2F9;
+  --color-dark-slate: #10244B;
+  --color-muted-text: #4A5568;
+  --color-warm-cream: #F4F6FA;
+  --color-accent-gold: #EAA638;
+}
+
 @theme {
   --font-serif: "Urbanist", sans-serif;
   --font-sans: "Inter", sans-serif;
@@ -14,6 +28,22 @@
   --color-muted-text: #4A5568;
   --color-warm-cream: #F4F6FA; /* Slightly darker cream for more gradient contrast */
   --color-accent-gold: #EAA638;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Legacy & Older Chromium Engine (Chrome < 110, Win 7) Fallbacks
+   ═══════════════════════════════════════════════════════════════ */
+@supports not (aspect-ratio: 1 / 1) {
+  .dental-jaw-container {
+    height: 0 !important;
+    padding-bottom: 100% !important; /* 1:1 Aspect Ratio fallback */
+  }
+}
+
+@supports not ((-webkit-backdrop-filter: blur(10px)) or (backdrop-filter: blur(10px))) {
+  .backdrop-blur-md, .backdrop-blur-lg, .backdrop-blur-sm {
+    background-color: rgba(255, 255, 255, 0.96) !important;
+  }
 }
 
 html, body, #root {
