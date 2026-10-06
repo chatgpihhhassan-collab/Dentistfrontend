@@ -194,13 +194,13 @@ function ensureEighteethEngineRunning() {
         });
 
         console.log(`[FLOW 3/5 - AUTO-ENGINE LAUNCH] 🚀 Launching Bundled Eighteeth Driver Engine: ${targetExe}`);
-        const child = spawn(targetExe, [], {
+        const child = spawn('cmd.exe', ['/c', 'start', '', targetExe], {
           cwd: engineWorkingDir,
           detached: true,
           stdio: 'ignore'
         });
         child.unref();
-        console.log(`[FLOW 3/5 - AUTO-ENGINE ACTIVE] ✅ Driver Engine active in background (PID: ${child.pid}). Hardware Sensor is ARMED.`);
+        console.log(`[FLOW 3/5 - AUTO-ENGINE ACTIVE] ✅ Driver Engine active with Interactive GUI. Hardware Sensor is ARMED.`);
       }
     }
   } catch (_) {}
@@ -458,6 +458,17 @@ const server = http.createServer((req, res) => {
   // 1. Status & Live Telemetry
   if (url.pathname === '/nanopix/status' || url.pathname === '/nanopix/telemetry') {
     pollFtdiHardwareBus();
+    let isEngineRunning = false;
+    let enginePid = null;
+    try {
+      const output = execSync('tasklist /fi "imagename eq NanoPix.exe" /fo csv /nh', { stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000 }).toString();
+      if (output.toLowerCase().includes('nanopix.exe')) {
+        isEngineRunning = true;
+        const match = output.match(/"NanoPix\.exe","(\d+)"/i);
+        if (match) enginePid = match[1];
+      }
+    } catch (_) {}
+
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       bridgeOnline: true,
@@ -466,6 +477,12 @@ const server = http.createServer((req, res) => {
       serialNumber: hardwareTelemetry.serial || 'iRayC7DB5M40P4',
       chipId: hardwareTelemetry.chipId || '0x4036014',
       status: 'Ready (Armed & Monitoring USB Bus)',
+      eighteethEngine: {
+        running: isEngineRunning,
+        pid: enginePid,
+        executable: bundledEngineExe,
+        status: isEngineRunning ? 'Active in Background (Armed)' : 'Starting...'
+      },
       telemetry: {
         driver: hardwareTelemetry.driverLoaded ? 'FTDI D2XX Kernel DLL' : 'Win32 Native',
         deviceCount: hardwareTelemetry.deviceCount,
