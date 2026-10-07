@@ -1,0 +1,17 @@
+﻿{
+    "USBDevices":  null,
+    "StartupEntries":  [
+
+                       ],
+    "Processes":  {
+                      "Name":  "NanoPix",
+                      "Id":  25324,
+                      "Path":  "C:\\Users\\lenovo\\Downloads\\NanoPix\\NanoPix\\1.1.1.9\\NanoPix.exe",
+                      "CommandLine":  null,
+                      "MainWindowTitle":  ""
+                  },
+    "Services":  null,
+    "Installations":  [
+
+                      ]
+}

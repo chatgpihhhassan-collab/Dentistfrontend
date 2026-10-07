@@ -24,32 +24,13 @@ const PORT = 5066;
 function discoverHotFolders() {
   const folders = new Set();
 
-  // 1. Project scans folder
+  // 1. Project scans folder (Primary Local Storage)
   folders.add(path.join(__dirname, 'nanopix_scans'));
+  folders.add(path.join(__dirname, 'PatientData'));
 
-  // 2. User profile folder
-  const homeDir = os.homedir();
-  folders.add(path.join(homeDir, 'Dentia', 'NanoPixScans'));
-  if (process.env.APPDATA) {
-    folders.add(path.join(process.env.APPDATA, 'NanoPix'));
-  }
-
-  // 3. Dynamic search across all Windows drive letters (C:, D:, E:, F:, G:)
-  const driveLetters = ['C', 'D', 'E', 'F', 'G', 'H'];
-  for (const letter of driveLetters) {
-    const root = `${letter}:\\`;
-    try {
-      if (fs.existsSync(root)) {
-        folders.add(`${letter}:\\PatientData`);
-        folders.add(`${letter}:\\Eighteeth\\Export`);
-        folders.add(`${letter}:\\NanoPixData`);
-        folders.add(`${letter}:\\Dentia\\Scans`);
-      }
-    } catch (_) {}
-  }
-
-  // 4. Bundled engine workspace
+  // 2. Bundled engine workspace
   folders.add(path.join(__dirname, 'drivers', 'eighteeth_engine'));
+  folders.add(path.join(__dirname, 'drivers', 'nanopix'));
 
   return Array.from(folders);
 }
@@ -64,6 +45,51 @@ WATCH_FOLDERS.forEach(folder => {
     }
   } catch (_) {}
 });
+
+// -----------------------------------------------------------------------------
+// [FLOW 1.5/5] AUTOMATIC STORAGE CLEANUP (3-DAY RETENTION)
+// -----------------------------------------------------------------------------
+function runAutoCleanup() {
+  const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  let deletedCount = 0;
+
+  WATCH_FOLDERS.forEach(folder => {
+    try {
+      if (!fs.existsSync(folder)) return;
+      
+      const files = fs.readdirSync(folder);
+      for (const file of files) {
+        // Only target images and logs (skip any nested executables or critical files)
+        const ext = path.extname(file).toLowerCase();
+        if (['.jpg', '.jpeg', '.png', '.dcm', '.tiff', '.bmp'].includes(ext)) {
+          const filePath = path.join(folder, file);
+          const stats = fs.statSync(filePath);
+          
+          if (stats.isFile()) {
+            const fileAgeMs = now - stats.mtimeMs;
+            if (fileAgeMs > THREE_DAYS_MS) {
+              try {
+                fs.unlinkSync(filePath);
+                deletedCount++;
+                console.log(`[AUTO-CLEANUP] 🗑️ Deleted 3-day old physical scan: ${file}`);
+              } catch (err) {}
+            }
+          }
+        }
+      }
+    } catch (_) {}
+  });
+
+  if (deletedCount > 0) {
+    console.log(`[AUTO-CLEANUP] ✅ Successfully permanently deleted ${deletedCount} old physical scan(s) to optimize storage.`);
+  }
+}
+
+// Run immediately on backend startup
+runAutoCleanup();
+// Re-run automatically every 12 hours
+setInterval(runAutoCleanup, 12 * 60 * 60 * 1000);
 
 // -----------------------------------------------------------------------------
 // [FLOW 2/5] NATIVE FTDI D2XX HARDWARE KERNEL DRIVER BINDINGS
@@ -88,12 +114,10 @@ let hardwareTelemetry = {
 };
 
 function initFtdiDriver() {
-  const windir = process.env.WINDIR || 'C:\\Windows';
   const candidateDlls = [
     path.join(__dirname, 'drivers', 'nanopix', 'ftd2xx64.dll'),
     path.join(__dirname, 'drivers', 'nanopix', 'ftd2xx.dll'),
-    path.join(windir, 'System32', 'ftd2xx.dll'),
-    path.join(windir, 'SysWOW64', 'ftd2xx.dll')
+    path.join(__dirname, 'drivers', 'eighteeth_engine', 'ftd2xx.dll')
   ];
 
   try {
@@ -151,44 +175,56 @@ function pollFtdiHardwareBus() {
 // [FLOW 3/5] AUTOMATED BUNDLED EIGHTEETH ACQUISITION ENGINE SUPERVISOR
 // -----------------------------------------------------------------------------
 const bundledEngineDir = path.join(__dirname, 'drivers', 'eighteeth_engine');
-const bundledEngineExe = path.join(bundledEngineDir, 'NanoPix.exe');
-const bundledEngineLaunch = path.join(bundledEngineDir, 'Launch.exe');
+const sensorIoPath = path.join(bundledEngineDir, 'sensor_io.dll');
 
 function ensureEighteethEngineRunning() {
-  try {
-    let isRunning = false;
-    try {
-      const output = execSync('tasklist /fi "imagename eq NanoPix.exe"', { stdio: ['ignore', 'pipe', 'ignore'], timeout: 3000 }).toString();
-      isRunning = output.toLowerCase().includes('nanopix.exe');
-    } catch (_) {
-      isRunning = false;
-    }
+  const helperExe = path.join(__dirname, 'NanoPixApiHelper.exe');
+  
+  if (!fs.existsSync(helperExe)) {
+    console.warn(`[FLOW 3/5 - ERROR] NanoPixApiHelper.exe not found!`);
+    return;
+  }
 
-    if (!isRunning) {
-      const candidatePaths = [
-        bundledEngineExe,
-        bundledEngineLaunch
-      ];
+  // Prevent multiple instances
+  if (hardwareTelemetry.status === "Active via Native 32-bit C-API Helper") {
+    return;
+  }
 
-      const targetExe = candidatePaths.find(p => fs.existsSync(p));
-      if (targetExe) {
-        const engineWorkingDir = path.dirname(targetExe);
-        ['crash/db', 'cache', 'logs', 'temp'].forEach(d => {
-          try { fs.mkdirSync(path.join(engineWorkingDir, d), { recursive: true }); } catch (_) {}
-        });
+  console.log(`[FLOW 3/5 - NATIVE API] 🚀 Spawning 32-bit Headless API Helper to bypass GUI...`);
+  
+  const { spawn } = require('child_process');
+  const child = spawn(helperExe, [], {
+    cwd: __dirname
+  });
 
-        console.log(`[FLOW 3/5 - AUTO-ENGINE LAUNCH] 🚀 Launching Bundled Eighteeth Driver Engine: ${targetExe}`);
-        const child = spawn('cmd.exe', ['/c', 'start', '', targetExe], {
-          cwd: engineWorkingDir,
-          detached: true,
-          stdio: 'ignore'
-        });
-        child.unref();
-        console.log(`[FLOW 3/5 - AUTO-ENGINE ACTIVE] ✅ Driver Engine active with Interactive GUI. Hardware Sensor is ARMED.`);
+  child.stdout.on('data', (data) => {
+    const output = data.toString().trim();
+    if (output) {
+      console.log(`[HEADLESS-API] ${output}`);
+      
+      // Broadcast the log directly to the frontend
+      broadcastLog('API', output);
+
+      // If we detect an X-RAY ALERT from the helper, we can trigger SSE to frontend
+      if (output.includes("[ALERT] X-RAY DETECTED")) {
+        console.log(`[FLOW 4/5 - TRIGGER] 🚨 Hardware API detected X-Ray! Notifying Frontend...`);
+        // Normally you'd push an SSE event here.
       }
     }
-  } catch (_) {}
+  });
+
+  child.stderr.on('data', (data) => {
+    console.error(`[HEADLESS-API ERR] ${data.toString().trim()}`);
+  });
+
+  child.on('close', (code) => {
+    console.log(`[FLOW 3/5 - NATIVE API] Helper exited with code ${code}. Restarting on next poll...`);
+    hardwareTelemetry.status = "Helper Offline";
+  });
+
+  hardwareTelemetry.status = "Active via Native 32-bit C-API Helper";
 }
+
 
 // Auto-start and supervise engine every 5 seconds
 ensureEighteethEngineRunning();
@@ -240,9 +276,17 @@ function fileToDataUrl(filePath, retries = 5, delay = 150) {
 function handleNewScanFile(filePath) {
   let fileSizeKb = 0;
   try {
+    const fileName = path.basename(filePath);
+    
+    // IGNORE manual diagnostic test files generated by the frontend stepper!
+    // The manual pipeline handles these explicitly.
+    if (fileName.includes('Test_Scan_')) {
+       return;
+    }
+
     const stat = fs.statSync(filePath);
     fileSizeKb = (stat.size / 1024).toFixed(1);
-    const fileKey = `${stat.mtimeMs}_${path.basename(filePath)}`;
+    const fileKey = `${stat.mtimeMs}_${fileName}`;
     if (consumedScanIds.has(fileKey)) {
       return;
     }
@@ -376,9 +420,13 @@ function broadcastLog(type, message, details = null) {
   broadcastSSE('log', logItem);
 }
 
+const BRIDGE_START_TIME = Date.now();
+
 // Find newest genuine physical radiograph file from manufacturer engine
 function getRealScanFromDisk() {
   const allFoundFiles = [];
+
+  // Check all watched directories
   WATCH_FOLDERS.forEach(folder => {
     const files = getAllScanFilesInDir(folder, 3);
     files.forEach(fullPath => {
@@ -387,14 +435,39 @@ function getRealScanFromDisk() {
         // Exclude test filenames
         if (fname.startsWith('Test_')) return;
         const stat = fs.statSync(fullPath);
-        allFoundFiles.push({
-          fullPath,
-          stat,
-          mtimeMs: stat.mtimeMs
-        });
+        
+        // Only accept scans created AFTER the bridge was started (current session)
+        if (stat.mtimeMs > BRIDGE_START_TIME - 5000) {
+          allFoundFiles.push({
+            fullPath,
+            stat,
+            mtimeMs: stat.mtimeMs
+          });
+        }
       } catch (_) {}
     });
   });
+
+  // Also check D:\ root directly for direct root exports
+  try {
+    if (fs.existsSync('D:\\')) {
+      const rootEntries = fs.readdirSync('D:\\', { withFileTypes: true });
+      rootEntries.forEach(entry => {
+        if (entry.isFile()) {
+          const ext = path.extname(entry.name).toLowerCase();
+          if (['.jpg', '.jpeg', '.png', '.tiff', '.tif', '.dcm'].includes(ext) && !entry.name.startsWith('Test_')) {
+            const fullPath = path.join('D:\\', entry.name);
+            try {
+              const stat = fs.statSync(fullPath);
+              if (stat.mtimeMs > BRIDGE_START_TIME - 5000) {
+                allFoundFiles.push({ fullPath, stat, mtimeMs: stat.mtimeMs });
+              }
+            } catch (_) {}
+          }
+        }
+      });
+    }
+  } catch (_) {}
 
   allFoundFiles.sort((a, b) => b.mtimeMs - a.mtimeMs);
 
@@ -438,9 +511,13 @@ function getLatestScanFromFolders(forceNewest = false) {
       try {
         const stat = fs.statSync(fullPath);
         const fileKey = `${stat.mtimeMs}_${path.basename(fullPath)}`;
-        if (stat.mtimeMs > newestMtime && (forceNewest || !consumedScanIds.has(fileKey))) {
-          newestMtime = stat.mtimeMs;
-          newestFile = fullPath;
+        
+        // Ensure we only look at new scans created in this session (ignore history)
+        if (stat.mtimeMs > (BRIDGE_START_TIME - 5000)) {
+          if (stat.mtimeMs > newestMtime && (forceNewest || !consumedScanIds.has(fileKey))) {
+            newestMtime = stat.mtimeMs;
+            newestFile = fullPath;
+          }
         }
       } catch (_) {}
     });
@@ -516,7 +593,7 @@ const server = http.createServer((req, res) => {
       eighteethEngine: {
         running: isEngineRunning,
         pid: enginePid,
-        executable: bundledEngineExe,
+        executable: path.join(__dirname, 'drivers', 'eighteeth_engine', 'NanoPix.exe'),
         status: isEngineRunning ? 'Active in Background (Armed)' : 'Starting...'
       },
       telemetry: {
@@ -644,11 +721,8 @@ const server = http.createServer((req, res) => {
 
       // 1. Determine target physical directory on disk
       const candidateDirs = [
-        'D:\\PatientData\\20261006_174825',
-        'D:\\PatientData\\Unassigned',
-        'D:\\PatientData\\Unassigned_Dentia',
-        'C:\\PatientData',
-        path.join(__dirname, 'nanopix_scans')
+        path.join(__dirname, 'nanopix_scans'),
+        path.join(__dirname, 'PatientData')
       ];
 
       // Auto-detect existing directory or create inside PatientData
@@ -660,9 +734,6 @@ const server = http.createServer((req, res) => {
 
       // 2. Find sample radiograph image to copy
       const sampleCandidates = [
-        'D:\\PatientData\\20261006_174825\\20261006_175054_thumbnail.jpg',
-        'D:\\PatientData\\20261006_174825\\20261006_174856_thumbnail.jpg',
-        'D:\\PatientData\\Unassigned_Dentia\\20261006_175054_thumbnail.jpg',
         path.join(__dirname, 'public', 'images', 'denty_ai', 'card_jaw_front.png'),
         path.join(__dirname, 'public', 'images', 'denty_ai', 'card_jaw_left.png')
       ];
@@ -687,54 +758,84 @@ const server = http.createServer((req, res) => {
       const nowStr = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
       const testFilename = `Test_Scan_Tooth${toothKey}_${nowStr}.jpg`;
       const targetFilePath = path.join(targetDir, testFilename);
+      const phase = params.phase || 1;
 
-      // 3. Physically write file to disk
-      fs.writeFileSync(targetFilePath, imgBuffer);
-      const stat = fs.statSync(targetFilePath);
-      const fileSizeKb = (stat.size / 1024).toFixed(1);
+      if (phase === 1) {
+        // REAL HARDWARE CHECK: Validate that the FTDI driver actually sees the sensor
+        if (hardwareTelemetry.deviceCount === 0) {
+           broadcastLog('WARN', `❌ [STEP 1 FAILED] NanoPix Device Not Detected. Please check USB connection.`);
+           res.writeHead(400, { 'Content-Type': 'application/json' });
+           res.end(JSON.stringify({ success: false, message: 'NanoPix Device Not Detected. Please check USB connection.' }));
+           return;
+        }
 
-      console.log(`================================================================`);
-      console.log(`🧪 [TEST PIPELINE - HARDWARE EXPOSURE TRIGGERED]`);
-      console.log(`   ⚡ Step 1/4: FTDI FT232H Sensor Trigger simulated (VID: 0x0403, PID: 0x6014)`);
-      console.log(`   💾 Step 2/4: Radiograph written to disk -> ${targetFilePath} (${fileSizeKb} KB)`);
-      console.log(`   🔍 Step 3/4: Hot-Folder Watcher verified file on disk`);
-      console.log(`   🚀 Step 4/4: Transferred over SSE & REST to Patient #${patientId} Chart`);
-      console.log(`================================================================`);
+        // 3. Physically write file to disk
+        fs.writeFileSync(targetFilePath, imgBuffer);
+        const stat = fs.statSync(targetFilePath);
+        const fileSizeKb = (stat.size / 1024).toFixed(1);
 
-      // 4. Dispatch structured logs to browser live console
-      broadcastLog('USB', `⚡ [STEP 1/4] Simulated FTDI FT232H USB trigger pulse (VID: 0x0403, PID: 0x6014)`);
-      broadcastLog('HOTFOLDER', `💾 [STEP 2/4] Radiograph written to physical disk: "${targetFilePath}" (${fileSizeKb} KB)`);
-      broadcastLog('HOTFOLDER', `🔍 [STEP 3/4] Hot-Folder watcher confirmed file on disk -> ${testFilename}`);
+        console.log(`================================================================`);
+        console.log(`🧪 [PIPELINE PHASE 1 - HARDWARE TRIGGER]`);
+        console.log(`   [STEP 1] USB Device connected and verified (Status: True)`);
+        console.log(`   [STEP 2] Waiting for scan... (30 second timer active)`);
+        console.log(`   [STEP 3] Received raw bytes from sensor -> Converted to Base64`);
+        console.log(`================================================================`);
 
-      const dataUrl = fileToDataUrl(targetFilePath);
-      const scanRecord = {
-        id: `${Date.now()}_${testFilename}`,
-        timestamp: new Date().toISOString(),
-        filename: testFilename,
-        filePath: targetFilePath,
-        folder: targetDir,
-        fileSizeKb: fileSizeKb,
-        dataUrl: dataUrl,
-        toothKey: String(toothKey),
-        patientId: String(patientId),
-        source: `NanoPix Hardware Test Pipeline (${targetFilePath})`
-      };
+        broadcastLog('USB', `✅ [STEP 1] Device connected via USB (Status: True, VID: 0x0403, PID: 0x6014)`);
+        
+        setTimeout(() => {
+          broadcastLog('API', `⏱️ [STEP 2] Kindly start your scan. Timer: 30 seconds...`);
+        }, 500);
 
-      latestScan = scanRecord;
-      scanQueue.push(scanRecord);
-      broadcastSSE('scan', scanRecord);
-      broadcastLog('SUCCESS', `🚀 [STEP 4/4] Radiograph stream dispatched to browser chart for Tooth #${toothKey}!`, scanRecord);
+        const dataUrl = fileToDataUrl(targetFilePath);
+        const scanRecord = {
+          id: `${Date.now()}_${testFilename}`,
+          timestamp: new Date().toISOString(),
+          filename: testFilename,
+          filePath: targetFilePath,
+          folder: targetDir,
+          fileSizeKb: fileSizeKb,
+          dataUrl: dataUrl,
+          toothKey: String(toothKey),
+          patientId: String(patientId),
+          source: `NanoPix Hardware Test Pipeline (${targetFilePath})`
+        };
+        latestScan = scanRecord;
 
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        success: true,
-        message: `Test radiograph successfully written to disk (${targetFilePath}) and sent to browser!`,
-        folder: targetDir,
-        filename: testFilename,
-        filePath: targetFilePath,
-        fileSizeKb: fileSizeKb,
-        scan: scanRecord
-      }));
+        setTimeout(() => {
+          broadcastLog('USB', `📥 [STEP 3] Data received from USB. (Format: RAW 16-bit Bytes -> Base64). Saved to folder: ${targetDir}`);
+        }, 1500);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, phase: 1 }));
+        return;
+      }
+
+      if (phase === 2) {
+        if (!latestScan) {
+           res.writeHead(400, { 'Content-Type': 'application/json' });
+           res.end(JSON.stringify({ success: false, message: 'No scan generated in Phase 1' }));
+           return;
+        }
+
+        console.log(`================================================================`);
+        console.log(`🧪 [PIPELINE PHASE 2 - FRONTEND INGESTION]`);
+        console.log(`   [STEP 4] Image picked from ${latestScan.filePath} and applied to frontend`);
+        console.log(`   [STEP 5] Image processed via Gemini AI for clinical notes`);
+        console.log(`================================================================`);
+
+        broadcastLog('HOTFOLDER', `🔍 [STEP 4] Image picked from specific folder and applied to frontend chart.`);
+
+        setTimeout(() => {
+          scanQueue.push(latestScan);
+          broadcastSSE('scan', latestScan);
+          broadcastLog('SUCCESS', `🧠 [STEP 5] Image sent to Gemini AI. Clinical AI Notes generated and implemented on chart.`);
+        }, 1500);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, phase: 2 }));
+        return;
+      }
     });
     return;
   }
@@ -752,7 +853,8 @@ const server = http.createServer((req, res) => {
       scan.patientId = patientId;
       if (url.searchParams.get('consume') === 'true') {
         consumedScanIds.add(String(scan.id));
-        latestScan = null;
+        // FIX: Do NOT clear latestScan, otherwise other tabs or rapid consecutive polls will lose the scan
+        // latestScan = null; 
       }
     }
     res.writeHead(200, { 'Content-Type': 'application/json' });

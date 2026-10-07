@@ -13,17 +13,24 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
   const [mounted, setMounted] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
 
+  const [showLogs, setShowLogs] = useState(false);
+  const [logs, setLogs] = useState(() => nanoPixService.getLogs());
+
   useEffect(() => {
     setMounted(true);
 
     const onConnect = (info) => setNanoPixStatus({ isConnected: true, deviceInfo: info });
     const onDisconnect = () => setNanoPixStatus({ isConnected: false, deviceInfo: null });
+    const onLog = () => setLogs(nanoPixService.getLogs());
+    
     const unsubC = nanoPixService.subscribe('connected', onConnect);
     const unsubD = nanoPixService.subscribe('disconnected', onDisconnect);
+    const unsubL = nanoPixService.subscribe('log', onLog);
 
     return () => {
       if (typeof unsubC === 'function') unsubC();
       if (typeof unsubD === 'function') unsubD();
+      if (typeof unsubL === 'function') unsubL();
     };
   }, []);
 
@@ -228,6 +235,137 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
               <AlertCircle className="w-5 h-5 text-amber-600 mx-auto mb-1" />
               <p className="text-xs font-medium text-amber-900">No USB dental cameras detected.</p>
               <p className="text-[11px] text-amber-700 mt-0.5">Connect your intraoral camera or digital sensor to any USB port.</p>
+            </div>
+          )}
+        </div>
+
+        {/* NanoPix API Logs Viewer & Stepper */}
+        <div className="mt-6 border-t border-slate-100 pt-4">
+          <div className="flex flex-col gap-4 mb-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Activity className="w-4 h-4 text-slate-500" />
+                Diagnostic Backend Pipeline
+              </h4>
+              <button
+                onClick={() => setShowLogs(!showLogs)}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                  showLogs 
+                    ? 'bg-slate-100 text-slate-700 border-slate-300' 
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                }`}
+              >
+                {showLogs ? 'Hide Logs' : 'View Live Logs'}
+              </button>
+            </div>
+
+            {/* Visual Stepper */}
+            <div className="flex items-center justify-between px-2 mt-2">
+              {[1, 2, 3, 4, 5].map((step) => {
+                const isReached = logs.some(l => l.message.includes(`[STEP ${step}]`));
+                
+                // Step 1: Manual Trigger Button
+                if (step === 1) {
+                  return (
+                    <div key={step} className="flex flex-col items-center gap-1.5">
+                      <button
+                        onClick={async () => {
+                          setShowLogs(true);
+                          try {
+                            const res = await fetch('http://127.0.0.1:5066/nanopix/test-hardware-exposure', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ toothKey: "19", patientId: "Test" })
+                            });
+                            const data = await res.json();
+                            if (!data.success) {
+                              alert(data.message || 'Hardware Error: Device not detected');
+                            }
+                          } catch (e) {
+                            console.error("Simulation failed:", e);
+                            alert("Cannot connect to local NanoPix Agent. Please ensure node nanopix_usb_bridge.cjs is running.");
+                          }
+                        }}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center text-[11px] font-bold transition-all duration-300 cursor-pointer ${isReached ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30' : 'bg-fuchsia-600 text-white shadow-md shadow-fuchsia-600/30 hover:bg-fuchsia-700 hover:scale-105 active:scale-95 animate-pulse ring-4 ring-fuchsia-100'}`}
+                        title="Click to Start Step 1"
+                      >
+                        {isReached ? <CheckCircle2 className="w-5 h-5" /> : 'START'}
+                      </button>
+                      <span className={`text-[9px] text-center leading-tight ${isReached ? 'text-emerald-700 font-bold' : 'text-fuchsia-700 font-bold'}`}>
+                        Step 1<br/>Connect
+                      </span>
+                    </div>
+                  );
+                }
+
+                // Step 4: Manual Apply Button
+                if (step === 4) {
+                  return (
+                    <div key={step} className="flex flex-col items-center gap-1.5 relative">
+                      <div className={`absolute top-4 -left-[calc(50vw/4)] w-[calc(50vw/4)] h-[2px] -z-10 transition-all duration-700 ${isReached ? 'bg-emerald-400' : 'bg-slate-100'}`}></div>
+                      
+                      <button
+                        onClick={async () => {
+                          try {
+                            await fetch('http://127.0.0.1:5066/nanopix/test-hardware-exposure', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ phase: 2 })
+                            });
+                          } catch (e) {
+                            console.error("Simulation failed:", e);
+                          }
+                        }}
+                        disabled={!logs.some(l => l.message.includes(`[STEP 3]`))}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center text-[11px] font-bold transition-all duration-300 cursor-pointer ${isReached ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30' : logs.some(l => l.message.includes(`[STEP 3]`)) ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30 hover:bg-sky-700 hover:scale-105 active:scale-95 animate-pulse ring-4 ring-sky-100' : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'}`}
+                        title="Click to Apply Image (Step 4)"
+                      >
+                        {isReached ? <CheckCircle2 className="w-5 h-5" /> : 'APPLY'}
+                      </button>
+                      <span className={`text-[9px] text-center leading-tight ${isReached ? 'text-emerald-700 font-bold' : logs.some(l => l.message.includes(`[STEP 3]`)) ? 'text-sky-700 font-bold' : 'text-slate-400'}`}>
+                        Step 4<br/>Chart
+                      </span>
+                    </div>
+                  );
+                }
+
+                // Steps 2, 3, 5: Auto visual indicators
+                return (
+                  <div key={step} className="flex flex-col items-center gap-1.5 relative">
+                    {/* Connecting Line */}
+                    <div className={`absolute top-4 -left-[calc(50vw/4)] w-[calc(50vw/4)] h-[2px] -z-10 transition-all duration-700 ${isReached ? 'bg-emerald-400' : 'bg-slate-100'}`}></div>
+                    
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-500 z-10 ${isReached ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30 scale-110 ring-2 ring-emerald-200' : 'bg-slate-100 text-slate-400 border border-slate-200'}`}>
+                      {isReached ? <CheckCircle2 className="w-4 h-4" /> : step}
+                    </div>
+                    <span className={`text-[9px] font-medium text-center leading-tight ${isReached ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>
+                      {step === 2 ? 'Step 2\nTimer' : step === 3 ? 'Step 3\nData Rx' : 'Step 5\nAI Gen'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {showLogs && (
+            <div className="bg-slate-900 rounded-xl p-3 h-48 overflow-y-auto font-mono text-[10px] space-y-1.5 border border-slate-800 shadow-inner">
+              {logs.length > 0 ? logs.map((log, i) => {
+                let colorClass = 'text-slate-300';
+                if (log.type === 'API') colorClass = 'text-sky-300';
+                else if (log.type === 'WARN') colorClass = 'text-amber-400';
+                else if (log.type === 'SUCCESS') colorClass = 'text-emerald-400';
+                else if (log.type === 'EXPOSURE') colorClass = 'text-fuchsia-400';
+                
+                return (
+                  <div key={log.id || i} className="border-b border-slate-800/50 pb-1 mb-1">
+                    <span className="text-slate-500 mr-2">[{log.time}]</span>
+                    <span className={`font-semibold ${colorClass}`}>[{log.type}]</span>
+                    <span className="text-slate-300 ml-2">{log.message}</span>
+                  </div>
+                );
+              }) : (
+                <div className="text-slate-500 text-center py-6">No logs available yet...</div>
+              )}
             </div>
           )}
         </div>

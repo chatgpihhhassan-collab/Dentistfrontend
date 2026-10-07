@@ -58,12 +58,12 @@ class NanoPixDeviceService {
       this.lastProcessedScanId = scanKey;
 
       console.log(
-        `%c[NANOPIX STEP 3/4 - BROWSER INGESTION] 📥 Radiograph Arrived from Hardware Bridge!%c\n• File: ${scan.filename}\n• Folder: ${scan.folder || 'D:\\PatientData'}\n• Size: ${scan.fileSizeKb || '~8.0'} KB\n• Tooth: #${scan.toothKey || '19'}\n• Patient: #${scan.patientId || 'Active'}`,
+        `%c[NANOPIX STEP 3/4 - BROWSER INGESTION] 📥 Radiograph Arrived from Hardware Bridge!%c\n• File: ${scan.filename}\n• Folder: ${scan.folder || 'Project_Scans'}\n• Size: ${scan.fileSizeKb || '~8.0'} KB\n• Tooth: #${scan.toothKey || '19'}\n• Patient: #${scan.patientId || 'Active'}`,
         'background: #0284C7; color: white; font-weight: 900; font-size: 11px; padding: 3px 8px; border-radius: 4px;',
         'color: #0369A1; font-weight: bold;'
       );
 
-      this.log('EXPOSURE', `⚡ [STEP 3/4] Scan received from folder "${scan.folder || 'D:\\PatientData'}": ${scan.filename}`, scan);
+      this.log('EXPOSURE', `⚡ [STEP 3/4] Scan received from folder "${scan.folder || 'Project_Scans'}": ${scan.filename}`, scan);
       this.playConnectChime();
       this.emit('scan-acquired', scan);
       window.dispatchEvent(new CustomEvent('nanopix:scan-acquired', { detail: scan }));
@@ -111,7 +111,7 @@ class NanoPixDeviceService {
               if (!this.telemetryLogged) {
                 this.telemetryLogged = true;
                 console.log(`%c[NANOPIX STEP 2/3] 🦷 Active Physical Device: ${this.deviceInfo.model} | Serial: ${tData.telemetry.serial || 'iRayC7DB5M40P4'}`, 'color: #34d399; font-weight: bold;');
-                console.log('%c[NANOPIX STEP 3/3] ⚡ SENSOR ARMED: Ready to receive real X-Rays from D:\\PatientData & C:\\Eighteeth\\Export', 'color: #a78bfa; font-weight: bold;');
+                console.log('%c[NANOPIX STEP 3/3] ⚡ SENSOR ARMED: Ready to receive real X-Rays from local Project Scans', 'color: #a78bfa; font-weight: bold;');
               }
               this.telemetry = tData.telemetry;
               this.emit('telemetry', this.telemetry);
@@ -145,33 +145,60 @@ class NanoPixDeviceService {
 
     setTimeout(pollBridge, 500);
 
-    // Live SSE Stream from local hardware bridge
+    // Live SSE Stream from local hardware bridge — WITH AUTO-RECONNECT
     if (typeof EventSource !== 'undefined') {
-      try {
-        const sseUrl = `${baseUrl}/nanopix/events`;
-        const es = new EventSource(sseUrl);
-        es.addEventListener('scan', (event) => {
-          try {
-            const scan = JSON.parse(event.data);
-            if (scan) {
-              handleIncomingScan(scan);
-            }
-          } catch (err) {}
-        });
+      let sseReconnectTimer = null;
+      const sseUrl = `${baseUrl}/nanopix/events`;
 
-        es.addEventListener('log', (event) => {
-          try {
-            const item = JSON.parse(event.data);
-            if (item) {
-              this.log(item.type, item.message, item.details);
-            }
-          } catch (err) {}
-        });
+      const connectSSE = () => {
+        try {
+          const es = new EventSource(sseUrl);
 
-        es.onerror = () => {
-          try { es.close(); } catch (_) {}
-        };
-      } catch (e) {}
+          es.addEventListener('scan', (event) => {
+            try {
+              const scan = JSON.parse(event.data);
+              if (scan) {
+                handleIncomingScan(scan);
+              }
+            } catch (err) {}
+          });
+
+          es.addEventListener('log', (event) => {
+            try {
+              const item = JSON.parse(event.data);
+              if (item) {
+                this.log(item.type, item.message, item.details);
+              }
+            } catch (err) {}
+          });
+
+          es.onerror = () => {
+            try { es.close(); } catch (_) {}
+            // Auto-reconnect after 3 seconds instead of dying permanently
+            if (!sseReconnectTimer) {
+              sseReconnectTimer = setTimeout(() => {
+                sseReconnectTimer = null;
+                console.log('%c[NANOPIX SSE] 🔄 Reconnecting to Hardware Bridge SSE stream...', 'color: #f59e0b; font-weight: bold;');
+                connectSSE();
+              }, 3000);
+            }
+          };
+
+          es.onopen = () => {
+            console.log('%c[NANOPIX SSE] ✅ Connected to Hardware Bridge live stream (SSE)', 'color: #34d399; font-weight: bold;');
+          };
+        } catch (e) {
+          // Retry on connection failure
+          if (!sseReconnectTimer) {
+            sseReconnectTimer = setTimeout(() => {
+              sseReconnectTimer = null;
+              connectSSE();
+            }, 3000);
+          }
+        }
+      };
+
+      connectSSE();
     }
   }
 
@@ -251,7 +278,7 @@ class NanoPixDeviceService {
           return data.scan;
         }
       } else {
-        this.log('WARN', 'No previous genuine physical scan found in D:\\PatientData.');
+        this.log('WARN', 'No previous genuine physical scan found in local Project Scans folder.');
       }
     } catch (err) {
       this.log('WARN', `Load real scan note: ${err.message}`);
