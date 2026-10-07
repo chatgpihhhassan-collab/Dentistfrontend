@@ -16,6 +16,38 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
   const [showLogs, setShowLogs] = useState(false);
   const [logs, setLogs] = useState(() => nanoPixService.getLogs());
 
+  // ── Bridge Health Check State ──────────────────────────────────────────────
+  const [bridgeHealth, setBridgeHealth] = useState(null); // null=unknown, 'ok', 'no-bridge', 'no-usb', 'partial'
+  const [bridgeChecking, setBridgeChecking] = useState(false);
+
+  const checkBridgeHealth = async () => {
+    setBridgeChecking(true);
+    setBridgeHealth(null);
+    try {
+      const res = await fetch('http://127.0.0.1:5066/nanopix/status', {
+        signal: AbortSignal.timeout(3000)
+      });
+      if (!res.ok) throw new Error('bad_response');
+      const data = await res.json();
+      if (data.bridgeOnline && data.usbConnected) {
+        setBridgeHealth('ok');
+      } else if (data.bridgeOnline && !data.usbConnected) {
+        setBridgeHealth('no-usb');
+      } else {
+        setBridgeHealth('partial');
+      }
+    } catch (e) {
+      setBridgeHealth('no-bridge');
+    } finally {
+      setBridgeChecking(false);
+    }
+  };
+
+  // Run health check when modal opens
+  useEffect(() => {
+    if (showModal) checkBridgeHealth();
+  }, [showModal]);
+
   useEffect(() => {
     setMounted(true);
 
@@ -137,9 +169,105 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
           </button>
         </div>
 
-        {/* Live Status Banner */}
-        <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-          <div className="flex items-center justify-between">
+        {/* ── Doctor Setup Checklist: Hardware Diagnostics ─────────────────── */}
+        <div className="mt-4 space-y-2">
+
+          {/* Checking state */}
+          {bridgeChecking && (
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-2.5 text-xs text-slate-600">
+              <RefreshCw className="w-4 h-4 animate-spin text-slate-500 shrink-0" />
+              <span>Checking NanoPix hardware bridge status on your PC...</span>
+            </div>
+          )}
+
+          {/* ❌ SCENARIO 1: Bridge not running at all */}
+          {bridgeHealth === 'no-bridge' && !bridgeChecking && (
+            <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl space-y-3">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-rose-800">Hardware Bridge Not Running</p>
+                  <p className="text-xs text-rose-700 mt-0.5">The NanoPix local service is not active on your computer. The bridge must be running in the background for the X-ray sensor to work.</p>
+                </div>
+              </div>
+              <div className="bg-white rounded-lg border border-rose-200 p-3 space-y-1.5">
+                <p className="text-[11px] font-bold text-rose-700 uppercase tracking-wider">Fix — Do one of these:</p>
+                <div className="flex items-start gap-2 text-xs text-slate-700">
+                  <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-700 font-bold text-[10px] flex items-center justify-center shrink-0">1</span>
+                  <span>Double-click <strong>INSTALL_AUTO_STARTUP_SERVICE.bat</strong> in your project folder (installs it to start automatically on Windows boot)</span>
+                </div>
+                <div className="flex items-start gap-2 text-xs text-slate-700">
+                  <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-700 font-bold text-[10px] flex items-center justify-center shrink-0">2</span>
+                  <span>Or run: <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-rose-700">node nanopix_usb_bridge.cjs</code> in your project folder terminal</span>
+                </div>
+                <div className="flex items-start gap-2 text-xs text-slate-700">
+                  <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-700 font-bold text-[10px] flex items-center justify-center shrink-0">3</span>
+                  <span>Or double-click <strong>START_NANOPIX_AUTO_SYNC.bat</strong> to start manually this session</span>
+                </div>
+                <p className="text-[11px] text-rose-600 pt-1 border-t border-rose-100">⚠️ After starting the bridge, click "Re-Check" below to verify.</p>
+              </div>
+              <button
+                onClick={checkBridgeHealth}
+                className="w-full px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Re-Check Bridge Connection
+              </button>
+            </div>
+          )}
+
+          {/* ⚠️ SCENARIO 2: Bridge running but USB sensor not connected */}
+          {bridgeHealth === 'no-usb' && !bridgeChecking && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
+              <div className="flex items-start gap-2.5">
+                <Usb className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-amber-800">Bridge Active — USB Sensor Not Detected</p>
+                  <p className="text-xs text-amber-700 mt-0.5">The local hardware bridge is running correctly on port 5066. However, the Eighteeth Nano-Pix sensor is not found on the USB bus.</p>
+                </div>
+              </div>
+              <div className="bg-white rounded-lg border border-amber-200 p-3 space-y-1.5">
+                <p className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">Fix — Checklist:</p>
+                <div className="flex items-start gap-2 text-xs text-slate-700">
+                  <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 font-bold text-[10px] flex items-center justify-center shrink-0">1</span>
+                  <span>Ensure the <strong>Eighteeth Nano-Pix sensor USB cable</strong> is securely plugged into your PC or laptop USB port</span>
+                </div>
+                <div className="flex items-start gap-2 text-xs text-slate-700">
+                  <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 font-bold text-[10px] flex items-center justify-center shrink-0">2</span>
+                  <span>Try a different USB port (prefer USB 2.0 port — blue ports may cause FTDI driver issues)</span>
+                </div>
+                <div className="flex items-start gap-2 text-xs text-slate-700">
+                  <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 font-bold text-[10px] flex items-center justify-center shrink-0">3</span>
+                  <span>Ensure the <strong>FTDI D2XX driver</strong> is installed. Open Device Manager and confirm "FTDI" appears under USB devices without a warning icon</span>
+                </div>
+                <div className="flex items-start gap-2 text-xs text-slate-700">
+                  <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 font-bold text-[10px] flex items-center justify-center shrink-0">4</span>
+                  <span>If sensor LED is OFF, try power-cycling the sensor by unplugging and re-plugging the USB cable</span>
+                </div>
+              </div>
+              <button
+                onClick={checkBridgeHealth}
+                className="w-full px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Re-Check USB Connection
+              </button>
+            </div>
+          )}
+
+          {/* ✅ SCENARIO 3: Everything is working */}
+          {bridgeHealth === 'ok' && !bridgeChecking && (
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-emerald-800">All Systems Operational</p>
+                  <p className="text-xs text-emerald-700 mt-0.5">Bridge is active on port 5066 and the Eighteeth Nano-Pix sensor is physically connected and armed. Ready to capture X-rays.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Connection State Summary Row */}
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Connection State</span>
             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
               isHardwareActive 
@@ -151,24 +279,20 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200/60">
-            <div>
-              <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Hardware Brand</span>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+              <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Hardware Brand</span>
               <span className="text-xs font-bold text-slate-800">{activeBrand}</span>
             </div>
-            <div>
-              <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Pipeline Protocol</span>
-              <span className="text-xs font-medium text-teal-700">
-                {activeProtocol}
-              </span>
+            <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+              <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Protocol</span>
+              <span className="text-xs font-medium text-teal-700">{activeProtocol}</span>
             </div>
           </div>
 
-          <div className="pt-2 border-t border-slate-200/60">
-            <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-0.5">Primary Active Device</span>
-            <span className="text-xs font-mono text-slate-700 block truncate bg-white px-2.5 py-1.5 rounded-lg border border-slate-200">
-              {activeName}
-            </span>
+          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+            <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Primary Device</span>
+            <span className="text-xs font-mono text-slate-700 block truncate">{activeName}</span>
           </div>
         </div>
 
