@@ -24,13 +24,36 @@ const PORT = 5066;
 function discoverHotFolders() {
   const folders = new Set();
 
-  // 1. Project scans folder (Primary Local Storage)
+  // 1. Current execution workspace (Relative to wherever the bridge is installed on any PC)
   folders.add(path.join(__dirname, 'nanopix_scans'));
   folders.add(path.join(__dirname, 'PatientData'));
-
-  // 2. Bundled engine workspace
   folders.add(path.join(__dirname, 'drivers', 'eighteeth_engine'));
   folders.add(path.join(__dirname, 'drivers', 'nanopix'));
+
+  // 2. Universal User Documents directory (Works on ANY Windows PC regardless of Drive letters)
+  try {
+    const userHome = os.homedir();
+    folders.add(path.join(userHome, 'Documents', 'DentiaScans'));
+    folders.add(path.join(userHome, 'DentiaScans'));
+  } catch (_) {}
+
+  // 3. Common clinic & vendor export paths (if present on the doctor's PC)
+  const commonClinicPaths = [
+    'C:\\PatientData',
+    'D:\\PatientData',
+    'E:\\PatientData',
+    'C:\\Eighteeth\\Export',
+    'C:\\ProgramData\\Eighteeth\\Export',
+    'C:\\Dentia\\Scans'
+  ];
+
+  commonClinicPaths.forEach(p => {
+    try {
+      if (fs.existsSync(p)) {
+        folders.add(p);
+      }
+    } catch (_) {}
+  });
 
   return Array.from(folders);
 }
