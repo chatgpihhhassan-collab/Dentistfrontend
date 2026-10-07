@@ -144,7 +144,7 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
       }}
     >
       <div 
-        className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 relative animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl border border-slate-200 relative animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
@@ -184,8 +184,11 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
           </div>
         </div>
 
-        {/* ── Doctor Setup Checklist: Hardware Diagnostics ─────────────────── */}
-        <div className="mt-4 space-y-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+          {/* ── LEFT COLUMN: Sensor Pipeline & Diagnostics ── */}
+          <div className="space-y-4">
+            {/* ── Doctor Setup Checklist: Hardware Diagnostics ─────────────────── */}
+            <div className="space-y-2">
 
           {/* Checking state */}
           {bridgeChecking && (
@@ -309,10 +312,13 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
             <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Primary Device</span>
             <span className="text-xs font-mono text-slate-700 block truncate">{activeName}</span>
           </div>
-        </div>
+            </div>
+          </div>
 
-        {/* Live Built-in Webcam Self-Test Feed */}
-        <div className="mt-4 p-3 bg-slate-900 rounded-xl text-white">
+          {/* ── RIGHT COLUMN: Webcam Test & Devices ── */}
+          <div className="space-y-4">
+            {/* Live Built-in Webcam Self-Test Feed */}
+            <div className="p-3 bg-slate-900 rounded-xl text-white">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <span className={`w-2 h-2 rounded-full ${testStream ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></span>
@@ -378,10 +384,12 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
               <p className="text-[11px] text-amber-700 mt-0.5">Connect your intraoral camera or digital sensor to any USB port.</p>
             </div>
           )}
+          </div>
+          </div>
         </div>
 
-        {/* NanoPix API Logs Viewer & Stepper */}
-        <div className="mt-6 border-t border-slate-100 pt-4">
+        {/* NanoPix API Logs Viewer & Stepper (Full Width Footer) */}
+        <div className="mt-6 border-t border-slate-100 pt-4 shrink-0">
           <div className="flex flex-col gap-4 mb-4">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
