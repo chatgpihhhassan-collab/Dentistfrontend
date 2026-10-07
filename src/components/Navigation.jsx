@@ -146,8 +146,8 @@ export default function Navigation() {
                 </nav>
 
                 <div className="flex items-center space-x-3">
-                    {/* Chairside Hardware Connection Badge (Doctors only) */}
-                    {(!doctor || !doctor.isSuperAdmin) && (
+                    {/* Chairside Hardware Connection Badge (Logged-in Doctors only) */}
+                    {doctor && !doctor.isSuperAdmin && (
                         <HardwareDeviceSyncBadge onOpenCapturePanel={() => {
                             if (location.pathname.startsWith('/chart')) {
                                 // If on chart page, trigger capture panel modal

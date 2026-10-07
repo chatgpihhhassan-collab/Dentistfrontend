@@ -23,7 +23,6 @@ import { fetchWithCache, invalidateCache, setCachedData } from '../utils/apiCach
 import FullPageSkeletonLoader from '../components/FullPageSkeletonLoader';
 import nanoPixService from '../services/nanoPixDeviceService';
 import NanoPixCaptureModal from '../components/NanoPixCaptureModal';
-import NanoPixPatientPromptModal from '../components/NanoPixPatientPromptModal';
 import PatientTreatmentInvoiceTab from '../components/PatientTreatmentInvoiceTab';
 import ChartRadiographFilmstrip from '../components/ChartRadiographFilmstrip';
 import RadiographImpactInspectorModal from '../components/RadiographImpactInspectorModal';
@@ -711,7 +710,6 @@ export default function ChartPage() {
   
   // Eighteeth Nano-Pix Intraoral RVG Sensor Hardware Integration States
   const [showNanoPixModal, setShowNanoPixModal] = useState(false);
-  const [showNanoPixPromptModal, setShowNanoPixPromptModal] = useState(false);
   const [nanoPixStatus, setNanoPixStatus] = useState(() => nanoPixService.getStatus());
   const [nanoPixActiveTooth, setNanoPixActiveTooth] = useState('19');
   
@@ -12540,19 +12538,6 @@ export default function ChartPage() {
               return [savedScan, ...prev];
             });
             setSelectedRadiograph(savedScan);
-          }
-        }}
-      />
-
-      {/* Global Nano-Pix Patient Association Modal (when device connected outside chart) */}
-      <NanoPixPatientPromptModal
-        isOpen={showNanoPixPromptModal}
-        onClose={() => setShowNanoPixPromptModal(false)}
-        onSelectPatient={(p) => {
-          setShowNanoPixPromptModal(false);
-          const pid = p.patientID || p.id;
-          if (pid) {
-            navigate(`/chart/${pid}?nanopix=open`);
           }
         }}
       />

@@ -1,36 +1,46 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Usb, Activity, Sparkles, X, CheckCircle2, ArrowRight } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+import { Usb, X } from 'lucide-react';
 import nanoPixService from '../services/nanoPixDeviceService';
-import NanoPixPatientPromptModal from './NanoPixPatientPromptModal';
 
 /**
  * GlobalNanoPixHardwareSyncManager
  * 
- * Global hardware watcher for Eighteeth Nano-Pix 1 & 2 USB intraoral sensors.
- * Automatically synchronizes with the application as soon as the physical USB
- * device is plugged in:
- * - If on an active patient chart (/chart/:id): auto-arms and opens the capture modal.
- * - If outside a chart: prompts doctor to select which clinic patient to assign the scan to.
+ * Background hardware watcher for Eighteeth Nano-Pix 1 & 2 USB intraoral sensors.
+ * - Only active for authenticated clinicians.
+ * - If on an active patient chart (/chart/:id), synchronizes capture session.
+ * - Never displays intrusive modals outside the chart.
  */
 export const GlobalNanoPixHardwareSyncManager = () => {
   const location = useLocation();
-  const navigate = useNavigate();
-
-  const [promptOpen, setPromptOpen] = useState(false);
   const [toastNotification, setToastNotification] = useState(null);
   const toastTimeoutRef = useRef(null);
 
+  const isDoctorLoggedIn = () => {
+    try {
+      const stored = localStorage.getItem('doctor');
+      if (!stored) return false;
+      const doctor = JSON.parse(stored);
+      return Boolean(doctor && doctor.token);
+    } catch {
+      return false;
+    }
+  };
+
   const showToast = (message, type = 'success') => {
+    if (!isDoctorLoggedIn()) return; // Do not show toasts to unauthenticated visitors
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     setToastNotification({ message, type });
     toastTimeoutRef.current = setTimeout(() => {
       setToastNotification(null);
-    }, 4500);
+    }, 4000);
   };
 
   useEffect(() => {
     const handleConnected = (deviceInfo) => {
+      // Do nothing if not logged in
+      if (!isDoctorLoggedIn()) return;
+
       const isChart = location.pathname.startsWith('/chart');
       const devName = deviceInfo?.model || 'Eighteeth Nano-Pix 2 (HD CMOS)';
 
@@ -39,18 +49,14 @@ export const GlobalNanoPixHardwareSyncManager = () => {
         'color: #0B4F4A; font-weight: 600;'
       );
 
-      showToast(`⚡ ${devName} Connected via USB & Synced with Application!`, 'success');
-
+      // On active patient chart, trigger chart sync
       if (isChart) {
-        // Dispatch event to active chart
         window.dispatchEvent(new CustomEvent('dentia:voice:open-nanopix'));
-      } else {
-        // Outside chart -> Prompt doctor which patient to assign
-        setPromptOpen(true);
       }
     };
 
     const handleDisconnected = () => {
+      if (!isDoctorLoggedIn()) return;
       console.log('[GLOBAL HARDWARE SYNC] Eighteeth Nano-Pix Unplugged from USB');
       showToast('🔌 Eighteeth Nano-Pix USB Sensor Disconnected', 'warn');
     };
@@ -74,18 +80,10 @@ export const GlobalNanoPixHardwareSyncManager = () => {
     };
   }, [location.pathname]);
 
-  const handleSelectPatient = (patient) => {
-    const pId = patient.patientID || patient.id;
-    setPromptOpen(false);
-    if (pId) {
-      navigate(`/chart/${pId}?nanopix=open`);
-    }
-  };
-
   return (
     <>
-      {/* 🌟 Floating Real-time Hardware Plug & Play Notification Banner */}
-      {toastNotification && (
+      {/* Floating Hardware Plug & Play Notification Banner (Authenticated Clinicians Only) */}
+      {toastNotification && isDoctorLoggedIn() && (
         <div className="fixed top-5 right-5 z-[99999] animate-in slide-in-from-top-4 fade-in duration-300">
           <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl border backdrop-blur-md transition-all select-none ${
             toastNotification.type === 'success'
@@ -117,13 +115,6 @@ export const GlobalNanoPixHardwareSyncManager = () => {
           </div>
         </div>
       )}
-
-      {/* 🌟 Patient Selection Modal when USB is plugged in outside of Chart */}
-      <NanoPixPatientPromptModal
-        isOpen={promptOpen}
-        onClose={() => setPromptOpen(false)}
-        onSelectPatient={handleSelectPatient}
-      />
     </>
   );
 };
