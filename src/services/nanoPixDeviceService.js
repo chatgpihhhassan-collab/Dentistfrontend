@@ -517,34 +517,61 @@ class NanoPixDeviceService {
     return this.knownVendorIds.includes(device.vendorId);
   }
 
+  async launchEngine() {
+    try {
+      let res = await fetch('/nanopix/launch-engine', { signal: AbortSignal.timeout(2000) }).catch(() => null);
+      if (!res || !res.ok) {
+        res = await fetch('http://127.0.0.1:5066/nanopix/launch-engine', { signal: AbortSignal.timeout(2000) }).catch(() => null);
+      }
+      return res && res.ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
   async requestUsbPairing() {
     this.log('USB', 'Querying local hardware bridge for physical FTDI FT232H sensor (0x0403:0x6014)...');
 
     try {
-      const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-      const baseUrl = isLocal ? '' : 'http://127.0.0.1:5066';
-      
-      const res = await fetch(`${baseUrl}/nanopix/status`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.bridgeOnline) {
-          const modelName = data.model || 'Eighteeth Nano-Pix 2 (HD CMOS)';
-          this.deviceInfo.model = modelName;
-          this.deviceInfo.serialNumber = data.serialNumber || 'NP2-2026-9814';
-          this.deviceInfo.interface = 'FTDI FT232H Direct USB (D2XX Kernel)';
-          this.deviceInfo.resolution = '25 lp/mm / 4.4 MP';
+      // Auto-trigger engine launch on local computer
+      this.launchEngine().catch(() => {});
 
-          if (data.usbConnected) {
-            this.deviceInfo.status = 'Ready (Armed)';
-            this.log('SUCCESS', `Physical sensor verified via Bridge: ${modelName} (Serial: ${this.deviceInfo.serialNumber})`, data);
-            this.setConnected(true, modelName);
-            return { success: true, armed: true, deviceInfo: this.deviceInfo };
-          } else {
-            this.deviceInfo.status = 'Disconnected (Bridge Running)';
-            this.log('WARN', `Bridge online but sensor disconnected.`);
-            this.setConnected(false, modelName);
-            throw new Error("USB Not Connected");
+      let data = null;
+      try {
+        const res = await fetch('/nanopix/status', { signal: AbortSignal.timeout(2500) });
+        if (res.ok) {
+          const json = await res.json();
+          if (json && json.bridgeOnline) data = json;
+        }
+      } catch (_) {}
+
+      if (!data) {
+        try {
+          const res = await fetch('http://127.0.0.1:5066/nanopix/status', { signal: AbortSignal.timeout(2500) });
+          if (res.ok) {
+            const json = await res.json();
+            if (json && json.bridgeOnline) data = json;
           }
+        } catch (_) {}
+      }
+
+      if (data && data.bridgeOnline) {
+        const modelName = data.model || 'Eighteeth Nano-Pix 2 (HD CMOS)';
+        this.deviceInfo.model = modelName;
+        this.deviceInfo.serialNumber = data.serialNumber || 'iRayC7DB5M40P4';
+        this.deviceInfo.interface = 'FTDI FT232H Direct USB (D2XX Kernel)';
+        this.deviceInfo.resolution = '25 lp/mm / 4.4 MP';
+
+        if (data.usbConnected) {
+          this.deviceInfo.status = 'Ready (Armed)';
+          this.log('SUCCESS', `Physical sensor verified via Bridge: ${modelName} (Serial: ${this.deviceInfo.serialNumber})`, data);
+          this.setConnected(true, modelName);
+          return { success: true, armed: true, deviceInfo: this.deviceInfo };
+        } else {
+          this.deviceInfo.status = 'Disconnected (Bridge Running)';
+          this.log('WARN', `Bridge online but sensor disconnected.`);
+          this.setConnected(false, modelName);
+          throw new Error("USB Not Connected");
         }
       }
       throw new Error("Bridge Offline");

@@ -23,13 +23,13 @@ export default function NanoPixSetupGuide() {
               <p className="text-xs text-blue-700 mb-4">
                 The local service that connects your X-ray sensor to this web interface.
               </p>
-              {/* In a real deployment, link this to a packaged .zip or .exe */}
-              <button 
-                onClick={() => alert('Download DentiaBridge_Installer.zip (This will be packaged by your build system)')}
+              <a 
+                href="/DentiaBridge_Setup.zip" 
+                download
                 className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg flex items-center justify-center gap-2 transition"
               >
                 <Download className="w-4 h-4" /> Download Bridge
-              </button>
+              </a>
             </div>
 
             {/* FTDI Driver Download */}

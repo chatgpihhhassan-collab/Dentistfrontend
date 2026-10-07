@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "bridge": "node nanopix_usb_bridge.cjs"
+    "bridge": "node nanopix_usb_bridge.cjs",
+    "monitor": "node monitor_nanopix_live.cjs"
   },
   "dependencies": {
     "@mapbox/search-js-react": "^1.6.0",

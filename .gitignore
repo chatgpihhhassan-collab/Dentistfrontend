@@ -41,3 +41,8 @@ drivers/eighteeth_engine/crash/
 drivers/eighteeth_engine/cache/
 drivers/eighteeth_engine/logs/
 drivers/eighteeth_engine/temp/
+ 
+# Ignore large FinCloud executables
+**/FinCloud.exe
+# Ignore old engine version
+drivers/eighteeth_engine/1.1.1.8/

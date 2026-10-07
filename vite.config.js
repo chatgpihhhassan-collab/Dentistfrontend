@@ -2,12 +2,71 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import legacy from '@vitejs/plugin-legacy'
 import tailwindcss from '@tailwindcss/vite'
+import { spawn, exec } from 'child_process'
+import fs from 'fs'
+import path from 'path'
+import os from 'os'
+import http from 'http'
+
+
+function nanopixHardwarePlugin() {
+  const launchEighteethUi = () => {
+    const userHome = os.homedir();
+    const candidateLaunchers = [
+      path.join(userHome, 'Downloads', 'NanoPix', 'NanoPix', '1.1.1.9', 'NanoPix.exe'),
+      'C:\\NanoPix\\1.1.1.9\\NanoPix.exe',
+      path.resolve(process.cwd(), 'drivers', 'eighteeth_engine', '1.1.1.9', 'NanoPix.exe'),
+      path.resolve(process.cwd(), 'drivers', 'eighteeth_engine', 'NanoPix.exe'),
+      path.join(userHome, 'Downloads', 'NanoPix', 'NanoPix', 'Launch.exe'),
+      'C:\\NanoPix\\Launch.exe'
+    ];
+
+    const targetExe = candidateLaunchers.find(p => p && fs.existsSync(p));
+    if (targetExe) {
+      const workingDir = path.dirname(targetExe);
+      console.log(`\x1b[35m[VITE HARDWARE]\x1b[0m 🚀 Launching Eighteeth Official UI on Desktop: ${targetExe}`);
+      
+      try {
+        exec('taskkill /F /IM NanoPix.exe /T', () => {
+          const cmd = `cmd /c start "" /d "${workingDir}" "${targetExe}"`;
+          exec(cmd);
+        });
+        return true;
+      } catch (e) {
+        const cmd = `cmd /c start "" /d "${workingDir}" "${targetExe}"`;
+        exec(cmd);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  return {
+    name: 'vite-plugin-nanopix-hardware',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url === '/nanopix/launch-engine') {
+          const launched = launchEighteethUi();
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({
+            success: true,
+            launched,
+            message: launched ? 'Eighteeth UI successfully launched on desktop.' : 'Eighteeth executable not found.'
+          }));
+          return;
+        }
+        next();
+      });
+    }
+  };
+}
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    nanopixHardwarePlugin(),
     legacy({
       targets: [
         'chrome >= 80',

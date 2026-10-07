@@ -7693,6 +7693,7 @@ export default function ChartPage() {
                       if (detailedTooth) {
                         setNanoPixActiveTooth(String(detailedTooth));
                       }
+                      nanoPixService.launchEngine().catch(() => {});
                       setShowNanoPixModal(true);
                     }}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black shadow-2xs transition-all cursor-pointer border ${
@@ -8354,6 +8355,7 @@ export default function ChartPage() {
                   <div 
                     onClick={() => {
                       if (detailedTooth) setNanoPixActiveTooth(String(detailedTooth));
+                      nanoPixService.launchEngine().catch(() => {});
                       setShowNanoPixModal(true);
                     }}
                     className="border-2 border-dashed border-teal-400/60 rounded-[2rem] p-7 bg-teal-50/20 hover:bg-teal-50/50 transition-all duration-300 flex flex-col items-center justify-center text-center cursor-pointer group shadow-2xs"

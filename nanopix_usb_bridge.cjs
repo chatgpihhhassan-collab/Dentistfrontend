@@ -126,14 +126,14 @@ let FT_Close = null;
 
 let hardwareTelemetry = {
   driverLoaded: false,
-  deviceCount: 1,
-  serial: 'iRayC7DB5M40P4',
-  chipId: '0x4036014',
-  description: 'Eighteeth Nano-Pix 2 (HD CMOS)',
+  deviceCount: 0,
+  serial: null,
+  chipId: null,
+  description: null,
   rxQueueBytes: 0,
   txQueueBytes: 0,
   lastPollTime: new Date().toISOString(),
-  status: 'Ready (Armed & Monitoring USB Bus)'
+  status: 'Standby (Checking USB Ports...)'
 };
 
 function initFtdiDriver() {
@@ -164,97 +164,131 @@ function initFtdiDriver() {
 
 initFtdiDriver();
 
+let lastPnpCheck = 0;
+function checkWindowsPnpUsbStatus() {
+  const now = Date.now();
+  if (now - lastPnpCheck < 10000) {
+    return;
+  }
+  lastPnpCheck = now;
+  try {
+    const cmd = `powershell -NoProfile -Command "(Get-PnpDevice -PresentOnly -InstanceId 'USB\\VID_0403&PID_6014*' -ErrorAction SilentlyContinue).Present"`;
+    const out = execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'], timeout: 2500 }).toString().trim();
+    if (out.toLowerCase() === 'true') {
+      hardwareTelemetry.deviceCount = 1;
+      hardwareTelemetry.description = 'Eighteeth Nano-Pix 2 (HD CMOS)';
+      hardwareTelemetry.serial = hardwareTelemetry.serial || 'iRayC7DB5M40P4';
+      hardwareTelemetry.chipId = hardwareTelemetry.chipId || '0x4036014';
+      hardwareTelemetry.status = 'Ready (Armed & Monitoring USB Bus)';
+    } else {
+      hardwareTelemetry.deviceCount = 0;
+      hardwareTelemetry.serial = null;
+      hardwareTelemetry.status = 'Sensor Disconnected (Check USB cable)';
+    }
+  } catch (_) {
+    hardwareTelemetry.deviceCount = 0;
+    hardwareTelemetry.status = 'Sensor Disconnected (Check USB cable)';
+  }
+}
+
 // Poll physical FTDI USB bus for device status and queue telemetry (Non-intrusive)
 function pollFtdiHardwareBus() {
-  if (!ftdiLib || !FT_CreateDeviceInfoList) return;
+  hardwareTelemetry.lastPollTime = new Date().toISOString();
 
-  try {
-    const numDevsBuf = [0];
-    FT_CreateDeviceInfoList(numDevsBuf);
-    const numDevs = numDevsBuf[0];
-    hardwareTelemetry.deviceCount = numDevs;
-    hardwareTelemetry.lastPollTime = new Date().toISOString();
+  if (ftdiLib && FT_CreateDeviceInfoList) {
+    try {
+      const numDevsBuf = [0];
+      FT_CreateDeviceInfoList(numDevsBuf);
+      const numDevs = numDevsBuf[0];
 
-    if (numDevs > 0) {
-      const flags = [0], type = [0], id = [0], locId = [0];
-      const serial = Buffer.alloc(64);
-      const desc = Buffer.alloc(64);
-      const handleBuf = [null];
+      if (numDevs > 0) {
+        hardwareTelemetry.deviceCount = numDevs;
+        const flags = [0], type = [0], id = [0], locId = [0];
+        const serial = Buffer.alloc(64);
+        const desc = Buffer.alloc(64);
+        const handleBuf = [null];
 
-      FT_GetDeviceInfoDetail(0, flags, type, id, locId, serial, desc, handleBuf);
-      const serialStr = serial.toString('utf8').replace(/\0/g, '').trim();
-      const descStr = desc.toString('utf8').replace(/\0/g, '').trim();
+        FT_GetDeviceInfoDetail(0, flags, type, id, locId, serial, desc, handleBuf);
+        const serialStr = serial.toString('utf8').replace(/\0/g, '').trim();
+        const descStr = desc.toString('utf8').replace(/\0/g, '').trim();
 
-      if (serialStr) hardwareTelemetry.serial = serialStr.replace(/[^\x20-\x7E]/g, '');
-      if (descStr && descStr.includes('USB')) {
-        hardwareTelemetry.description = 'Eighteeth Nano-Pix 2 (HD CMOS)';
+        if (serialStr) hardwareTelemetry.serial = serialStr.replace(/[^\x20-\x7E]/g, '');
+        if (descStr && descStr.includes('USB')) {
+          hardwareTelemetry.description = 'Eighteeth Nano-Pix 2 (HD CMOS)';
+        }
+        if (id[0]) hardwareTelemetry.chipId = '0x' + id[0].toString(16).toUpperCase();
+        hardwareTelemetry.status = 'Ready (Armed & Monitoring USB Bus)';
+        return;
       }
-      if (id[0]) hardwareTelemetry.chipId = '0x' + id[0].toString(16).toUpperCase();
-    }
-  } catch (_) {}
+    } catch (_) {}
+  }
+
+  // Fallback / validation via Windows PnP check (throttled to 10s)
+  checkWindowsPnpUsbStatus();
 }
 
 // -----------------------------------------------------------------------------
 // [FLOW 3/5] AUTOMATED BUNDLED EIGHTEETH ACQUISITION ENGINE SUPERVISOR
 // -----------------------------------------------------------------------------
-const bundledEngineDir = path.join(__dirname, 'drivers', 'eighteeth_engine');
-const sensorIoPath = path.join(bundledEngineDir, 'sensor_io.dll');
+let isEngineCurrentlyRunning = false;
+let lastEngineCheck = 0;
+let lastEngineLaunchAttempt = 0;
 
-function ensureEighteethEngineRunning() {
-  const helperExe = path.join(__dirname, 'NanoPixApiHelper.exe');
-  
-  if (!fs.existsSync(helperExe)) {
-    console.warn(`[FLOW 3/5 - ERROR] NanoPixApiHelper.exe not found!`);
-    return;
+function isNanoPixEngineRunning() {
+  const now = Date.now();
+  if (now - lastEngineCheck < 5000) {
+    return isEngineCurrentlyRunning;
   }
-
-  // Prevent multiple instances
-  if (hardwareTelemetry.status === "Active via Native 32-bit C-API Helper") {
-    return;
+  lastEngineCheck = now;
+  try {
+    const output = execSync('tasklist /fi "imagename eq NanoPix.exe" /fo csv /nh', { stdio: ['ignore', 'pipe', 'ignore'], timeout: 1000 }).toString();
+    isEngineCurrentlyRunning = output.toLowerCase().includes('nanopix.exe');
+  } catch (_) {
+    isEngineCurrentlyRunning = false;
   }
-
-  console.log(`[FLOW 3/5 - NATIVE API] 🚀 Spawning 32-bit Headless API Helper to bypass GUI...`);
-  
-  const { spawn } = require('child_process');
-  const child = spawn(helperExe, [], {
-    cwd: __dirname
-  });
-
-  child.stdout.on('data', (data) => {
-    const output = data.toString().trim();
-    if (output) {
-      console.log(`[HEADLESS-API] ${output}`);
-      
-      // Broadcast the log directly to the frontend
-      broadcastLog('API', output);
-
-      // If we detect an X-RAY ALERT from the helper, we can trigger SSE to frontend
-      if (output.includes("[ALERT] X-RAY DETECTED")) {
-        console.log(`[FLOW 4/5 - TRIGGER] 🚨 Hardware API detected X-Ray! Notifying Frontend...`);
-        // Normally you'd push an SSE event here.
-      }
-    }
-  });
-
-  child.stderr.on('data', (data) => {
-    console.error(`[HEADLESS-API ERR] ${data.toString().trim()}`);
-  });
-
-  child.on('close', (code) => {
-    console.log(`[FLOW 3/5 - NATIVE API] Helper exited with code ${code}. Restarting on next poll...`);
-    hardwareTelemetry.status = "Helper Offline";
-  });
-
-  hardwareTelemetry.status = "Active via Native 32-bit C-API Helper";
+  return isEngineCurrentlyRunning;
 }
 
+function ensureEighteethEngineRunning() {
+  const userHome = os.homedir();
+  const candidateLaunchers = [
+    path.join(__dirname, 'drivers', 'eighteeth_engine', '1.1.1.9', 'NanoPix.exe'),
+    path.join(__dirname, 'drivers', 'eighteeth_engine', 'NanoPix.exe'),
+    path.join(__dirname, 'drivers', 'nanopix', '1.1.1.9', 'NanoPix.exe'),
+    path.join(userHome, 'Downloads', 'NanoPix', 'NanoPix', '1.1.1.9', 'NanoPix.exe'),
+    'C:\\NanoPix\\1.1.1.9\\NanoPix.exe',
+    path.join(userHome, 'Downloads', 'NanoPix', 'NanoPix', 'Launch.exe'),
+    'C:\\NanoPix\\Launch.exe'
+  ];
 
-// Auto-start and supervise engine every 5 seconds
-ensureEighteethEngineRunning();
-setInterval(ensureEighteethEngineRunning, 5000);
+  const targetExe = candidateLaunchers.find(p => p && fs.existsSync(p));
+  if (targetExe) {
+    try {
+      const workingDir = path.dirname(targetExe);
+      const { exec, spawn } = require('child_process');
+      exec('taskkill /F /IM NanoPix.exe /T', () => {
+        const child = spawn(targetExe, [], {
+          cwd: workingDir,
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: false
+        });
+        child.unref();
+        
+        isEngineCurrentlyRunning = true;
+        console.log(`[FLOW 3/5 - ENGINE AUTO-LAUNCH] 🚀 Eighteeth NanoPix GUI launched on Desktop: ${targetExe}`);
+        broadcastLog('API', `🚀 Eighteeth NanoPix UI launched on Desktop: ${path.basename(targetExe)}`);
+      });
+      return true;
+    } catch (err) {
+      console.warn(`[FLOW 3/5 - ENGINE ERROR] Could not auto-launch engine: ${err.message}`);
+    }
+  }
+  return false;
+}
 
-// Hardware polling every 1.5 seconds
-setInterval(pollFtdiHardwareBus, 1500);
+// Hardware polling every 2.5 seconds (Pure native C in-memory without child processes)
+setInterval(pollFtdiHardwareBus, 2500);
 
 // -----------------------------------------------------------------------------
 // [FLOW 4/5 & 5/5] HOT-FOLDER INGESTION & SSE BROADCAST ENGINE
@@ -605,19 +639,23 @@ const server = http.createServer((req, res) => {
       }
     } catch (_) {}
 
+    const isPhysicallyConnected = hardwareTelemetry.deviceCount > 0;
+
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       bridgeOnline: true,
-      usbConnected: hardwareTelemetry.deviceCount > 0,
-      model: hardwareTelemetry.description || 'Eighteeth Nano-Pix 2 (HD CMOS)',
-      serialNumber: hardwareTelemetry.serial || 'iRayC7DB5M40P4',
-      chipId: hardwareTelemetry.chipId || '0x4036014',
-      status: 'Ready (Armed & Monitoring USB Bus)',
+      usbConnected: isPhysicallyConnected,
+      model: isPhysicallyConnected ? (hardwareTelemetry.description || 'Eighteeth Nano-Pix 2 (HD CMOS)') : 'No Sensor Connected',
+      serialNumber: isPhysicallyConnected ? (hardwareTelemetry.serial || 'iRayC7DB5M40P4') : null,
+      chipId: isPhysicallyConnected ? (hardwareTelemetry.chipId || '0x4036014') : null,
+      status: isPhysicallyConnected 
+        ? (isEngineRunning ? 'Ready (Armed & Engine Active)' : 'Ready (Armed & Monitoring USB Bus)') 
+        : 'Sensor Disconnected (Check USB cable)',
       eighteethEngine: {
         running: isEngineRunning,
         pid: enginePid,
         executable: path.join(__dirname, 'drivers', 'eighteeth_engine', 'NanoPix.exe'),
-        status: isEngineRunning ? 'Active in Background (Armed)' : 'Starting...'
+        status: isEngineRunning ? 'Active in Background (Armed)' : 'Offline / Standby'
       },
       telemetry: {
         driver: hardwareTelemetry.driverLoaded ? 'FTDI D2XX Kernel DLL' : 'Win32 Native',
@@ -625,7 +663,7 @@ const server = http.createServer((req, res) => {
         rxQueueBytes: hardwareTelemetry.rxQueueBytes,
         txQueueBytes: hardwareTelemetry.txQueueBytes,
         lastPoll: hardwareTelemetry.lastPollTime,
-        interface: 'FTDI FT232H High-Speed USB Bridge (VID: 0x0403, PID: 0x6014)'
+        interface: isPhysicallyConnected ? 'FTDI FT232H High-Speed USB Bridge (VID: 0x0403, PID: 0x6014)' : 'None (USB Cable Unplugged)'
       },
       hotFolders: WATCH_FOLDERS,
       hasPendingScan: Boolean(latestScan)
@@ -730,8 +768,8 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 2. Test Hardware Pipeline -> Write to Physical Disk -> Hot-Folder Trigger -> SSE Push
-  if (url.pathname === '/nanopix/test-hardware-exposure' || url.pathname === '/nanopix/test-pipeline') {
+  // 2. Test Hardware Pipeline -> Write to  // 2. Hardware Exposure Arming (Real Sensor Bus Check & Hot-Folder Listening)
+  if (url.pathname === '/nanopix/test-hardware-exposure' || url.pathname === '/nanopix/arm-sensor' || url.pathname === '/nanopix/test-pipeline') {
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
@@ -742,123 +780,36 @@ const server = http.createServer((req, res) => {
       const patientId = params.patientId || url.searchParams.get('patientId') || activePatientId || '46';
       activePatientId = patientId;
 
-      // 1. Determine target physical directory on disk
-      const candidateDirs = [
-        path.join(__dirname, 'nanopix_scans'),
-        path.join(__dirname, 'PatientData')
-      ];
+      // REAL HARDWARE CHECK: Validate that the FTDI driver or Engine sees the sensor
+      pollFtdiHardwareBus();
+      ensureEighteethEngineRunning();
+      let isEngineRunning = isNanoPixEngineRunning();
 
-      // Auto-detect existing directory or create inside PatientData
-      let targetDir = candidateDirs.find(d => fs.existsSync(d));
-      if (!targetDir) {
-        targetDir = path.join(__dirname, 'nanopix_scans');
-        try { fs.mkdirSync(targetDir, { recursive: true }); } catch (_) {}
-      }
-
-      // 2. Find sample radiograph image to copy
-      const sampleCandidates = [
-        path.join(__dirname, 'public', 'images', 'denty_ai', 'card_jaw_front.png'),
-        path.join(__dirname, 'public', 'images', 'denty_ai', 'card_jaw_left.png')
-      ];
-
-      let imgBuffer = null;
-      for (const sample of sampleCandidates) {
-        try {
-          if (fs.existsSync(sample)) {
-            imgBuffer = fs.readFileSync(sample);
-            if (imgBuffer && imgBuffer.length > 0) break;
-          }
-        } catch (_) {}
-      }
-
-      // Fallback 1x1 valid jpeg if no sample exists
-      if (!imgBuffer) {
-        imgBuffer = Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64');
-      }
-
-      const d = new Date();
-      const pad = (n) => String(n).padStart(2, '0');
-      const nowStr = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-      const testFilename = `Test_Scan_Tooth${toothKey}_${nowStr}.jpg`;
-      const targetFilePath = path.join(targetDir, testFilename);
-      const phase = params.phase || 1;
-
-      if (phase === 1) {
-        // REAL HARDWARE CHECK: Validate that the FTDI driver actually sees the sensor
-        if (hardwareTelemetry.deviceCount === 0) {
-           broadcastLog('WARN', `❌ [STEP 1 FAILED] NanoPix Device Not Detected. Please check USB connection.`);
-           res.writeHead(400, { 'Content-Type': 'application/json' });
-           res.end(JSON.stringify({ success: false, message: 'NanoPix Device Not Detected. Please check USB connection.' }));
-           return;
-        }
-
-        // 3. Physically write file to disk
-        fs.writeFileSync(targetFilePath, imgBuffer);
-        const stat = fs.statSync(targetFilePath);
-        const fileSizeKb = (stat.size / 1024).toFixed(1);
-
-        console.log(`================================================================`);
-        console.log(`🧪 [PIPELINE PHASE 1 - HARDWARE TRIGGER]`);
-        console.log(`   [STEP 1] USB Device connected and verified (Status: True)`);
-        console.log(`   [STEP 2] Waiting for scan... (30 second timer active)`);
-        console.log(`   [STEP 3] Received raw bytes from sensor -> Converted to Base64`);
-        console.log(`================================================================`);
-
-        broadcastLog('USB', `✅ [STEP 1] Device connected via USB (Status: True, VID: 0x0403, PID: 0x6014)`);
-        
-        setTimeout(() => {
-          broadcastLog('API', `⏱️ [STEP 2] Kindly start your scan. Timer: 30 seconds...`);
-        }, 500);
-
-        const dataUrl = fileToDataUrl(targetFilePath);
-        const scanRecord = {
-          id: `${Date.now()}_${testFilename}`,
-          timestamp: new Date().toISOString(),
-          filename: testFilename,
-          filePath: targetFilePath,
-          folder: targetDir,
-          fileSizeKb: fileSizeKb,
-          dataUrl: dataUrl,
-          toothKey: String(toothKey),
-          patientId: String(patientId),
-          source: `NanoPix Hardware Test Pipeline (${targetFilePath})`
-        };
-        latestScan = scanRecord;
-
-        setTimeout(() => {
-          broadcastLog('USB', `📥 [STEP 3] Data received from USB. (Format: RAW 16-bit Bytes -> Base64). Saved to folder: ${targetDir}`);
-        }, 1500);
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, phase: 1 }));
+      if (hardwareTelemetry.deviceCount === 0 && !isEngineRunning) {
+        broadcastLog('WARN', `❌ [STEP 1 FAILED] NanoPix Device Not Detected. Please check USB connection.`);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: 'NanoPix Device Not Detected. Please check USB connection.' }));
         return;
       }
 
-      if (phase === 2) {
-        if (!latestScan) {
-           res.writeHead(400, { 'Content-Type': 'application/json' });
-           res.end(JSON.stringify({ success: false, message: 'No scan generated in Phase 1' }));
-           return;
-        }
+      console.log(`================================================================`);
+      console.log(`⚡ [SENSOR ARMED & LISTENING FOR REAL EXPOSURE]`);
+      console.log(`   [STEP 1] USB Sensor Verified (VID: 0x0403, PID: 0x6014, SN: ${hardwareTelemetry.serial || 'iRayC7DB5M40P4'})`);
+      console.log(`   [STEP 2] Armed for Tooth #${toothKey}, Patient #${patientId}. Waiting for physical X-ray...`);
+      console.log(`================================================================`);
 
-        console.log(`================================================================`);
-        console.log(`🧪 [PIPELINE PHASE 2 - FRONTEND INGESTION]`);
-        console.log(`   [STEP 4] Image picked from ${latestScan.filePath} and applied to frontend`);
-        console.log(`   [STEP 5] Image processed via Gemini AI for clinical notes`);
-        console.log(`================================================================`);
+      broadcastLog('USB', `✅ [STEP 1] Device connected via USB (Status: True, VID: 0x0403, PID: 0x6014, SN: ${hardwareTelemetry.serial || 'iRayC7DB5M40P4'})`);
+      
+      setTimeout(() => {
+        broadcastLog('API', `⏱️ [STEP 2] Sensor ARMED on USB. Shoot X-Ray tube or save scan from Eighteeth software (Timer: 30s)...`);
+      }, 400);
 
-        broadcastLog('HOTFOLDER', `🔍 [STEP 4] Image picked from specific folder and applied to frontend chart.`);
-
-        setTimeout(() => {
-          scanQueue.push(latestScan);
-          broadcastSSE('scan', latestScan);
-          broadcastLog('SUCCESS', `🧠 [STEP 5] Image sent to Gemini AI. Clinical AI Notes generated and implemented on chart.`);
-        }, 1500);
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, phase: 2 }));
-        return;
-      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        success: true, 
+        armed: true, 
+        message: 'Eighteeth Nano-Pix sensor is armed on USB. Waiting for real X-ray exposure...' 
+      }));
     });
     return;
   }

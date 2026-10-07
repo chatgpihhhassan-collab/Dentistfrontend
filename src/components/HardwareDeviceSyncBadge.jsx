@@ -22,17 +22,68 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
   const [bridgeHealth, setBridgeHealth] = useState(null); // null=unknown, 'ok', 'no-bridge', 'no-usb', 'partial'
   const [bridgeChecking, setBridgeChecking] = useState(false);
 
+  const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const bridgeBaseUrl = isLocalHost ? '' : 'http://127.0.0.1:5066';
+  const isHttpsOrigin = typeof window !== 'undefined' && window.location.protocol === 'https:';
+
   const checkBridgeHealth = async () => {
     setBridgeChecking(true);
     setBridgeHealth(null);
     try {
-      const res = await fetch('http://127.0.0.1:5066/nanopix/status', {
-        signal: AbortSignal.timeout(3000)
-      });
-      if (!res.ok) throw new Error('bad_response');
-      const data = await res.json();
+      // 0. Proactively trigger engine & bridge auto-start
+      await nanoPixService.launchEngine().catch(() => {});
+
+      let data = null;
+      // 1. Try relative endpoint first (dev proxy)
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const res = await fetch('/nanopix/status', {
+            signal: AbortSignal.timeout(2000)
+          });
+          if (res.ok) {
+            const json = await res.json();
+            if (json && json.bridgeOnline) {
+              data = json;
+              break;
+            }
+          }
+        } catch (_) {}
+
+        // 2. Fallback to direct localhost port 5066
+        if (!data) {
+          try {
+            const res = await fetch('http://127.0.0.1:5066/nanopix/status', {
+              signal: AbortSignal.timeout(2000)
+            });
+            if (res.ok) {
+              const json = await res.json();
+              if (json && json.bridgeOnline) {
+                data = json;
+                break;
+              }
+            }
+          } catch (_) {}
+        }
+
+        if (!data && attempt === 0) {
+          // If first check was too fast, re-invoke launch-engine and wait briefly
+          await nanoPixService.launchEngine().catch(() => {});
+          await new Promise(r => setTimeout(r, 600));
+        }
+      }
+
+      if (!data) throw new Error('no_bridge_response');
+
       if (data.bridgeOnline && data.usbConnected) {
         setBridgeHealth('ok');
+        const deviceInfo = {
+          brand: 'Eighteeth',
+          model: data.model || 'Eighteeth Nano-Pix 2 (HD CMOS)',
+          serialNumber: data.serialNumber || 'iRayC7DB5M40P4',
+          status: 'Ready (Armed)'
+        };
+        setNanoPixStatus({ isConnected: true, deviceInfo });
+        nanoPixService.setConnected(true, deviceInfo.model);
       } else if (data.bridgeOnline && !data.usbConnected) {
         setBridgeHealth('no-usb');
       } else {
@@ -45,9 +96,12 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
     }
   };
 
-  // Run health check when modal opens
+  // Run health check and auto-launch engine when modal opens
   useEffect(() => {
-    if (showModal) checkBridgeHealth();
+    if (showModal) {
+      checkBridgeHealth();
+      nanoPixService.launchEngine().catch(() => {});
+    }
   }, [showModal]);
 
   useEffect(() => {
@@ -222,6 +276,21 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
                   <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-700 font-bold text-[10px] flex items-center justify-center shrink-0">3</span>
                   <span>Or double-click <strong>START_NANOPIX_AUTO_SYNC.bat</strong> to start manually this session</span>
                 </div>
+
+                {isHttpsOrigin && (
+                  <div className="mt-2.5 p-2 bg-amber-50 border border-amber-300 rounded text-[11px] text-amber-900 space-y-1">
+                    <p className="font-bold">🔒 Using Cloud / HTTPS (Vercel)?</p>
+                    <p>Modern browsers block HTTPS websites from reaching local USB ports (<code>http://127.0.0.1:5066</code>) by default.</p>
+                    <p className="font-semibold text-amber-800">To fix this on Vercel:</p>
+                    <ol className="list-decimal pl-4 space-y-0.5">
+                      <li>Click the <strong>Tune / Lock icon</strong> next to the URL in your browser bar.</li>
+                      <li>Click <strong>Site settings</strong>.</li>
+                      <li>Find <strong>Insecure content</strong> and set it to <strong>Allow</strong>.</li>
+                      <li>Refresh this page, or open the local app directly at <a href="http://localhost:5173/directory" className="underline font-bold text-sky-700">http://localhost:5173/directory</a>.</li>
+                    </ol>
+                  </div>
+                )}
+
                 <p className="text-[11px] text-rose-600 pt-1 border-t border-rose-100">⚠️ After starting the bridge, click "Re-Check" below to verify.</p>
               </div>
               <button
@@ -430,7 +499,7 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
               {[1, 2, 3, 4, 5].map((step) => {
                 const isReached = logs.some(l => l.message.includes(`[STEP ${step}]`));
                 
-                // Step 1: Manual Trigger Button
+                // Step 1: Arm Sensor on USB
                 if (step === 1) {
                   return (
                     <div key={step} className="flex flex-col items-center gap-1.5">
@@ -439,70 +508,55 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
                           setPipelineError(null);
                           setShowLogs(true);
                           try {
-                            const res = await fetch('http://127.0.0.1:5066/nanopix/test-hardware-exposure', {
+                            let data = null;
+                            let res = await fetch('/nanopix/arm-sensor', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ toothKey: "19", patientId: "Test" })
-                            });
-                            const data = await res.json();
-                            if (!data.success) {
+                              body: JSON.stringify({ toothKey: "19", patientId: "46" }),
+                              signal: AbortSignal.timeout(3000)
+                            }).catch(() => null);
+
+                            if (res && res.ok) {
+                              data = await res.json().catch(() => null);
+                            }
+
+                            if (!data) {
+                              res = await fetch('http://127.0.0.1:5066/nanopix/arm-sensor', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ toothKey: "19", patientId: "46" }),
+                                signal: AbortSignal.timeout(3000)
+                              }).catch(() => null);
+                              if (res && res.ok) {
+                                data = await res.json().catch(() => null);
+                              }
+                            }
+
+                            if (data && data.success) {
+                              checkBridgeHealth();
+                            } else if (data && !data.success) {
                               setPipelineError(data.message || 'Hardware Error: Device not detected. Please verify USB connection.');
+                            } else {
+                              setPipelineError("Cannot connect to local NanoPix Agent on port 5066. Please verify bridge is running.");
                             }
                           } catch (e) {
-                            console.error("Simulation failed:", e);
+                            console.error("Arming failed:", e);
                             setPipelineError("Cannot connect to local NanoPix Agent on port 5066. Please launch START_NANOPIX_AUTO_SYNC.bat on this PC.");
                           }
                         }}
                         className={`w-10 h-10 rounded-full flex items-center justify-center text-[11px] font-bold transition-all duration-300 cursor-pointer ${isReached ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30' : 'bg-fuchsia-600 text-white shadow-md shadow-fuchsia-600/30 hover:bg-fuchsia-700 hover:scale-105 active:scale-95 animate-pulse ring-4 ring-fuchsia-100'}`}
-                        title="Click to Start Step 1"
+                        title="Click to Arm Sensor on USB"
                       >
-                        {isReached ? <CheckCircle2 className="w-5 h-5" /> : 'START'}
+                        {isReached ? <CheckCircle2 className="w-5 h-5" /> : 'ARM'}
                       </button>
                       <span className={`text-[9px] text-center leading-tight ${isReached ? 'text-emerald-700 font-bold' : 'text-fuchsia-700 font-bold'}`}>
-                        Step 1<br/>Connect
+                        Step 1<br/>Arm USB
                       </span>
                     </div>
                   );
                 }
 
-                // Step 4: Manual Apply Button
-                if (step === 4) {
-                  return (
-                    <div key={step} className="flex flex-col items-center gap-1.5 relative">
-                      <div className={`absolute top-4 -left-[calc(50vw/4)] w-[calc(50vw/4)] h-[2px] -z-10 transition-all duration-700 ${isReached ? 'bg-emerald-400' : 'bg-slate-100'}`}></div>
-                      
-                      <button
-                        onClick={async () => {
-                          setPipelineError(null);
-                          try {
-                            const res = await fetch('http://127.0.0.1:5066/nanopix/test-hardware-exposure', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ phase: 2 })
-                            });
-                            const data = await res.json();
-                            if (!data.success) {
-                              setPipelineError(data.message || 'Failed to apply scan');
-                            }
-                          } catch (e) {
-                            console.error("Simulation failed:", e);
-                            setPipelineError("Cannot connect to local NanoPix Agent on port 5066.");
-                          }
-                        }}
-                        disabled={!logs.some(l => l.message.includes(`[STEP 3]`))}
-                        className={`w-10 h-10 rounded-full flex items-center justify-center text-[11px] font-bold transition-all duration-300 cursor-pointer ${isReached ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30' : logs.some(l => l.message.includes(`[STEP 3]`)) ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30 hover:bg-sky-700 hover:scale-105 active:scale-95 animate-pulse ring-4 ring-sky-100' : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'}`}
-                        title="Click to Apply Image (Step 4)"
-                      >
-                        {isReached ? <CheckCircle2 className="w-5 h-5" /> : 'APPLY'}
-                      </button>
-                      <span className={`text-[9px] text-center leading-tight ${isReached ? 'text-emerald-700 font-bold' : logs.some(l => l.message.includes(`[STEP 3]`)) ? 'text-sky-700 font-bold' : 'text-slate-400'}`}>
-                        Step 4<br/>Chart
-                      </span>
-                    </div>
-                  );
-                }
-
-                // Steps 2, 3, 5: Auto visual indicators
+                // Steps 2, 3, 4, 5: Automatic real-time status indicators
                 return (
                   <div key={step} className="flex flex-col items-center gap-1.5 relative">
                     {/* Connecting Line */}
@@ -512,7 +566,7 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
                       {isReached ? <CheckCircle2 className="w-4 h-4" /> : step}
                     </div>
                     <span className={`text-[9px] font-medium text-center leading-tight ${isReached ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>
-                      {step === 2 ? 'Step 2\nTimer' : step === 3 ? 'Step 3\nData Rx' : 'Step 5\nAI Gen'}
+                      {step === 2 ? 'Step 2\nWaiting X-Ray' : step === 3 ? 'Step 3\nReal Data' : step === 4 ? 'Step 4\nChart Mount' : 'Step 5\nAI Analysis'}
                     </span>
                   </div>
                 );
@@ -544,15 +598,27 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
         </div>
 
         {/* Modal Actions */}
-        <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
-          <button
-            onClick={handleRescan}
-            disabled={isScanning}
-            className="px-4 py-2 border border-slate-300 hover:bg-slate-100 active:bg-slate-200 rounded-xl text-xs font-semibold text-slate-700 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin text-teal-600' : ''}`} />
-            {isScanning ? 'Scanning...' : 'Rescan USB'}
-          </button>
+        <div className="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRescan}
+              disabled={isScanning}
+              className="px-4 py-2 border border-slate-300 hover:bg-slate-100 active:bg-slate-200 rounded-xl text-xs font-semibold text-slate-700 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin text-teal-600' : ''}`} />
+              {isScanning ? 'Scanning...' : 'Rescan USB'}
+            </button>
+
+            <button
+              onClick={async () => {
+                await nanoPixService.launchEngine();
+                setTimeout(checkBridgeHealth, 1000);
+              }}
+              className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5" /> Launch Eighteeth App
+            </button>
+          </div>
 
           <div className="flex items-center gap-2">
             <button

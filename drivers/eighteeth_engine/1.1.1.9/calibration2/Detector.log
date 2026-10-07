@@ -1,0 +1,668 @@
+A2026-10-05 20:46:08.192 37b0 =============================================================================================
+A2026-10-05 20:46:08.192 37b0 Start to initialize detector object, ID = 1, work_dir = 'C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\'
+A2026-10-05 20:46:08.219 37b0 Load vtMap succeed
+A2026-10-05 20:46:08.219 37b0 Init attributes succeed
+A2026-10-05 20:46:08.223 37b0 Init ConfigManager succeed
+A2026-10-05 20:46:08.229 37b0 Init ConnectionImpl succeed
+A2026-10-05 20:46:08.231 37b0 Init CalibrationImpl succeed
+A2026-10-05 20:46:08.231 37b0 SDK Version: 4.5.4.12789 
+A2026-10-05 20:46:08.432 37b0 Initialize detector object completed, ID = 1
+A2026-10-05 20:46:08.933 37b0 -------------- Invoke task started, Cmd = Cmd_Disconnect --------------
+A2026-10-05 20:46:08.933 37b0 CDetectorE4::Invoke(3, 0Parameters), FSMState:6
+I2026-10-05 20:46:08.933 37b0 State changed from State_Unknown to State_Busy
+A2026-10-05 20:46:08.933 37b0 Invoke returned, Cmd = Cmd_Disconnect, Task is pending
+A2026-10-05 20:46:08.933 586c CDetectorE4::before DisConnect.
+I2026-10-05 20:46:08.933 586c State changed from State_Busy to State_Unknown
+A2026-10-05 20:46:08.933 586c CDetectorE4::DisConnect.
+A2026-10-05 20:46:08.933 37b0 -------------- Invoke task started, Cmd = Cmd_Connect --------------
+A2026-10-05 20:46:08.933 37b0 CDetectorE4::Invoke(2, 0Parameters), FSMState:6
+A2026-10-05 20:46:08.933 586c Pending task completed taskid:3, error:0
+I2026-10-05 20:46:08.933 37b0 State changed from State_Unknown to State_Busy
+A2026-10-05 20:46:08.933 37b0 Invoke returned, Cmd = Cmd_Connect, Task is pending
+I2026-10-05 20:46:08.933 586c State changed from State_Busy to State_Unknown
+A2026-10-05 20:46:08.960 586c There are exist 1 USBDevices.
+A2026-10-05 20:46:09.170 25dc CDetectorE4::detector push cmd:0x64, ack:0x80 - param:0x00
+A2026-10-05 20:46:09.395 25dc CDetectorE4::detector push cmd:0x65, ack:0x81 - param:0x00
+W2026-10-05 20:46:09.400 586c CDetectorE4::Fpd does not support cmd:0x65
+A2026-10-05 20:46:09.419 25dc CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-05 20:46:09.432 586c CDetectorE4::ACK OK[cmd:0x75]
+I2026-10-05 20:46:09.448 586c TemplateStatus(offset:absent, gain:invalid, defect:invalid)
+A2026-10-05 20:46:09.448 586c MasterBuildTime:21-01-20:0, 
+				SlaveBuildTime:00-00-00:0, 
+				MasterVer:146.0.0.9, 
+				SlaveVer:0.0.0.0, 
+				McuVer:0.0.0.0
+A2026-10-05 20:46:09.448 586c CDetectorE4::FPD Serial No:PF640002T0315211340
+A2026-10-05 20:46:09.451 25dc CDetectorE4::detector push cmd:0xc1, ack:0x81 - param:0x00
+W2026-10-05 20:46:09.464 586c CDetectorE4::Fpd does not support cmd:0xc1
+I2026-10-05 20:46:09.464 586c State changed from State_Unknown to State_Ready
+A2026-10-05 20:46:09.464 586c CDetectorE4::Current CorrectionOption:0x0, set to:0x0
+A2026-10-05 20:46:09.464 586c CDetectorE4::Initilize Finished
+A2026-10-05 20:46:09.464 586c Pending task completed taskid:2, error:0
+A2026-10-05 20:46:10.104 37b0 -------------- Invoke task started, Cmd = Cmd_SetCorrectOption --------------
+A2026-10-05 20:46:10.104 37b0 CDetectorE4::Invoke(6, 1Parameters), FSMState:2
+I2026-10-05 20:46:10.104 37b0 State changed from State_Ready to State_Busy
+A2026-10-05 20:46:10.104 37b0 Invoke returned, Cmd = Cmd_SetCorrectOption, Task is pending
+A2026-10-05 20:46:10.104 586c CDetectorE4::Current CorrectionOption:0x0, set to:0x20000
+A2026-10-05 20:46:10.104 586c CDetectorE4::Set CorrectionOption:0x20000
+I2026-10-05 20:46:10.104 586c State changed from State_Busy to State_Ready
+A2026-10-05 20:46:10.104 586c Pending task completed taskid:6, error:0
+A2026-10-05 20:46:10.104 37b0 -------------- Invoke task started, Cmd = Cmd_WriteUserRAM --------------
+A2026-10-05 20:46:10.104 37b0 CDetectorE4::Invoke(2031, 0Parameters), FSMState:2
+I2026-10-05 20:46:10.104 37b0 State changed from State_Ready to State_Busy
+A2026-10-05 20:46:10.104 37b0 Invoke returned, Cmd = Cmd_WriteUserRAM, Task is pending
+A2026-10-05 20:46:10.126 25dc CDetectorE4::detector push cmd:0x74, ack:0x80 - param:0x00
+I2026-10-05 20:46:10.134 586c CDetectorE4::ACK OK[cmd:0x74]
+A2026-10-05 20:46:10.156 25dc CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-05 20:46:10.166 586c CDetectorE4::ACK OK[cmd:0x75]
+I2026-10-05 20:46:10.166 586c State changed from State_Busy to State_Ready
+A2026-10-05 20:46:10.166 586c Pending task completed taskid:2031, error:0
+A2026-10-05 20:46:10.167 37b0 -------------- Invoke task started, Cmd = Cmd_ClearAcq --------------
+A2026-10-05 20:46:10.167 37b0 CDetectorE4::Invoke(1002, 0Parameters), FSMState:2
+E2026-10-05 20:46:10.167 37b0 Please change trigger mode to soft when StartAcq .
+A2026-10-05 20:46:10.167 37b0 Invoke failed, Cmd = Cmd_ClearAcq, ErrorCode = '1013', ErrorDescription: "The operation is not supported in current mode"
+A2026-10-05 20:46:38.160 25dc CDetectorE4::detector push cmd:0xf0, ack:0x80 - param:0x02
+A2026-10-05 20:46:38.160 586c Active task:1004 acquiring image start.
+I2026-10-05 20:46:38.160 586c State changed from State_Ready to State_Busy
+I2026-10-05 20:46:38.187 25dc CDetectorE4::Receive image[ab22] frameNo:0, packetNo:1799
+I2026-10-05 20:46:39.934 25dc CDetectorE4::Receive image[ab22] frameNo:0, packetNo:0
+I2026-10-05 20:46:39.934 25dc CDetectorE4::OnFrameReceived[ab22] frameNo:0
+A2026-10-05 20:46:39.937 25dc Image received: Prefix: 0xab22, FrameNo: 0, cost:1750ms, lost packets: 0 / 1800
+I2026-10-05 20:46:40.005 25dc CDetectorE4::Receive image[ab23] frameNo:1, packetNo:1799
+I2026-10-05 20:46:41.753 25dc CDetectorE4::Receive image[ab23] frameNo:1, packetNo:0
+I2026-10-05 20:46:41.753 25dc CDetectorE4::OnFrameReceived[ab23] frameNo:1
+A2026-10-05 20:46:41.755 25dc Image received: Prefix: 0xab23, FrameNo: 1, cost:1750ms, lost packets: 0 / 1800
+I2026-10-05 20:46:41.762 586c State changed from State_Busy to State_Ready
+A2026-10-05 20:46:41.762 586c Pending task completed taskid:1004, error:0
+I2026-10-05 20:46:41.762 4c40 Before image callback
+I2026-10-05 20:46:41.774 4c40 After image callback
+A2026-10-05 20:46:42.255 37b0 -------------- Invoke task started, Cmd = Cmd_SetCorrectOption --------------
+A2026-10-05 20:46:42.255 37b0 CDetectorE4::Invoke(6, 1Parameters), FSMState:2
+I2026-10-05 20:46:42.255 37b0 State changed from State_Ready to State_Busy
+A2026-10-05 20:46:42.255 37b0 Invoke returned, Cmd = Cmd_SetCorrectOption, Task is pending
+A2026-10-05 20:46:42.255 586c CDetectorE4::Current CorrectionOption:0x20000, set to:0x20000
+I2026-10-05 20:46:42.255 586c State changed from State_Busy to State_Ready
+A2026-10-05 20:46:42.255 586c Pending task completed taskid:6, error:0
+A2026-10-05 20:46:42.255 37b0 -------------- Invoke task started, Cmd = Cmd_WriteUserRAM --------------
+A2026-10-05 20:46:42.255 37b0 CDetectorE4::Invoke(2031, 0Parameters), FSMState:2
+I2026-10-05 20:46:42.255 37b0 State changed from State_Ready to State_Busy
+A2026-10-05 20:46:42.255 37b0 Invoke returned, Cmd = Cmd_WriteUserRAM, Task is pending
+A2026-10-05 20:46:42.275 25dc CDetectorE4::detector push cmd:0x74, ack:0x80 - param:0x00
+I2026-10-05 20:46:42.286 586c CDetectorE4::ACK OK[cmd:0x74]
+A2026-10-05 20:46:42.308 25dc CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-05 20:46:42.317 586c CDetectorE4::ACK OK[cmd:0x75]
+I2026-10-05 20:46:42.317 586c State changed from State_Busy to State_Ready
+A2026-10-05 20:46:42.317 586c Pending task completed taskid:2031, error:0
+A2026-10-05 20:46:42.317 37b0 -------------- Invoke task started, Cmd = Cmd_ClearAcq --------------
+A2026-10-05 20:46:42.317 37b0 CDetectorE4::Invoke(1002, 0Parameters), FSMState:2
+E2026-10-05 20:46:42.317 37b0 Please change trigger mode to soft when StartAcq .
+A2026-10-05 20:46:42.317 37b0 Invoke failed, Cmd = Cmd_ClearAcq, ErrorCode = '1013', ErrorDescription: "The operation is not supported in current mode"
+A2026-10-05 20:47:20.038 25dc CDetectorE4::detector push cmd:0xf0, ack:0x80 - param:0x02
+A2026-10-05 20:47:20.038 586c Active task:1004 acquiring image start.
+I2026-10-05 20:47:20.038 586c State changed from State_Ready to State_Busy
+I2026-10-05 20:47:20.065 25dc CDetectorE4::Receive image[ab22] frameNo:2, packetNo:1799
+I2026-10-05 20:47:21.811 25dc CDetectorE4::Receive image[ab22] frameNo:2, packetNo:0
+I2026-10-05 20:47:21.811 25dc CDetectorE4::OnFrameReceived[ab22] frameNo:2
+A2026-10-05 20:47:21.812 25dc Image received: Prefix: 0xab22, FrameNo: 2, cost:1747ms, lost packets: 0 / 1800
+I2026-10-05 20:47:21.883 25dc CDetectorE4::Receive image[ab23] frameNo:3, packetNo:1799
+I2026-10-05 20:47:23.631 25dc CDetectorE4::Receive image[ab23] frameNo:3, packetNo:0
+I2026-10-05 20:47:23.631 25dc CDetectorE4::OnFrameReceived[ab23] frameNo:3
+A2026-10-05 20:47:23.631 25dc Image received: Prefix: 0xab23, FrameNo: 3, cost:1747ms, lost packets: 0 / 1800
+I2026-10-05 20:47:23.646 586c State changed from State_Busy to State_Ready
+I2026-10-05 20:47:23.646 4c40 Before image callback
+A2026-10-05 20:47:23.646 586c Pending task completed taskid:1004, error:0
+I2026-10-05 20:47:23.655 4c40 After image callback
+A2026-10-05 20:47:24.126 37b0 -------------- Invoke task started, Cmd = Cmd_SetCorrectOption --------------
+A2026-10-05 20:47:24.126 37b0 CDetectorE4::Invoke(6, 1Parameters), FSMState:2
+I2026-10-05 20:47:24.126 37b0 State changed from State_Ready to State_Busy
+A2026-10-05 20:47:24.126 37b0 Invoke returned, Cmd = Cmd_SetCorrectOption, Task is pending
+A2026-10-05 20:47:24.126 586c CDetectorE4::Current CorrectionOption:0x20000, set to:0x20000
+I2026-10-05 20:47:24.126 586c State changed from State_Busy to State_Ready
+A2026-10-05 20:47:24.126 586c Pending task completed taskid:6, error:0
+A2026-10-05 20:47:24.126 37b0 -------------- Invoke task started, Cmd = Cmd_WriteUserRAM --------------
+A2026-10-05 20:47:24.126 37b0 CDetectorE4::Invoke(2031, 0Parameters), FSMState:2
+I2026-10-05 20:47:24.126 37b0 State changed from State_Ready to State_Busy
+A2026-10-05 20:47:24.126 37b0 Invoke returned, Cmd = Cmd_WriteUserRAM, Task is pending
+A2026-10-05 20:47:24.147 25dc CDetectorE4::detector push cmd:0x74, ack:0x80 - param:0x00
+I2026-10-05 20:47:24.157 586c CDetectorE4::ACK OK[cmd:0x74]
+A2026-10-05 20:47:24.177 25dc CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-05 20:47:24.188 586c CDetectorE4::ACK OK[cmd:0x75]
+I2026-10-05 20:47:24.188 586c State changed from State_Busy to State_Ready
+A2026-10-05 20:47:24.188 586c Pending task completed taskid:2031, error:0
+A2026-10-05 20:47:24.188 37b0 -------------- Invoke task started, Cmd = Cmd_ClearAcq --------------
+A2026-10-05 20:47:24.188 37b0 CDetectorE4::Invoke(1002, 0Parameters), FSMState:2
+E2026-10-05 20:47:24.188 37b0 Please change trigger mode to soft when StartAcq .
+A2026-10-05 20:47:24.188 37b0 Invoke failed, Cmd = Cmd_ClearAcq, ErrorCode = '1013', ErrorDescription: "The operation is not supported in current mode"
+A2026-10-05 20:47:44.398 37b0 -------------- Invoke task started, Cmd = Cmd_Disconnect --------------
+A2026-10-05 20:47:44.398 37b0 CDetectorE4::Invoke(3, 0Parameters), FSMState:2
+I2026-10-05 20:47:44.398 37b0 State changed from State_Ready to State_Busy
+A2026-10-05 20:47:44.398 37b0 Invoke returned, Cmd = Cmd_Disconnect, Task is pending
+A2026-10-05 20:47:44.398 586c CDetectorE4::before DisConnect.
+I2026-10-05 20:47:44.448 586c State changed from State_Busy to State_Unknown
+A2026-10-05 20:47:44.448 586c CDetectorE4::DisConnect.
+A2026-10-05 20:47:44.448 586c Pending task completed taskid:3, error:0
+A2026-10-05 20:47:44.448 37b0 -------------- Invoke task started, Cmd = Cmd_Connect --------------
+A2026-10-05 20:47:44.448 37b0 CDetectorE4::Invoke(2, 0Parameters), FSMState:6
+I2026-10-05 20:47:44.448 37b0 State changed from State_Unknown to State_Busy
+A2026-10-05 20:47:44.448 37b0 Invoke returned, Cmd = Cmd_Connect, Task is pending
+I2026-10-05 20:47:44.448 586c State changed from State_Busy to State_Unknown
+A2026-10-05 20:47:44.453 586c There are exist 1 USBDevices.
+A2026-10-05 20:47:44.683 4430 CDetectorE4::detector push cmd:0x65, ack:0x81 - param:0x00
+W2026-10-05 20:47:44.685 586c CDetectorE4::Fpd does not support cmd:0x65
+A2026-10-05 20:47:44.707 4430 CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-05 20:47:44.716 586c CDetectorE4::ACK OK[cmd:0x75]
+I2026-10-05 20:47:44.730 586c TemplateStatus(offset:absent, gain:invalid, defect:invalid)
+A2026-10-05 20:47:44.730 586c MasterBuildTime:21-01-20:0, 
+				SlaveBuildTime:00-00-00:0, 
+				MasterVer:146.0.0.9, 
+				SlaveVer:0.0.0.0, 
+				McuVer:0.0.0.0
+A2026-10-05 20:47:44.730 586c CDetectorE4::FPD Serial No:PF640002T0315211340
+A2026-10-05 20:47:44.735 4430 CDetectorE4::detector push cmd:0xc1, ack:0x81 - param:0x00
+W2026-10-05 20:47:44.748 586c CDetectorE4::Fpd does not support cmd:0xc1
+I2026-10-05 20:47:44.748 586c State changed from State_Unknown to State_Ready
+A2026-10-05 20:47:44.748 586c CDetectorE4::Current CorrectionOption:0x0, set to:0x0
+A2026-10-05 20:47:44.748 586c CDetectorE4::Initilize Finished
+A2026-10-05 20:47:44.748 586c Pending task completed taskid:2, error:0
+A2026-10-05 20:47:44.748 37b0 -------------- Invoke task started, Cmd = Cmd_Disconnect --------------
+A2026-10-05 20:47:44.748 37b0 CDetectorE4::Invoke(3, 0Parameters), FSMState:2
+I2026-10-05 20:47:44.748 37b0 State changed from State_Ready to State_Busy
+A2026-10-05 20:47:44.748 37b0 Invoke returned, Cmd = Cmd_Disconnect, Task is pending
+A2026-10-05 20:47:44.748 586c CDetectorE4::before DisConnect.
+I2026-10-05 20:47:44.780 586c State changed from State_Busy to State_Unknown
+A2026-10-05 20:47:44.780 586c CDetectorE4::DisConnect.
+A2026-10-05 20:47:44.780 586c Pending task completed taskid:3, error:0
+A2026-10-05 20:47:44.780 27d8 -------------- Invoke task started, Cmd = Cmd_Disconnect --------------
+A2026-10-05 20:47:44.781 27d8 CDetectorE4::Invoke(3, 0Parameters), FSMState:6
+I2026-10-05 20:47:44.781 27d8 State changed from State_Unknown to State_Busy
+A2026-10-05 20:47:44.781 27d8 Invoke returned, Cmd = Cmd_Disconnect, Task is pending
+A2026-10-05 20:47:44.781 586c CDetectorE4::before DisConnect.
+I2026-10-05 20:47:44.781 586c State changed from State_Busy to State_Unknown
+A2026-10-05 20:47:44.781 586c CDetectorE4::DisConnect.
+A2026-10-05 20:47:44.781 586c Pending task completed taskid:3, error:0
+A2026-10-05 20:47:44.896 27d8 CDetectorBase::Destory
+A2026-10-05 20:48:06.458 487c =============================================================================================
+A2026-10-05 20:48:06.458 487c Start to initialize detector object, ID = 1, work_dir = 'C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\'
+A2026-10-05 20:48:06.486 487c Load vtMap succeed
+A2026-10-05 20:48:06.486 487c Init attributes succeed
+A2026-10-05 20:48:06.492 487c Init ConfigManager succeed
+A2026-10-05 20:48:06.504 487c Init ConnectionImpl succeed
+A2026-10-05 20:48:06.504 487c Init CalibrationImpl succeed
+A2026-10-05 20:48:06.506 487c SDK Version: 4.5.4.12789 
+A2026-10-05 20:48:06.707 487c Initialize detector object completed, ID = 1
+A2026-10-05 20:48:07.208 487c -------------- Invoke task started, Cmd = Cmd_Disconnect --------------
+A2026-10-05 20:48:07.208 487c CDetectorE4::Invoke(3, 0Parameters), FSMState:6
+I2026-10-05 20:48:07.208 487c State changed from State_Unknown to State_Busy
+A2026-10-05 20:48:07.208 487c Invoke returned, Cmd = Cmd_Disconnect, Task is pending
+A2026-10-05 20:48:07.208 3c88 CDetectorE4::before DisConnect.
+I2026-10-05 20:48:07.208 3c88 State changed from State_Busy to State_Unknown
+A2026-10-05 20:48:07.208 3c88 CDetectorE4::DisConnect.
+A2026-10-05 20:48:07.208 3c88 Pending task completed taskid:3, error:0
+A2026-10-05 20:48:07.208 487c -------------- Invoke task started, Cmd = Cmd_Connect --------------
+A2026-10-05 20:48:07.208 487c CDetectorE4::Invoke(2, 0Parameters), FSMState:6
+I2026-10-05 20:48:07.208 487c State changed from State_Unknown to State_Busy
+A2026-10-05 20:48:07.208 487c Invoke returned, Cmd = Cmd_Connect, Task is pending
+I2026-10-05 20:48:07.208 3c88 State changed from State_Busy to State_Unknown
+A2026-10-05 20:48:07.212 3c88 There are exist 1 USBDevices.
+A2026-10-05 20:48:07.413 6efc CDetectorE4::detector push cmd:0x65, ack:0x81 - param:0x00
+W2026-10-05 20:48:07.420 3c88 CDetectorE4::Fpd does not support cmd:0x65
+A2026-10-05 20:48:07.440 6efc CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-05 20:48:07.451 3c88 CDetectorE4::ACK OK[cmd:0x75]
+I2026-10-05 20:48:07.469 3c88 TemplateStatus(offset:absent, gain:invalid, defect:invalid)
+A2026-10-05 20:48:07.469 3c88 MasterBuildTime:21-01-20:0, 
+				SlaveBuildTime:00-00-00:0, 
+				MasterVer:146.0.0.9, 
+				SlaveVer:0.0.0.0, 
+				McuVer:0.0.0.0
+A2026-10-05 20:48:07.469 3c88 CDetectorE4::FPD Serial No:PF640002T0315211340
+A2026-10-05 20:48:07.476 6efc CDetectorE4::detector push cmd:0xc1, ack:0x81 - param:0x00
+W2026-10-05 20:48:07.483 3c88 CDetectorE4::Fpd does not support cmd:0xc1
+I2026-10-05 20:48:07.483 3c88 State changed from State_Unknown to State_Ready
+A2026-10-05 20:48:07.483 3c88 CDetectorE4::Current CorrectionOption:0x0, set to:0x0
+A2026-10-05 20:48:07.483 3c88 CDetectorE4::Initilize Finished
+A2026-10-05 20:48:07.484 3c88 Pending task completed taskid:2, error:0
+A2026-10-05 20:48:08.133 487c -------------- Invoke task started, Cmd = Cmd_SetCorrectOption --------------
+A2026-10-05 20:48:08.133 487c CDetectorE4::Invoke(6, 1Parameters), FSMState:2
+I2026-10-05 20:48:08.133 487c State changed from State_Ready to State_Busy
+A2026-10-05 20:48:08.133 487c Invoke returned, Cmd = Cmd_SetCorrectOption, Task is pending
+A2026-10-05 20:48:08.133 3c88 CDetectorE4::Current CorrectionOption:0x0, set to:0x20000
+A2026-10-05 20:48:08.135 3c88 CDetectorE4::Set CorrectionOption:0x20000
+I2026-10-05 20:48:08.135 3c88 State changed from State_Busy to State_Ready
+A2026-10-05 20:48:08.135 3c88 Pending task completed taskid:6, error:0
+A2026-10-05 20:48:08.135 487c -------------- Invoke task started, Cmd = Cmd_WriteUserRAM --------------
+A2026-10-05 20:48:08.135 487c CDetectorE4::Invoke(2031, 0Parameters), FSMState:2
+I2026-10-05 20:48:08.135 487c State changed from State_Ready to State_Busy
+A2026-10-05 20:48:08.135 487c Invoke returned, Cmd = Cmd_WriteUserRAM, Task is pending
+A2026-10-05 20:48:08.155 6efc CDetectorE4::detector push cmd:0x74, ack:0x80 - param:0x00
+I2026-10-05 20:48:08.163 3c88 CDetectorE4::ACK OK[cmd:0x74]
+A2026-10-05 20:48:08.187 6efc CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-05 20:48:08.196 3c88 CDetectorE4::ACK OK[cmd:0x75]
+I2026-10-05 20:48:08.196 3c88 State changed from State_Busy to State_Ready
+A2026-10-05 20:48:08.196 3c88 Pending task completed taskid:2031, error:0
+A2026-10-05 20:48:08.196 487c -------------- Invoke task started, Cmd = Cmd_ClearAcq --------------
+A2026-10-05 20:48:08.196 487c CDetectorE4::Invoke(1002, 0Parameters), FSMState:2
+E2026-10-05 20:48:08.196 487c Please change trigger mode to soft when StartAcq .
+A2026-10-05 20:48:08.196 487c Invoke failed, Cmd = Cmd_ClearAcq, ErrorCode = '1013', ErrorDescription: "The operation is not supported in current mode"
+A2026-10-05 20:48:35.488 6efc CDetectorE4::detector push cmd:0xf0, ack:0x80 - param:0x02
+A2026-10-05 20:48:35.488 3c88 Active task:1004 acquiring image start.
+I2026-10-05 20:48:35.488 3c88 State changed from State_Ready to State_Busy
+I2026-10-05 20:48:35.512 6efc CDetectorE4::Receive image[ab22] frameNo:4, packetNo:1799
+I2026-10-05 20:48:37.259 6efc CDetectorE4::Receive image[ab22] frameNo:4, packetNo:0
+I2026-10-05 20:48:37.259 6efc CDetectorE4::OnFrameReceived[ab22] frameNo:4
+A2026-10-05 20:48:37.259 6efc Image received: Prefix: 0xab22, FrameNo: 4, cost:1748ms, lost packets: 0 / 1800
+I2026-10-05 20:48:37.333 6efc CDetectorE4::Receive image[ab23] frameNo:5, packetNo:1799
+I2026-10-05 20:48:39.079 6efc CDetectorE4::Receive image[ab23] frameNo:5, packetNo:0
+I2026-10-05 20:48:39.079 6efc CDetectorE4::OnFrameReceived[ab23] frameNo:5
+A2026-10-05 20:48:39.079 6efc Image received: Prefix: 0xab23, FrameNo: 5, cost:1746ms, lost packets: 0 / 1800
+I2026-10-05 20:48:39.096 3c88 State changed from State_Busy to State_Ready
+A2026-10-05 20:48:39.096 3c88 Pending task completed taskid:1004, error:0
+I2026-10-05 20:48:39.096 2160 Before image callback
+I2026-10-05 20:48:39.108 2160 After image callback
+A2026-10-05 20:48:39.582 487c -------------- Invoke task started, Cmd = Cmd_SetCorrectOption --------------
+A2026-10-05 20:48:39.582 487c CDetectorE4::Invoke(6, 1Parameters), FSMState:2
+I2026-10-05 20:48:39.582 487c State changed from State_Ready to State_Busy
+A2026-10-05 20:48:39.582 487c Invoke returned, Cmd = Cmd_SetCorrectOption, Task is pending
+A2026-10-05 20:48:39.582 3c88 CDetectorE4::Current CorrectionOption:0x20000, set to:0x20000
+I2026-10-05 20:48:39.582 3c88 State changed from State_Busy to State_Ready
+A2026-10-05 20:48:39.582 487c -------------- Invoke task started, Cmd = Cmd_WriteUserRAM --------------
+A2026-10-05 20:48:39.582 487c CDetectorE4::Invoke(2031, 0Parameters), FSMState:2
+I2026-10-05 20:48:39.582 487c State changed from State_Ready to State_Busy
+A2026-10-05 20:48:39.582 487c Invoke returned, Cmd = Cmd_WriteUserRAM, Task is pending
+A2026-10-05 20:48:39.582 3c88 Pending task completed taskid:6, error:0
+A2026-10-05 20:48:39.602 6efc CDetectorE4::detector push cmd:0x74, ack:0x80 - param:0x00
+I2026-10-05 20:48:39.608 3c88 CDetectorE4::ACK OK[cmd:0x74]
+A2026-10-05 20:48:39.634 6efc CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-05 20:48:39.636 3c88 CDetectorE4::ACK OK[cmd:0x75]
+I2026-10-05 20:48:39.636 3c88 State changed from State_Busy to State_Ready
+A2026-10-05 20:48:39.636 3c88 Pending task completed taskid:2031, error:0
+A2026-10-05 20:48:39.636 487c -------------- Invoke task started, Cmd = Cmd_ClearAcq --------------
+A2026-10-05 20:48:39.636 487c CDetectorE4::Invoke(1002, 0Parameters), FSMState:2
+E2026-10-05 20:48:39.636 487c Please change trigger mode to soft when StartAcq .
+A2026-10-05 20:48:39.636 487c Invoke failed, Cmd = Cmd_ClearAcq, ErrorCode = '1013', ErrorDescription: "The operation is not supported in current mode"
+A2026-10-05 21:06:02.615 6efc CDetectorE4::detector push cmd:0xf0, ack:0x80 - param:0x02
+A2026-10-05 21:06:02.616 3c88 Active task:1004 acquiring image start.
+I2026-10-05 21:06:02.631 6efc CDetectorE4::Receive image[ab22] frameNo:6, packetNo:1799
+I2026-10-05 21:06:02.635 3c88 State changed from State_Ready to State_Busy
+I2026-10-05 21:06:04.312 6efc CDetectorE4::Receive image[ab22] frameNo:6, packetNo:0
+I2026-10-05 21:06:04.312 6efc CDetectorE4::OnFrameReceived[ab22] frameNo:6
+A2026-10-05 21:06:04.422 6efc Image received: Prefix: 0xab22, FrameNo: 6, cost:1791ms, lost packets: 0 / 1800
+I2026-10-05 21:06:04.431 6efc CDetectorE4::Receive image[ab23] frameNo:7, packetNo:1799
+I2026-10-05 21:06:06.125 6efc CDetectorE4::Receive image[ab23] frameNo:7, packetNo:0
+I2026-10-05 21:06:06.126 6efc CDetectorE4::OnFrameReceived[ab23] frameNo:7
+A2026-10-05 21:06:06.243 6efc Image received: Prefix: 0xab23, FrameNo: 7, cost:1812ms, lost packets: 0 / 1800
+I2026-10-05 21:06:06.434 3c88 State changed from State_Busy to State_Ready
+A2026-10-05 21:06:06.436 3c88 Pending task completed taskid:1004, error:0
+I2026-10-05 21:06:06.443 2160 Before image callback
+I2026-10-05 21:06:06.506 2160 After image callback
+A2026-10-05 21:06:08.799 487c -------------- Invoke task started, Cmd = Cmd_SetCorrectOption --------------
+A2026-10-05 21:06:08.800 487c CDetectorE4::Invoke(6, 1Parameters), FSMState:2
+I2026-10-05 21:06:08.800 487c State changed from State_Ready to State_Busy
+A2026-10-05 21:06:08.800 487c Invoke returned, Cmd = Cmd_SetCorrectOption, Task is pending
+A2026-10-05 21:06:08.800 3c88 CDetectorE4::Current CorrectionOption:0x20000, set to:0x20000
+I2026-10-05 21:06:08.800 3c88 State changed from State_Busy to State_Ready
+A2026-10-05 21:06:08.801 3c88 Pending task completed taskid:6, error:0
+A2026-10-05 21:06:08.801 487c -------------- Invoke task started, Cmd = Cmd_WriteUserRAM --------------
+A2026-10-05 21:06:08.801 487c CDetectorE4::Invoke(2031, 0Parameters), FSMState:2
+I2026-10-05 21:06:08.801 487c State changed from State_Ready to State_Busy
+A2026-10-05 21:06:08.801 487c Invoke returned, Cmd = Cmd_WriteUserRAM, Task is pending
+A2026-10-05 21:06:08.829 6efc CDetectorE4::detector push cmd:0x74, ack:0x80 - param:0x00
+I2026-10-05 21:06:08.829 3c88 CDetectorE4::ACK OK[cmd:0x74]
+A2026-10-05 21:06:08.860 6efc CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-05 21:06:08.860 3c88 CDetectorE4::ACK OK[cmd:0x75]
+I2026-10-05 21:06:08.861 3c88 State changed from State_Busy to State_Ready
+A2026-10-05 21:06:08.861 3c88 Pending task completed taskid:2031, error:0
+A2026-10-05 21:06:08.862 487c -------------- Invoke task started, Cmd = Cmd_ClearAcq --------------
+A2026-10-05 21:06:08.862 487c CDetectorE4::Invoke(1002, 0Parameters), FSMState:2
+E2026-10-05 21:06:08.862 487c Please change trigger mode to soft when StartAcq .
+A2026-10-05 21:06:08.862 487c Invoke failed, Cmd = Cmd_ClearAcq, ErrorCode = '1013', ErrorDescription: "The operation is not supported in current mode"
+A2026-10-05 21:09:03.541 6efc CDetectorE4::detector push cmd:0xf0, ack:0x80 - param:0x02
+A2026-10-05 21:09:03.541 3c88 Active task:1004 acquiring image start.
+I2026-10-05 21:09:03.544 3c88 State changed from State_Ready to State_Busy
+I2026-10-05 21:09:03.544 6efc CDetectorE4::Receive image[ab22] frameNo:8, packetNo:1799
+I2026-10-05 21:09:05.258 6efc CDetectorE4::Receive image[ab22] frameNo:8, packetNo:0
+I2026-10-05 21:09:05.259 6efc CDetectorE4::OnFrameReceived[ab22] frameNo:8
+A2026-10-05 21:09:05.340 6efc Image received: Prefix: 0xab22, FrameNo: 8, cost:1796ms, lost packets: 0 / 1800
+I2026-10-05 21:09:05.343 6efc CDetectorE4::Receive image[ab23] frameNo:9, packetNo:1799
+I2026-10-05 21:09:07.078 6efc CDetectorE4::Receive image[ab23] frameNo:9, packetNo:0
+I2026-10-05 21:09:07.079 6efc CDetectorE4::OnFrameReceived[ab23] frameNo:9
+A2026-10-05 21:09:07.186 6efc Image received: Prefix: 0xab23, FrameNo: 9, cost:1843ms, lost packets: 0 / 1800
+I2026-10-05 21:09:07.299 3c88 State changed from State_Busy to State_Ready
+A2026-10-05 21:09:07.300 3c88 Pending task completed taskid:1004, error:0
+I2026-10-05 21:09:07.300 2160 Before image callback
+I2026-10-05 21:09:07.368 2160 After image callback
+A2026-10-05 21:09:09.167 487c -------------- Invoke task started, Cmd = Cmd_SetCorrectOption --------------
+A2026-10-05 21:09:09.167 487c CDetectorE4::Invoke(6, 1Parameters), FSMState:2
+I2026-10-05 21:09:09.168 487c State changed from State_Ready to State_Busy
+A2026-10-05 21:09:09.168 487c Invoke returned, Cmd = Cmd_SetCorrectOption, Task is pending
+A2026-10-05 21:09:09.168 3c88 CDetectorE4::Current CorrectionOption:0x20000, set to:0x20000
+I2026-10-05 21:09:09.168 3c88 State changed from State_Busy to State_Ready
+A2026-10-05 21:09:09.168 3c88 Pending task completed taskid:6, error:0
+A2026-10-05 21:09:09.168 487c -------------- Invoke task started, Cmd = Cmd_WriteUserRAM --------------
+A2026-10-05 21:09:09.168 487c CDetectorE4::Invoke(2031, 0Parameters), FSMState:2
+I2026-10-05 21:09:09.168 487c State changed from State_Ready to State_Busy
+A2026-10-05 21:09:09.169 487c Invoke returned, Cmd = Cmd_WriteUserRAM, Task is pending
+A2026-10-05 21:09:09.195 6efc CDetectorE4::detector push cmd:0x74, ack:0x80 - param:0x00
+I2026-10-05 21:09:09.211 3c88 CDetectorE4::ACK OK[cmd:0x74]
+A2026-10-05 21:09:09.242 6efc CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-05 21:09:09.242 3c88 CDetectorE4::ACK OK[cmd:0x75]
+I2026-10-05 21:09:09.243 3c88 State changed from State_Busy to State_Ready
+A2026-10-05 21:09:09.243 3c88 Pending task completed taskid:2031, error:0
+A2026-10-05 21:09:09.245 487c -------------- Invoke task started, Cmd = Cmd_ClearAcq --------------
+A2026-10-05 21:09:09.245 487c CDetectorE4::Invoke(1002, 0Parameters), FSMState:2
+E2026-10-05 21:09:09.245 487c Please change trigger mode to soft when StartAcq .
+A2026-10-05 21:09:09.246 487c Invoke failed, Cmd = Cmd_ClearAcq, ErrorCode = '1013', ErrorDescription: "The operation is not supported in current mode"
+E2026-10-05 21:13:10.727 1a0 CDetectorE4::Device disconnected!
+I2026-10-05 21:13:10.731 3c88 State changed from State_Ready to State_Unknown
+A2026-10-05 21:13:19.552 1a0 CDetectorE4::Device reconnected.
+A2026-10-05 21:13:19.773 6efc CDetectorE4::detector push cmd:0x65, ack:0x81 - param:0x00
+W2026-10-05 21:13:19.787 3c88 CDetectorE4::Fpd does not support cmd:0x65
+A2026-10-05 21:13:19.819 6efc CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-05 21:13:19.821 3c88 CDetectorE4::ACK OK[cmd:0x75]
+A2026-10-05 21:13:19.847 6efc CDetectorE4::detector push cmd:0x74, ack:0x80 - param:0x00
+I2026-10-05 21:13:19.847 3c88 CDetectorE4::ACK OK[cmd:0x74]
+I2026-10-05 21:13:19.851 3c88 State changed from State_Unknown to State_Ready
+A2026-10-05 21:18:04.261 6efc CDetectorE4::detector push cmd:0xf0, ack:0x80 - param:0x02
+A2026-10-05 21:18:04.263 3c88 Active task:1004 acquiring image start.
+I2026-10-05 21:18:04.264 6efc CDetectorE4::Receive image[ab22] frameNo:0, packetNo:1799
+I2026-10-05 21:18:04.267 3c88 State changed from State_Ready to State_Busy
+I2026-10-05 21:18:05.982 6efc CDetectorE4::Receive image[ab22] frameNo:0, packetNo:0
+I2026-10-05 21:18:05.983 6efc CDetectorE4::OnFrameReceived[ab22] frameNo:0
+A2026-10-05 21:18:06.113 6efc Image received: Prefix: 0xab22, FrameNo: 0, cost:1849ms, lost packets: 0 / 1800
+I2026-10-05 21:18:06.116 6efc CDetectorE4::Receive image[ab23] frameNo:1, packetNo:1799
+I2026-10-05 21:18:07.832 6efc CDetectorE4::Receive image[ab23] frameNo:1, packetNo:0
+I2026-10-05 21:18:07.832 6efc CDetectorE4::OnFrameReceived[ab23] frameNo:1
+A2026-10-05 21:18:07.910 6efc Image received: Prefix: 0xab23, FrameNo: 1, cost:1793ms, lost packets: 0 / 1800
+I2026-10-05 21:18:08.088 3c88 State changed from State_Busy to State_Ready
+A2026-10-05 21:18:08.089 3c88 Pending task completed taskid:1004, error:0
+I2026-10-05 21:18:08.090 2160 Before image callback
+I2026-10-05 21:18:08.136 2160 After image callback
+A2026-10-05 21:18:10.197 487c -------------- Invoke task started, Cmd = Cmd_SetCorrectOption --------------
+A2026-10-05 21:18:10.198 487c CDetectorE4::Invoke(6, 1Parameters), FSMState:2
+I2026-10-05 21:18:10.198 487c State changed from State_Ready to State_Busy
+A2026-10-05 21:18:10.198 487c Invoke returned, Cmd = Cmd_SetCorrectOption, Task is pending
+A2026-10-05 21:18:10.198 3c88 CDetectorE4::Current CorrectionOption:0x20000, set to:0x20000
+I2026-10-05 21:18:10.198 3c88 State changed from State_Busy to State_Ready
+A2026-10-05 21:18:10.198 3c88 Pending task completed taskid:6, error:0
+A2026-10-05 21:18:10.198 487c -------------- Invoke task started, Cmd = Cmd_WriteUserRAM --------------
+A2026-10-05 21:18:10.198 487c CDetectorE4::Invoke(2031, 0Parameters), FSMState:2
+I2026-10-05 21:18:10.198 487c State changed from State_Ready to State_Busy
+A2026-10-05 21:18:10.198 487c Invoke returned, Cmd = Cmd_WriteUserRAM, Task is pending
+A2026-10-05 21:18:10.223 6efc CDetectorE4::detector push cmd:0x74, ack:0x80 - param:0x00
+I2026-10-05 21:18:10.223 3c88 CDetectorE4::ACK OK[cmd:0x74]
+A2026-10-05 21:18:10.254 6efc CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-05 21:18:10.254 3c88 CDetectorE4::ACK OK[cmd:0x75]
+I2026-10-05 21:18:10.254 3c88 State changed from State_Busy to State_Ready
+A2026-10-05 21:18:10.254 3c88 Pending task completed taskid:2031, error:0
+A2026-10-05 21:18:10.256 487c -------------- Invoke task started, Cmd = Cmd_ClearAcq --------------
+A2026-10-05 21:18:10.257 487c CDetectorE4::Invoke(1002, 0Parameters), FSMState:2
+E2026-10-05 21:18:10.257 487c Please change trigger mode to soft when StartAcq .
+A2026-10-05 21:18:10.257 487c Invoke failed, Cmd = Cmd_ClearAcq, ErrorCode = '1013', ErrorDescription: "The operation is not supported in current mode"
+A2026-10-05 21:18:20.395 6efc CDetectorE4::detector push cmd:0xf0, ack:0x80 - param:0x02
+A2026-10-05 21:18:20.395 3c88 Active task:1004 acquiring image start.
+I2026-10-05 21:18:20.395 3c88 State changed from State_Ready to State_Busy
+I2026-10-05 21:18:20.421 6efc CDetectorE4::Receive image[ab22] frameNo:2, packetNo:1799
+I2026-10-05 21:18:22.170 6efc CDetectorE4::Receive image[ab22] frameNo:2, packetNo:0
+I2026-10-05 21:18:22.170 6efc CDetectorE4::OnFrameReceived[ab22] frameNo:2
+A2026-10-05 21:18:22.179 6efc Image received: Prefix: 0xab22, FrameNo: 2, cost:1759ms, lost packets: 0 / 1800
+I2026-10-05 21:18:22.247 6efc CDetectorE4::Receive image[ab23] frameNo:3, packetNo:1799
+I2026-10-05 21:18:23.993 6efc CDetectorE4::Receive image[ab23] frameNo:3, packetNo:0
+I2026-10-05 21:18:23.993 6efc CDetectorE4::OnFrameReceived[ab23] frameNo:3
+A2026-10-05 21:18:24.002 6efc Image received: Prefix: 0xab23, FrameNo: 3, cost:1755ms, lost packets: 0 / 1800
+I2026-10-05 21:18:24.054 3c88 State changed from State_Busy to State_Ready
+I2026-10-05 21:18:24.054 2160 Before image callback
+A2026-10-05 21:18:24.054 3c88 Pending task completed taskid:1004, error:0
+I2026-10-05 21:18:24.111 2160 After image callback
+A2026-10-05 21:18:25.453 487c -------------- Invoke task started, Cmd = Cmd_SetCorrectOption --------------
+A2026-10-05 21:18:25.453 487c CDetectorE4::Invoke(6, 1Parameters), FSMState:2
+I2026-10-05 21:18:25.453 487c State changed from State_Ready to State_Busy
+A2026-10-05 21:18:25.453 487c Invoke returned, Cmd = Cmd_SetCorrectOption, Task is pending
+A2026-10-05 21:18:25.453 3c88 CDetectorE4::Current CorrectionOption:0x20000, set to:0x20000
+I2026-10-05 21:18:25.453 3c88 State changed from State_Busy to State_Ready
+A2026-10-05 21:18:25.454 3c88 Pending task completed taskid:6, error:0
+A2026-10-05 21:18:25.454 487c -------------- Invoke task started, Cmd = Cmd_WriteUserRAM --------------
+A2026-10-05 21:18:25.454 487c CDetectorE4::Invoke(2031, 0Parameters), FSMState:2
+I2026-10-05 21:18:25.454 487c State changed from State_Ready to State_Busy
+A2026-10-05 21:18:25.456 487c Invoke returned, Cmd = Cmd_WriteUserRAM, Task is pending
+A2026-10-05 21:18:25.477 6efc CDetectorE4::detector push cmd:0x74, ack:0x80 - param:0x00
+I2026-10-05 21:18:25.477 3c88 CDetectorE4::ACK OK[cmd:0x74]
+A2026-10-05 21:18:25.509 6efc CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-05 21:18:25.525 3c88 CDetectorE4::ACK OK[cmd:0x75]
+I2026-10-05 21:18:25.525 3c88 State changed from State_Busy to State_Ready
+A2026-10-05 21:18:25.525 3c88 Pending task completed taskid:2031, error:0
+A2026-10-05 21:18:25.526 487c -------------- Invoke task started, Cmd = Cmd_ClearAcq --------------
+A2026-10-06 17:48:42.052 7cc =============================================================================================
+A2026-10-06 17:48:42.052 7cc Start to initialize detector object, ID = 1, work_dir = 'C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\'
+A2026-10-06 17:48:42.082 7cc Load vtMap succeed
+A2026-10-06 17:48:42.082 7cc Init attributes succeed
+A2026-10-06 17:48:42.089 7cc Init ConfigManager succeed
+A2026-10-06 17:48:42.099 7cc Init ConnectionImpl succeed
+A2026-10-06 17:48:42.120 7cc Init CalibrationImpl succeed
+A2026-10-06 17:48:42.120 7cc SDK Version: 4.5.4.12789 
+A2026-10-06 17:48:42.322 7cc Initialize detector object completed, ID = 1
+A2026-10-06 17:48:42.822 7cc -------------- Invoke task started, Cmd = Cmd_Disconnect --------------
+A2026-10-06 17:48:42.822 7cc CDetectorE4::Invoke(3, 0Parameters), FSMState:6
+I2026-10-06 17:48:42.822 7cc State changed from State_Unknown to State_Busy
+A2026-10-06 17:48:42.822 7cc Invoke returned, Cmd = Cmd_Disconnect, Task is pending
+A2026-10-06 17:48:42.822 6a20 CDetectorE4::before DisConnect.
+I2026-10-06 17:48:42.822 6a20 State changed from State_Busy to State_Unknown
+A2026-10-06 17:48:42.822 6a20 CDetectorE4::DisConnect.
+A2026-10-06 17:48:42.824 6a20 Pending task completed taskid:3, error:0
+A2026-10-06 17:48:42.824 7cc -------------- Invoke task started, Cmd = Cmd_Connect --------------
+A2026-10-06 17:48:42.824 7cc CDetectorE4::Invoke(2, 0Parameters), FSMState:6
+I2026-10-06 17:48:42.824 7cc State changed from State_Unknown to State_Busy
+A2026-10-06 17:48:42.824 7cc Invoke returned, Cmd = Cmd_Connect, Task is pending
+I2026-10-06 17:48:42.824 6a20 State changed from State_Busy to State_Unknown
+A2026-10-06 17:48:42.854 6a20 There are exist 1 USBDevices.
+A2026-10-06 17:48:43.062 3ab0 CDetectorE4::detector push cmd:0x64, ack:0x80 - param:0x00
+A2026-10-06 17:48:43.290 3ab0 CDetectorE4::detector push cmd:0x65, ack:0x81 - param:0x00
+W2026-10-06 17:48:43.292 6a20 CDetectorE4::Fpd does not support cmd:0x65
+A2026-10-06 17:48:43.311 3ab0 CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-06 17:48:43.323 6a20 CDetectorE4::ACK OK[cmd:0x75]
+I2026-10-06 17:48:43.370 6a20 TemplateStatus(offset:absent, gain:invalid, defect:invalid)
+A2026-10-06 17:48:43.370 6a20 MasterBuildTime:21-01-20:0, 
+				SlaveBuildTime:00-00-00:0, 
+				MasterVer:146.0.0.9, 
+				SlaveVer:0.0.0.0, 
+				McuVer:0.0.0.0
+A2026-10-06 17:48:43.370 6a20 CDetectorE4::FPD Serial No:PF640002T0315211340
+A2026-10-06 17:48:43.372 3ab0 CDetectorE4::detector push cmd:0xc1, ack:0x81 - param:0x00
+W2026-10-06 17:48:43.387 6a20 CDetectorE4::Fpd does not support cmd:0xc1
+I2026-10-06 17:48:43.387 6a20 State changed from State_Unknown to State_Ready
+A2026-10-06 17:48:43.387 6a20 CDetectorE4::Current CorrectionOption:0x0, set to:0x0
+A2026-10-06 17:48:43.387 6a20 CDetectorE4::Initilize Finished
+A2026-10-06 17:48:43.387 6a20 Pending task completed taskid:2, error:0
+A2026-10-06 17:48:44.070 7cc -------------- Invoke task started, Cmd = Cmd_SetCorrectOption --------------
+A2026-10-06 17:48:44.070 7cc CDetectorE4::Invoke(6, 1Parameters), FSMState:2
+I2026-10-06 17:48:44.070 7cc State changed from State_Ready to State_Busy
+A2026-10-06 17:48:44.070 7cc Invoke returned, Cmd = Cmd_SetCorrectOption, Task is pending
+A2026-10-06 17:48:44.070 6a20 CDetectorE4::Current CorrectionOption:0x0, set to:0x20000
+A2026-10-06 17:48:44.071 6a20 CDetectorE4::Set CorrectionOption:0x20000
+I2026-10-06 17:48:44.071 6a20 State changed from State_Busy to State_Ready
+A2026-10-06 17:48:44.071 6a20 Pending task completed taskid:6, error:0
+A2026-10-06 17:48:44.071 7cc -------------- Invoke task started, Cmd = Cmd_WriteUserRAM --------------
+A2026-10-06 17:48:44.071 7cc CDetectorE4::Invoke(2031, 0Parameters), FSMState:2
+I2026-10-06 17:48:44.071 7cc State changed from State_Ready to State_Busy
+A2026-10-06 17:48:44.071 7cc Invoke returned, Cmd = Cmd_WriteUserRAM, Task is pending
+A2026-10-06 17:48:44.090 3ab0 CDetectorE4::detector push cmd:0x74, ack:0x80 - param:0x00
+I2026-10-06 17:48:44.102 6a20 CDetectorE4::ACK OK[cmd:0x74]
+A2026-10-06 17:48:44.122 3ab0 CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-06 17:48:44.134 6a20 CDetectorE4::ACK OK[cmd:0x75]
+I2026-10-06 17:48:44.134 6a20 State changed from State_Busy to State_Ready
+A2026-10-06 17:48:44.134 6a20 Pending task completed taskid:2031, error:0
+A2026-10-06 17:48:44.134 7cc -------------- Invoke task started, Cmd = Cmd_ClearAcq --------------
+A2026-10-06 17:48:44.134 7cc CDetectorE4::Invoke(1002, 0Parameters), FSMState:2
+E2026-10-06 17:48:44.134 7cc Please change trigger mode to soft when StartAcq .
+A2026-10-06 17:48:44.134 7cc Invoke failed, Cmd = Cmd_ClearAcq, ErrorCode = '1013', ErrorDescription: "The operation is not supported in current mode"
+A2026-10-06 17:48:51.297 3ab0 CDetectorE4::detector push cmd:0xf0, ack:0x80 - param:0x02
+A2026-10-06 17:48:51.298 6a20 Active task:1004 acquiring image start.
+I2026-10-06 17:48:51.298 6a20 State changed from State_Ready to State_Busy
+I2026-10-06 17:48:51.314 3ab0 CDetectorE4::Receive image[ab22] frameNo:0, packetNo:1799
+I2026-10-06 17:48:53.059 3ab0 CDetectorE4::Receive image[ab22] frameNo:0, packetNo:0
+I2026-10-06 17:48:53.059 3ab0 CDetectorE4::OnFrameReceived[ab22] frameNo:0
+A2026-10-06 17:48:53.061 3ab0 Image received: Prefix: 0xab22, FrameNo: 0, cost:1746ms, lost packets: 0 / 1800
+I2026-10-06 17:48:53.132 3ab0 CDetectorE4::Receive image[ab23] frameNo:1, packetNo:1799
+I2026-10-06 17:48:54.878 3ab0 CDetectorE4::Receive image[ab23] frameNo:1, packetNo:0
+I2026-10-06 17:48:54.878 3ab0 CDetectorE4::OnFrameReceived[ab23] frameNo:1
+A2026-10-06 17:48:54.879 3ab0 Image received: Prefix: 0xab23, FrameNo: 1, cost:1747ms, lost packets: 0 / 1800
+I2026-10-06 17:48:54.901 6a20 State changed from State_Busy to State_Ready
+A2026-10-06 17:48:54.901 6a20 Pending task completed taskid:1004, error:0
+I2026-10-06 17:48:54.901 7250 Before image callback
+I2026-10-06 17:48:54.913 7250 After image callback
+A2026-10-06 17:48:55.406 7cc -------------- Invoke task started, Cmd = Cmd_SetCorrectOption --------------
+A2026-10-06 17:48:55.406 7cc CDetectorE4::Invoke(6, 1Parameters), FSMState:2
+I2026-10-06 17:48:55.406 7cc State changed from State_Ready to State_Busy
+A2026-10-06 17:48:55.406 7cc Invoke returned, Cmd = Cmd_SetCorrectOption, Task is pending
+A2026-10-06 17:48:55.406 6a20 CDetectorE4::Current CorrectionOption:0x20000, set to:0x20000
+I2026-10-06 17:48:55.406 6a20 State changed from State_Busy to State_Ready
+A2026-10-06 17:48:55.406 7cc -------------- Invoke task started, Cmd = Cmd_WriteUserRAM --------------
+A2026-10-06 17:48:55.406 7cc CDetectorE4::Invoke(2031, 0Parameters), FSMState:2
+I2026-10-06 17:48:55.406 7cc State changed from State_Ready to State_Busy
+A2026-10-06 17:48:55.406 7cc Invoke returned, Cmd = Cmd_WriteUserRAM, Task is pending
+A2026-10-06 17:48:55.406 6a20 Pending task completed taskid:6, error:0
+A2026-10-06 17:48:55.426 3ab0 CDetectorE4::detector push cmd:0x74, ack:0x80 - param:0x00
+I2026-10-06 17:48:55.437 6a20 CDetectorE4::ACK OK[cmd:0x74]
+A2026-10-06 17:48:55.459 3ab0 CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-06 17:48:55.468 6a20 CDetectorE4::ACK OK[cmd:0x75]
+I2026-10-06 17:48:55.468 6a20 State changed from State_Busy to State_Ready
+A2026-10-06 17:48:55.468 6a20 Pending task completed taskid:2031, error:0
+A2026-10-06 17:48:55.468 7cc -------------- Invoke task started, Cmd = Cmd_ClearAcq --------------
+A2026-10-06 17:48:55.468 7cc CDetectorE4::Invoke(1002, 0Parameters), FSMState:2
+E2026-10-06 17:48:55.468 7cc Please change trigger mode to soft when StartAcq .
+A2026-10-06 17:48:55.468 7cc Invoke failed, Cmd = Cmd_ClearAcq, ErrorCode = '1013', ErrorDescription: "The operation is not supported in current mode"
+A2026-10-06 17:50:47.533 6a20 Active task:1004 acquiring image start.
+A2026-10-06 17:50:47.533 3ab0 CDetectorE4::detector push cmd:0xf0, ack:0x80 - param:0x02
+I2026-10-06 17:50:47.534 6a20 State changed from State_Ready to State_Busy
+I2026-10-06 17:50:47.561 3ab0 CDetectorE4::Receive image[ab22] frameNo:2, packetNo:1799
+I2026-10-06 17:50:49.300 3ab0 CDetectorE4::Receive image[ab22] frameNo:2, packetNo:0
+I2026-10-06 17:50:49.300 3ab0 CDetectorE4::OnFrameReceived[ab22] frameNo:2
+A2026-10-06 17:50:49.303 3ab0 Image received: Prefix: 0xab22, FrameNo: 2, cost:1742ms, lost packets: 0 / 1800
+I2026-10-06 17:50:49.380 3ab0 CDetectorE4::Receive image[ab23] frameNo:3, packetNo:1799
+I2026-10-06 17:50:51.121 3ab0 CDetectorE4::Receive image[ab23] frameNo:3, packetNo:0
+I2026-10-06 17:50:51.122 3ab0 CDetectorE4::OnFrameReceived[ab23] frameNo:3
+A2026-10-06 17:50:51.129 3ab0 Image received: Prefix: 0xab23, FrameNo: 3, cost:1749ms, lost packets: 0 / 1800
+I2026-10-06 17:50:51.185 7250 Before image callback
+I2026-10-06 17:50:51.185 6a20 State changed from State_Busy to State_Ready
+I2026-10-06 17:50:51.218 7250 After image callback
+A2026-10-06 17:50:51.218 6a20 Pending task completed taskid:1004, error:0
+A2026-10-06 17:50:52.240 7cc -------------- Invoke task started, Cmd = Cmd_SetCorrectOption --------------
+A2026-10-06 17:50:52.240 7cc CDetectorE4::Invoke(6, 1Parameters), FSMState:2
+I2026-10-06 17:50:52.240 7cc State changed from State_Ready to State_Busy
+A2026-10-06 17:50:52.241 7cc Invoke returned, Cmd = Cmd_SetCorrectOption, Task is pending
+A2026-10-06 17:50:52.241 6a20 CDetectorE4::Current CorrectionOption:0x20000, set to:0x20000
+I2026-10-06 17:50:52.241 6a20 State changed from State_Busy to State_Ready
+A2026-10-06 17:50:52.241 6a20 Pending task completed taskid:6, error:0
+A2026-10-06 17:50:52.241 7cc -------------- Invoke task started, Cmd = Cmd_WriteUserRAM --------------
+A2026-10-06 17:50:52.241 7cc CDetectorE4::Invoke(2031, 0Parameters), FSMState:2
+I2026-10-06 17:50:52.241 7cc State changed from State_Ready to State_Busy
+A2026-10-06 17:50:52.241 7cc Invoke returned, Cmd = Cmd_WriteUserRAM, Task is pending
+A2026-10-06 17:50:52.274 3ab0 CDetectorE4::detector push cmd:0x74, ack:0x80 - param:0x00
+I2026-10-06 17:50:52.274 6a20 CDetectorE4::ACK OK[cmd:0x74]
+A2026-10-06 17:50:52.306 3ab0 CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-06 17:50:52.307 6a20 CDetectorE4::ACK OK[cmd:0x75]
+I2026-10-06 17:50:52.307 6a20 State changed from State_Busy to State_Ready
+A2026-10-06 17:50:52.307 6a20 Pending task completed taskid:2031, error:0
+A2026-10-06 17:50:52.308 7cc -------------- Invoke task started, Cmd = Cmd_ClearAcq --------------
+A2026-10-06 17:50:52.308 7cc CDetectorE4::Invoke(1002, 0Parameters), FSMState:2
+E2026-10-06 17:50:52.308 7cc Please change trigger mode to soft when StartAcq .
+A2026-10-06 17:50:52.308 7cc Invoke failed, Cmd = Cmd_ClearAcq, ErrorCode = '1013', ErrorDescription: "The operation is not supported in current mode"
+A2026-10-06 17:54:17.418 73c8 CDetectorBase::Destory
+A2026-10-06 21:02:40.918 32b4 =============================================================================================
+A2026-10-06 21:02:40.918 32b4 Start to initialize detector object, ID = 1, work_dir = 'C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\'
+A2026-10-06 21:02:41.196 32b4 Load vtMap succeed
+A2026-10-06 21:02:41.200 32b4 Init attributes succeed
+A2026-10-06 21:02:41.253 32b4 Init ConfigManager succeed
+A2026-10-06 21:02:41.296 32b4 Init ConnectionImpl succeed
+A2026-10-06 21:02:41.333 32b4 Init CalibrationImpl succeed
+A2026-10-06 21:02:41.340 32b4 SDK Version: 4.5.4.12789 
+A2026-10-06 21:02:41.544 32b4 Initialize detector object completed, ID = 1
+A2026-10-06 21:02:42.045 32b4 -------------- Invoke task started, Cmd = Cmd_Disconnect --------------
+A2026-10-06 21:02:42.046 32b4 CDetectorE4::Invoke(3, 0Parameters), FSMState:6
+I2026-10-06 21:02:42.048 32b4 State changed from State_Unknown to State_Busy
+A2026-10-06 21:02:42.048 32b4 Invoke returned, Cmd = Cmd_Disconnect, Task is pending
+A2026-10-06 21:02:42.048 35dc CDetectorE4::before DisConnect.
+I2026-10-06 21:02:42.049 35dc State changed from State_Busy to State_Unknown
+A2026-10-06 21:02:42.049 35dc CDetectorE4::DisConnect.
+A2026-10-06 21:02:42.051 32b4 -------------- Invoke task started, Cmd = Cmd_Connect --------------
+A2026-10-06 21:02:42.051 32b4 CDetectorE4::Invoke(2, 0Parameters), FSMState:6
+I2026-10-06 21:02:42.051 32b4 State changed from State_Unknown to State_Busy
+A2026-10-06 21:02:42.051 32b4 Invoke returned, Cmd = Cmd_Connect, Task is pending
+A2026-10-06 21:02:42.051 35dc Pending task completed taskid:3, error:0
+I2026-10-06 21:02:42.051 35dc State changed from State_Busy to State_Unknown
+A2026-10-06 21:02:42.106 35dc There are exist 1 USBDevices.
+A2026-10-06 21:02:42.319 22a0 CDetectorE4::detector push cmd:0x64, ack:0x80 - param:0x00
+A2026-10-06 21:02:42.543 22a0 CDetectorE4::detector push cmd:0x65, ack:0x81 - param:0x00
+W2026-10-06 21:02:42.567 35dc CDetectorE4::Fpd does not support cmd:0x65
+A2026-10-06 21:02:42.589 22a0 CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-06 21:02:42.598 35dc CDetectorE4::ACK OK[cmd:0x75]
+I2026-10-06 21:02:42.767 35dc TemplateStatus(offset:absent, gain:invalid, defect:invalid)
+A2026-10-06 21:02:42.767 35dc MasterBuildTime:21-01-20:0, 
+				SlaveBuildTime:00-00-00:0, 
+				MasterVer:146.0.0.9, 
+				SlaveVer:0.0.0.0, 
+				McuVer:0.0.0.0
+A2026-10-06 21:02:42.767 35dc CDetectorE4::FPD Serial No:PF640002T0315211340
+A2026-10-06 21:02:42.771 22a0 CDetectorE4::detector push cmd:0xc1, ack:0x81 - param:0x00
+W2026-10-06 21:02:42.786 35dc CDetectorE4::Fpd does not support cmd:0xc1
+I2026-10-06 21:02:42.786 35dc State changed from State_Unknown to State_Ready
+A2026-10-06 21:02:42.787 35dc CDetectorE4::Current CorrectionOption:0x0, set to:0x20000
+A2026-10-06 21:02:42.791 35dc CDetectorE4::Set CorrectionOption:0x20000
+A2026-10-06 21:02:42.792 35dc CDetectorE4::Initilize Finished
+A2026-10-06 21:02:42.793 35dc Pending task completed taskid:2, error:0
+A2026-10-06 21:02:44.487 32b4 -------------- Invoke task started, Cmd = Cmd_SetCorrectOption --------------
+A2026-10-06 21:02:44.487 32b4 CDetectorE4::Invoke(6, 1Parameters), FSMState:2
+I2026-10-06 21:02:44.487 32b4 State changed from State_Ready to State_Busy
+A2026-10-06 21:02:44.487 32b4 Invoke returned, Cmd = Cmd_SetCorrectOption, Task is pending
+A2026-10-06 21:02:44.488 35dc CDetectorE4::Current CorrectionOption:0x20000, set to:0x20000
+I2026-10-06 21:02:44.488 35dc State changed from State_Busy to State_Ready
+A2026-10-06 21:02:44.488 35dc Pending task completed taskid:6, error:0
+A2026-10-06 21:02:44.488 32b4 -------------- Invoke task started, Cmd = Cmd_WriteUserRAM --------------
+A2026-10-06 21:02:44.488 32b4 CDetectorE4::Invoke(2031, 0Parameters), FSMState:2
+I2026-10-06 21:02:44.488 32b4 State changed from State_Ready to State_Busy
+A2026-10-06 21:02:44.488 32b4 Invoke returned, Cmd = Cmd_WriteUserRAM, Task is pending
+A2026-10-06 21:02:44.511 22a0 CDetectorE4::detector push cmd:0x74, ack:0x80 - param:0x00
+I2026-10-06 21:02:44.521 35dc CDetectorE4::ACK OK[cmd:0x74]
+A2026-10-06 21:02:44.544 22a0 CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-06 21:02:44.553 35dc CDetectorE4::ACK OK[cmd:0x75]
+I2026-10-06 21:02:44.553 35dc State changed from State_Busy to State_Ready
+A2026-10-06 21:02:44.554 35dc Pending task completed taskid:2031, error:0
+A2026-10-06 21:02:44.554 32b4 -------------- Invoke task started, Cmd = Cmd_ClearAcq --------------
+A2026-10-06 21:02:44.554 32b4 CDetectorE4::Invoke(1002, 0Parameters), FSMState:2
+E2026-10-06 21:02:44.555 32b4 Please change trigger mode to soft when StartAcq .
+A2026-10-06 21:02:44.555 32b4 Invoke failed, Cmd = Cmd_ClearAcq, ErrorCode = '1013', ErrorDescription: "The operation is not supported in current mode"
+A2026-10-06 21:02:59.981 22a0 CDetectorE4::detector push cmd:0xf0, ack:0x80 - param:0x02
+A2026-10-06 21:02:59.983 35dc Active task:1004 acquiring image start.
+I2026-10-06 21:02:59.983 35dc State changed from State_Ready to State_Busy
+I2026-10-06 21:03:00.001 22a0 CDetectorE4::Receive image[ab22] frameNo:0, packetNo:1799
+I2026-10-06 21:03:01.751 22a0 CDetectorE4::Receive image[ab22] frameNo:0, packetNo:0
+I2026-10-06 21:03:01.751 22a0 CDetectorE4::OnFrameReceived[ab22] frameNo:0
+A2026-10-06 21:03:01.764 22a0 Image received: Prefix: 0xab22, FrameNo: 0, cost:1762ms, lost packets: 0 / 1800
+I2026-10-06 21:03:01.820 22a0 CDetectorE4::Receive image[ab23] frameNo:1, packetNo:1799
+I2026-10-06 21:03:03.569 22a0 CDetectorE4::Receive image[ab23] frameNo:1, packetNo:0
+I2026-10-06 21:03:03.569 22a0 CDetectorE4::OnFrameReceived[ab23] frameNo:1
+A2026-10-06 21:03:03.580 22a0 Image received: Prefix: 0xab23, FrameNo: 1, cost:1759ms, lost packets: 0 / 1800
+I2026-10-06 21:03:03.640 35dc State changed from State_Busy to State_Ready
+A2026-10-06 21:03:03.640 35dc Pending task completed taskid:1004, error:0
+I2026-10-06 21:03:03.642 5c98 Before image callback
+I2026-10-06 21:03:03.717 5c98 After image callback
+A2026-10-06 21:03:05.655 32b4 -------------- Invoke task started, Cmd = Cmd_SetCorrectOption --------------
+A2026-10-06 21:03:05.655 32b4 CDetectorE4::Invoke(6, 1Parameters), FSMState:2
+I2026-10-06 21:03:05.655 32b4 State changed from State_Ready to State_Busy
+A2026-10-06 21:03:05.655 32b4 Invoke returned, Cmd = Cmd_SetCorrectOption, Task is pending
+A2026-10-06 21:03:05.655 35dc CDetectorE4::Current CorrectionOption:0x20000, set to:0x20000
+I2026-10-06 21:03:05.655 35dc State changed from State_Busy to State_Ready
+A2026-10-06 21:03:05.655 35dc Pending task completed taskid:6, error:0
+A2026-10-06 21:03:05.655 32b4 -------------- Invoke task started, Cmd = Cmd_WriteUserRAM --------------
+A2026-10-06 21:03:05.655 32b4 CDetectorE4::Invoke(2031, 0Parameters), FSMState:2
+I2026-10-06 21:03:05.655 32b4 State changed from State_Ready to State_Busy
+A2026-10-06 21:03:05.655 32b4 Invoke returned, Cmd = Cmd_WriteUserRAM, Task is pending
+A2026-10-06 21:03:05.678 22a0 CDetectorE4::detector push cmd:0x74, ack:0x80 - param:0x00
+I2026-10-06 21:03:05.680 35dc CDetectorE4::ACK OK[cmd:0x74]
+A2026-10-06 21:03:05.708 22a0 CDetectorE4::detector push cmd:0x75, ack:0x80 - param:0x92
+I2026-10-06 21:03:05.710 35dc CDetectorE4::ACK OK[cmd:0x75]
+I2026-10-06 21:03:05.710 35dc State changed from State_Busy to State_Ready
+A2026-10-06 21:03:05.710 35dc Pending task completed taskid:2031, error:0
+A2026-10-06 21:03:05.710 32b4 -------------- Invoke task started, Cmd = Cmd_ClearAcq --------------
+A2026-10-06 21:03:05.710 32b4 CDetectorE4::Invoke(1002, 0Parameters), FSMState:2
+E2026-10-06 21:03:05.710 32b4 Please change trigger mode to soft when StartAcq .
+A2026-10-06 21:03:05.710 32b4 Invoke failed, Cmd = Cmd_ClearAcq, ErrorCode = '1013', ErrorDescription: "The operation is not supported in current mode"
+A2026-10-06 21:10:52.399 4db8 CDetectorBase::Destory

@@ -1,0 +1,140 @@
+I2026-10-05 20:46:09.437 586c ######################################################
+W2026-10-05 20:46:09.439 586c *****SplicingCorrect.dll***** Load failed(exception:)!
+I2026-10-05 20:46:09.439 586c To set size (0,0)1300X1800 of 1300X1800.
+I2026-10-05 20:46:09.445 586c Set size.
+I2026-10-05 20:46:09.446 586c Switch subset(C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\).
+I2026-10-05 20:46:09.446 586c Initialized.
+I2026-10-05 20:46:09.446 586c To prepare correction(0x00000000,0x00000000,0).
+I2026-10-05 20:46:09.446 586c Abort.
+I2026-10-05 20:46:09.446 586c To prepare image calibration(1).
+I2026-10-05 20:46:09.446 586c Initialized fpd params and size params for calibration kernel(EnableFactoryTemplate:F, IsFactoryGainInSubset:F, IsFactoryTemplateAtBt:F, WorkDir:C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\, Subset:Default, ProductSerialNo:PF640002T0315211340, DllDirPath:C:\Users\lenovo\Downloads\NanoPix\NanoPix\1.1.1.9\, ProductNo:146, SubProductNo:255, TriggerMode:6, PrepCapMode:0, ExpMode:0, EnergyType:0, PGA:0, SequenceIntervalTime:65535, FullImageWidth:1300, FullImageHeight:1800, BinningMode:0, ZoomMode:0, CombWiseTypeX:0, CombWiseTypeY:0, RoiX1:0, RoiX2:0, RoiY1:0, RoiY2:0).
+I2026-10-05 20:46:09.446 586c Prepared for image calibration.
+I2026-10-05 20:46:09.446 586c Prepare correction(0x00000000).
+I2026-10-05 20:46:09.446 586c Initialized fpd params and size params for calibration kernel(EnableFactoryTemplate:F, IsFactoryGainInSubset:F, IsFactoryTemplateAtBt:F, WorkDir:C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\, Subset:Default, ProductSerialNo:PF640002T0315211340, DllDirPath:C:\Users\lenovo\Downloads\NanoPix\NanoPix\1.1.1.9\, ProductNo:146, SubProductNo:255, TriggerMode:6, PrepCapMode:0, ExpMode:0, EnergyType:0, PGA:0, SequenceIntervalTime:65535, FullImageWidth:1300, FullImageHeight:1800, BinningMode:0, ZoomMode:0, CombWiseTypeX:0, CombWiseTypeY:0, RoiX1:0, RoiX2:0, RoiY1:0, RoiY2:0).
+I2026-10-05 20:46:09.446 586c Retrieved the path of pre-offset template(C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\offset_1300x1800.off).
+I2026-10-05 20:46:09.448 586c Retrieved the path of gain template...C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\gain_1300x1800.gn
+I2026-10-05 20:46:09.448 586c Retrieved the path of defect template(C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\defect_1300x1800.dft).
+I2026-10-05 20:46:10.104 586c To prepare correction(0x00020000,0x00000000,0).
+I2026-10-05 20:46:10.104 586c Abort.
+I2026-10-05 20:46:10.104 586c To prepare image calibration(1).
+I2026-10-05 20:46:10.104 586c Initialized fpd params and size params for calibration kernel(EnableFactoryTemplate:F, IsFactoryGainInSubset:F, IsFactoryTemplateAtBt:F, WorkDir:C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\, Subset:Default, ProductSerialNo:PF640002T0315211340, DllDirPath:C:\Users\lenovo\Downloads\NanoPix\NanoPix\1.1.1.9\, ProductNo:146, SubProductNo:255, TriggerMode:6, PrepCapMode:0, ExpMode:0, EnergyType:0, PGA:0, SequenceIntervalTime:65535, FullImageWidth:1300, FullImageHeight:1800, BinningMode:0, ZoomMode:0, CombWiseTypeX:0, CombWiseTypeY:0, RoiX1:0, RoiX2:0, RoiY1:0, RoiY2:0).
+I2026-10-05 20:46:10.104 586c Prepared for image calibration.
+W2026-10-05 20:46:10.104 586c Failed to load default pre-offset template.
+I2026-10-05 20:46:10.104 586c Prepare correction(0x00020000).
+I2026-10-05 20:46:39.946 586c Push image(acquired light frame and wait for dark frame).
+I2026-10-05 20:46:41.760 586c Push image.
+I2026-10-05 20:47:21.815 586c Push image(acquired light frame and wait for dark frame).
+I2026-10-05 20:47:23.645 586c Push image.
+I2026-10-05 20:47:44.721 586c Uninitial...
+I2026-10-05 20:47:44.721 586c Abort.
+I2026-10-05 20:47:44.721 586c Abort.
+I2026-10-05 20:47:44.722 586c ######################################################
+W2026-10-05 20:47:44.722 586c *****SplicingCorrect.dll***** Load failed(exception:)!
+I2026-10-05 20:47:44.722 586c To set size (0,0)1300X1800 of 1300X1800.
+I2026-10-05 20:47:44.728 586c Set size.
+I2026-10-05 20:47:44.730 586c Switch subset(C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\).
+I2026-10-05 20:47:44.730 586c Initialized.
+I2026-10-05 20:47:44.730 586c To prepare correction(0x00000000,0x00000000,0).
+I2026-10-05 20:47:44.730 586c Abort.
+I2026-10-05 20:47:44.730 586c To prepare image calibration(1).
+I2026-10-05 20:47:44.730 586c Initialized fpd params and size params for calibration kernel(EnableFactoryTemplate:F, IsFactoryGainInSubset:F, IsFactoryTemplateAtBt:F, WorkDir:C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\, Subset:Default, ProductSerialNo:PF640002T0315211340, DllDirPath:C:\Users\lenovo\Downloads\NanoPix\NanoPix\1.1.1.9\, ProductNo:146, SubProductNo:255, TriggerMode:6, PrepCapMode:0, ExpMode:0, EnergyType:0, PGA:0, SequenceIntervalTime:65535, FullImageWidth:1300, FullImageHeight:1800, BinningMode:0, ZoomMode:0, CombWiseTypeX:0, CombWiseTypeY:0, RoiX1:0, RoiX2:0, RoiY1:0, RoiY2:0).
+I2026-10-05 20:47:44.730 586c Prepared for image calibration.
+I2026-10-05 20:47:44.730 586c Prepare correction(0x00000000).
+I2026-10-05 20:47:44.730 586c Initialized fpd params and size params for calibration kernel(EnableFactoryTemplate:F, IsFactoryGainInSubset:F, IsFactoryTemplateAtBt:F, WorkDir:C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\, Subset:Default, ProductSerialNo:PF640002T0315211340, DllDirPath:C:\Users\lenovo\Downloads\NanoPix\NanoPix\1.1.1.9\, ProductNo:146, SubProductNo:255, TriggerMode:6, PrepCapMode:0, ExpMode:0, EnergyType:0, PGA:0, SequenceIntervalTime:65535, FullImageWidth:1300, FullImageHeight:1800, BinningMode:0, ZoomMode:0, CombWiseTypeX:0, CombWiseTypeY:0, RoiX1:0, RoiX2:0, RoiY1:0, RoiY2:0).
+I2026-10-05 20:47:44.730 586c Retrieved the path of pre-offset template(C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\offset_1300x1800.off).
+I2026-10-05 20:47:44.730 586c Retrieved the path of gain template...C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\gain_1300x1800.gn
+I2026-10-05 20:47:44.730 586c Retrieved the path of defect template(C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\defect_1300x1800.dft).
+I2026-10-05 20:47:44.894 27d8 Uninitial...
+I2026-10-05 20:47:44.894 27d8 Abort.
+I2026-10-05 20:47:44.894 27d8 Abort.
+I2026-10-05 20:48:07.456 3c88 ######################################################
+W2026-10-05 20:48:07.456 3c88 *****SplicingCorrect.dll***** Load failed(exception:)!
+I2026-10-05 20:48:07.456 3c88 To set size (0,0)1300X1800 of 1300X1800.
+I2026-10-05 20:48:07.465 3c88 Set size.
+I2026-10-05 20:48:07.467 3c88 Switch subset(C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\).
+I2026-10-05 20:48:07.467 3c88 Initialized.
+I2026-10-05 20:48:07.467 3c88 To prepare correction(0x00000000,0x00000000,0).
+I2026-10-05 20:48:07.467 3c88 Abort.
+I2026-10-05 20:48:07.467 3c88 To prepare image calibration(1).
+I2026-10-05 20:48:07.467 3c88 Initialized fpd params and size params for calibration kernel(EnableFactoryTemplate:F, IsFactoryGainInSubset:F, IsFactoryTemplateAtBt:F, WorkDir:C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\, Subset:Default, ProductSerialNo:PF640002T0315211340, DllDirPath:C:\Users\lenovo\Downloads\NanoPix\NanoPix\1.1.1.9\, ProductNo:146, SubProductNo:255, TriggerMode:6, PrepCapMode:0, ExpMode:0, EnergyType:0, PGA:0, SequenceIntervalTime:65535, FullImageWidth:1300, FullImageHeight:1800, BinningMode:0, ZoomMode:0, CombWiseTypeX:0, CombWiseTypeY:0, RoiX1:0, RoiX2:0, RoiY1:0, RoiY2:0).
+I2026-10-05 20:48:07.467 3c88 Prepared for image calibration.
+I2026-10-05 20:48:07.469 3c88 Prepare correction(0x00000000).
+I2026-10-05 20:48:07.469 3c88 Initialized fpd params and size params for calibration kernel(EnableFactoryTemplate:F, IsFactoryGainInSubset:F, IsFactoryTemplateAtBt:F, WorkDir:C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\, Subset:Default, ProductSerialNo:PF640002T0315211340, DllDirPath:C:\Users\lenovo\Downloads\NanoPix\NanoPix\1.1.1.9\, ProductNo:146, SubProductNo:255, TriggerMode:6, PrepCapMode:0, ExpMode:0, EnergyType:0, PGA:0, SequenceIntervalTime:65535, FullImageWidth:1300, FullImageHeight:1800, BinningMode:0, ZoomMode:0, CombWiseTypeX:0, CombWiseTypeY:0, RoiX1:0, RoiX2:0, RoiY1:0, RoiY2:0).
+I2026-10-05 20:48:07.469 3c88 Retrieved the path of pre-offset template(C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\offset_1300x1800.off).
+I2026-10-05 20:48:07.469 3c88 Retrieved the path of gain template...C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\gain_1300x1800.gn
+I2026-10-05 20:48:07.469 3c88 Retrieved the path of defect template(C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\defect_1300x1800.dft).
+I2026-10-05 20:48:08.133 3c88 To prepare correction(0x00020000,0x00000000,0).
+I2026-10-05 20:48:08.133 3c88 Abort.
+I2026-10-05 20:48:08.133 3c88 To prepare image calibration(1).
+I2026-10-05 20:48:08.135 3c88 Initialized fpd params and size params for calibration kernel(EnableFactoryTemplate:F, IsFactoryGainInSubset:F, IsFactoryTemplateAtBt:F, WorkDir:C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\, Subset:Default, ProductSerialNo:PF640002T0315211340, DllDirPath:C:\Users\lenovo\Downloads\NanoPix\NanoPix\1.1.1.9\, ProductNo:146, SubProductNo:255, TriggerMode:6, PrepCapMode:0, ExpMode:0, EnergyType:0, PGA:0, SequenceIntervalTime:65535, FullImageWidth:1300, FullImageHeight:1800, BinningMode:0, ZoomMode:0, CombWiseTypeX:0, CombWiseTypeY:0, RoiX1:0, RoiX2:0, RoiY1:0, RoiY2:0).
+I2026-10-05 20:48:08.135 3c88 Prepared for image calibration.
+W2026-10-05 20:48:08.135 3c88 Failed to load default pre-offset template.
+I2026-10-05 20:48:08.135 3c88 Prepare correction(0x00020000).
+I2026-10-05 20:48:37.262 3c88 Push image(acquired light frame and wait for dark frame).
+I2026-10-05 20:48:39.096 3c88 Push image.
+I2026-10-05 21:06:04.599 3c88 Push image(acquired light frame and wait for dark frame).
+I2026-10-05 21:06:06.323 3c88 Push image.
+I2026-10-05 21:09:05.525 3c88 Push image(acquired light frame and wait for dark frame).
+I2026-10-05 21:09:07.277 3c88 Push image.
+I2026-10-05 21:18:06.289 3c88 Push image(acquired light frame and wait for dark frame).
+I2026-10-05 21:18:08.002 3c88 Push image.
+I2026-10-05 21:18:22.193 3c88 Push image(acquired light frame and wait for dark frame).
+I2026-10-05 21:18:24.050 3c88 Push image.
+I2026-10-06 17:48:43.328 6a20 ######################################################
+W2026-10-06 17:48:43.329 6a20 *****SplicingCorrect.dll***** Load failed(exception:)!
+I2026-10-06 17:48:43.330 6a20 To set size (0,0)1300X1800 of 1300X1800.
+I2026-10-06 17:48:43.350 6a20 Set size.
+I2026-10-06 17:48:43.351 6a20 Switch subset(C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\).
+I2026-10-06 17:48:43.352 6a20 Initialized.
+I2026-10-06 17:48:43.352 6a20 To prepare correction(0x00000000,0x00000000,0).
+I2026-10-06 17:48:43.352 6a20 Abort.
+I2026-10-06 17:48:43.352 6a20 To prepare image calibration(1).
+I2026-10-06 17:48:43.352 6a20 Initialized fpd params and size params for calibration kernel(EnableFactoryTemplate:F, IsFactoryGainInSubset:F, IsFactoryTemplateAtBt:F, WorkDir:C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\, Subset:Default, ProductSerialNo:PF640002T0315211340, DllDirPath:C:\Users\lenovo\Downloads\NanoPix\NanoPix\1.1.1.9\, ProductNo:146, SubProductNo:255, TriggerMode:6, PrepCapMode:0, ExpMode:0, EnergyType:0, PGA:0, SequenceIntervalTime:65535, FullImageWidth:1300, FullImageHeight:1800, BinningMode:0, ZoomMode:0, CombWiseTypeX:0, CombWiseTypeY:0, RoiX1:0, RoiX2:0, RoiY1:0, RoiY2:0).
+I2026-10-06 17:48:43.352 6a20 Prepared for image calibration.
+I2026-10-06 17:48:43.352 6a20 Prepare correction(0x00000000).
+I2026-10-06 17:48:43.353 6a20 Initialized fpd params and size params for calibration kernel(EnableFactoryTemplate:F, IsFactoryGainInSubset:F, IsFactoryTemplateAtBt:F, WorkDir:C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\, Subset:Default, ProductSerialNo:PF640002T0315211340, DllDirPath:C:\Users\lenovo\Downloads\NanoPix\NanoPix\1.1.1.9\, ProductNo:146, SubProductNo:255, TriggerMode:6, PrepCapMode:0, ExpMode:0, EnergyType:0, PGA:0, SequenceIntervalTime:65535, FullImageWidth:1300, FullImageHeight:1800, BinningMode:0, ZoomMode:0, CombWiseTypeX:0, CombWiseTypeY:0, RoiX1:0, RoiX2:0, RoiY1:0, RoiY2:0).
+I2026-10-06 17:48:43.353 6a20 Retrieved the path of pre-offset template(C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\offset_1300x1800.off).
+I2026-10-06 17:48:43.353 6a20 Retrieved the path of gain template...C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\gain_1300x1800.gn
+I2026-10-06 17:48:43.361 6a20 Retrieved the path of defect template(C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\defect_1300x1800.dft).
+I2026-10-06 17:48:44.070 6a20 To prepare correction(0x00020000,0x00000000,0).
+I2026-10-06 17:48:44.070 6a20 Abort.
+I2026-10-06 17:48:44.070 6a20 To prepare image calibration(1).
+I2026-10-06 17:48:44.070 6a20 Initialized fpd params and size params for calibration kernel(EnableFactoryTemplate:F, IsFactoryGainInSubset:F, IsFactoryTemplateAtBt:F, WorkDir:C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\, Subset:Default, ProductSerialNo:PF640002T0315211340, DllDirPath:C:\Users\lenovo\Downloads\NanoPix\NanoPix\1.1.1.9\, ProductNo:146, SubProductNo:255, TriggerMode:6, PrepCapMode:0, ExpMode:0, EnergyType:0, PGA:0, SequenceIntervalTime:65535, FullImageWidth:1300, FullImageHeight:1800, BinningMode:0, ZoomMode:0, CombWiseTypeX:0, CombWiseTypeY:0, RoiX1:0, RoiX2:0, RoiY1:0, RoiY2:0).
+I2026-10-06 17:48:44.070 6a20 Prepared for image calibration.
+W2026-10-06 17:48:44.071 6a20 Failed to load default pre-offset template.
+I2026-10-06 17:48:44.071 6a20 Prepare correction(0x00020000).
+I2026-10-06 17:48:53.072 6a20 Push image(acquired light frame and wait for dark frame).
+I2026-10-06 17:48:54.896 6a20 Push image.
+I2026-10-06 17:50:49.341 6a20 Push image(acquired light frame and wait for dark frame).
+I2026-10-06 17:50:51.176 6a20 Push image.
+I2026-10-06 17:54:17.402 73c8 Uninitial...
+I2026-10-06 17:54:17.402 73c8 Abort.
+I2026-10-06 17:54:17.402 73c8 Abort.
+I2026-10-06 21:02:42.646 35dc ######################################################
+W2026-10-06 21:02:42.661 35dc *****SplicingCorrect.dll***** Load failed(exception:)!
+I2026-10-06 21:02:42.662 35dc To set size (0,0)1300X1800 of 1300X1800.
+I2026-10-06 21:02:42.710 35dc Set size.
+I2026-10-06 21:02:42.715 35dc Switch subset(C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\).
+I2026-10-06 21:02:42.715 35dc Initialized.
+I2026-10-06 21:02:42.716 35dc To prepare correction(0x00000000,0x00000000,0).
+I2026-10-06 21:02:42.716 35dc Abort.
+I2026-10-06 21:02:42.716 35dc To prepare image calibration(1).
+I2026-10-06 21:02:42.718 35dc Initialized fpd params and size params for calibration kernel(EnableFactoryTemplate:F, IsFactoryGainInSubset:F, IsFactoryTemplateAtBt:F, WorkDir:C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\, Subset:Default, ProductSerialNo:PF640002T0315211340, DllDirPath:C:\Users\lenovo\Downloads\NanoPix\NanoPix\1.1.1.9\, ProductNo:146, SubProductNo:255, TriggerMode:6, PrepCapMode:0, ExpMode:0, EnergyType:0, PGA:0, SequenceIntervalTime:65535, FullImageWidth:1300, FullImageHeight:1800, BinningMode:0, ZoomMode:0, CombWiseTypeX:0, CombWiseTypeY:0, RoiX1:0, RoiX2:0, RoiY1:0, RoiY2:0).
+I2026-10-06 21:02:42.720 35dc Prepared for image calibration.
+I2026-10-06 21:02:42.722 35dc Prepare correction(0x00000000).
+I2026-10-06 21:02:42.723 35dc Initialized fpd params and size params for calibration kernel(EnableFactoryTemplate:F, IsFactoryGainInSubset:F, IsFactoryTemplateAtBt:F, WorkDir:C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\, Subset:Default, ProductSerialNo:PF640002T0315211340, DllDirPath:C:\Users\lenovo\Downloads\NanoPix\NanoPix\1.1.1.9\, ProductNo:146, SubProductNo:255, TriggerMode:6, PrepCapMode:0, ExpMode:0, EnergyType:0, PGA:0, SequenceIntervalTime:65535, FullImageWidth:1300, FullImageHeight:1800, BinningMode:0, ZoomMode:0, CombWiseTypeX:0, CombWiseTypeY:0, RoiX1:0, RoiX2:0, RoiY1:0, RoiY2:0).
+I2026-10-06 21:02:42.741 35dc Retrieved the path of pre-offset template(C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\offset_1300x1800.off).
+I2026-10-06 21:02:42.742 35dc Retrieved the path of gain template...C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\gain_1300x1800.gn
+I2026-10-06 21:02:42.763 35dc Retrieved the path of defect template(C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\Correct\Default\defect_1300x1800.dft).
+I2026-10-06 21:02:42.787 35dc To prepare correction(0x00020000,0x00000000,0).
+I2026-10-06 21:02:42.787 35dc Abort.
+I2026-10-06 21:02:42.787 35dc To prepare image calibration(1).
+I2026-10-06 21:02:42.789 35dc Initialized fpd params and size params for calibration kernel(EnableFactoryTemplate:F, IsFactoryGainInSubset:F, IsFactoryTemplateAtBt:F, WorkDir:C:/Users/lenovo/Downloads/NanoPix/NanoPix/1.1.1.9/calibration2\, Subset:Default, ProductSerialNo:PF640002T0315211340, DllDirPath:C:\Users\lenovo\Downloads\NanoPix\NanoPix\1.1.1.9\, ProductNo:146, SubProductNo:255, TriggerMode:6, PrepCapMode:0, ExpMode:0, EnergyType:0, PGA:0, SequenceIntervalTime:65535, FullImageWidth:1300, FullImageHeight:1800, BinningMode:0, ZoomMode:0, CombWiseTypeX:0, CombWiseTypeY:0, RoiX1:0, RoiX2:0, RoiY1:0, RoiY2:0).
+I2026-10-06 21:02:42.789 35dc Prepared for image calibration.
+W2026-10-06 21:02:42.790 35dc Failed to load default pre-offset template.
+I2026-10-06 21:02:42.790 35dc Prepare correction(0x00020000).
+I2026-10-06 21:03:01.784 35dc Push image(acquired light frame and wait for dark frame).
+I2026-10-06 21:03:03.625 35dc Push image.
+I2026-10-06 21:10:52.380 4db8 Uninitial...
+I2026-10-06 21:10:52.382 4db8 Abort.
+I2026-10-06 21:10:52.384 4db8 Abort.

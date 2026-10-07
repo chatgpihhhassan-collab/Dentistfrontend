@@ -201,9 +201,10 @@ export const NanoPixCaptureModal = ({
     };
   }, []);
 
-  // Auto-arm sensor on modal open
+  // Auto-arm sensor and launch Eighteeth UI on modal open
   useEffect(() => {
     if (isOpen) {
+      nanoPixService.launchEngine().catch(() => {});
       handleConnectSensor();
       refreshDiskStatus();
     }
@@ -212,6 +213,7 @@ export const NanoPixCaptureModal = ({
   // Connect or Pair Nano-Pix USB Sensor
   const handleConnectSensor = async () => {
     try {
+      nanoPixService.launchEngine().catch(() => {});
       await nanoPixService.requestUsbPairing();
     } catch (err) {
       console.warn("Sensor connection failed: ", err);
@@ -886,7 +888,20 @@ export const NanoPixCaptureModal = ({
             </div>
 
             {/* LIVE HARDWARE USB STATUS, EVENT LOG BUTTON & CLOSE BUTTON */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
+              {/* Launch Eighteeth Official App on Desktop */}
+              <button
+                onClick={() => {
+                  nanoPixService.launchEngine().catch(() => {});
+                  setTimeout(handleConnectSensor, 1000);
+                }}
+                className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer bg-sky-500/30 hover:bg-sky-500/50 text-sky-100 border border-sky-400/40 shadow-2xs"
+                title="Launch Eighteeth Official Software UI on Desktop"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-sky-200" />
+                <span>Launch Eighteeth App</span>
+              </button>
+
               {/* Event Logs & Diagnostic Console Toggle Button */}
               <button
                 onClick={() => setShowEventLog(prev => !prev)}

@@ -1,0 +1,65 @@
+I2026-10-05 20:46:08.976 586c Number of devices is 1
+I2026-10-05 20:46:08.977 586c To open device... SN: iRayC7DB5M40P4
+A2026-10-05 20:46:08.992 586c Open device iRayC7DB5M40P4 success! numDevs = 1
+A2026-10-05 20:46:08.992 586c Library version = 03.02.14
+A2026-10-05 20:46:08.992 586c Driver version = 02.12.36
+A2026-10-05 20:46:08.992 586c Start to reset...
+A2026-10-05 20:46:08.994 586c Reset result = 0
+A2026-10-05 20:47:44.398 586c Close()
+A2026-10-05 20:47:44.453 586c Number of devices is  1
+A2026-10-05 20:47:44.453 586c  SerialNumber = iRayC7DB5M40P4
+I2026-10-05 20:47:44.483 586c Number of devices is 1
+I2026-10-05 20:47:44.483 586c To open device... SN: iRayC7DB5M40P4
+A2026-10-05 20:47:44.498 586c Open device iRayC7DB5M40P4 success! numDevs = 1
+A2026-10-05 20:47:44.498 586c Library version = 03.02.14
+A2026-10-05 20:47:44.498 586c Driver version = 02.12.36
+A2026-10-05 20:47:44.498 586c Start to reset...
+A2026-10-05 20:47:44.498 586c Reset result = 0
+A2026-10-05 20:47:44.748 586c Close()
+A2026-10-05 20:47:44.781 586c Close()
+A2026-10-05 20:47:44.782 27d8 Close()
+A2026-10-05 20:47:44.782 27d8 Close()
+I2026-10-05 20:48:07.216 3c88 Number of devices is 1
+I2026-10-05 20:48:07.216 3c88 To open device... SN: iRayC7DB5M40P4
+A2026-10-05 20:48:07.229 3c88 Open device iRayC7DB5M40P4 success! numDevs = 1
+A2026-10-05 20:48:07.229 3c88 Library version = 03.02.14
+A2026-10-05 20:48:07.229 3c88 Driver version = 02.12.36
+A2026-10-05 20:48:07.229 3c88 Start to reset...
+A2026-10-05 20:48:07.231 3c88 Reset result = 0
+W2026-10-05 21:13:10.719 1a0 FT_GetDeviceInfo, status = 17, sn = 
+A2026-10-05 21:13:10.725 1a0 Device disconnected!
+I2026-10-05 21:13:11.801 1a0 Number of devices is 0
+I2026-10-05 21:13:12.868 1a0 Number of devices is 0
+I2026-10-05 21:13:13.946 1a0 Number of devices is 0
+I2026-10-05 21:13:15.012 1a0 Number of devices is 0
+I2026-10-05 21:13:16.078 1a0 Number of devices is 0
+I2026-10-05 21:13:17.138 1a0 Number of devices is 0
+I2026-10-05 21:13:18.236 1a0 Number of devices is 1
+I2026-10-05 21:13:18.236 1a0 To open device... SN: iRayC7DB5M40P4
+W2026-10-05 21:13:18.238 1a0 Open device iRayC7DB5M40P4 failed! status = 3(NOT_OPENED), numDevs = 1
+I2026-10-05 21:13:19.325 1a0 Number of devices is 1
+I2026-10-05 21:13:19.325 1a0 To open device... SN: iRayC7DB5M40P4
+A2026-10-05 21:13:19.339 1a0 Open device iRayC7DB5M40P4 success! numDevs = 1
+A2026-10-05 21:13:19.339 1a0 Library version = 03.02.14
+A2026-10-05 21:13:19.339 1a0 Driver version = 02.12.36
+A2026-10-05 21:13:19.339 1a0 Start to reset...
+A2026-10-05 21:13:19.340 1a0 Reset result = 0
+A2026-10-05 21:13:19.550 1a0 Device connected!
+I2026-10-06 17:48:42.870 6a20 Number of devices is 1
+I2026-10-06 17:48:42.870 6a20 To open device... SN: iRayC7DB5M40P4
+A2026-10-06 17:48:42.885 6a20 Open device iRayC7DB5M40P4 success! numDevs = 1
+A2026-10-06 17:48:42.885 6a20 Library version = 03.02.14
+A2026-10-06 17:48:42.885 6a20 Driver version = 02.12.36
+A2026-10-06 17:48:42.885 6a20 Start to reset...
+A2026-10-06 17:48:42.887 6a20 Reset result = 0
+A2026-10-06 17:54:17.150 73c8 Close()
+A2026-10-06 17:54:17.290 73c8 Close()
+I2026-10-06 21:02:42.122 35dc Number of devices is 1
+I2026-10-06 21:02:42.122 35dc To open device... SN: iRayC7DB5M40P4
+A2026-10-06 21:02:42.137 35dc Open device iRayC7DB5M40P4 success! numDevs = 1
+A2026-10-06 21:02:42.137 35dc Library version = 03.02.14
+A2026-10-06 21:02:42.138 35dc Driver version = 02.12.36
+A2026-10-06 21:02:42.138 35dc Start to reset...
+A2026-10-06 21:02:42.139 35dc Reset result = 0
+A2026-10-06 21:10:52.135 4db8 Close()
+A2026-10-06 21:10:52.260 4db8 Close()
