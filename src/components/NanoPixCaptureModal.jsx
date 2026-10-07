@@ -214,7 +214,7 @@ export const NanoPixCaptureModal = ({
     try {
       await nanoPixService.requestUsbPairing();
     } catch (err) {
-      nanoPixService.simulateConnect('Eighteeth Nano-Pix 2 (HD CMOS)');
+      console.warn("Sensor connection failed: ", err);
     }
   };
 
