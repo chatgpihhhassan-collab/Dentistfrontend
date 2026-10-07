@@ -58,6 +58,7 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
 
   const [testStream, setTestStream] = useState(null);
   const [testError, setTestError] = useState(null);
+  const [pipelineError, setPipelineError] = useState(null);
   const testVideoRef = useRef(null);
 
   // Stop test stream when modal closes
@@ -66,6 +67,7 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
       testStream.getTracks().forEach((t) => t.stop());
       setTestStream(null);
       setTestError(null);
+      setPipelineError(null);
     }
   }, [showModal, testStream]);
 
@@ -259,6 +261,23 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
               </button>
             </div>
 
+            {/* Inline Pipeline Status & Error Notice */}
+            {pipelineError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-start gap-2 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-bold">Hardware Bridge Notice</p>
+                  <p className="text-[11px] text-rose-700 mt-0.5">{pipelineError}</p>
+                </div>
+                <button 
+                  onClick={() => setPipelineError(null)}
+                  className="text-rose-400 hover:text-rose-600 font-bold text-xs cursor-pointer p-0.5"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             {/* Visual Stepper */}
             <div className="flex items-center justify-between px-2 mt-2">
               {[1, 2, 3, 4, 5].map((step) => {
@@ -270,6 +289,7 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
                     <div key={step} className="flex flex-col items-center gap-1.5">
                       <button
                         onClick={async () => {
+                          setPipelineError(null);
                           setShowLogs(true);
                           try {
                             const res = await fetch('http://127.0.0.1:5066/nanopix/test-hardware-exposure', {
@@ -279,11 +299,11 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
                             });
                             const data = await res.json();
                             if (!data.success) {
-                              alert(data.message || 'Hardware Error: Device not detected');
+                              setPipelineError(data.message || 'Hardware Error: Device not detected. Please verify USB connection.');
                             }
                           } catch (e) {
                             console.error("Simulation failed:", e);
-                            alert("Cannot connect to local NanoPix Agent. Please ensure node nanopix_usb_bridge.cjs is running.");
+                            setPipelineError("Cannot connect to local NanoPix Agent on port 5066. Please launch START_NANOPIX_AUTO_SYNC.bat on this PC.");
                           }
                         }}
                         className={`w-10 h-10 rounded-full flex items-center justify-center text-[11px] font-bold transition-all duration-300 cursor-pointer ${isReached ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30' : 'bg-fuchsia-600 text-white shadow-md shadow-fuchsia-600/30 hover:bg-fuchsia-700 hover:scale-105 active:scale-95 animate-pulse ring-4 ring-fuchsia-100'}`}
@@ -306,14 +326,20 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
                       
                       <button
                         onClick={async () => {
+                          setPipelineError(null);
                           try {
-                            await fetch('http://127.0.0.1:5066/nanopix/test-hardware-exposure', {
+                            const res = await fetch('http://127.0.0.1:5066/nanopix/test-hardware-exposure', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ phase: 2 })
                             });
+                            const data = await res.json();
+                            if (!data.success) {
+                              setPipelineError(data.message || 'Failed to apply scan');
+                            }
                           } catch (e) {
                             console.error("Simulation failed:", e);
+                            setPipelineError("Cannot connect to local NanoPix Agent on port 5066.");
                           }
                         }}
                         disabled={!logs.some(l => l.message.includes(`[STEP 3]`))}
