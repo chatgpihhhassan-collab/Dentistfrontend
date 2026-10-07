@@ -25,6 +25,7 @@ const AIDentalNoteDetailPage = lazy(() => import('./modules/aiDentalNotes/pages/
 const ClinicalGuidePage = lazy(() => import('./pages/ClinicalGuidePage'));
 const DoctorTreatmentPricing = lazy(() => import('./pages/DoctorTreatmentPricing'));
 const DentiaAIRadiologyStudioPage = lazy(() => import('./modules/aiRadiologyStudio/pages/DentiaAIRadiologyStudioPage'));
+const NanoPixSetupGuide = lazy(() => import('./pages/NanoPixSetupGuide'));
 
 // 🌟 Patient Portal Lazy Loaded Modules
 const PatientPortalLayout = lazy(() => import('./modules/patientPortal/layouts/PatientPortalLayout'));
@@ -141,6 +142,7 @@ export default function App() {
             <Route path="/ai-notes/detail/:noteId" element={<ProtectedRoute><AIDentalNoteDetailPage /></ProtectedRoute>} />
             <Route path="/treatment" element={<ProtectedRoute><Treatment /></ProtectedRoute>} />
             <Route path="/appointments" element={<ProtectedRoute><AppointmentsList /></ProtectedRoute>} />
+            <Route path="/setup-guide" element={<ProtectedRoute><NanoPixSetupGuide /></ProtectedRoute>} />
             
             {/* Protected Standalone Pages */}
             <Route path="/book" element={

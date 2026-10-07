@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { Camera, CheckCircle2, HardDrive, RefreshCw, Sparkles, X, Usb, Activity, Radio, AlertCircle, Video } from 'lucide-react';
 import { useHardwareDeviceWatcher } from '../hooks/useHardwareDeviceWatcher';
 import { CameraCapturePanel } from './CameraCapturePanel';
 import nanoPixService from '../services/nanoPixDeviceService';
 
 export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
+  const navigate = useNavigate();
   const { isConnected, deviceName, deviceBrand, deviceType, deviceList, hasBuiltInCamera, status, refreshDevices } = useHardwareDeviceWatcher();
   const [nanoPixStatus, setNanoPixStatus] = useState(() => nanoPixService.getStatus());
   const [showModal, setShowModal] = useState(false);
@@ -156,17 +158,30 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
               <p className="text-xs text-slate-500">Auto-Detect USB Intraoral Cameras & Digital Sensors</p>
             </div>
           </div>
-          <button 
-            onClick={() => {
-              if (testStream) testStream.getTracks().forEach((t) => t.stop());
-              setTestStream(null);
-              setShowModal(false);
-            }} 
-            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
-            title="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                if (testStream) testStream.getTracks().forEach((t) => t.stop());
+                setTestStream(null);
+                setShowModal(false);
+                navigate('/setup-guide');
+              }}
+              className="text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg transition"
+            >
+              Setup Guide
+            </button>
+            <button 
+              onClick={() => {
+                if (testStream) testStream.getTracks().forEach((t) => t.stop());
+                setTestStream(null);
+                setShowModal(false);
+              }} 
+              className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+              title="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* ── Doctor Setup Checklist: Hardware Diagnostics ─────────────────── */}
