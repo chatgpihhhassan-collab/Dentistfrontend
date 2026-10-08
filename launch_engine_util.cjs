@@ -6,29 +6,25 @@ const { exec, execSync } = require('child_process');
 function getEighteethExecutable() {
   const userHome = os.homedir();
   const candidates = [
-    // 1. Current workspace bundled drivers (Priority 1)
-    path.join(__dirname, 'drivers', 'eighteeth_engine', 'NanoPix.exe'),
-    path.join(__dirname, 'drivers', 'eighteeth_engine', '1.1.1.9', 'NanoPix.exe'),
+    // 1. Official C:\NanoPix standard installation
+    'C:\\NanoPix\\Launch.exe',
+    'C:\\NanoPix\\1.1.1.9\\NanoPix.exe',
+
+    // 2. User Downloads & Desktop extractions
+    path.join(userHome, 'Downloads', 'NanoPix', 'NanoPix', 'Launch.exe'),
+    path.join(userHome, 'Downloads', 'NanoPix', 'NanoPix', '1.1.1.9', 'NanoPix.exe'),
+
+    // 3. Workspace bundled Eighteeth interactive suite
     path.join(__dirname, 'drivers', 'eighteeth_engine', 'Launch.exe'),
+    path.join(__dirname, 'drivers', 'eighteeth_engine', '1.1.1.9', 'NanoPix.exe'),
+    path.join(__dirname, 'drivers', 'eighteeth_engine', 'NanoPix.exe'),
     path.join(__dirname, 'drivers', 'nanopix', '1.1.1.9', 'NanoPix.exe'),
     path.join(__dirname, 'drivers', 'nanopix', 'NanoPix.exe'),
 
-    // 2. User Downloads & Desktop installations
-    path.join(userHome, 'Downloads', 'NanoPix', 'NanoPix', '1.1.1.9', 'NanoPix.exe'),
-    path.join(userHome, 'Downloads', 'NanoPix', 'NanoPix', 'Launch.exe'),
-    path.join(userHome, 'Downloads', 'NanoPix', 'NanoPix', 'NanoPix.exe'),
-
-    // 3. Common drive root installations
-    'C:\\NanoPix\\1.1.1.9\\NanoPix.exe',
-    'C:\\NanoPix\\Launch.exe',
-    'C:\\NanoPix\\NanoPix.exe',
-    'D:\\NanoPix\\1.1.1.9\\NanoPix.exe',
+    // 4. Other drives & Program Files
     'D:\\NanoPix\\Launch.exe',
-    'D:\\NanoPix\\NanoPix.exe',
-
-    // 4. Program Files
-    'C:\\Program Files\\Eighteeth\\NanoPix.exe',
-    'C:\\Program Files (x86)\\Eighteeth\\NanoPix.exe'
+    'D:\\NanoPix\\1.1.1.9\\NanoPix.exe',
+    'C:\\Program Files\\Eighteeth\\NanoPix.exe'
   ];
 
   return candidates.find(p => p && fs.existsSync(p)) || null;
@@ -48,7 +44,7 @@ function launchEighteethDesktopApp() {
   const psScriptPath = path.join(__dirname, 'scripts', 'launch_eighteeth.ps1');
   if (fs.existsSync(psScriptPath)) {
     try {
-      const out = execSync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${psScriptPath}"`, { timeout: 4000 }).toString();
+      const out = execSync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${psScriptPath}"`, { timeout: 6000 }).toString();
       console.log(`[EIGHTEETH LAUNCHER] ✅ Script result: ${out.trim()}`);
       return { success: true, message: out.trim(), targetExe };
     } catch (e) {

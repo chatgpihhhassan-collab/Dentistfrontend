@@ -645,7 +645,7 @@ const server = http.createServer((req, res) => {
   }
 
   // 1b. Trigger Engine Launch on Demand
-  if (url.pathname === '/nanopix/launch-engine') {
+  if (url.pathname === '/nanopix/launch-engine' || url.pathname === '/nanopix/launch' || url.pathname === '/nanopix/open-app') {
     const launchResult = launchEighteethDesktopApp();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
