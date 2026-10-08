@@ -3,18 +3,18 @@ const path = require('path');
 const { exec, execSync } = require('child_process');
 
 /**
- * Returns the absolute path to the project's bundled Eighteeth executable.
+ * Returns the absolute path to the project's bundled Eighteeth master executable.
  * Dynamically resolves relative to this project workspace directory (__dirname).
  */
 function getEighteethExecutable() {
   const candidates = [
-    // 1. Primary: Project workspace bundled version 1.1.1.9 NanoPix.exe
-    path.join(__dirname, 'drivers', 'eighteeth_engine', '1.1.1.9', 'NanoPix.exe'),
-
-    // 2. Secondary: Project workspace bundled Launch.exe wrapper
+    // 1. Primary: Project workspace bundled Launch.exe (initializes version.ini & boots 1.1.1.9\NanoPix.exe with full GUI)
     path.join(__dirname, 'drivers', 'eighteeth_engine', 'Launch.exe'),
 
-    // 3. Fallback: Workspace engine root or legacy folder
+    // 2. Direct version 1.1.1.9 NanoPix.exe binary
+    path.join(__dirname, 'drivers', 'eighteeth_engine', '1.1.1.9', 'NanoPix.exe'),
+
+    // 3. Fallbacks within workspace
     path.join(__dirname, 'drivers', 'eighteeth_engine', 'NanoPix.exe'),
     path.join(__dirname, 'drivers', 'nanopix', '1.1.1.9', 'NanoPix.exe'),
     path.join(__dirname, 'drivers', 'nanopix', 'NanoPix.exe')
@@ -26,7 +26,7 @@ function getEighteethExecutable() {
 function launchEighteethDesktopApp() {
   const targetExe = getEighteethExecutable();
   if (!targetExe) {
-    console.warn('[EIGHTEETH LAUNCHER] ⚠️ Target Eighteeth executable not found in drivers/eighteeth_engine/1.1.1.9.');
+    console.warn('[EIGHTEETH LAUNCHER] ⚠️ Target Eighteeth executable not found in drivers/eighteeth_engine.');
     return { success: false, message: 'Eighteeth executable not found in project drivers folder.' };
   }
 

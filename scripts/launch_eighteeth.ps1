@@ -1,11 +1,11 @@
 # Eighteeth Nano-Pix Official GUI Launcher (Dental Radiography Software)
-# Strictly resolves and executes from project repository path: drivers\eighteeth_engine\1.1.1.9
+# Strictly resolves and executes from project repository path: drivers\eighteeth_engine
 
 $projectRoot = (Resolve-Path "$PSScriptRoot\..").Path
 
 $candidateGuiPaths = @(
-    (Join-Path $projectRoot "drivers\eighteeth_engine\1.1.1.9\NanoPix.exe"),
     (Join-Path $projectRoot "drivers\eighteeth_engine\Launch.exe"),
+    (Join-Path $projectRoot "drivers\eighteeth_engine\1.1.1.9\NanoPix.exe"),
     (Join-Path $projectRoot "drivers\eighteeth_engine\NanoPix.exe"),
     (Join-Path $projectRoot "drivers\nanopix\1.1.1.9\NanoPix.exe"),
     (Join-Path $projectRoot "drivers\nanopix\NanoPix.exe")
@@ -20,7 +20,7 @@ foreach ($path in $candidateGuiPaths) {
 }
 
 if (-not $targetGuiExe) {
-    Write-Output "ERROR: Target Eighteeth executable not found in project drivers\eighteeth_engine\1.1.1.9."
+    Write-Output "ERROR: Target Eighteeth executable not found in project drivers\eighteeth_engine."
     exit 1
 }
 
@@ -42,7 +42,7 @@ if ($visibleProc) {
 }
 
 # 2. If any hidden / ghost instances of NanoPix are running without a window, terminate them to free the single-instance mutex
-$hiddenProcs = Get-Process -Name NanoPix, Launch -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -eq 0 }
+$hiddenProcs = Get-Process -Name NanoPix, Launch, AutoUpdate -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -eq 0 }
 if ($hiddenProcs) {
     foreach ($p in $hiddenProcs) {
         try {
