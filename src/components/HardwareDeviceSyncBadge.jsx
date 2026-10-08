@@ -23,7 +23,7 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
   const [bridgeChecking, setBridgeChecking] = useState(false);
 
   const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-  const bridgeBaseUrl = isLocalHost ? '' : 'http://127.0.0.1:5066';
+  const bridgeBaseUrl = isLocalHost ? '' : 'http://localhost:5066';
   const isHttpsOrigin = typeof window !== 'undefined' && window.location.protocol === 'https:';
 
   const checkBridgeHealth = async () => {
@@ -52,7 +52,7 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
         // 2. Fallback to direct localhost port 5066
         if (!data) {
           try {
-            const res = await fetch('http://127.0.0.1:5066/nanopix/status', {
+            const res = await fetch('http://localhost:5066/nanopix/status', {
               signal: AbortSignal.timeout(2000)
             });
             if (res.ok) {
@@ -280,7 +280,7 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
                 {isHttpsOrigin && (
                   <div className="mt-2.5 p-2 bg-amber-50 border border-amber-300 rounded text-[11px] text-amber-900 space-y-1">
                     <p className="font-bold">🔒 Using Cloud / HTTPS (Vercel)?</p>
-                    <p>Modern browsers block HTTPS websites from reaching local USB ports (<code>http://127.0.0.1:5066</code>) by default.</p>
+                    <p>Modern browsers block HTTPS websites from reaching local USB ports (<code>http://localhost:5066</code>) by default.</p>
                     <p className="font-semibold text-amber-800">To fix this on Vercel:</p>
                     <ol className="list-decimal pl-4 space-y-0.5">
                       <li>Click the <strong>Tune / Lock icon</strong> next to the URL in your browser bar.</li>
@@ -521,7 +521,7 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
                             }
 
                             if (!data) {
-                              res = await fetch('http://127.0.0.1:5066/nanopix/arm-sensor', {
+                              res = await fetch('http://localhost:5066/nanopix/arm-sensor', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ toothKey: "19", patientId: "46" }),
