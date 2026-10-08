@@ -13,11 +13,14 @@ function nanopixHardwarePlugin() {
   const launchEighteethUi = () => {
     const userHome = os.homedir();
     const candidateLaunchers = [
-      path.join(userHome, 'Downloads', 'NanoPix', 'NanoPix', '1.1.1.9', 'NanoPix.exe'),
-      'C:\\NanoPix\\1.1.1.9\\NanoPix.exe',
-      path.resolve(process.cwd(), 'drivers', 'eighteeth_engine', '1.1.1.9', 'NanoPix.exe'),
       path.resolve(process.cwd(), 'drivers', 'eighteeth_engine', 'NanoPix.exe'),
+      path.resolve(process.cwd(), 'drivers', 'eighteeth_engine', '1.1.1.9', 'NanoPix.exe'),
+      path.resolve(process.cwd(), 'drivers', 'eighteeth_engine', 'Launch.exe'),
+      path.resolve(process.cwd(), 'drivers', 'nanopix', '1.1.1.9', 'NanoPix.exe'),
+      path.resolve(process.cwd(), 'drivers', 'nanopix', 'NanoPix.exe'),
+      path.join(userHome, 'Downloads', 'NanoPix', 'NanoPix', '1.1.1.9', 'NanoPix.exe'),
       path.join(userHome, 'Downloads', 'NanoPix', 'NanoPix', 'Launch.exe'),
+      'C:\\NanoPix\\1.1.1.9\\NanoPix.exe',
       'C:\\NanoPix\\Launch.exe'
     ];
 
@@ -26,16 +29,21 @@ function nanopixHardwarePlugin() {
       const workingDir = path.dirname(targetExe);
       console.log(`\x1b[35m[VITE HARDWARE]\x1b[0m 🚀 Launching Eighteeth Official UI on Desktop: ${targetExe}`);
       
+      const psScriptPath = path.resolve(process.cwd(), 'scripts', 'launch_eighteeth.ps1');
+      if (fs.existsSync(psScriptPath)) {
+        try {
+          const { execSync } = require('child_process');
+          execSync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${psScriptPath}"`, { timeout: 4000 });
+          return true;
+        } catch (_) {}
+      }
+
       try {
-        exec('taskkill /F /IM NanoPix.exe /T', () => {
-          const cmd = `cmd /c start "" /d "${workingDir}" "${targetExe}"`;
-          exec(cmd);
-        });
-        return true;
-      } catch (e) {
         const cmd = `cmd /c start "" /d "${workingDir}" "${targetExe}"`;
         exec(cmd);
         return true;
+      } catch (e) {
+        return false;
       }
     }
     return false;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Camera, CheckCircle2, HardDrive, RefreshCw, Sparkles, X, Usb, Activity, Radio, AlertCircle, Video } from 'lucide-react';
+import { Camera, CheckCircle2, HardDrive, RefreshCw, Sparkles, X, Usb, Activity, Radio, AlertCircle, Video, Zap } from 'lucide-react';
 import { useHardwareDeviceWatcher } from '../hooks/useHardwareDeviceWatcher';
 import { CameraCapturePanel } from './CameraCapturePanel';
 import nanoPixService from '../services/nanoPixDeviceService';
@@ -33,43 +33,11 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
       // 0. Proactively trigger engine & bridge auto-start
       await nanoPixService.launchEngine().catch(() => {});
 
-      let data = null;
-      // 1. Try relative endpoint first (dev proxy)
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          const res = await fetch('/nanopix/status', {
-            signal: AbortSignal.timeout(2000)
-          });
-          if (res.ok) {
-            const json = await res.json();
-            if (json && json.bridgeOnline) {
-              data = json;
-              break;
-            }
-          }
-        } catch (_) {}
-
-        // 2. Fallback to direct localhost port 5066
-        if (!data) {
-          try {
-            const res = await fetch('http://localhost:5066/nanopix/status', {
-              signal: AbortSignal.timeout(2000)
-            });
-            if (res.ok) {
-              const json = await res.json();
-              if (json && json.bridgeOnline) {
-                data = json;
-                break;
-              }
-            }
-          } catch (_) {}
-        }
-
-        if (!data && attempt === 0) {
-          // If first check was too fast, re-invoke launch-engine and wait briefly
-          await nanoPixService.launchEngine().catch(() => {});
-          await new Promise(r => setTimeout(r, 600));
-        }
+      let data = await nanoPixService.fetchBridgeJson('/nanopix/status', { timeout: 2000 });
+      if (!data) {
+        // Retry once after brief pause
+        await new Promise(r => setTimeout(r, 600));
+        data = await nanoPixService.fetchBridgeJson('/nanopix/status', { timeout: 2000 });
       }
 
       if (!data) throw new Error('no_bridge_response');
@@ -142,6 +110,14 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
     setIsScanning(true);
     await refreshDevices();
     setTimeout(() => setIsScanning(false), 600);
+  };
+
+  const handleAutoStartBridge = () => {
+    try {
+      window.location.href = 'dentia-hw://start';
+    } catch (_) {}
+    setTimeout(checkBridgeHealth, 1500);
+    setTimeout(checkBridgeHealth, 3500);
   };
 
   const [testStream, setTestStream] = useState(null);
@@ -259,22 +235,40 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
                 <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-bold text-rose-800">Hardware Bridge Not Running</p>
-                  <p className="text-xs text-rose-700 mt-0.5">The NanoPix local service is not active on your computer. The bridge must be running in the background for the X-ray sensor to work.</p>
+                  <p className="text-xs text-rose-700 mt-0.5">The NanoPix local service is not active on your computer. The bridge must be running in the background for live X-ray captures.</p>
                 </div>
               </div>
+
+              {/* ⚡ ONE-CLICK AUTO-START PROTOCOL BUTTON */}
+              <div className="bg-gradient-to-r from-sky-600 to-teal-600 p-3 rounded-xl text-white space-y-2 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold flex items-center gap-1.5">
+                    <Zap className="w-4 h-4 text-amber-300" /> 1-Click Auto-Start Local Agent
+                  </span>
+                  <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-semibold">Zero Terminal Required</span>
+                </div>
+                <p className="text-[11px] text-sky-100">Click below to launch the background bridge automatically via Windows Protocol:</p>
+                <button
+                  onClick={handleAutoStartBridge}
+                  className="w-full py-2 bg-white hover:bg-sky-50 active:bg-sky-100 text-sky-900 rounded-lg text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-500" /> ⚡ Launch Hardware Agent Now
+                </button>
+              </div>
+
               <div className="bg-white rounded-lg border border-rose-200 p-3 space-y-1.5">
-                <p className="text-[11px] font-bold text-rose-700 uppercase tracking-wider">Fix — Do one of these:</p>
+                <p className="text-[11px] font-bold text-rose-700 uppercase tracking-wider">One-Time Clinic PC Setup (Permanent Auto-Start):</p>
                 <div className="flex items-start gap-2 text-xs text-slate-700">
-                  <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-700 font-bold text-[10px] flex items-center justify-center shrink-0">1</span>
-                  <span>Double-click <strong>INSTALL_AUTO_STARTUP_SERVICE.bat</strong> in your project folder (installs it to start automatically on Windows boot)</span>
+                  <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[10px] flex items-center justify-center shrink-0">1</span>
+                  <span>Double-click <strong className="text-slate-900">REGISTER_DENTIA_PROTOCOL.bat</strong> (Enables 1-click browser auto-launch & auto-start on Windows boot)</span>
                 </div>
                 <div className="flex items-start gap-2 text-xs text-slate-700">
-                  <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-700 font-bold text-[10px] flex items-center justify-center shrink-0">2</span>
-                  <span>Or run: <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-rose-700">node nanopix_usb_bridge.cjs</code> in your project folder terminal</span>
+                  <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 font-bold text-[10px] flex items-center justify-center shrink-0">2</span>
+                  <span>Or double-click <strong className="text-slate-900">START_NANOPIX_AUTO_SYNC.bat</strong> to start manually for this session</span>
                 </div>
                 <div className="flex items-start gap-2 text-xs text-slate-700">
-                  <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-700 font-bold text-[10px] flex items-center justify-center shrink-0">3</span>
-                  <span>Or double-click <strong>START_NANOPIX_AUTO_SYNC.bat</strong> to start manually this session</span>
+                  <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 font-bold text-[10px] flex items-center justify-center shrink-0">3</span>
+                  <span>Or terminal: <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-rose-700">node nanopix_usb_bridge.cjs</code></span>
                 </div>
 
                 {isHttpsOrigin && (
@@ -508,29 +502,12 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
                           setPipelineError(null);
                           setShowLogs(true);
                           try {
-                            let data = null;
-                            let res = await fetch('/nanopix/arm-sensor', {
+                            const data = await nanoPixService.fetchBridgeJson('/nanopix/arm-sensor', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ toothKey: "19", patientId: "46" }),
-                              signal: AbortSignal.timeout(3000)
-                            }).catch(() => null);
-
-                            if (res && res.ok) {
-                              data = await res.json().catch(() => null);
-                            }
-
-                            if (!data) {
-                              res = await fetch('http://localhost:5066/nanopix/arm-sensor', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ toothKey: "19", patientId: "46" }),
-                                signal: AbortSignal.timeout(3000)
-                              }).catch(() => null);
-                              if (res && res.ok) {
-                                data = await res.json().catch(() => null);
-                              }
-                            }
+                              timeout: 3000
+                            });
 
                             if (data && data.success) {
                               checkBridgeHealth();

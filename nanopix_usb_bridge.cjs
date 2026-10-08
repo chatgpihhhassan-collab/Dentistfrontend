@@ -230,9 +230,10 @@ function pollFtdiHardwareBus() {
 // -----------------------------------------------------------------------------
 // [FLOW 3/5] AUTOMATED BUNDLED EIGHTEETH ACQUISITION ENGINE SUPERVISOR
 // -----------------------------------------------------------------------------
+const { launchEighteethDesktopApp, getEighteethExecutable } = require('./launch_engine_util.cjs');
+
 let isEngineCurrentlyRunning = false;
 let lastEngineCheck = 0;
-let lastEngineLaunchAttempt = 0;
 
 function isNanoPixEngineRunning() {
   const now = Date.now();
@@ -250,39 +251,11 @@ function isNanoPixEngineRunning() {
 }
 
 function ensureEighteethEngineRunning() {
-  const userHome = os.homedir();
-  const candidateLaunchers = [
-    path.join(__dirname, 'drivers', 'eighteeth_engine', '1.1.1.9', 'NanoPix.exe'),
-    path.join(__dirname, 'drivers', 'eighteeth_engine', 'NanoPix.exe'),
-    path.join(__dirname, 'drivers', 'nanopix', '1.1.1.9', 'NanoPix.exe'),
-    path.join(userHome, 'Downloads', 'NanoPix', 'NanoPix', '1.1.1.9', 'NanoPix.exe'),
-    'C:\\NanoPix\\1.1.1.9\\NanoPix.exe',
-    path.join(userHome, 'Downloads', 'NanoPix', 'NanoPix', 'Launch.exe'),
-    'C:\\NanoPix\\Launch.exe'
-  ];
-
-  const targetExe = candidateLaunchers.find(p => p && fs.existsSync(p));
-  if (targetExe) {
-    try {
-      const workingDir = path.dirname(targetExe);
-      const { exec, spawn } = require('child_process');
-      exec('taskkill /F /IM NanoPix.exe /T', () => {
-        const child = spawn(targetExe, [], {
-          cwd: workingDir,
-          detached: true,
-          stdio: 'ignore',
-          windowsHide: false
-        });
-        child.unref();
-        
-        isEngineCurrentlyRunning = true;
-        console.log(`[FLOW 3/5 - ENGINE AUTO-LAUNCH] 🚀 Eighteeth NanoPix GUI launched on Desktop: ${targetExe}`);
-        broadcastLog('API', `🚀 Eighteeth NanoPix UI launched on Desktop: ${path.basename(targetExe)}`);
-      });
-      return true;
-    } catch (err) {
-      console.warn(`[FLOW 3/5 - ENGINE ERROR] Could not auto-launch engine: ${err.message}`);
-    }
+  const res = launchEighteethDesktopApp();
+  if (res && res.success) {
+    isEngineCurrentlyRunning = true;
+    broadcastLog('API', `🚀 Eighteeth NanoPix UI active: ${path.basename(res.targetExe || 'NanoPix.exe')}`);
+    return true;
   }
   return false;
 }
@@ -608,7 +581,7 @@ function getLatestScanFromFolders(forceNewest = false) {
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE, PATCH');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Range');
+  res.setHeader('Access-Control-Allow-Headers', '*');
   res.setHeader('Access-Control-Expose-Headers', '*');
   res.setHeader('Access-Control-Allow-Private-Network', 'true');
 
@@ -616,7 +589,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE, PATCH',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Range',
+      'Access-Control-Allow-Headers': '*',
       'Access-Control-Allow-Private-Network': 'true'
     });
     res.end();
@@ -673,11 +646,12 @@ const server = http.createServer((req, res) => {
 
   // 1b. Trigger Engine Launch on Demand
   if (url.pathname === '/nanopix/launch-engine') {
-    ensureEighteethEngineRunning();
+    const launchResult = launchEighteethDesktopApp();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
-      success: true,
-      message: 'Eighteeth Hardware Acquisition Engine invoked and active in background.'
+      success: launchResult.success,
+      message: launchResult.message || 'Eighteeth Hardware Acquisition Engine invoked.',
+      targetExe: launchResult.targetExe
     }));
     return;
   }
@@ -921,7 +895,7 @@ const server = http.createServer((req, res) => {
   res.end(JSON.stringify({ error: 'Endpoint not found' }));
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`================================================================`);
   console.log(`  ⚡ EIGHTEETH NANO-PIX 2 HARDWARE BRIDGE ACTIVE ON PORT ${PORT}  `);
   console.log(`  🔗 Web Link: http://127.0.0.1:${PORT}/nanopix/status         `);

@@ -232,23 +232,18 @@ class NanoPixDeviceService {
   // DIRECT TRIGGER PHYSICAL ACQUIRE FROM BRIDGE
   // ---------------------------------------------------------------------------
   async triggerHardwareAcquire(toothKey = '19', patientId = '46') {
-    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const baseUrl = isLocal ? '' : 'http://localhost:5066';
     try {
       console.log(`%c[NANOPIX HARDWARE] ⚡ Requesting live acquisition from Bridge for Tooth #${toothKey}, Patient #${patientId}...`, 'color: #38bdf8; font-weight: bold;');
-      const res = await fetch(`${baseUrl}/nanopix/trigger-exposure`, {
+      const data = await this.fetchBridgeJson('/nanopix/trigger-exposure', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toothKey, patientId })
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.scan) {
-          console.log('%c[NANOPIX HARDWARE] ✅ Live Radiograph successfully received from Hardware Bridge!', 'color: #34d399; font-weight: bold;', data.scan);
-          this.emit('scan-acquired', data.scan);
-          window.dispatchEvent(new CustomEvent('nanopix:scan-acquired', { detail: data.scan }));
-          return data.scan;
-        }
+      if (data && data.scan) {
+        console.log('%c[NANOPIX HARDWARE] ✅ Live Radiograph successfully received from Hardware Bridge!', 'color: #34d399; font-weight: bold;', data.scan);
+        this.emit('scan-acquired', data.scan);
+        window.dispatchEvent(new CustomEvent('nanopix:scan-acquired', { detail: data.scan }));
+        return data.scan;
       }
     } catch (err) {
       console.warn('[NANOPIX HARDWARE] Bridge trigger note:', err.message);
@@ -260,25 +255,20 @@ class NanoPixDeviceService {
   // TEST SENSOR & PHYSICAL DISK WRITING PIPELINE
   // ---------------------------------------------------------------------------
   async testHardwarePipeline(toothKey = '19', patientId = '46') {
-    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const baseUrl = isLocal ? '' : 'http://localhost:5066';
     try {
       this.log('USB', `⚡ [TEST STEP 1/4] Sending test hardware pulse to Bridge (port 5066) for Tooth #${toothKey}, Patient #${patientId}...`);
-      const res = await fetch(`${baseUrl}/nanopix/test-hardware-exposure`, {
+      const data = await this.fetchBridgeJson('/nanopix/test-hardware-exposure', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toothKey, patientId })
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.scan) {
-          this.log('HOTFOLDER', `💾 [TEST STEP 2/4] File physically created on disk: "${data.filePath}" (${data.fileSizeKb} KB)`);
-          this.log('HOTFOLDER', `🔍 [TEST STEP 3/4] Hot-Folder watcher confirmed file in "${data.folder}"`);
-          this.log('SUCCESS', `🚀 [TEST STEP 4/4] Radiograph received in browser & ready for AI Chart Sync!`, data.scan);
-          this.emit('scan-acquired', data.scan);
-          window.dispatchEvent(new CustomEvent('nanopix:scan-acquired', { detail: data.scan }));
-          return data;
-        }
+      if (data && data.scan) {
+        this.log('HOTFOLDER', `💾 [TEST STEP 2/4] File physically created on disk: "${data.filePath}" (${data.fileSizeKb} KB)`);
+        this.log('HOTFOLDER', `🔍 [TEST STEP 3/4] Hot-Folder watcher confirmed file in "${data.folder}"`);
+        this.log('SUCCESS', `🚀 [TEST STEP 4/4] Radiograph received in browser & ready for AI Chart Sync!`, data.scan);
+        this.emit('scan-acquired', data.scan);
+        window.dispatchEvent(new CustomEvent('nanopix:scan-acquired', { detail: data.scan }));
+        return data.scan;
       }
     } catch (err) {
       this.log('WARN', `Hardware bridge test note: ${err.message}. Local bridge must be running.`);
@@ -290,19 +280,14 @@ class NanoPixDeviceService {
   // FORCE LOAD GENUINE PHYSICAL RADIOGRAPH FROM DISK
   // ---------------------------------------------------------------------------
   async loadRealPhysicalScan(patientId = '46') {
-    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const baseUrl = isLocal ? '' : 'http://localhost:5066';
     try {
       this.log('HOTFOLDER', '🔍 Searching for latest genuine physical sensor scan on disk...');
-      const res = await fetch(`${baseUrl}/nanopix/load-real-scan?patientId=${patientId}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.scan) {
-          this.log('SUCCESS', `🎯 Original Physical Sensor Radiograph "${data.scan.filename}" loaded! Mounting...`, data.scan);
-          this.emit('scan-acquired', data.scan);
-          window.dispatchEvent(new CustomEvent('nanopix:scan-acquired', { detail: data.scan }));
-          return data.scan;
-        }
+      const data = await this.fetchBridgeJson(`/nanopix/load-real-scan?patientId=${patientId}`);
+      if (data && data.scan) {
+        this.log('SUCCESS', `🎯 Original Physical Sensor Radiograph "${data.scan.filename}" loaded! Mounting...`, data.scan);
+        this.emit('scan-acquired', data.scan);
+        window.dispatchEvent(new CustomEvent('nanopix:scan-acquired', { detail: data.scan }));
+        return data.scan;
       } else {
         this.log('WARN', 'No previous genuine physical scan found in local Project Scans folder.');
       }
@@ -316,30 +301,14 @@ class NanoPixDeviceService {
   // QUERY DETECTOR DRIVER STATE (FpdSys.log)
   // ---------------------------------------------------------------------------
   async getDetectorLogs() {
-    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const baseUrl = isLocal ? '' : 'http://localhost:5066';
-    try {
-      const res = await fetch(`${baseUrl}/nanopix/detector-log`);
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (_) {}
-    return null;
+    return await this.fetchBridgeJson('/nanopix/detector-log');
   }
 
   // ---------------------------------------------------------------------------
   // QUERY PHYSICAL DISK & HOT-FOLDER STATUS
   // ---------------------------------------------------------------------------
   async getDiskStatus() {
-    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const baseUrl = isLocal ? '' : 'http://localhost:5066';
-    try {
-      const res = await fetch(`${baseUrl}/nanopix/disk-status`);
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (_) {}
-    return null;
+    return await this.fetchBridgeJson('/nanopix/disk-status');
   }
 
   // ---------------------------------------------------------------------------
@@ -517,13 +486,62 @@ class NanoPixDeviceService {
     return this.knownVendorIds.includes(device.vendorId);
   }
 
+  // ---------------------------------------------------------------------------
+  // ROBUST LOCAL BRIDGE TRANSPORT (HANDLES VERCEL HTTPS & DEV PROXY)
+  // ---------------------------------------------------------------------------
+  getBridgeEndpoints(endpoint) {
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    
+    // If running on localhost / dev proxy, try relative first, then direct 127.0.0.1 and localhost
+    if (isLocal) {
+      return [
+        cleanEndpoint,
+        `http://127.0.0.1:5066${cleanEndpoint}`,
+        `http://localhost:5066${cleanEndpoint}`
+      ];
+    }
+    // If running on remote cloud (e.g. Vercel https://dentistfrontend.vercel.app),
+    // NEVER fetch relative /nanopix/* because Vercel returns index.html (status 200)!
+    // Directly target local hardware bridge on port 5066:
+    return [
+      `http://127.0.0.1:5066${cleanEndpoint}`,
+      `http://localhost:5066${cleanEndpoint}`
+    ];
+  }
+
+  async fetchBridgeJson(endpoint, options = {}) {
+    const urls = this.getBridgeEndpoints(endpoint);
+    for (const url of urls) {
+      try {
+        const timeoutMs = options.timeout || 2500;
+        const fetchOptions = {
+          ...options,
+          signal: AbortSignal.timeout(timeoutMs)
+        };
+        delete fetchOptions.timeout;
+
+        const res = await fetch(url, fetchOptions).catch(() => null);
+        if (res && res.ok) {
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const data = await res.json().catch(() => null);
+            if (data !== null && data !== undefined) return data;
+          }
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
   async launchEngine() {
     try {
-      let res = await fetch('/nanopix/launch-engine', { signal: AbortSignal.timeout(2000) }).catch(() => null);
-      if (!res || !res.ok) {
-        res = await fetch('http://localhost:5066/nanopix/launch-engine', { signal: AbortSignal.timeout(2000) }).catch(() => null);
+      const data = await this.fetchBridgeJson('/nanopix/launch-engine', { timeout: 3000 });
+      if (data && data.success) {
+        this.log('SUCCESS', `🚀 Eighteeth Desktop App launched: ${data.targetExe ? data.targetExe.split('\\').pop() : 'NanoPix.exe'}`);
+        return true;
       }
-      return res && res.ok;
+      return Boolean(data && data.success !== false);
     } catch (_) {
       return false;
     }
@@ -536,24 +554,7 @@ class NanoPixDeviceService {
       // Auto-trigger engine launch on local computer
       this.launchEngine().catch(() => {});
 
-      let data = null;
-      try {
-        const res = await fetch('/nanopix/status', { signal: AbortSignal.timeout(2500) });
-        if (res.ok) {
-          const json = await res.json();
-          if (json && json.bridgeOnline) data = json;
-        }
-      } catch (_) {}
-
-      if (!data) {
-        try {
-          const res = await fetch('http://localhost:5066/nanopix/status', { signal: AbortSignal.timeout(2500) });
-          if (res.ok) {
-            const json = await res.json();
-            if (json && json.bridgeOnline) data = json;
-          }
-        } catch (_) {}
-      }
+      const data = await this.fetchBridgeJson('/nanopix/status', { timeout: 2500 });
 
       if (data && data.bridgeOnline) {
         const modelName = data.model || 'Eighteeth Nano-Pix 2 (HD CMOS)';
