@@ -627,7 +627,7 @@ const server = http.createServer((req, res) => {
       eighteethEngine: {
         running: isEngineRunning,
         pid: enginePid,
-        executable: path.join(__dirname, 'drivers', 'eighteeth_engine', 'NanoPix.exe'),
+        executable: getEighteethExecutable() || path.join(__dirname, 'drivers', 'eighteeth_engine', '1.1.1.9', 'NanoPix.exe'),
         status: isEngineRunning ? 'Active in Background (Armed)' : 'Offline / Standby'
       },
       telemetry: {

@@ -1,30 +1,23 @@
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const { exec, execSync } = require('child_process');
 
+/**
+ * Returns the absolute path to the project's bundled Eighteeth executable.
+ * Dynamically resolves relative to this project workspace directory (__dirname).
+ */
 function getEighteethExecutable() {
-  const userHome = os.homedir();
   const candidates = [
-    // 1. Official C:\NanoPix standard installation
-    'C:\\NanoPix\\Launch.exe',
-    'C:\\NanoPix\\1.1.1.9\\NanoPix.exe',
-
-    // 2. User Downloads & Desktop extractions
-    path.join(userHome, 'Downloads', 'NanoPix', 'NanoPix', 'Launch.exe'),
-    path.join(userHome, 'Downloads', 'NanoPix', 'NanoPix', '1.1.1.9', 'NanoPix.exe'),
-
-    // 3. Workspace bundled Eighteeth interactive suite
-    path.join(__dirname, 'drivers', 'eighteeth_engine', 'Launch.exe'),
+    // 1. Primary: Project workspace bundled version 1.1.1.9 NanoPix.exe
     path.join(__dirname, 'drivers', 'eighteeth_engine', '1.1.1.9', 'NanoPix.exe'),
+
+    // 2. Secondary: Project workspace bundled Launch.exe wrapper
+    path.join(__dirname, 'drivers', 'eighteeth_engine', 'Launch.exe'),
+
+    // 3. Fallback: Workspace engine root or legacy folder
     path.join(__dirname, 'drivers', 'eighteeth_engine', 'NanoPix.exe'),
     path.join(__dirname, 'drivers', 'nanopix', '1.1.1.9', 'NanoPix.exe'),
-    path.join(__dirname, 'drivers', 'nanopix', 'NanoPix.exe'),
-
-    // 4. Other drives & Program Files
-    'D:\\NanoPix\\Launch.exe',
-    'D:\\NanoPix\\1.1.1.9\\NanoPix.exe',
-    'C:\\Program Files\\Eighteeth\\NanoPix.exe'
+    path.join(__dirname, 'drivers', 'nanopix', 'NanoPix.exe')
   ];
 
   return candidates.find(p => p && fs.existsSync(p)) || null;
@@ -33,12 +26,12 @@ function getEighteethExecutable() {
 function launchEighteethDesktopApp() {
   const targetExe = getEighteethExecutable();
   if (!targetExe) {
-    console.warn('[EIGHTEETH LAUNCHER] ⚠️ Target Eighteeth executable not found on disk.');
-    return { success: false, message: 'Eighteeth executable not found on disk.' };
+    console.warn('[EIGHTEETH LAUNCHER] ⚠️ Target Eighteeth executable not found in drivers/eighteeth_engine/1.1.1.9.');
+    return { success: false, message: 'Eighteeth executable not found in project drivers folder.' };
   }
 
   const workingDir = path.dirname(targetExe);
-  console.log(`[EIGHTEETH LAUNCHER] 🚀 Target: ${targetExe} (Working Dir: ${workingDir})`);
+  console.log(`[EIGHTEETH LAUNCHER] 🚀 Project Target: ${targetExe} (Working Dir: ${workingDir})`);
 
   // Method 1: Execute dedicated PowerShell launcher script (handles foreground activation & window management)
   const psScriptPath = path.join(__dirname, 'scripts', 'launch_eighteeth.ps1');

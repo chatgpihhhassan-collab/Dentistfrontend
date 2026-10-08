@@ -1,16 +1,14 @@
 # Eighteeth Nano-Pix Official GUI Launcher (Dental Radiography Software)
-# Prioritize official Launch.exe and NanoPix.exe in installed paths, Downloads, and workspace
+# Strictly resolves and executes from project repository path: drivers\eighteeth_engine\1.1.1.9
+
+$projectRoot = (Resolve-Path "$PSScriptRoot\..").Path
 
 $candidateGuiPaths = @(
-    "C:\NanoPix\Launch.exe",
-    "$env:USERPROFILE\Downloads\NanoPix\NanoPix\Launch.exe",
-    "$PSScriptRoot\..\drivers\eighteeth_engine\Launch.exe",
-    "C:\NanoPix\1.1.1.9\NanoPix.exe",
-    "$env:USERPROFILE\Downloads\NanoPix\NanoPix\1.1.1.9\NanoPix.exe",
-    "$PSScriptRoot\..\drivers\eighteeth_engine\1.1.1.9\NanoPix.exe",
-    "$PSScriptRoot\..\drivers\eighteeth_engine\NanoPix.exe",
-    "$PSScriptRoot\..\drivers\nanopix\1.1.1.9\NanoPix.exe",
-    "$PSScriptRoot\..\drivers\nanopix\NanoPix.exe"
+    (Join-Path $projectRoot "drivers\eighteeth_engine\1.1.1.9\NanoPix.exe"),
+    (Join-Path $projectRoot "drivers\eighteeth_engine\Launch.exe"),
+    (Join-Path $projectRoot "drivers\eighteeth_engine\NanoPix.exe"),
+    (Join-Path $projectRoot "drivers\nanopix\1.1.1.9\NanoPix.exe"),
+    (Join-Path $projectRoot "drivers\nanopix\NanoPix.exe")
 )
 
 $targetGuiExe = $null
@@ -22,7 +20,7 @@ foreach ($path in $candidateGuiPaths) {
 }
 
 if (-not $targetGuiExe) {
-    Write-Output "ERROR: Target Eighteeth executable not found."
+    Write-Output "ERROR: Target Eighteeth executable not found in project drivers\eighteeth_engine\1.1.1.9."
     exit 1
 }
 
@@ -58,9 +56,9 @@ if ($hiddenProcs) {
 # 3. Launch fresh interactive GUI window in user desktop session
 try {
     Start-Process -FilePath $targetGuiExe -WorkingDirectory $workingDir -WindowStyle Normal
-    Write-Output "LAUNCHED: Successfully launched Eighteeth Desktop App: $targetGuiExe"
+    Write-Output "LAUNCHED: Successfully launched Eighteeth Desktop App from project: $targetGuiExe"
 } catch {
     # Fallback to CMD start
     cmd.exe /c "start `"`" /d `"$workingDir`" `"$targetGuiExe`""
-    Write-Output "LAUNCHED: Invoked Eighteeth Desktop App via CMD: $targetGuiExe"
+    Write-Output "LAUNCHED: Invoked Eighteeth Desktop App from project via CMD: $targetGuiExe"
 }
