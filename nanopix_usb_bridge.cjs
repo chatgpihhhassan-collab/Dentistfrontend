@@ -921,7 +921,7 @@ const server = http.createServer((req, res) => {
   res.end(JSON.stringify({ error: 'Endpoint not found' }));
 });
 
-server.listen(PORT, '127.0.0.1', () => {
+server.listen(PORT, () => {
   console.log(`================================================================`);
   console.log(`  ⚡ EIGHTEETH NANO-PIX 2 HARDWARE BRIDGE ACTIVE ON PORT ${PORT}  `);
   console.log(`  🔗 Web Link: http://127.0.0.1:${PORT}/nanopix/status         `);
