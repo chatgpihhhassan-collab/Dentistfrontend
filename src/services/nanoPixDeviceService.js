@@ -535,6 +535,24 @@ class NanoPixDeviceService {
   }
 
   async launchEngine() {
+    // 1. Target Local Hardware Agent on port 5055 (Session 1 Desktop User Session)
+    try {
+      const res = await fetch('http://127.0.0.1:5055/launch-nanopix', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-agent-token': 'dentia-secret-token-2026'
+        },
+        signal: AbortSignal.timeout(3000)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        this.log('SUCCESS', `🚀 Eighteeth Desktop App launched: ${data.path ? data.path.split('\\').pop() : 'NanoPix.exe'}`);
+        return true;
+      }
+    } catch (_) {}
+
+    // 2. Fallback to bridge on port 5066
     try {
       const data = await this.fetchBridgeJson('/nanopix/launch-engine', { timeout: 3000 });
       if (data && data.success) {

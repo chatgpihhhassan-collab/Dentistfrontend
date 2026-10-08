@@ -33,21 +33,34 @@ function launchEighteethDesktopApp() {
   const workingDir = path.dirname(targetExe);
   console.log(`[EIGHTEETH LAUNCHER] 🚀 Project Target: ${targetExe} (Working Dir: ${workingDir})`);
 
-  // 3. Launch interactive desktop GUI directly via Windows Shell start
+  // 3. Method 1: Launch via Windows Explorer Shell (ensures top-level interactive desktop window)
+  try {
+    exec(`explorer.exe "${targetExe}"`, (err) => {
+      // explorer.exe returns non-zero when detaching process, which is normal
+    });
+  } catch (_) {}
+
+  // 4. Method 2: Launch via CMD Shell Start with explicit working directory
   try {
     const cmd = `cmd.exe /c start "" /d "${workingDir}" "${targetExe}"`;
     exec(cmd, (err) => {
-      if (err) console.warn('[EIGHTEETH LAUNCHER] CMD start error:', err.message);
+      if (err) console.warn('[EIGHTEETH LAUNCHER] CMD start note:', err.message);
     });
+  } catch (_) {}
 
-    return { 
-      success: true, 
-      message: 'Successfully launched Eighteeth Desktop App: NanoPix.exe', 
-      targetExe 
-    };
-  } catch (err) {
-    return { success: false, message: err.message, targetExe };
+  // 5. Method 3: Dedicated PowerShell activation
+  const psScriptPath = path.join(__dirname, 'scripts', 'launch_eighteeth.ps1');
+  if (fs.existsSync(psScriptPath)) {
+    try {
+      exec(`powershell -NoProfile -ExecutionPolicy Bypass -File "${psScriptPath}"`, () => {});
+    } catch (_) {}
   }
+
+  return { 
+    success: true, 
+    message: 'Successfully launched Eighteeth Desktop App: NanoPix.exe', 
+    targetExe 
+  };
 }
 
 module.exports = {

@@ -251,13 +251,10 @@ function isNanoPixEngineRunning() {
 }
 
 function ensureEighteethEngineRunning() {
-  const res = launchEighteethDesktopApp();
-  if (res && res.success) {
-    isEngineCurrentlyRunning = true;
-    broadcastLog('API', `🚀 Eighteeth NanoPix UI active: ${path.basename(res.targetExe || 'NanoPix.exe')}`);
-    return true;
-  }
-  return false;
+  // Disabled background service auto-spawn to prevent headless Session 0 execution.
+  // The interactive Local Agent on port 5055 handles desktop GUI launching in user Session 1.
+  isEngineCurrentlyRunning = isNanoPixEngineRunning();
+  return isEngineCurrentlyRunning;
 }
 
 // Hardware polling every 2.5 seconds (Pure native C in-memory without child processes)

@@ -1,0 +1,11 @@
+{
+  "PORT": 5055,
+  "HOST": "127.0.0.1",
+  "NANOPIX_PATH": "../drivers/eighteeth_engine/NanoPix.exe",
+  "AGENT_TOKEN": "dentia-secret-token-2026",
+  "ALLOWED_ORIGINS": [
+    "https://dentistfrontend.vercel.app",
+    "http://localhost:3000",
+    "http://localhost:5173"
+  ]
+}

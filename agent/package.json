@@ -1,0 +1,12 @@
+{
+  "name": "dentia-local-agent",
+  "version": "1.0.0",
+  "description": "Dentia Clinic PC Local Hardware Agent for NanoPix Desktop Launch",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["dentia", "nanopix", "hardware-bridge"],
+  "author": "Dentia Dental Workspace",
+  "license": "MIT"
+}
