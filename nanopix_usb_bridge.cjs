@@ -642,11 +642,12 @@ const server = http.createServer((req, res) => {
   }
 
   // 1b. Trigger Engine Launch on Demand
-  if (url.pathname === '/nanopix/launch-engine' || url.pathname === '/nanopix/launch' || url.pathname === '/nanopix/open-app') {
+  if (url.pathname === '/nanopix/launch-engine' || url.pathname === '/nanopix/launch' || url.pathname === '/nanopix/open-app' || url.pathname === '/launch-nanopix') {
     const launchResult = launchEighteethDesktopApp();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       success: launchResult.success,
+      ok: launchResult.success,
       message: launchResult.message || 'Eighteeth Hardware Acquisition Engine invoked.',
       targetExe: launchResult.targetExe
     }));

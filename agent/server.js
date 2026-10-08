@@ -14,7 +14,7 @@ const logger = require('./logger');
 let config = {
   PORT: 5055,
   HOST: '127.0.0.1',
-  NANOPIX_PATH: '../drivers/eighteeth_engine/NanoPix.exe',
+  NANOPIX_PATH: '../drivers/eighteeth_engine/1.1.1.9/NanoPix.exe',
   AGENT_TOKEN: 'dentia-secret-token-2026',
   DEBUG_CAPTURE: false,
   ALLOWED_ORIGINS: [
@@ -328,10 +328,19 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Endpoint 5: POST /launch-nanopix
-  if (req.method === 'POST' && url.pathname === '/launch-nanopix') {
-    // 1. Validate Secret Token Header
-    if (!hasValidToken) {
+  const isLaunchEndpoint = [
+    '/launch-nanopix',
+    '/nanopix/launch-engine',
+    '/nanopix/launch',
+    '/nanopix/open-app'
+  ].includes(url.pathname);
+
+  // Endpoint 5: POST & GET /launch-nanopix / /nanopix/launch-engine
+  if ((req.method === 'POST' || req.method === 'GET') && isLaunchEndpoint) {
+    const isLocalhostDirect = (clientIp === '127.0.0.1' || clientIp === '::1' || clientIp === '::ffff:127.0.0.1');
+
+    // 1. Validate Secret Token Header (or allow direct local loopback browser testing)
+    if (!hasValidToken && !isLocalhostDirect) {
       logger.warn('Launch rejected: Invalid or missing x-agent-token header', { ip: clientIp }, requestId);
       res.writeHead(401);
       res.end(JSON.stringify({
@@ -357,11 +366,24 @@ const server = http.createServer((req, res) => {
     // 3. Check if already running
     const runningProc = getDetailedNanoPixProcess();
     if (runningProc.found) {
-      logger.info(`NanoPix is already running (PID: ${runningProc.pid}, Title: "${runningProc.windowTitle}"). No duplicate spawned.`, runningProc, requestId);
+      logger.info(`NanoPix is already running (PID: ${runningProc.pid}, Title: "${runningProc.windowTitle}"). Bringing window to front.`, runningProc, requestId);
+      
+      // Force bring existing window to foreground
+      const focusScript = path.resolve(__dirname, '../scripts/focus_nanopix.ps1');
+      if (fs.existsSync(focusScript)) {
+        try {
+          spawn('powershell.exe', ['-ExecutionPolicy', 'Bypass', '-File', focusScript], {
+            stdio: 'ignore',
+            detached: true,
+            windowsHide: true
+          }).unref();
+        } catch (_) {}
+      }
+
       res.writeHead(200);
       res.end(JSON.stringify({
         ok: true,
-        message: 'NanoPix is already running',
+        message: 'NanoPix is already running (focused window)',
         alreadyRunning: true,
         isRunning: true,
         pid: runningProc.pid,
@@ -390,79 +412,47 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    // 5. Spawn Options Setup
+    // 5. Spawn Options Setup - Use Explorer Shell for guaranteed Interactive Desktop UI
     const workingDir = path.dirname(exePath);
-    const useDebugPipe = config.DEBUG_CAPTURE || url.searchParams.get('capture') === 'true';
 
-    const spawnOptions = {
-      cwd: workingDir,
-      detached: true,
-      stdio: useDebugPipe ? ['ignore', 'pipe', 'pipe'] : 'ignore',
-      windowsHide: false,
-      shell: false
-    };
-
-    logger.info(`Spawning NanoPix.exe in user desktop session`, {
+    logger.info(`Spawning NanoPix.exe via Windows Desktop Shell (Explorer / Start)`, {
       executable: exePath,
-      workingDir: workingDir,
-      options: {
-        cwd: spawnOptions.cwd,
-        detached: spawnOptions.detached,
-        windowsHide: spawnOptions.windowsHide,
-        shell: spawnOptions.shell,
-        stdio: useDebugPipe ? 'pipe (DEBUG_CAPTURE)' : 'ignore'
-      }
+      workingDir: workingDir
     }, requestId);
 
     try {
-      const spawnStartTime = Date.now();
-      const child = spawn(exePath, [], spawnOptions);
-      const childPid = child.pid;
-
-      logger.info(`Process spawned successfully with PID: ${childPid}`, { pid: childPid }, requestId);
-
-      // Listen to Process Lifecycle Events
-      child.on('spawn', () => {
-        logger.info(`[CHILD EVENT] 'spawn' emitted for PID ${childPid}`, null, requestId);
+      // Spawn via explorer.exe (always executes in interactive user desktop winsta0\default)
+      const child = spawn('explorer.exe', [exePath], {
+        detached: true,
+        stdio: 'ignore'
       });
-
-      child.on('error', (err) => {
-        logger.error(`[CHILD EVENT] 'error' emitted for PID ${childPid}`, { error: err.message, stack: err.stack }, requestId);
-      });
-
-      child.on('exit', (code, signal) => {
-        const lifetimeMs = Date.now() - spawnStartTime;
-        if (lifetimeMs < 5000) {
-          logger.warn(`⚠️ NanoPix turant band ho gaya! (Exited in ${lifetimeMs}ms, exit code: ${code}, signal: ${signal})`, {
-            lifetimeMs: lifetimeMs,
-            exitCode: code,
-            signal: signal,
-            note: 'Agar USB sensor unplugged ho to detector handshake timeout ho sakta hai.'
-          }, requestId);
-        } else {
-          logger.info(`[CHILD EVENT] 'exit' for PID ${childPid} after ${lifetimeMs}ms (Code: ${code}, Signal: ${signal})`, null, requestId);
-        }
-      });
-
-      child.on('close', (code, signal) => {
-        logger.debug(`[CHILD EVENT] 'close' for PID ${childPid} (Code: ${code}, Signal: ${signal})`, null, requestId);
-      });
-
-      // Capture stdout & stderr if debug capture is enabled
-      if (useDebugPipe) {
-        if (child.stdout) {
-          child.stdout.on('data', (data) => {
-            logger.debug(`[NanoPix STDOUT]: ${data.toString().trim()}`, null, requestId);
-          });
-        }
-        if (child.stderr) {
-          child.stderr.on('data', (data) => {
-            logger.warn(`[NanoPix STDERR]: ${data.toString().trim()}`, null, requestId);
-          });
-        }
-      }
-
       child.unref();
+
+      logger.info(`NanoPix launched via Windows Explorer Desktop Shell`, { executable: exePath }, requestId);
+
+      // Bring Window to Foreground over browser
+      const focusScript = path.resolve(__dirname, '../scripts/focus_nanopix.ps1');
+      if (fs.existsSync(focusScript)) {
+        setTimeout(() => {
+          try {
+            spawn('powershell.exe', ['-ExecutionPolicy', 'Bypass', '-File', focusScript], {
+              stdio: 'ignore',
+              detached: true,
+              windowsHide: true
+            }).unref();
+          } catch (_) {}
+        }, 1200);
+
+        setTimeout(() => {
+          try {
+            spawn('powershell.exe', ['-ExecutionPolicy', 'Bypass', '-File', focusScript], {
+              stdio: 'ignore',
+              detached: true,
+              windowsHide: true
+            }).unref();
+          } catch (_) {}
+        }, 2500);
+      }
 
       // 6. Post-Launch Verification at 2 seconds and 5 seconds
       setTimeout(() => {
@@ -494,8 +484,9 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify({
         ok: true,
         message: 'NanoPix.exe launched successfully in desktop session',
+        relativePath: 'drivers/eighteeth_engine/1.1.1.9/NanoPix.exe',
         path: exePath,
-        pid: childPid,
+        executable: 'NanoPix.exe',
         requestId: requestId
       }));
 

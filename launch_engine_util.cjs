@@ -1,66 +1,104 @@
 const fs = require('fs');
 const path = require('path');
-const { exec, execSync } = require('child_process');
+const { exec, execSync, spawn } = require('child_process');
 
 /**
  * Returns the exact path to drivers/eighteeth_engine/NanoPix.exe within this workspace.
  */
 function getEighteethExecutable() {
-  const rootExe = path.join(__dirname, 'drivers', 'eighteeth_engine', 'NanoPix.exe');
-  if (fs.existsSync(rootExe)) {
-    return rootExe;
-  }
   const versionExe = path.join(__dirname, 'drivers', 'eighteeth_engine', '1.1.1.9', 'NanoPix.exe');
   if (fs.existsSync(versionExe)) {
     return versionExe;
+  }
+  const rootExe = path.join(__dirname, 'drivers', 'eighteeth_engine', 'NanoPix.exe');
+  if (fs.existsSync(rootExe)) {
+    return rootExe;
   }
   return null;
 }
 
 function launchEighteethDesktopApp() {
-  // 1. Break / Kill any existing running instance unconditionally to ensure clean UI spawn
-  try {
-    execSync('taskkill /F /IM NanoPix.exe /IM Launch.exe /IM AutoUpdate.exe /T', { stdio: 'ignore' });
-  } catch (_) {}
-
-  // 2. Resolve target drivers\eighteeth_engine\NanoPix.exe
   const targetExe = getEighteethExecutable();
   if (!targetExe) {
     console.warn('[EIGHTEETH LAUNCHER] ⚠️ NanoPix.exe not found in drivers/eighteeth_engine.');
     return { success: false, message: 'NanoPix.exe not found in drivers/eighteeth_engine.' };
   }
 
+  // 1. Check if already running
+  try {
+    const list = execSync('tasklist /FI "IMAGENAME eq NanoPix.exe" /FO CSV /NH', { stdio: ['ignore', 'pipe', 'ignore'], timeout: 1500 }).toString();
+    if (list.toLowerCase().includes('nanopix.exe')) {
+      console.log('[EIGHTEETH LAUNCHER] ℹ️ NanoPix is already running in active session. Bringing window to front.');
+      const focusScript = path.join(__dirname, 'scripts', 'focus_nanopix.ps1');
+      if (fs.existsSync(focusScript)) {
+        try {
+          spawn('powershell.exe', ['-ExecutionPolicy', 'Bypass', '-File', focusScript], {
+            stdio: 'ignore',
+            detached: true,
+            windowsHide: true
+          }).unref();
+        } catch (_) {}
+      }
+      return {
+        success: true,
+        ok: true,
+        alreadyRunning: true,
+        message: 'NanoPix is already running (focused window)',
+        relativePath: 'drivers/eighteeth_engine/1.1.1.9/NanoPix.exe',
+        targetExe: 'drivers/eighteeth_engine/1.1.1.9/NanoPix.exe'
+      };
+    }
+  } catch (_) {}
+
   const workingDir = path.dirname(targetExe);
-  console.log(`[EIGHTEETH LAUNCHER] 🚀 Project Target: ${targetExe} (Working Dir: ${workingDir})`);
+  console.log(`[EIGHTEETH LAUNCHER] 🚀 Launching: ${targetExe} (Working Dir: ${workingDir})`);
 
-  // 3. Method 1: Launch via Windows Explorer Shell (ensures top-level interactive desktop window)
   try {
-    exec(`explorer.exe "${targetExe}"`, (err) => {
-      // explorer.exe returns non-zero when detaching process, which is normal
+    const child = spawn('explorer.exe', [targetExe], {
+      detached: true,
+      stdio: 'ignore'
     });
-  } catch (_) {}
+    child.unref();
 
-  // 4. Method 2: Launch via CMD Shell Start with explicit working directory
-  try {
-    const cmd = `cmd.exe /c start "" /d "${workingDir}" "${targetExe}"`;
-    exec(cmd, (err) => {
-      if (err) console.warn('[EIGHTEETH LAUNCHER] CMD start note:', err.message);
-    });
-  } catch (_) {}
+    const focusScript = path.join(__dirname, 'scripts', 'focus_nanopix.ps1');
+    if (fs.existsSync(focusScript)) {
+      setTimeout(() => {
+        try {
+          spawn('powershell.exe', ['-ExecutionPolicy', 'Bypass', '-File', focusScript], {
+            stdio: 'ignore',
+            detached: true,
+            windowsHide: true
+          }).unref();
+        } catch (_) {}
+      }, 1200);
 
-  // 5. Method 3: Dedicated PowerShell activation
-  const psScriptPath = path.join(__dirname, 'scripts', 'launch_eighteeth.ps1');
-  if (fs.existsSync(psScriptPath)) {
-    try {
-      exec(`powershell -NoProfile -ExecutionPolicy Bypass -File "${psScriptPath}"`, () => {});
-    } catch (_) {}
+      setTimeout(() => {
+        try {
+          spawn('powershell.exe', ['-ExecutionPolicy', 'Bypass', '-File', focusScript], {
+            stdio: 'ignore',
+            detached: true,
+            windowsHide: true
+          }).unref();
+        } catch (_) {}
+      }, 2500);
+    }
+
+    return { 
+      success: true, 
+      ok: true,
+      message: 'Successfully launched Eighteeth Desktop App: NanoPix.exe', 
+      relativePath: 'drivers/eighteeth_engine/1.1.1.9/NanoPix.exe',
+      targetExe: 'drivers/eighteeth_engine/1.1.1.9/NanoPix.exe'
+    };
+  } catch (err) {
+    console.error('[EIGHTEETH LAUNCHER ERROR]:', err.message);
+    return {
+      success: false,
+      ok: false,
+      error: err.message,
+      relativePath: 'drivers/eighteeth_engine/NanoPix.exe'
+    };
   }
-
-  return { 
-    success: true, 
-    message: 'Successfully launched Eighteeth Desktop App: NanoPix.exe', 
-    targetExe 
-  };
 }
 
 module.exports = {

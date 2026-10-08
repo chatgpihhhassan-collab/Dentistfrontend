@@ -46,3 +46,6 @@ drivers/eighteeth_engine/temp/
 **/FinCloud.exe
 # Ignore old engine version
 drivers/eighteeth_engine/1.1.1.8/
+
+agent/logs/
+*.log
