@@ -57,7 +57,8 @@ export default function OpenNanoPixButton({ className = '', onLaunched = null, v
         if (onLaunched) onLaunched(data);
       } else {
         setStatus('error');
-        setErrorMessage(data.error || 'NanoPix launch failed.');
+        const reqStr = data.requestId ? ` (Ref: ${data.requestId})` : '';
+        setErrorMessage((data.error || 'NanoPix launch failed.') + reqStr);
       }
     } catch (err) {
       setStatus('error');
