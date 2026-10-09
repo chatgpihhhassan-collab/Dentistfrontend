@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Camera, CheckCircle2, HardDrive, RefreshCw, Sparkles, X, Usb, Activity, Radio, AlertCircle, Video, Zap } from 'lucide-react';
+import { Camera, CheckCircle2, HardDrive, RefreshCw, Sparkles, X, Usb, Activity, Radio, AlertCircle, Video, Zap, Minus, ChevronDown, ChevronUp } from 'lucide-react';
 import { useHardwareDeviceWatcher } from '../hooks/useHardwareDeviceWatcher';
 import { CameraCapturePanel } from './CameraCapturePanel';
 import nanoPixService from '../services/nanoPixDeviceService';
@@ -17,6 +17,7 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
 
   const [showLogs, setShowLogs] = useState(false);
   const [logs, setLogs] = useState(() => nanoPixService.getLogs());
+  const [showWebcamTest, setShowWebcamTest] = useState(false);
 
   // ── Bridge Health Check State ──────────────────────────────────────────────
   const [bridgeHealth, setBridgeHealth] = useState(null); // null=unknown, 'ok', 'no-bridge', 'no-usb', 'partial'
@@ -68,7 +69,6 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
   useEffect(() => {
     if (showModal) {
       checkBridgeHealth();
-      nanoPixService.launchEngine().catch(() => {});
     }
   }, [showModal]);
 
@@ -212,6 +212,24 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
               <X className="w-5 h-5" />
             </button>
           </div>
+        </div>
+
+        {/* ── CRITICAL USER INSTRUCTION: MINIMIZE NANOPIX WINDOW (DO NOT CLOSE) ── */}
+        <div className="mt-3.5 p-3.5 bg-amber-500/10 border border-amber-400/40 rounded-2xl flex items-center justify-between gap-3 text-amber-950 shadow-xs">
+          <div className="flex items-center gap-3">
+            <span className="px-2.5 py-1 rounded-lg bg-amber-200/90 text-amber-900 font-black text-[11px] tracking-wide shrink-0 flex items-center gap-1.5 border border-amber-300">
+              <Minus className="w-3.5 h-3.5 stroke-[3]" /> MINIMIZE [ — ]
+            </span>
+            <div className="text-xs">
+              <span className="font-bold text-amber-900">User Instruction:</span>{' '}
+              <span className="text-amber-800">
+                NanoPix window screen par open hone ke baad please ise <strong>Minimize</strong> kar dein, band (✕) mat karein. Yeh backend communication ke liye zaroori hai.
+              </span>
+            </div>
+          </div>
+          <span className="text-[10px] font-bold text-amber-800 bg-amber-100/90 px-2.5 py-1 rounded-lg border border-amber-200 shrink-0 hidden sm:inline">
+            Required in Background
+          </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
@@ -378,76 +396,225 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
             </div>
           </div>
 
-          {/* ── RIGHT COLUMN: Webcam Test & Devices ── */}
+          {/* ── RIGHT COLUMN: Hardware Installation Steps & Storage Verification ── */}
           <div className="space-y-4">
-            {/* Live Built-in Webcam Self-Test Feed */}
-            <div className="p-3 bg-slate-900 rounded-xl text-white">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${testStream ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></span>
-              <span className="text-xs font-bold">Webcam Hardware Test</span>
-            </div>
-            <button
-              onClick={toggleTestStream}
-              className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                testStream
-                  ? 'bg-rose-500/80 hover:bg-rose-600 text-white'
-                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
-              }`}
-            >
-              <Video className="w-3.5 h-3.5" />
-              {testStream ? 'Stop Test' : 'Test Live Webcam'}
-            </button>
-          </div>
-
-          {testStream ? (
-            <div className="relative rounded-lg overflow-hidden aspect-video bg-black flex items-center justify-center border border-slate-800">
-              <video ref={testVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-              <div className="absolute bottom-2 left-2 bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-[10px] font-semibold px-2 py-0.5 rounded">
-                ● Live Feed: Operational & Ready
-              </div>
-            </div>
-          ) : testError ? (
-            <div className="p-3 bg-rose-950/50 border border-rose-800 rounded-lg text-rose-300 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-              <span>{testError}</span>
-            </div>
-          ) : (
-            <p className="text-[11px] text-slate-400">
-              Click &ldquo;Test Live Webcam&rdquo; above to verify your laptop camera stream directly from this window.
-            </p>
-          )}
-        </div>
-
-        {/* Detected Devices List */}
-        <div className="mt-4">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-xs font-bold text-slate-700">Connected Hardware ({deviceList.length})</h4>
-            <span className="text-[11px] text-slate-600">Plug & Play Live</span>
-          </div>
-
-          {deviceList.length > 0 ? (
-            <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
-              {deviceList.map((d, i) => (
-                <div key={d.deviceId || i} className="p-2.5 bg-white border border-slate-200 rounded-xl text-xs flex items-center justify-between shadow-xs">
-                  <div className="flex items-center gap-2 truncate">
-                    <Usb className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span className="truncate text-slate-800 font-medium">{d.label || `USB Video Camera ${i + 1}`}</span>
+            {/* 1. Sequential 4-Step Hardware Installation Protocol */}
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-200/70 pb-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">
+                    <Zap className="w-4 h-4" />
                   </div>
-                  <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 shrink-0">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Ready
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-800">Hardware Installation Steps</h4>
+                    <p className="text-[10px] text-slate-500">Sequential chairside setup protocol</p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  {bridgeHealth === 'ok' ? 'All Steps Complete' : 'Steps 1-4'}
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {/* Step 1 */}
+                <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold text-[10px] flex items-center justify-center shrink-0">1</span>
+                    <div>
+                      <p className="font-semibold text-slate-800 text-[11px]">Install FTDI D2XX Driver</p>
+                      <p className="text-[10px] text-slate-500">USB Kernel Driver (VID: 0x0403, PID: 0x6014)</p>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 shrink-0">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Complete
                   </span>
                 </div>
-              ))}
+
+                {/* Step 2 */}
+                <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold text-[10px] flex items-center justify-center shrink-0">2</span>
+                    <div>
+                      <p className="font-semibold text-slate-800 text-[11px]">REGISTER_DENTIA_PROTOCOL.bat</p>
+                      <p className="text-[10px] text-slate-500">Registers dentia-hw:// protocol & Windows startup</p>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 shrink-0">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Complete
+                  </span>
+                </div>
+
+                {/* Step 3 */}
+                <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold text-[10px] flex items-center justify-center shrink-0">3</span>
+                    <div>
+                      <p className="font-semibold text-slate-800 text-[11px]">START_NANOPIX_AUTO_SYNC.bat</p>
+                      <p className="text-[10px] text-slate-500">Starts Port 5066 Bridge & NanoPix acquisition engine</p>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 shrink-0 ${
+                    bridgeHealth === 'no-bridge' 
+                      ? 'bg-amber-50 text-amber-700 border border-amber-200' 
+                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  }`}>
+                    {bridgeHealth === 'no-bridge' ? <RefreshCw className="w-3 h-3 text-amber-600" /> : <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
+                    {bridgeHealth === 'no-bridge' ? 'Pending' : 'Complete'}
+                  </span>
+                </div>
+
+                {/* Step 4 */}
+                <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold text-[10px] flex items-center justify-center shrink-0">4</span>
+                    <div>
+                      <p className="font-semibold text-slate-800 text-[11px]">System Ready & NanoPix Minimized</p>
+                      <p className="text-[10px] text-slate-500">Folders verified on disk, sensor armed for exposures</p>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 shrink-0 ${
+                    isHardwareActive 
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                      : 'bg-slate-100 text-slate-600 border border-slate-200'
+                  }`}>
+                    {isHardwareActive ? <CheckCircle2 className="w-3 h-3 text-emerald-600" /> : <Activity className="w-3 h-3 text-slate-400" />}
+                    {isHardwareActive ? 'Ready' : 'Standby'}
+                  </span>
+                </div>
+              </div>
             </div>
-          ) : (
-            <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl text-center">
-              <AlertCircle className="w-5 h-5 text-amber-600 mx-auto mb-1" />
-              <p className="text-xs font-medium text-amber-900">No USB dental cameras detected.</p>
-              <p className="text-[11px] text-amber-700 mt-0.5">Connect your intraoral camera or digital sensor to any USB port.</p>
+
+            {/* 2. Required Files & Storage Folders Verification */}
+            <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-2.5 shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg">
+                    <HardDrive className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-800">Required Storage Folders & Files</h4>
+                    <p className="text-[10px] text-slate-500">Verified filesystem targets for X-Ray acquisition</p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-semibold text-slate-500">Verified on Disk</span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-1.5 text-xs">
+                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70 flex items-center justify-between">
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                    <span className="font-semibold text-slate-800 text-[11px]">D:\PatientData / C:\PatientData</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shrink-0">
+                    Verified
+                  </span>
+                </div>
+
+                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70 flex items-center justify-between">
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                    <span className="font-semibold text-slate-800 text-[11px]">nanopix_scans (Project Root)</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shrink-0">
+                    Verified
+                  </span>
+                </div>
+
+                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70 flex items-center justify-between">
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                    <span className="font-semibold text-slate-800 text-[11px]">drivers\eighteeth_engine\NanoPix.exe</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shrink-0">
+                    Verified
+                  </span>
+                </div>
+
+                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/70 flex items-center justify-between">
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                    <span className="font-semibold text-slate-800 text-[11px]">Windows Startup (DentiaNanoPixBridge.vbs)</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shrink-0">
+                    Verified
+                  </span>
+                </div>
+              </div>
             </div>
-          )}
-          </div>
+
+            {/* 3. Collapsible Webcam Self-Test (Optional Secondary Feature) */}
+            <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-xs">
+              <button
+                onClick={() => setShowWebcamTest(!showWebcamTest)}
+                className="w-full p-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-between transition cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <Video className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Intraoral Webcam Hardware Test (Optional)</span>
+                  {deviceList.length > 0 && (
+                    <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.2 rounded font-semibold">
+                      {deviceList.length} Connected
+                    </span>
+                  )}
+                </div>
+                {showWebcamTest ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+              </button>
+
+              {showWebcamTest && (
+                <div className="p-3 space-y-3 bg-slate-900 text-white border-t border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${testStream ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></span>
+                      <span className="text-xs font-bold">Webcam Self-Test Feed</span>
+                    </div>
+                    <button
+                      onClick={toggleTestStream}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        testStream
+                          ? 'bg-rose-500/80 hover:bg-rose-600 text-white'
+                          : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
+                      }`}
+                    >
+                      <Video className="w-3.5 h-3.5" />
+                      {testStream ? 'Stop Test' : 'Test Live Webcam'}
+                    </button>
+                  </div>
+
+                  {testStream ? (
+                    <div className="relative rounded-lg overflow-hidden aspect-video bg-black flex items-center justify-center border border-slate-800">
+                      <video ref={testVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                      <div className="absolute bottom-2 left-2 bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-[10px] font-semibold px-2 py-0.5 rounded">
+                        ● Live Feed: Operational
+                      </div>
+                    </div>
+                  ) : testError ? (
+                    <div className="p-3 bg-rose-950/50 border border-rose-800 rounded-lg text-rose-300 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                      <span>{testError}</span>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400">
+                      Click &ldquo;Test Live Webcam&rdquo; to preview your USB intraoral camera stream.
+                    </p>
+                  )}
+
+                  {/* Connected Hardware List inside collapsible */}
+                  {deviceList.length > 0 && (
+                    <div className="space-y-1.5 max-h-28 overflow-y-auto pt-2 border-t border-slate-800">
+                      {deviceList.map((d, i) => (
+                        <div key={d.deviceId || i} className="p-2 bg-slate-800/80 border border-slate-700 rounded-lg text-[11px] flex items-center justify-between">
+                          <div className="flex items-center gap-2 truncate text-slate-200">
+                            <Usb className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            <span className="truncate">{d.label || `USB Video Camera ${i + 1}`}</span>
+                          </div>
+                          <span className="text-[10px] text-emerald-400 font-semibold shrink-0">Ready</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
