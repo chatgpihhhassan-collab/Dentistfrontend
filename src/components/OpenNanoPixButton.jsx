@@ -90,7 +90,7 @@ export default function OpenNanoPixButton({ className = '', onLaunched = null, v
         ) : status === 'running' ? (
           <>
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-200" />
-            <span>NanoPix Active (Minimize [—])</span>
+            <span>NanoPix Active</span>
           </>
         ) : (
           <>
@@ -99,12 +99,6 @@ export default function OpenNanoPixButton({ className = '', onLaunched = null, v
           </>
         )}
       </button>
-
-      {status === 'running' && (
-        <span className="text-[10px] text-emerald-700 font-medium">
-          Please keep window minimized [—]
-        </span>
-      )}
 
       {status === 'error' && (
         <div className="flex items-center gap-1 text-[11px] text-amber-400 mt-0.5 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-800/60 max-w-xs">
