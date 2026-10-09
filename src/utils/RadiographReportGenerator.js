@@ -11,7 +11,8 @@ export const generateRadiographPdf = async ({
   radiograph = {},
   findings = [],
   aiNotes = '',
-  imageDataUrl = null
+  imageDataUrl = null,
+  triSeries = null
 }) => {
   const doc = new jsPDF({
     orientation: 'portrait',

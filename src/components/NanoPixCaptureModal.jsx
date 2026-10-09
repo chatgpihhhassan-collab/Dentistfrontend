@@ -204,6 +204,13 @@ export const NanoPixCaptureModal = ({
   // Auto-arm sensor and launch Eighteeth UI on modal open
   useEffect(() => {
     if (isOpen) {
+      console.log('🩺 [HARDWARE DIAGNOSTIC] NanoPixCaptureModal OPENED! Target Patient:', {
+        patientId: patient?.patientID || patient?.id,
+        patientName: `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim() || 'Patient',
+        initialToothKey,
+        currentSensorStatus: sensorStatus,
+        activeSlotKey
+      });
       nanoPixService.launchEngine().catch(() => {});
       handleConnectSensor();
       refreshDiskStatus();
@@ -212,11 +219,13 @@ export const NanoPixCaptureModal = ({
 
   // Connect or Pair Nano-Pix USB Sensor
   const handleConnectSensor = async () => {
+    console.log('🩺 [HARDWARE DIAGNOSTIC] Auto-arming Nano-Pix sensor for clinical acquisition...');
     try {
       nanoPixService.launchEngine().catch(() => {});
       await nanoPixService.requestUsbPairing();
+      console.log('🩺 [HARDWARE DIAGNOSTIC] Nano-Pix sensor armed successfully via WebUSB!');
     } catch (err) {
-      console.warn("Sensor connection failed: ", err);
+      console.warn('🩺 [HARDWARE DIAGNOSTIC] WebUSB direct pairing note:', err.message);
     }
   };
 

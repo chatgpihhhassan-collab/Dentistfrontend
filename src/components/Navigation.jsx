@@ -146,11 +146,19 @@ export default function Navigation() {
                 </nav>
 
                 <div className="flex items-center space-x-3">
-                    {/* Chairside Hardware Connection Badge (Logged-in Doctors only) */}
-                    {doctor && !doctor.isSuperAdmin && (
+                    {/* Chairside Hardware Connection Badge (Doctors only) */}
+                    {(!doctor || !doctor.isSuperAdmin) && (
                         <HardwareDeviceSyncBadge onOpenCapturePanel={() => {
+                            console.log('🩺 [HARDWARE DIAGNOSTIC] Doctor clicked Hardware Badge action in navbar:', {
+                                doctorId: doctor?.doctorID || doctor?.id,
+                                doctorName: `${doctor?.firstName || ''} ${doctor?.lastName || ''}`.trim() || 'Doctor 2',
+                                currentPath: location.pathname,
+                                timestamp: new Date().toISOString()
+                            });
                             if (location.pathname.startsWith('/chart')) {
-                                // If on chart page, trigger capture panel modal
+                                console.log('🩺 [HARDWARE DIAGNOSTIC] Dispatching dentia:voice:open-nanopix on chart page');
+                                window.dispatchEvent(new CustomEvent('dentia:voice:open-nanopix'));
+                                window.dispatchEvent(new CustomEvent('nanopix:open-modal'));
                             } else {
                                 navigate('/directory');
                             }

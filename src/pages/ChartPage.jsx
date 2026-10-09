@@ -2003,6 +2003,7 @@ export default function ChartPage() {
     try {
       const searchParams = new URLSearchParams(window.location.search);
       if (searchParams.get('nanopix') === 'open') {
+        console.log('🩺 [HARDWARE DIAGNOSTIC] ChartPage URL has ?nanopix=open. Auto-opening NanoPix modal for patient:', patientId);
         setShowNanoPixModal(true);
       }
     } catch (e) {}
@@ -2010,20 +2011,27 @@ export default function ChartPage() {
     // 2. Hardware connection listener
     const connectHandler = (device) => {
       setNanoPixStatus({ isConnected: true, deviceInfo: device });
-      console.log('⚡ [ChartPage] Eighteeth Nano-Pix Intraoral Sensor connected for patient:', patientId);
+      console.log('🩺 [HARDWARE DIAGNOSTIC] Eighteeth Nano-Pix Intraoral Sensor connected for patient:', patientId, device);
       setShowNanoPixModal(true);
     };
 
     const disconnectHandler = () => {
       setNanoPixStatus({ isConnected: false, deviceInfo: null });
-      console.log('🔌 [ChartPage] Eighteeth Nano-Pix Intraoral Sensor disconnected');
+      console.log('🩺 [HARDWARE DIAGNOSTIC] Eighteeth Nano-Pix Intraoral Sensor disconnected');
     };
 
     const windowConnectHandler = (e) => {
+      console.log('🩺 [HARDWARE DIAGNOSTIC] window nanopix:connected event received:', e.detail);
       setNanoPixStatus({ isConnected: true, deviceInfo: e.detail });
       setShowNanoPixModal(true);
     };
     window.addEventListener('nanopix:connected', windowConnectHandler);
+
+    const handleOpenModal = () => {
+      console.log('🩺 [HARDWARE DIAGNOSTIC] window nanopix:open-modal event received. Opening NanoPix modal for patient:', patientId);
+      setShowNanoPixModal(true);
+    };
+    window.addEventListener('nanopix:open-modal', handleOpenModal);
 
     const unsubConnect = typeof nanoPixService?.subscribe === 'function'
       ? nanoPixService.subscribe('connected', connectHandler)
@@ -2039,6 +2047,7 @@ export default function ChartPage() {
 
     return () => {
       window.removeEventListener('nanopix:connected', windowConnectHandler);
+      window.removeEventListener('nanopix:open-modal', handleOpenModal);
       if (typeof unsubConnect === 'function') unsubConnect();
       if (typeof unsubDisconnect === 'function') unsubDisconnect();
     };
@@ -7690,6 +7699,16 @@ export default function ChartPage() {
                   <button
                     type="button"
                     onClick={() => {
+                      const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
+                      console.log('🩺 [HARDWARE DIAGNOSTIC] Doctor clicked [📸 Nano-Pix RVG] button in ChartPage:', {
+                        doctorId: doctorData.doctorID || doctorData.DoctorID || 2,
+                        doctorName: `${doctorData.firstName || ''} ${doctorData.lastName || ''}`.trim() || 'Doctor 2',
+                        patientId,
+                        targetTooth: detailedTooth || '19',
+                        nanoPixStatus: nanoPixStatus?.isConnected ? 'ONLINE' : 'STANDBY/USB',
+                        deviceInfo: nanoPixStatus?.deviceInfo,
+                        timestamp: new Date().toISOString()
+                      });
                       if (detailedTooth) {
                         setNanoPixActiveTooth(String(detailedTooth));
                       }

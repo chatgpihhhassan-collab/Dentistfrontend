@@ -148,6 +148,11 @@ export default function DentiaAIRadiologyStudioPage() {
 
   // Hardware Scan Trigger
   const handleTriggerDevice = (deviceKey) => {
+    console.log('🩺 [HARDWARE DIAGNOSTIC] AIRadiologyStudio device trigger:', { deviceKey, patientId });
+    if (deviceKey === 'nanopix') {
+      window.dispatchEvent(new CustomEvent('dentia:voice:open-nanopix'));
+      window.dispatchEvent(new CustomEvent('nanopix:open-modal'));
+    }
     const names = {
       digora: 'Soredex Digora Optime LAN Phosphor Plate',
       nanopix: 'Eighteeth NanoPix RVG CMOS Sensor',

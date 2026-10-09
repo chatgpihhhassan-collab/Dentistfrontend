@@ -80,6 +80,7 @@ class NanoPixDeviceService {
     const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
     const baseUrl = isLocal ? '' : 'http://localhost:5066';
     let consecutiveErrors = 0;
+    let loggedBridgeNotice = false;
 
     const pollBridge = async () => {
       if (isPolling) return;
@@ -90,8 +91,9 @@ class NanoPixDeviceService {
         }).catch(() => null);
 
         if (res && res.ok) {
-          if (consecutiveErrors > 0) {
-            console.log('%c[NANOPIX STEP 1/3] 🔌 Connected to Local Hardware Bridge: http://localhost:5066', 'color: #38bdf8; font-weight: bold;');
+          if (!this._bridgeConnected || consecutiveErrors > 0) {
+            this._bridgeConnected = true;
+            console.log('🩺 [HARDWARE DIAGNOSTIC] Nano-Pix Hardware Bridge is ONLINE on port 5066! Ready for exposures.');
           }
           consecutiveErrors = 0;
           const data = await res.json().catch(() => null);
@@ -148,6 +150,17 @@ class NanoPixDeviceService {
           this.isConnected = false;
           this.emit('disconnected');
           window.dispatchEvent(new CustomEvent('nanopix:disconnected'));
+        }
+        if (!loggedBridgeNotice && consecutiveErrors >= 3) {
+          loggedBridgeNotice = true;
+          this._bridgeConnected = false;
+          console.warn('🩺 [HARDWARE DIAGNOSTIC] Local Hardware Bridge on port 5066 not reachable from browser.', {
+            endpoint: `${baseUrl}/nanopix/latest-scan`,
+            clientHost: typeof window !== 'undefined' ? window.location.host : 'unknown',
+            clientProtocol: typeof window !== 'undefined' ? window.location.protocol : 'unknown',
+            reason: e.message,
+            solution: 'If the Eighteeth sensor is plugged into this PC, run START_NANOPIX_AUTO_SYNC.bat to activate background port 5066.'
+          });
         }
       } finally {
         isPolling = false;
@@ -535,15 +548,19 @@ class NanoPixDeviceService {
   }
 
   async launchEngine() {
+    console.log('🩺 [HARDWARE DIAGNOSTIC] launchEngine called. Requesting Eighteeth Desktop App launch from local agent/bridge...');
     // 1. Target Primary Hardware Bridge on port 5066 (Fast, immediate response)
     try {
       const data = await this.fetchBridgeJson('/nanopix/launch-engine', { timeout: 3500 });
+      console.log('🩺 [HARDWARE DIAGNOSTIC] Port 5066 (/nanopix/launch-engine) response:', data);
       if (data && data.success) {
         this.log('SUCCESS', `🚀 Eighteeth Desktop App launched: ${data.targetExe ? data.targetExe.split('\\').pop() : 'NanoPix.exe'}`);
         return true;
       }
       if (data && data.success !== false) return true;
-    } catch (_) {}
+    } catch (e) {
+      console.warn('🩺 [HARDWARE DIAGNOSTIC] Port 5066 bridge launch-engine attempt notice:', e.message);
+    }
 
     // 2. Fallback to local session agent on port 5055
     try {
@@ -555,21 +572,27 @@ class NanoPixDeviceService {
         },
         signal: AbortSignal.timeout(1000)
       });
+      console.log('🩺 [HARDWARE DIAGNOSTIC] Port 5055 agent status:', res.status);
       if (res.ok) {
         const data = await res.json();
+        console.log('🩺 [HARDWARE DIAGNOSTIC] Port 5055 agent launch result:', data);
         this.log('SUCCESS', `🚀 Eighteeth Desktop App launched: ${data.path ? data.path.split('\\').pop() : 'NanoPix.exe'}`);
         return true;
       }
-    } catch (_) {}
+    } catch (e) {
+      console.warn('🩺 [HARDWARE DIAGNOSTIC] Port 5055 agent unreachable:', e.message);
+    }
 
+    console.warn('🩺 [HARDWARE DIAGNOSTIC] launchEngine could not reach local background bridge on port 5066 or agent on 5055 on this client PC.');
     return false;
   }
 
   async requestUsbPairing() {
     this.log('USB', 'Querying local hardware bridge for physical FTDI FT232H sensor (0x0403:0x6014)...');
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const baseUrl = isLocal ? '' : 'http://127.0.0.1:5066';
 
     try {
-      // Auto-trigger engine launch on local computer
       this.launchEngine().catch(() => {});
 
       const data = await this.fetchBridgeJson('/nanopix/status', { timeout: 2500 });
@@ -595,9 +618,10 @@ class NanoPixDeviceService {
       }
       throw new Error("Bridge Offline");
     } catch (e) {
-      this.log('INFO', 'Local bridge query failed or sensor not found.');
+      console.warn('🩺 [HARDWARE DIAGNOSTIC] Local bridge query failed:', e.message);
+      this.log('WARN', 'Physical Eighteeth Nano-Pix sensor not detected via local bridge.');
       this.setConnected(false);
-      throw e;
+      return { success: false, armed: false, error: e.message };
     }
   }
 

@@ -134,8 +134,14 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
   }, [showModal]);
 
   const handleRescan = async () => {
+    console.log('🩺 [HARDWARE DIAGNOSTIC] Rescan initiated. Checking WebUSB, WebSerial & Local Bridge...');
     setIsScanning(true);
     await refreshDevices();
+    try {
+      await nanoPixService.scanHardwareSensors();
+    } catch (err) {
+      console.warn('🩺 [HARDWARE DIAGNOSTIC] NanoPix sensor rescan notice:', err.message);
+    }
     setTimeout(() => setIsScanning(false), 600);
   };
 
@@ -1000,7 +1006,7 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setShowModal(false)}
               className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
@@ -1010,6 +1016,23 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
 
             <button
               onClick={() => {
+                console.log('🩺 [HARDWARE DIAGNOSTIC] Doctor clicked [Open Nano-Pix RVG] in Hardware Modal');
+                setShowModal(false);
+                window.dispatchEvent(new CustomEvent('dentia:voice:open-nanopix'));
+                window.dispatchEvent(new CustomEvent('nanopix:open-modal'));
+                if (onOpenCapturePanel) {
+                  onOpenCapturePanel();
+                }
+              }}
+              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md hover:shadow-lg transition-all cursor-pointer"
+              title="Open Eighteeth Nano-Pix RVG Digital Intraoral X-Ray Studio"
+            >
+              <span className="text-xs">📸</span> Open Nano-Pix RVG
+            </button>
+
+            <button
+              onClick={() => {
+                console.log('🩺 [HARDWARE DIAGNOSTIC] Doctor clicked [Open Live Camera Feed] in Hardware Modal');
                 setShowModal(false);
                 if (onOpenCapturePanel) {
                   onOpenCapturePanel();
@@ -1017,9 +1040,9 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
                   setShowCapturePanel(true);
                 }
               }}
-              className="px-4 py-2 bg-gradient-to-r from-teal-700 to-[#0B4F4A] hover:from-teal-800 hover:to-[#083c38] text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer"
+              className="px-4 py-2 bg-gradient-to-r from-slate-700 to-slate-900 hover:from-slate-800 hover:to-black text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md hover:shadow-lg transition-all cursor-pointer"
             >
-              <Camera className="w-3.5 h-3.5" /> Open Live Camera Feed
+              <Camera className="w-3.5 h-3.5" /> Camera Feed
             </button>
           </div>
         </div>
