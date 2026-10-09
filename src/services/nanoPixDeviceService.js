@@ -535,7 +535,17 @@ class NanoPixDeviceService {
   }
 
   async launchEngine() {
-    // 1. Target Local Hardware Agent on port 5055 (Session 1 Desktop User Session)
+    // 1. Target Primary Hardware Bridge on port 5066 (Fast, immediate response)
+    try {
+      const data = await this.fetchBridgeJson('/nanopix/launch-engine', { timeout: 3500 });
+      if (data && data.success) {
+        this.log('SUCCESS', `🚀 Eighteeth Desktop App launched: ${data.targetExe ? data.targetExe.split('\\').pop() : 'NanoPix.exe'}`);
+        return true;
+      }
+      if (data && data.success !== false) return true;
+    } catch (_) {}
+
+    // 2. Fallback to local session agent on port 5055
     try {
       const res = await fetch('http://127.0.0.1:5055/launch-nanopix', {
         method: 'POST',
@@ -543,7 +553,7 @@ class NanoPixDeviceService {
           'Content-Type': 'application/json',
           'x-agent-token': 'dentia-secret-token-2026'
         },
-        signal: AbortSignal.timeout(3000)
+        signal: AbortSignal.timeout(1000)
       });
       if (res.ok) {
         const data = await res.json();
@@ -552,17 +562,7 @@ class NanoPixDeviceService {
       }
     } catch (_) {}
 
-    // 2. Fallback to bridge on port 5066
-    try {
-      const data = await this.fetchBridgeJson('/nanopix/launch-engine', { timeout: 3000 });
-      if (data && data.success) {
-        this.log('SUCCESS', `🚀 Eighteeth Desktop App launched: ${data.targetExe ? data.targetExe.split('\\').pop() : 'NanoPix.exe'}`);
-        return true;
-      }
-      return Boolean(data && data.success !== false);
-    } catch (_) {
-      return false;
-    }
+    return false;
   }
 
   async requestUsbPairing() {

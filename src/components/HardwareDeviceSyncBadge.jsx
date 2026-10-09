@@ -29,19 +29,19 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
 
   const checkBridgeHealth = async () => {
     setBridgeChecking(true);
-    setBridgeHealth(null);
     try {
-      // 0. Proactively trigger engine & bridge auto-start
-      await nanoPixService.launchEngine().catch(() => {});
-
-      let data = await nanoPixService.fetchBridgeJson('/nanopix/status', { timeout: 2000 });
+      // 1. Directly query local bridge status FIRST (fast, zero blocking)
+      let data = await nanoPixService.fetchBridgeJson('/nanopix/status', { timeout: 3500 });
       if (!data) {
         // Retry once after brief pause
         await new Promise(r => setTimeout(r, 600));
-        data = await nanoPixService.fetchBridgeJson('/nanopix/status', { timeout: 2000 });
+        data = await nanoPixService.fetchBridgeJson('/nanopix/status', { timeout: 3500 });
       }
 
       if (!data) throw new Error('no_bridge_response');
+
+      // Proactively ensure engine is active in background
+      nanoPixService.launchEngine().catch(() => {});
 
       if (data.bridgeOnline && data.usbConnected) {
         setBridgeHealth('ok');
@@ -65,7 +65,7 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
     }
   };
 
-  // Run health check and auto-launch engine when modal opens
+  // Run health check when modal opens
   useEffect(() => {
     if (showModal) {
       checkBridgeHealth();
@@ -75,17 +75,33 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
   useEffect(() => {
     setMounted(true);
 
-    const onConnect = (info) => setNanoPixStatus({ isConnected: true, deviceInfo: info });
-    const onDisconnect = () => setNanoPixStatus({ isConnected: false, deviceInfo: null });
+    const onConnect = (info) => {
+      setNanoPixStatus({ isConnected: true, deviceInfo: info });
+      setBridgeHealth('ok');
+    };
+    const onDisconnect = () => {
+      setNanoPixStatus({ isConnected: false, deviceInfo: null });
+      setBridgeHealth('no-usb');
+    };
+    const onTelemetry = (telemetry) => {
+      if (telemetry) {
+        setBridgeHealth(telemetry.deviceCount > 0 ? 'ok' : 'no-usb');
+      }
+    };
     const onLog = () => setLogs(nanoPixService.getLogs());
     
     const unsubC = nanoPixService.subscribe('connected', onConnect);
     const unsubD = nanoPixService.subscribe('disconnected', onDisconnect);
+    const unsubT = nanoPixService.subscribe('telemetry', onTelemetry);
     const unsubL = nanoPixService.subscribe('log', onLog);
+
+    // Initial check on mount so health is already resolved before modal opens
+    checkBridgeHealth();
 
     return () => {
       if (typeof unsubC === 'function') unsubC();
       if (typeof unsubD === 'function') unsubD();
+      if (typeof unsubT === 'function') unsubT();
       if (typeof unsubL === 'function') unsubL();
     };
   }, []);
