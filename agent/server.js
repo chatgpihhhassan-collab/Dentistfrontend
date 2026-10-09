@@ -421,14 +421,14 @@ const server = http.createServer((req, res) => {
     }, requestId);
 
     try {
-      // Spawn via explorer.exe (always executes in interactive user desktop winsta0\default)
-      const child = spawn('explorer.exe', [exePath], {
+      // Spawn via cmd.exe /c start (guarantees interactive desktop UI in winsta0\default)
+      const child = spawn('cmd.exe', ['/c', 'start', '""', '/d', workingDir, exePath], {
         detached: true,
         stdio: 'ignore'
       });
       child.unref();
 
-      logger.info(`NanoPix launched via Windows Explorer Desktop Shell`, { executable: exePath }, requestId);
+      logger.info(`NanoPix launched via Windows Shell Start`, { executable: exePath, workingDir: workingDir }, requestId);
 
       // Bring Window to Foreground over browser
       const focusScript = path.resolve(__dirname, '../scripts/focus_nanopix.ps1');

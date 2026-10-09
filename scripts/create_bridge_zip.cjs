@@ -4,8 +4,8 @@ const { execSync } = require('child_process');
 
 const rootDir = path.resolve(__dirname, '..');
 const publicDir = path.join(rootDir, 'public');
-const stageDir = path.join(rootDir, 'temp_stage_bridge6');
-const tempZip = path.join(rootDir, 'temp_full_bridge6.zip');
+const stageDir = path.join(rootDir, 'temp_stage_bridge7');
+const tempZip = path.join(rootDir, 'temp_full_bridge7.zip');
 
 console.log('🧹 Cleaning previous builds...');
 if (fs.existsSync(stageDir)) fs.rmSync(stageDir, { recursive: true, force: true });
@@ -34,13 +34,22 @@ filesToCopy.forEach(f => {
   }
 });
 
-// Copy scripts folder (Only the necessary ones)
+// Copy scripts folder (All necessary bridge & focus helpers)
 const scriptsDest = path.join(stageDir, 'scripts');
 fs.mkdirSync(scriptsDest, { recursive: true });
-const vbsSrc = path.join(rootDir, 'scripts', 'silent_bridge_launcher.vbs');
-if (fs.existsSync(vbsSrc)) {
-  fs.copyFileSync(vbsSrc, path.join(scriptsDest, 'silent_bridge_launcher.vbs'));
-}
+const scriptsToInclude = [
+  'silent_bridge_launcher.vbs',
+  'focus_nanopix.ps1',
+  'inspect_windows.ps1',
+  'launch_eighteeth.ps1'
+];
+scriptsToInclude.forEach(scriptFile => {
+  const src = path.join(rootDir, 'scripts', scriptFile);
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, path.join(scriptsDest, scriptFile));
+    console.log(`  -> Included helper script: scripts/${scriptFile}`);
+  }
+});
 
 // Copy the ENTIRE 1.1.1.9 Engine (The Heavy 300MB Folder)
 console.log('📦 Copying heavy NanoPix 1.1.1.9 software... (This takes a moment)');
@@ -140,8 +149,12 @@ pause
 fs.writeFileSync(path.join(publicDir, 'Dentia_Web_Installer.bat'), batContent);
 
 console.log('🧹 Cleaning up temp files...');
-fs.rmSync(stageDir, { recursive: true, force: true });
-fs.unlinkSync(tempZip);
+try {
+  fs.rmSync(stageDir, { recursive: true, force: true });
+} catch (_) {}
+try {
+  fs.unlinkSync(tempZip);
+} catch (_) {}
 fs.unlinkSync(path.join(publicDir, 'DentiaBridge_Setup.zip')); // Remove the old tiny zip
 
 console.log('✅ ALL DONE! The installer is ready at public/Dentia_Web_Installer.bat');

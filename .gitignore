@@ -49,3 +49,8 @@ drivers/eighteeth_engine/1.1.1.8/
 
 agent/logs/
 *.log
+
+# Bridge packaging temp folders
+temp_stage_bridge*/
+temp_full_bridge*.zip
+test_unzip/
