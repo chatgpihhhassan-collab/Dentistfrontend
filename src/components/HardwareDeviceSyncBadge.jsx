@@ -23,9 +23,18 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
   const [bridgeHealth, setBridgeHealth] = useState(null); // null=unknown, 'ok', 'no-bridge', 'no-usb', 'partial'
   const [bridgeChecking, setBridgeChecking] = useState(false);
 
+  // ── Launch Diagnostics State ───────────────────────────────────────────────
+  // 'no-protocol' | 'node-or-path' | 'files-missing' | 'port-busy' | 'pna-blocked' | 'unknown'
+  const [launchAttempts, setLaunchAttempts] = useState(0);
+  const [launchFailReason, setLaunchFailReason] = useState(null);
+  const [diagData, setDiagData] = useState(null);        // from port 5067 diagnostic listener
+  const [showDiagPanel, setShowDiagPanel] = useState(false);
+  const windowBlurRef = useRef(false);
+  const launchAttemptsRef = useRef(0);
+
   const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
   const bridgeBaseUrl = isLocalHost ? '' : 'http://localhost:5066';
-  const isHttpsOrigin = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  const isHttpsOrigin = typeof window !== 'undefined' && window.location.protocol === 'https:';  
 
   const checkBridgeHealth = async () => {
     setBridgeChecking(true);
@@ -128,12 +137,127 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
     setTimeout(() => setIsScanning(false), 600);
   };
 
-  const handleAutoStartBridge = () => {
+  // ── Try fetching diagnostics from the DENTIA_DIAGNOSE.ps1 listener (port 5067) ──
+  const tryFetchDiagnostics = async () => {
     try {
-      window.location.href = 'dentia-hw://start';
+      const res = await fetch('http://localhost:5067/dentia-diagnostics', {
+        signal: AbortSignal.timeout(2500)
+      }).catch(() => null);
+      if (res && res.ok) {
+        const data = await res.json().catch(() => null);
+        if (data) setDiagData(data);
+      }
     } catch (_) {}
-    setTimeout(checkBridgeHealth, 1500);
-    setTimeout(checkBridgeHealth, 3500);
+  };
+
+  // ── Human-readable failure reason text ────────────────────────────────────
+  const getFailReasonText = (reason) => {
+    switch (reason) {
+      case 'no-protocol':   return '🔴 Protocol registered nahi hai — REGISTER_DENTIA_PROTOCOL.bat double-click karein (Step 2).';
+      case 'node-or-path':  return '🟠 Protocol trigger hua lekin bridge start nahi hua — Node.js missing ho sakta hai, ya path galat hai. DENTIA_DIAGNOSE.bat chalayein.';
+      case 'files-missing': return '🔴 Bridge files is PC par nahi mili — nanopix_usb_bridge.cjs maujood nahi.';
+      case 'pna-blocked':   return '🟡 Browser ne localhost request block ki (PNA/Mixed Content) — Site Settings mein Insecure Content Allow karein.';
+      case 'port-busy':     return '🟠 Port 5066 pehle se kisi aur process ne use kiya hua hai — DENTIA_DIAGNOSE.bat chalayein.';
+      default:              return '🟠 Bridge start nahi hua — DENTIA_DIAGNOSE.bat chalayein exact wajah ke liye.';
+    }
+  };
+
+  // ── Generate copy-able diagnostic text report ──────────────────────────────
+  const generateDiagReport = () => {
+    const lines = [
+      '=== Dentia Hardware Diagnostic Report ===',
+      `Time: ${new Date().toLocaleString()}`,
+      `URL: ${window.location.href}`,
+      `Browser: ${navigator.userAgent}`,
+      `HTTPS Origin: ${isHttpsOrigin}`,
+      `Bridge Health: ${bridgeHealth ?? 'unknown'}`,
+      `Launch Attempts: ${launchAttemptsRef.current}`,
+      `Protocol Trigger Detected (blur): ${windowBlurRef.current}`,
+      `Fail Reason: ${launchFailReason ?? 'none'}`,
+      '--- DENTIA_DIAGNOSE.bat Results ---',
+    ];
+    if (diagData) {
+      Object.entries(diagData).forEach(([k, v]) => {
+        lines.push(`  ${k}: ${JSON.stringify(v)}`);
+      });
+    } else {
+      lines.push('  (DENTIA_DIAGNOSE.bat not run — port 5067 not available)');
+      lines.push('  Action: Run DENTIA_DIAGNOSE.bat on this PC for full details.');
+    }
+    lines.push('=== End Report ===');
+    return lines.join('\n');
+  };
+
+  const handleAutoStartBridge = () => {
+    launchAttemptsRef.current += 1;
+    const attempt = launchAttemptsRef.current;
+    setLaunchAttempts(attempt);
+    setLaunchFailReason(null);
+
+    // Detect if the OS actually acted on the protocol (browser loses focus = something opened)
+    windowBlurRef.current = false;
+    const onBlur = () => { windowBlurRef.current = true; };
+    window.addEventListener('blur', onBlur, { once: true });
+    setTimeout(() => window.removeEventListener('blur', onBlur), 3000);
+
+    // Trigger dentia-hw:// protocol
+    try { window.location.href = 'dentia-hw://start'; } catch (_) {}
+
+    // Intermediate checks (bridge may take 3-6s to cold-start Node)
+    setTimeout(checkBridgeHealth, 4000);
+    setTimeout(checkBridgeHealth, 8000);
+
+    // Final check at 13s with full failure classification
+    setTimeout(async () => {
+      setBridgeChecking(true);
+      try {
+        let data = await nanoPixService.fetchBridgeJson('/nanopix/status', { timeout: 4000 });
+        if (!data) {
+          await new Promise(r => setTimeout(r, 800));
+          data = await nanoPixService.fetchBridgeJson('/nanopix/status', { timeout: 4000 });
+        }
+        if (data) {
+          // Bridge came up — normal path, existing logic handles state
+          nanoPixService.launchEngine().catch(() => {});
+          if (data.bridgeOnline && data.usbConnected) {
+            setBridgeHealth('ok');
+            setLaunchFailReason(null);
+            const deviceInfo = {
+              brand: 'Eighteeth', model: data.model || 'Eighteeth Nano-Pix 2 (HD CMOS)',
+              serialNumber: data.serialNumber || 'iRayC7DB5M40P4', status: 'Ready (Armed)'
+            };
+            setNanoPixStatus({ isConnected: true, deviceInfo });
+            nanoPixService.setConnected(true, deviceInfo.model);
+          } else if (data.bridgeOnline) {
+            setBridgeHealth('no-usb');
+            setLaunchFailReason(null);
+          } else {
+            setBridgeHealth('partial');
+          }
+        } else {
+          // Bridge still offline — classify why
+          setBridgeHealth('no-bridge');
+          const blurred = windowBlurRef.current;
+          if (!blurred) {
+            // OS never opened anything — protocol not registered
+            setLaunchFailReason('no-protocol');
+          } else {
+            // OS did something but bridge didn't start — Node.js or path issue
+            setLaunchFailReason('node-or-path');
+          }
+          // Try port 5067 for deeper diagnostics (requires DENTIA_DIAGNOSE.bat)
+          tryFetchDiagnostics();
+          // Auto-expand diagnostic panel after 2+ failed attempts
+          if (attempt >= 2) setShowDiagPanel(true);
+        }
+      } catch (_) {
+        setBridgeHealth('no-bridge');
+        setLaunchFailReason('node-or-path');
+        if (attempt >= 2) setShowDiagPanel(true);
+      } finally {
+        setBridgeChecking(false);
+      }
+    }, 13000);
   };
 
   const [testStream, setTestStream] = useState(null);
@@ -286,9 +410,94 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
                   onClick={handleAutoStartBridge}
                   className="w-full py-2 bg-white hover:bg-sky-50 active:bg-sky-100 text-sky-900 rounded-lg text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer shadow-md"
                 >
-                  <Sparkles className="w-4 h-4 text-amber-500" /> ⚡ Launch Hardware Agent Now
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  {launchAttempts === 0 ? '⚡ Launch Hardware Agent Now' : `⚡ Retry Launch (Attempt ${launchAttempts + 1})`}
                 </button>
+                {launchAttempts > 0 && !bridgeChecking && bridgeHealth === 'no-bridge' && (
+                  <p className="text-[10px] text-sky-200 text-center">Checking for 13 seconds after click… please wait.</p>
+                )}
               </div>
+
+              {/* ── Launch Failure Reason (only shown after failed attempts) ── */}
+              {launchAttempts > 0 && !bridgeChecking && bridgeHealth === 'no-bridge' && launchFailReason && (
+                <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 space-y-2">
+                  <p className="text-[11px] font-bold text-amber-800">⚠️ Launch kyun fail hua?</p>
+                  <p className="text-[11px] text-amber-900 leading-snug">{getFailReasonText(launchFailReason)}</p>
+                  <div className="pt-1 border-t border-amber-200 space-y-0.5">
+                    {launchFailReason === 'no-protocol' && (
+                      <p className="text-[10px] text-amber-700"><strong>Next Step:</strong> Project folder mein <code className="bg-amber-100 px-1 rounded">REGISTER_DENTIA_PROTOCOL.bat</code> double-click karein, phir wapas try karein.</p>
+                    )}
+                    {launchFailReason === 'node-or-path' && (
+                      <p className="text-[10px] text-amber-700"><strong>Next Step:</strong> <code className="bg-amber-100 px-1 rounded">DENTIA_DIAGNOSE.bat</code> chalayein — woh exact wajah batayega aur log file banayega.</p>
+                    )}
+                    {(launchFailReason === 'unknown' || !launchFailReason) && (
+                      <p className="text-[10px] text-amber-700"><strong>Next Step:</strong> <code className="bg-amber-100 px-1 rounded">DENTIA_DIAGNOSE.bat</code> chalayein ya START_NANOPIX_AUTO_SYNC.bat manually run karein.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Auto-Diagnostic Panel (port 5067 results OR instructions) ── */}
+              {showDiagPanel && (
+                <div className="bg-slate-900 border border-slate-700 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-bold text-slate-200">🔍 Diagnostic Checklist</p>
+                    <button onClick={() => setShowDiagPanel(false)} className="text-slate-400 hover:text-slate-200 text-xs cursor-pointer">✕</button>
+                  </div>
+                  {diagData ? (
+                    <div className="space-y-1">
+                      {Object.entries(diagData).map(([key, val]) => (
+                        <div key={key} className="flex items-center justify-between text-[10px]">
+                          <span className="text-slate-400 font-mono">{key}</span>
+                          <span className={`font-bold px-1.5 py-0.5 rounded ${val === true || val === 'PASS' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-rose-900/50 text-rose-400'}`}>
+                            {val === true || val === 'PASS' ? '✓ PASS' : String(val) || '✗ FAIL'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 text-[10px] text-slate-400">
+                      <p className="text-slate-300 font-semibold">DENTIA_DIAGNOSE.bat nahi chali (port 5067 available nahi).</p>
+                      <p>Is PC par <code className="text-amber-400">DENTIA_DIAGNOSE.bat</code> double-click karein — woh sab checks karke exact problem batayegi.</p>
+                    </div>
+                  )}
+                  <div className="flex gap-2 pt-1 border-t border-slate-700">
+                    <button
+                      onClick={() => {
+                        try {
+                          navigator.clipboard.writeText(generateDiagReport());
+                        } catch (_) {
+                          const el = document.createElement('textarea');
+                          el.value = generateDiagReport();
+                          document.body.appendChild(el);
+                          el.select();
+                          document.execCommand('copy');
+                          document.body.removeChild(el);
+                        }
+                        alert('Report copied! WhatsApp par paste karein.');
+                      }}
+                      className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-[10px] font-bold transition cursor-pointer"
+                    >
+                      📋 Copy Diagnostic Report
+                    </button>
+                    <button
+                      onClick={() => setShowDiagPanel(false)}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-lg text-[10px] cursor-pointer transition"
+                    >
+                      Hide
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!showDiagPanel && launchAttempts >= 2 && bridgeHealth === 'no-bridge' && (
+                <button
+                  onClick={() => setShowDiagPanel(true)}
+                  className="w-full py-1.5 border border-slate-300 hover:bg-slate-50 text-slate-600 rounded-lg text-[10px] font-semibold transition cursor-pointer"
+                >
+                  🔍 Diagnostic Details Dekhain
+                </button>
+              )}
 
               <div className="bg-white rounded-lg border border-rose-200 p-3 space-y-1.5">
                 <p className="text-[11px] font-bold text-rose-700 uppercase tracking-wider">One-Time Clinic PC Setup (Permanent Auto-Start):</p>
@@ -469,14 +678,23 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
                       <p className="text-[10px] text-slate-500">Starts Port 5066 Bridge & NanoPix acquisition engine</p>
                     </div>
                   </div>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 shrink-0 ${
-                    bridgeHealth === 'no-bridge' 
-                      ? 'bg-amber-50 text-amber-700 border border-amber-200' 
-                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                  }`}>
-                    {bridgeHealth === 'no-bridge' ? <RefreshCw className="w-3 h-3 text-amber-600" /> : <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
-                    {bridgeHealth === 'no-bridge' ? 'Pending' : 'Complete'}
-                  </span>
+                  <div className="flex flex-col items-end gap-0.5 shrink-0">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 ${
+                      bridgeHealth === 'no-bridge' 
+                        ? 'bg-amber-50 text-amber-700 border border-amber-200' 
+                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    }`}>
+                      {bridgeHealth === 'no-bridge' ? <RefreshCw className="w-3 h-3 text-amber-600" /> : <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
+                      {bridgeHealth === 'no-bridge' ? 'Pending' : 'Complete'}
+                    </span>
+                    {bridgeHealth === 'no-bridge' && launchFailReason && (
+                      <span className="text-[9px] text-amber-600 font-semibold max-w-[130px] text-right leading-tight">
+                        {launchFailReason === 'no-protocol' ? 'Protocol not registered' :
+                         launchFailReason === 'node-or-path' ? 'Node.js / path issue' :
+                         'Launch failed'}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Step 4 */}

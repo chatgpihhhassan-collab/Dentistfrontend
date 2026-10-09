@@ -714,7 +714,7 @@ const server = http.createServer((req, res) => {
   if (url.pathname === '/nanopix/detector-log') {
     const logCandidates = [
       path.join(__dirname, 'drivers', 'eighteeth_engine', 'FpdSys.log'),
-      'C:\\Users\\lenovo\\Downloads\\NanoPix\\NanoPix\\1.1.1.9\\FpdSys.log',
+      path.join(os.homedir(), 'Downloads', 'NanoPix', 'NanoPix', '1.1.1.9', 'FpdSys.log'),
       'C:\\NanoPix\\1.1.1.9\\FpdSys.log'
     ];
     let logContent = '';

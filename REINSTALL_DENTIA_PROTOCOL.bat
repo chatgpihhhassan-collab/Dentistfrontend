@@ -24,11 +24,21 @@ if not exist "%SCRIPT_DIR%scripts" (
     mkdir "%SCRIPT_DIR%scripts"
 )
 
-echo  [1/4] Generating fresh silent background launcher...
+echo  [1/4] Generating fresh portable silent background launcher...
 (
+    echo ' Dentia NanoPix Bridge Launcher ^(Portable — auto-generated^)
     echo Set WshShell = CreateObject^("WScript.Shell"^)
-    echo WshShell.CurrentDirectory = "%SCRIPT_DIR%"
-    echo WshShell.Run "cmd.exe /c node nanopix_usb_bridge.cjs", 0, False
+    echo Set fso = CreateObject^("Scripting.FileSystemObject"^)
+    echo Dim sF, pR
+    echo sF = fso.GetParentFolderName^(WScript.ScriptFullName^)
+    echo pR = fso.GetParentFolderName^(sF^)
+    echo Dim lp : lp = pR ^& "\dentia_bridge_log.txt"
+    echo On Error Resume Next
+    echo Dim lf : Set lf = fso.OpenTextFile^(lp, 8, True^)
+    echo lf.WriteLine "[" ^& Now^(^) ^& "] [LAUNCHER] Bridge triggered from: " ^& pR
+    echo lf.Close : On Error GoTo 0
+    echo WshShell.CurrentDirectory = pR
+    echo WshShell.Run "cmd.exe /c node nanopix_usb_bridge.cjs ^>^> """ ^& lp ^& """ 2^>^&1", 0, False
 ) > "%LAUNCH_VBS%"
 echo        ✓ Created: "%LAUNCH_VBS%"
 
