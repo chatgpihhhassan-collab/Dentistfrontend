@@ -54,7 +54,11 @@ function launchEighteethDesktopApp() {
   console.log(`[EIGHTEETH LAUNCHER] 🚀 Launching: ${targetExe} (Working Dir: ${workingDir})`);
 
   try {
-    const child = spawn('explorer.exe', [targetExe], {
+    const child = spawn('powershell.exe', [
+      '-ExecutionPolicy', 'Bypass',
+      '-WindowStyle', 'Hidden',
+      '-Command', `Start-Process -FilePath '${targetExe}' -WorkingDirectory '${workingDir}'`
+    ], {
       detached: true,
       stdio: 'ignore'
     });

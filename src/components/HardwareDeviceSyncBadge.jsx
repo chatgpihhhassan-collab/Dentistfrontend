@@ -49,8 +49,10 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
 
       if (!data) throw new Error('no_bridge_response');
 
-      // Proactively ensure engine is active in background
-      nanoPixService.launchEngine().catch(() => {});
+      // Proactively ensure engine is active in background only if not running
+      if (data.eighteethEngine && data.eighteethEngine.running === false) {
+        nanoPixService.launchEngine().catch(() => {});
+      }
 
       if (data.bridgeOnline && data.usbConnected) {
         setBridgeHealth('ok');
