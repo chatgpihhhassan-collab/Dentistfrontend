@@ -6,15 +6,25 @@ const { exec, execSync, spawn } = require('child_process');
  * Returns the exact path to drivers/eighteeth_engine/NanoPix.exe within this workspace.
  */
 function getEighteethExecutable() {
-  const versionExe = path.join(__dirname, 'drivers', 'eighteeth_engine', '1.1.1.9', 'NanoPix.exe');
-  if (fs.existsSync(versionExe)) {
-    return versionExe;
-  }
-  const rootExe = path.join(__dirname, 'drivers', 'eighteeth_engine', 'NanoPix.exe');
-  if (fs.existsSync(rootExe)) {
-    return rootExe;
-  }
-  return null;
+  const os = require('os');
+  const userHome = os.homedir();
+  
+  const candidateLaunchers = [
+    // Local bundled paths
+    path.join(__dirname, 'drivers', 'eighteeth_engine', '1.1.1.9', 'NanoPix.exe'),
+    path.join(__dirname, 'drivers', 'eighteeth_engine', 'NanoPix.exe'),
+    path.join(__dirname, 'drivers', 'nanopix', '1.1.1.9', 'NanoPix.exe'),
+    // System / standard installation paths
+    path.join(userHome, 'Downloads', 'NanoPix', 'NanoPix', '1.1.1.9', 'NanoPix.exe'),
+    'C:\\NanoPix\\1.1.1.9\\NanoPix.exe',
+    path.join(userHome, 'Downloads', 'NanoPix', 'NanoPix', 'Launch.exe'),
+    'C:\\NanoPix\\Launch.exe',
+    'C:\\Program Files\\NanoPix\\NanoPix.exe',
+    'C:\\Program Files (x86)\\NanoPix\\NanoPix.exe'
+  ];
+
+  const targetExe = candidateLaunchers.find(p => p && fs.existsSync(p));
+  return targetExe || null;
 }
 
 function launchEighteethDesktopApp() {
