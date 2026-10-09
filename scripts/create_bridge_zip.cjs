@@ -3,10 +3,13 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 const rootDir = path.resolve(__dirname, '..');
-const zipDest = path.join(rootDir, 'public', 'DentiaBridge_Setup.zip');
-const stageDir = path.join(rootDir, 'temp_stage_bridge');
+const publicDir = path.join(rootDir, 'public');
+const stageDir = path.join(rootDir, 'temp_stage_bridge4');
+const tempZip = path.join(rootDir, 'temp_full_bridge4.zip');
 
+console.log('🧹 Cleaning previous builds...');
 if (fs.existsSync(stageDir)) fs.rmSync(stageDir, { recursive: true, force: true });
+if (fs.existsSync(tempZip)) fs.unlinkSync(tempZip);
 fs.mkdirSync(stageDir, { recursive: true });
 
 const filesToCopy = [
@@ -23,6 +26,7 @@ const filesToCopy = [
   'package.json'
 ];
 
+console.log('📦 Copying core bridge files...');
 filesToCopy.forEach(f => {
   const src = path.join(rootDir, f);
   if (fs.existsSync(src)) {
@@ -30,47 +34,116 @@ filesToCopy.forEach(f => {
   }
 });
 
-// Copy scripts folder
-const scriptsSrc = path.join(rootDir, 'scripts');
+// Copy scripts folder (Only the necessary ones)
 const scriptsDest = path.join(stageDir, 'scripts');
 fs.mkdirSync(scriptsDest, { recursive: true });
-fs.readdirSync(scriptsSrc).forEach(f => {
-  if (!f.includes('create_bridge_zip')) {
-    fs.copyFileSync(path.join(scriptsSrc, f), path.join(scriptsDest, f));
+const vbsSrc = path.join(rootDir, 'scripts', 'silent_bridge_launcher.vbs');
+if (fs.existsSync(vbsSrc)) {
+  fs.copyFileSync(vbsSrc, path.join(scriptsDest, 'silent_bridge_launcher.vbs'));
+}
+
+// Copy the ENTIRE 1.1.1.9 Engine (The Heavy 300MB Folder)
+console.log('📦 Copying heavy NanoPix 1.1.1.9 software... (This takes a moment)');
+const engineSrc = path.join(rootDir, 'drivers', 'eighteeth_engine', '1.1.1.9');
+const engineDest = path.join(stageDir, 'drivers', 'eighteeth_engine', '1.1.1.9');
+
+function copyDirSync(src, dest) {
+  fs.mkdirSync(dest, { recursive: true });
+  fs.readdirSync(src).forEach(file => {
+    if (file === 'FinCloud') return; // Skip locked/heavy cloud sync software
+    
+    const srcFile = path.join(src, file);
+    const destFile = path.join(dest, file);
+    if (fs.statSync(srcFile).isDirectory()) {
+      copyDirSync(srcFile, destFile);
+    } else {
+      try {
+        fs.copyFileSync(srcFile, destFile);
+      } catch (e) {
+        console.log(`⚠️ Skipped locked file: ${srcFile}`);
+      }
+    }
+  });
+}
+if (fs.existsSync(engineSrc)) {
+  copyDirSync(engineSrc, engineDest);
+} else {
+  console.log('⚠️ WARNING: NanoPix engine folder not found!');
+}
+
+console.log('⏳ Waiting 5 seconds for Windows Defender to release file locks...');
+execSync('powershell -Command "Start-Sleep -Seconds 5"');
+
+console.log('🗜️ Compressing to temporary ZIP file...');
+execSync(`powershell -NoProfile -Command "Compress-Archive -Path '${stageDir}\\*' -DestinationPath '${tempZip}' -Force"`, { stdio: 'inherit' });
+
+console.log('🔪 Splitting ZIP into 45MB chunks for GitHub/Vercel bypass...');
+const CHUNK_SIZE = 45 * 1024 * 1024; // 45 MB chunks
+const zipBuffer = fs.readFileSync(tempZip);
+
+// Clear old chunks
+fs.readdirSync(publicDir).forEach(f => {
+  if (f.startsWith('DentiaBridge_Part') && f.endsWith('.bin')) {
+    fs.unlinkSync(path.join(publicDir, f));
   }
 });
 
-// Also create a simple 1-click README
-fs.writeFileSync(path.join(stageDir, 'README_FIRST.txt'), 
-`=== DENTIA CHAIRSIDE HARDWARE SETUP ===
+let offset = 0;
+let partNumber = 1;
+const partFiles = [];
 
-PREREQUISITES:
-1. Windows 10 or 11 (64-bit)
-2. Node.js installed (free download from https://nodejs.org/ if not already installed)
-3. Eighteeth Nano-Pix sensor connected to a USB 2.0 port
+while (offset < zipBuffer.length) {
+  const chunk = zipBuffer.slice(offset, offset + CHUNK_SIZE);
+  const partName = `DentiaBridge_Part${partNumber}.bin`;
+  fs.writeFileSync(path.join(publicDir, partName), chunk);
+  partFiles.push(partName);
+  console.log(`  -> Created ${partName} (${(chunk.length / 1024 / 1024).toFixed(2)} MB)`);
+  offset += CHUNK_SIZE;
+  partNumber++;
+}
 
-1-MINUTE INSTALLATION:
-Step 1: Double-click "REGISTER_DENTIA_PROTOCOL.bat"
-  - Registers the "dentia-hw://" browser auto-launch protocol.
-  - Adds the bridge to Windows Startup (auto-runs on boot).
-  - Starts the background bridge immediately on Port 5066.
+console.log('⚙️ Generating Dentia_Web_Installer.bat...');
+const batContent = `@echo off
+title Dentia Hardware Bridge Auto-Installer
+color 0B
+echo ========================================================
+echo        DENTIA HARDWARE BRIDGE (FULL INSTALLER)
+echo ========================================================
+echo.
+echo This installer will download the full NanoPix software
+echo and setup the bridge automatically. Please wait...
+echo.
 
-Step 2: Open https://dentistfrontend.vercel.app/ in Google Chrome / Edge
-  - Click the "Hardware" icon in the navigation bar.
-  - Click "Launch Hardware Agent Now".
-  - Chrome will show a dialog: "Open Dentia Hardware Protocol? dentistfrontend.vercel.app wants to open this application."
-  - Check the box "Always allow dentistfrontend.vercel.app to open links of this type" and click [Open Dentia Hardware Protocol].
-  - Your sensor status will show "All Systems Operational" (Active & Synced).
+set BASE_URL=https://dentistfrontend.vercel.app
 
-TROUBLESHOOTING:
-- If Chrome blocks localhost on HTTPS (Vercel):
-  Click the Tune/Lock icon next to the URL -> Site Settings -> Insecure Content -> Allow.
-- To start the bridge manually at any time:
-  Double-click "START_NANOPIX_AUTO_SYNC.bat".
-`);
+${partFiles.map((p, i) => `echo [${i+1}/${partFiles.length}] Downloading ${p}...
+curl -f -# -O "%BASE_URL%/${p}" || (echo Error downloading ${p}! Check internet connection. & pause & exit)`).join('\n')}
 
-if (fs.existsSync(zipDest)) fs.unlinkSync(zipDest);
-execSync(`powershell -NoProfile -Command "Compress-Archive -Path '${stageDir}\\*' -DestinationPath '${zipDest}' -Force"`);
+echo.
+echo [1/3] Combining downloaded chunks into ZIP...
+copy /b ${partFiles.join(' + ')} DentiaBridge_Setup.zip >nul
+
+echo [2/3] Extracting files (This may take a minute)...
+if exist "DentiaBridge" rmdir /s /q "DentiaBridge"
+powershell -NoProfile -Command "Expand-Archive -Path 'DentiaBridge_Setup.zip' -DestinationPath 'DentiaBridge' -Force"
+
+echo [3/3] Installing Bridge Service...
+cd DentiaBridge
+call REGISTER_DENTIA_PROTOCOL.bat
+
+echo.
+echo ========================================================
+echo ✅ INSTALLATION COMPLETE!
+echo You can now click "Launch Hardware Agent" on the website.
+echo ========================================================
+pause
+`;
+
+fs.writeFileSync(path.join(publicDir, 'Dentia_Web_Installer.bat'), batContent);
+
+console.log('🧹 Cleaning up temp files...');
 fs.rmSync(stageDir, { recursive: true, force: true });
+fs.unlinkSync(tempZip);
+fs.unlinkSync(path.join(publicDir, 'DentiaBridge_Setup.zip')); // Remove the old tiny zip
 
-console.log(`✅ Success! Created: ${zipDest} (${Math.round(fs.statSync(zipDest).size / 1024)} KB)`);
+console.log('✅ ALL DONE! The installer is ready at public/Dentia_Web_Installer.bat');

@@ -24,7 +24,7 @@ export default function NanoPixSetupGuide() {
                 The local service that connects your X-ray sensor to this web interface.
               </p>
               <a 
-                href="/DentiaBridge_Setup.zip" 
+                href="/Dentia_Web_Installer.bat" 
                 download
                 className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg flex items-center justify-center gap-2 transition"
               >
