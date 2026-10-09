@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Camera, CheckCircle2, HardDrive, RefreshCw, Sparkles, X, Usb, Activity, Radio, AlertCircle, Video, Zap } from 'lucide-react';
+import { 
+  Camera, CheckCircle2, HardDrive, RefreshCw, Sparkles, X, Usb, Activity, 
+  Radio, AlertCircle, Video, Zap, Minus, Check, FolderOpen, Terminal, 
+  ShieldCheck, ChevronDown, ChevronUp 
+} from 'lucide-react';
 import { useHardwareDeviceWatcher } from '../hooks/useHardwareDeviceWatcher';
 import { CameraCapturePanel } from './CameraCapturePanel';
 import nanoPixService from '../services/nanoPixDeviceService';
@@ -17,6 +21,13 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
 
   const [showLogs, setShowLogs] = useState(false);
   const [logs, setLogs] = useState(() => nanoPixService.getLogs());
+
+  // ── Real Hardware Installation & Telemetry State (NO MOCK DATA) ───────────
+  const [installationData, setInstallationData] = useState(null);
+  const [engineInfo, setEngineInfo] = useState(null);
+  const [isEnsuringFolders, setIsEnsuringFolders] = useState(false);
+  const [folderActionMsg, setFolderActionMsg] = useState('');
+  const [showWebcamTest, setShowWebcamTest] = useState(false);
 
   // ── Bridge Health Check State ──────────────────────────────────────────────
   const [bridgeHealth, setBridgeHealth] = useState(null); // null=unknown, 'ok', 'no-bridge', 'no-usb', 'partial'
@@ -42,6 +53,13 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
 
       if (!data) throw new Error('no_bridge_response');
 
+      if (data.eighteethEngine) {
+        setEngineInfo(data.eighteethEngine);
+      }
+      if (data.installationChecklist) {
+        setInstallationData(data.installationChecklist);
+      }
+
       if (data.bridgeOnline && data.usbConnected) {
         setBridgeHealth('ok');
         const deviceInfo = {
@@ -59,9 +77,44 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
       }
     } catch (e) {
       setBridgeHealth('no-bridge');
+      setEngineInfo(null);
+      setInstallationData(null);
     } finally {
       setBridgeChecking(false);
     }
+  };
+
+  const handleEnsureFolders = async () => {
+    setIsEnsuringFolders(true);
+    setFolderActionMsg('');
+    try {
+      const data = await nanoPixService.fetchBridgeJson('/nanopix/ensure-folders', { method: 'POST', timeout: 3000 });
+      if (data && data.ok) {
+        if (data.created && data.created.length > 0) {
+          setFolderActionMsg(`✅ Created ${data.created.length} missing folder(s) successfully!`);
+        } else {
+          setFolderActionMsg('✅ All required folders exist and verified on disk.');
+        }
+        if (data.folders) {
+          setInstallationData(prev => prev ? ({ ...prev, folders: data.folders, steps: data.steps || prev.steps }) : null);
+        }
+      } else {
+        setFolderActionMsg('⚠️ Cannot connect to local bridge. Make sure bridge is running.');
+      }
+    } catch (err) {
+      setFolderActionMsg(`Note: ${err.message}`);
+    } finally {
+      setIsEnsuringFolders(false);
+      setTimeout(() => setFolderActionMsg(''), 5000);
+    }
+  };
+
+  const handleLaunchEngine = async () => {
+    try {
+      await nanoPixService.launchEngine();
+      setTimeout(checkBridgeHealth, 1000);
+      setTimeout(checkBridgeHealth, 2500);
+    } catch (_) {}
   };
 
   // Run health check and auto-launch engine when modal opens
@@ -211,6 +264,51 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
             >
               <X className="w-5 h-5" />
             </button>
+          </div>
+        </div>
+
+        {/* ── CRITICAL USER INSTRUCTION: MINIMIZE NANOPIX WINDOW (DO NOT CLOSE) ── */}
+        <div className={`mt-4 p-4 rounded-2xl border transition-all ${
+          engineInfo?.running
+            ? 'bg-amber-500/10 border-amber-500/40 text-amber-950 shadow-xs ring-2 ring-amber-400/20'
+            : 'bg-sky-50 border-sky-200 text-sky-950'
+        }`}>
+          <div className="flex items-start gap-3">
+            <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${engineInfo?.running ? 'bg-amber-500/20 text-amber-700' : 'bg-sky-100 text-sky-700'}`}>
+              <Minus className="w-5 h-5 font-black stroke-[3]" />
+            </div>
+            <div className="flex-1 text-xs space-y-1.5">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="font-extrabold text-sm uppercase tracking-wider flex items-center gap-1.5 text-amber-950">
+                  ⚠️ Critical Notice: Minimize NanoPix Window (Do Not Close)
+                </span>
+                {engineInfo?.running ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    NanoPix Process Active (PID: {engineInfo.pid})
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-200 text-slate-700">
+                    Engine Standby
+                  </span>
+                )}
+              </div>
+              <p className="text-slate-700 leading-relaxed text-[12px]">
+                Jab aap hardware section open karte hain to <strong>NanoPix.exe</strong> ka interface window automatically samne aa jata hai.
+                Aap us window ko <strong>Minimize [ — ]</strong> kar dein. 
+                <span className="text-rose-700 font-bold ml-1">Window ko Close [ ✕ ] mat karein</span>, kyunke Eighteeth RVG sensor ke sath communication ke liye ye background par chalna lazmi hai.
+              </p>
+              <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] font-semibold text-slate-700">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <strong>[ — ] Minimize:</strong> Background mein sensor active rahega
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-800 border border-rose-200">
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                  <strong>[ ✕ ] Close / Exit:</strong> Sensor disconnect ho jayega aur X-ray nahi aayegi
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -375,79 +473,297 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
             <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Primary Device</span>
             <span className="text-xs font-mono text-slate-700 block truncate">{activeName}</span>
           </div>
-            </div>
-          </div>
 
-          {/* ── RIGHT COLUMN: Webcam Test & Devices ── */}
-          <div className="space-y-4">
-            {/* Live Built-in Webcam Self-Test Feed */}
-            <div className="p-3 bg-slate-900 rounded-xl text-white">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${testStream ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></span>
-              <span className="text-xs font-bold">Webcam Hardware Test</span>
+          {/* Eighteeth Engine Status & Quick Launcher */}
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">Acquisition Engine</span>
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                engineInfo?.running ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-200 text-slate-700'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${engineInfo?.running ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+                {engineInfo?.running ? `Active (PID: ${engineInfo.pid})` : 'Offline / Standby'}
+              </span>
             </div>
-            <button
-              onClick={toggleTestStream}
-              className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                testStream
-                  ? 'bg-rose-500/80 hover:bg-rose-600 text-white'
-                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
-              }`}
-            >
-              <Video className="w-3.5 h-3.5" />
-              {testStream ? 'Stop Test' : 'Test Live Webcam'}
-            </button>
-          </div>
-
-          {testStream ? (
-            <div className="relative rounded-lg overflow-hidden aspect-video bg-black flex items-center justify-center border border-slate-800">
-              <video ref={testVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-              <div className="absolute bottom-2 left-2 bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-[10px] font-semibold px-2 py-0.5 rounded">
-                ● Live Feed: Operational & Ready
-              </div>
-            </div>
-          ) : testError ? (
-            <div className="p-3 bg-rose-950/50 border border-rose-800 rounded-lg text-rose-300 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-              <span>{testError}</span>
-            </div>
-          ) : (
-            <p className="text-[11px] text-slate-400">
-              Click &ldquo;Test Live Webcam&rdquo; above to verify your laptop camera stream directly from this window.
+            <p className="text-[10px] font-mono text-slate-600 truncate">
+              {engineInfo?.executable ? engineInfo.executable : 'drivers\\eighteeth_engine\\NanoPix.exe'}
             </p>
-          )}
-        </div>
-
-        {/* Detected Devices List */}
-        <div className="mt-4">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-xs font-bold text-slate-700">Connected Hardware ({deviceList.length})</h4>
-            <span className="text-[11px] text-slate-600">Plug & Play Live</span>
+            <div className="flex gap-2 pt-0.5">
+              <button
+                onClick={handleLaunchEngine}
+                className="flex-1 py-1.5 px-3 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-xs cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                {engineInfo?.running ? 'Focus NanoPix Window' : 'Launch Eighteeth App'}
+              </button>
+            </div>
+          </div>
+            </div>
           </div>
 
-          {deviceList.length > 0 ? (
-            <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
-              {deviceList.map((d, i) => (
-                <div key={d.deviceId || i} className="p-2.5 bg-white border border-slate-200 rounded-xl text-xs flex items-center justify-between shadow-xs">
-                  <div className="flex items-center gap-2 truncate">
-                    <Usb className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span className="truncate text-slate-800 font-medium">{d.label || `USB Video Camera ${i + 1}`}</span>
-                  </div>
-                  <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 shrink-0">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Ready
+          {/* ── RIGHT COLUMN: Hardware Installation & System Verifier ── */}
+          <div className="space-y-4">
+            {/* Sequential 4-Step Installation Checklist */}
+            <div className="p-3.5 bg-slate-900 rounded-2xl text-white shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-100">
+                    Installation & Readiness Audit
+                  </h4>
+                </div>
+                <button
+                  onClick={checkBridgeHealth}
+                  disabled={bridgeChecking}
+                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition border border-slate-700 cursor-pointer disabled:opacity-50"
+                  title="Re-run real-time hardware audit"
+                >
+                  <RefreshCw className={`w-3 h-3 ${bridgeChecking ? 'animate-spin text-teal-400' : ''}`} />
+                  <span>Verify Now</span>
+                </button>
+              </div>
+
+              <div className="space-y-2 pt-1 border-t border-slate-800">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                  <span>Sequential 4 Steps</span>
+                  <span>
+                    {installationData ? (
+                      `${installationData.steps.filter(s => s.status === 'completed').length} / 4 Completed`
+                    ) : (
+                      'Bridge Offline'
+                    )}
                   </span>
                 </div>
-              ))}
+
+                <div className="space-y-1.5">
+                  {installationData ? (
+                    installationData.steps.map((st) => (
+                      <div 
+                        key={st.step}
+                        className={`p-2 rounded-xl text-xs flex items-start gap-2.5 transition border ${
+                          st.status === 'completed'
+                            ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200'
+                            : st.status === 'partial'
+                            ? 'bg-amber-950/40 border-amber-500/40 text-amber-200'
+                            : 'bg-slate-800/60 border-slate-700/60 text-slate-300'
+                        }`}
+                      >
+                        <div className="mt-0.5 shrink-0">
+                          {st.status === 'completed' ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                          ) : st.status === 'partial' ? (
+                            <AlertCircle className="w-4 h-4 text-amber-400" />
+                          ) : (
+                            <div className="w-4 h-4 rounded-full border border-slate-500 flex items-center justify-center text-[10px] text-slate-400 font-bold">
+                              {st.step}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-bold text-[11px]">Step {st.step}: {st.title}</span>
+                            <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded ${
+                              st.status === 'completed'
+                                ? 'bg-emerald-500/20 text-emerald-300'
+                                : st.status === 'partial'
+                                ? 'bg-amber-500/20 text-amber-300'
+                                : 'bg-slate-700 text-slate-400'
+                            }`}>
+                              {st.status}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
+                            {st.details}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-3 bg-slate-800/80 rounded-xl text-center text-xs text-slate-400 border border-slate-700">
+                      <AlertCircle className="w-4 h-4 text-amber-400 mx-auto mb-1" />
+                      <p className="font-semibold text-slate-300">Bridge Not Connected</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Start local bridge to verify FTDI drivers & Windows startup</p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-          ) : (
-            <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl text-center">
-              <AlertCircle className="w-5 h-5 text-amber-600 mx-auto mb-1" />
-              <p className="text-xs font-medium text-amber-900">No USB dental cameras detected.</p>
-              <p className="text-[11px] text-amber-700 mt-0.5">Connect your intraoral camera or digital sensor to any USB port.</p>
+
+            {/* Verified BAT Files & Background Services Audit */}
+            <div className="p-3.5 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-2.5">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Terminal className="w-3.5 h-3.5 text-teal-600" />
+                  Verified Batch Files & Auto-Start
+                </h4>
+                <span className="text-[10px] font-semibold text-slate-500">Real OS Telemetry</span>
+              </div>
+
+              {installationData?.batchFiles ? (
+                <div className="space-y-1.5">
+                  {installationData.batchFiles.map((bf) => (
+                    <div key={bf.name} className="p-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs flex items-center justify-between gap-2">
+                      <div className="truncate flex-1">
+                        <span className="font-mono font-bold text-[11px] text-slate-800 block truncate">{bf.name}</span>
+                        <span className="text-[10px] text-slate-500 block truncate">{bf.description}</span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold shrink-0 flex items-center gap-1 ${
+                        bf.exists ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                      }`}>
+                        {bf.exists ? <CheckCircle2 className="w-3 h-3 text-emerald-600" /> : <AlertCircle className="w-3 h-3 text-rose-600" />}
+                        {bf.exists ? 'Verified on Disk' : 'Missing'}
+                      </span>
+                    </div>
+                  ))}
+
+                  {/* Windows Startup Persistence Script */}
+                  <div className="p-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs flex items-center justify-between gap-2">
+                    <div className="truncate flex-1">
+                      <span className="font-mono font-bold text-[11px] text-slate-800 block truncate">DentiaNanoPixBridge.vbs</span>
+                      <span className="text-[10px] text-slate-500 block truncate">%APPDATA%\...\Programs\Startup</span>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold shrink-0 flex items-center gap-1 ${
+                      installationData.startupScript?.exists ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                    }`}>
+                      {installationData.startupScript?.exists ? <CheckCircle2 className="w-3 h-3 text-emerald-600" /> : <AlertCircle className="w-3 h-3 text-rose-600" />}
+                      {installationData.startupScript?.exists ? 'Auto-Boot Active' : 'Not Configured'}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-slate-50 rounded-xl text-center text-xs text-slate-500 border border-slate-200">
+                  Awaiting bridge connection to audit batch files on disk...
+                </div>
+              )}
             </div>
-          )}
-          </div>
+
+            {/* Required Storage Folders Audit */}
+            <div className="p-3.5 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-2.5">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <FolderOpen className="w-3.5 h-3.5 text-teal-600" />
+                  Required Storage Folders Audit
+                </h4>
+                <button
+                  onClick={handleEnsureFolders}
+                  disabled={isEnsuringFolders || !installationData}
+                  className="text-[10px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2 py-0.5 rounded-md transition cursor-pointer disabled:opacity-50"
+                  title="Automatically create any missing directories on disk"
+                >
+                  {isEnsuringFolders ? 'Creating...' : 'Ensure Folders'}
+                </button>
+              </div>
+
+              {folderActionMsg && (
+                <div className="p-2 bg-teal-50 border border-teal-200 rounded-lg text-[11px] text-teal-800 font-semibold animate-in fade-in">
+                  {folderActionMsg}
+                </div>
+              )}
+
+              {installationData?.folders ? (
+                <div className="space-y-1.5">
+                  {installationData.folders.map((fld) => (
+                    <div key={fld.id} className="p-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs flex items-center justify-between gap-2">
+                      <div className="truncate flex-1">
+                        <span className="font-bold text-[11px] text-slate-800 block truncate">{fld.label}</span>
+                        <span className="text-[10px] font-mono text-slate-500 block truncate">{fld.resolvedPath}</span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 ${
+                          fld.exists ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                        }`}>
+                          {fld.exists ? <CheckCircle2 className="w-3 h-3 text-emerald-600" /> : <AlertCircle className="w-3 h-3 text-rose-600" />}
+                          {fld.exists ? 'Ready' : 'Missing'}
+                        </span>
+                        {fld.exists && (
+                          <span className="text-[9px] text-slate-400 block mt-0.5">
+                            {fld.fileCount} file{fld.fileCount !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-3 bg-slate-50 rounded-xl text-center text-xs text-slate-500 border border-slate-200">
+                  Awaiting bridge connection to audit filesystem folders...
+                </div>
+              )}
+            </div>
+
+            {/* Optional Collapsible Webcam Test Feed */}
+            <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-xs">
+              <button
+                onClick={() => setShowWebcamTest(!showWebcamTest)}
+                className="w-full p-3 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-between transition cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <Video className="w-4 h-4 text-slate-500" />
+                  <span>Intraoral Webcam Hardware Test (Optional)</span>
+                  {deviceList.length > 0 && (
+                    <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.2 rounded font-semibold">
+                      {deviceList.length} Found
+                    </span>
+                  )}
+                </div>
+                {showWebcamTest ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+              </button>
+
+              {showWebcamTest && (
+                <div className="p-3 space-y-3 bg-slate-900 text-white border-t border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      <span className={`w-2 h-2 rounded-full ${testStream ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></span>
+                      Webcam Self-Test Feed
+                    </span>
+                    <button
+                      onClick={toggleTestStream}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        testStream
+                          ? 'bg-rose-500/80 hover:bg-rose-600 text-white'
+                          : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
+                      }`}
+                    >
+                      <Video className="w-3.5 h-3.5" />
+                      {testStream ? 'Stop Test' : 'Test Live Webcam'}
+                    </button>
+                  </div>
+
+                  {testStream ? (
+                    <div className="relative rounded-lg overflow-hidden aspect-video bg-black flex items-center justify-center border border-slate-800">
+                      <video ref={testVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                      <div className="absolute bottom-2 left-2 bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-[10px] font-semibold px-2 py-0.5 rounded">
+                        ● Live Feed: Operational & Ready
+                      </div>
+                    </div>
+                  ) : testError ? (
+                    <div className="p-3 bg-rose-950/50 border border-rose-800 rounded-lg text-rose-300 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                      <span>{testError}</span>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400">
+                      Click &ldquo;Test Live Webcam&rdquo; above to verify your laptop camera stream directly from this window.
+                    </p>
+                  )}
+
+                  {/* Detected Devices List */}
+                  {deviceList.length > 0 && (
+                    <div className="space-y-1.5 max-h-28 overflow-y-auto pt-2 border-t border-slate-800">
+                      {deviceList.map((d, i) => (
+                        <div key={d.deviceId || i} className="p-2 bg-slate-800/80 border border-slate-700 rounded-lg text-[11px] flex items-center justify-between">
+                          <div className="flex items-center gap-2 truncate text-slate-200">
+                            <Usb className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            <span className="truncate">{d.label || `USB Video Camera ${i + 1}`}</span>
+                          </div>
+                          <span className="text-[10px] text-emerald-400 font-semibold shrink-0">Ready</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

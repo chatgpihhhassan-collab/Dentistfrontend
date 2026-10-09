@@ -573,6 +573,174 @@ function getLatestScanFromFolders(forceNewest = false) {
 }
 
 // -----------------------------------------------------------------------------
+// [FLOW 4.5/5] REAL-TIME ENVIRONMENT, SCRIPTS & FOLDERS VERIFICATION AUDIT
+// -----------------------------------------------------------------------------
+function getInstallationDiagnostics() {
+  const startupVbs = path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'DentiaNanoPixBridge.vbs');
+  let startupExists = false;
+  try {
+    startupExists = fs.existsSync(startupVbs);
+  } catch (_) {}
+
+  // Check Protocol Handler via reg query
+  let protocolRegistered = false;
+  try {
+    const regCheck = execSync('reg query "HKCU\\Software\\Classes\\dentia-hw" /ve', { stdio: ['ignore', 'pipe', 'ignore'], timeout: 1500 }).toString();
+    protocolRegistered = regCheck.toLowerCase().includes('dentia hardware protocol') || regCheck.includes('dentia-hw');
+  } catch (_) {}
+
+  // Check Batch Files on disk in current directory
+  const registerBat = path.join(__dirname, 'REGISTER_DENTIA_PROTOCOL.bat');
+  const startSyncBat = path.join(__dirname, 'START_NANOPIX_AUTO_SYNC.bat');
+  const startAgentBat = path.join(__dirname, 'START_AGENT.bat');
+  const installStartupBat = path.join(__dirname, 'INSTALL_AUTO_STARTUP_SERVICE.bat');
+
+  const batchFiles = [
+    {
+      name: 'REGISTER_DENTIA_PROTOCOL.bat',
+      path: registerBat,
+      exists: fs.existsSync(registerBat),
+      description: 'Browser protocol handler & auto-startup registrar'
+    },
+    {
+      name: 'START_NANOPIX_AUTO_SYNC.bat',
+      path: startSyncBat,
+      exists: fs.existsSync(startSyncBat),
+      description: 'Session bridge & hardware acquisition launcher'
+    },
+    {
+      name: 'INSTALL_AUTO_STARTUP_SERVICE.bat',
+      path: installStartupBat,
+      exists: fs.existsSync(installStartupBat),
+      description: 'Silent Windows boot background service installer'
+    },
+    {
+      name: 'START_AGENT.bat',
+      path: startAgentBat,
+      exists: fs.existsSync(startAgentBat),
+      description: 'Local session hardware launcher (Port 5055)'
+    }
+  ];
+
+  // Check Required Storage Folders
+  const folderAudit = [];
+  const foldersToCheck = [
+    {
+      id: 'patient_data',
+      label: 'Patient Data Directory',
+      candidates: ['D:\\PatientData', 'C:\\PatientData', path.join(__dirname, 'PatientData')],
+      description: 'Target export directory for RVG radiographic exposures'
+    },
+    {
+      id: 'nanopix_scans',
+      label: 'Local Ingest Cache Folder',
+      candidates: [path.join(__dirname, 'nanopix_scans')],
+      description: 'Live dental chart bridge ingest cache'
+    },
+    {
+      id: 'eighteeth_engine',
+      label: 'Eighteeth Engine Binaries',
+      candidates: [
+        path.join(__dirname, 'drivers', 'eighteeth_engine', '1.1.1.9'),
+        path.join(__dirname, 'drivers', 'eighteeth_engine')
+      ],
+      description: 'Official NanoPix acquisition engine binaries and DLLs'
+    },
+    {
+      id: 'startup_vbs',
+      label: 'Windows Startup Script',
+      candidates: [startupVbs],
+      description: 'Automatic background startup on Windows boot'
+    }
+  ];
+
+  foldersToCheck.forEach(item => {
+    let matchedPath = null;
+    let fileCount = 0;
+    for (const cand of item.candidates) {
+      if (cand && fs.existsSync(cand)) {
+        matchedPath = cand;
+        try {
+          const stat = fs.statSync(cand);
+          if (stat.isDirectory()) {
+            fileCount = fs.readdirSync(cand).length;
+          } else {
+            fileCount = 1;
+          }
+        } catch (_) {}
+        break;
+      }
+    }
+
+    folderAudit.push({
+      id: item.id,
+      label: item.label,
+      exists: Boolean(matchedPath),
+      resolvedPath: matchedPath || item.candidates[0],
+      fileCount: fileCount,
+      description: item.description
+    });
+  });
+
+  // Check Drivers
+  const driverStatus = {
+    driverLoaded: Boolean(hardwareTelemetry.driverLoaded),
+    deviceCount: hardwareTelemetry.deviceCount || 0,
+    usbConnected: (hardwareTelemetry.deviceCount || 0) > 0,
+    serialNumber: hardwareTelemetry.serial || null,
+    driverType: hardwareTelemetry.driverLoaded ? 'FTDI D2XX Kernel DLL' : 'Win32 Native'
+  };
+
+  // Steps Calculation (Real, no mock)
+  const step4Done = folderAudit.every(f => f.exists);
+
+  return {
+    timestamp: new Date().toISOString(),
+    startupScript: {
+      path: startupVbs,
+      exists: startupExists
+    },
+    protocol: {
+      handler: 'dentia-hw://',
+      registered: protocolRegistered
+    },
+    batchFiles: batchFiles,
+    folders: folderAudit,
+    driver: driverStatus,
+    steps: [
+      {
+        step: 1,
+        title: 'FTDI D2XX Driver & USB Sensor',
+        status: driverStatus.usbConnected ? 'completed' : (driverStatus.driverLoaded ? 'partial' : 'pending'),
+        details: driverStatus.usbConnected 
+          ? `Device connected (Serial: ${driverStatus.serialNumber || 'Eighteeth RVG'})`
+          : (driverStatus.driverLoaded ? 'FTDI D2XX driver loaded; USB sensor not plugged in' : 'Driver not detected. Install FTDI driver.')
+      },
+      {
+        step: 2,
+        title: 'Protocol & Windows Auto-Startup',
+        status: (protocolRegistered && startupExists) ? 'completed' : (protocolRegistered || startupExists ? 'partial' : 'pending'),
+        details: protocolRegistered
+          ? (startupExists ? 'Protocol & Startup Active' : 'Protocol registered; Startup script missing (Run REGISTER_DENTIA_PROTOCOL.bat)')
+          : 'Protocol not registered. Run REGISTER_DENTIA_PROTOCOL.bat'
+      },
+      {
+        step: 3,
+        title: 'Local Hardware Bridge (Port 5066)',
+        status: 'completed',
+        details: `Active on port ${PORT} (PID: ${process.pid})`
+      },
+      {
+        step: 4,
+        title: 'Storage Folders & Acquisition Readiness',
+        status: step4Done ? 'completed' : 'partial',
+        details: step4Done ? 'All required folders verified on disk.' : 'One or more required folders missing.'
+      }
+    ]
+  };
+}
+
+// -----------------------------------------------------------------------------
 // [FLOW 5/5] HTTP API SERVER & STREAMING WEBSOCKET/SSE GATEWAY
 // -----------------------------------------------------------------------------
 const server = http.createServer((req, res) => {
@@ -610,6 +778,7 @@ const server = http.createServer((req, res) => {
     } catch (_) {}
 
     const isPhysicallyConnected = hardwareTelemetry.deviceCount > 0;
+    const installDiagnostics = getInstallationDiagnostics();
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
@@ -636,12 +805,44 @@ const server = http.createServer((req, res) => {
         interface: isPhysicallyConnected ? 'FTDI FT232H High-Speed USB Bridge (VID: 0x0403, PID: 0x6014)' : 'None (USB Cable Unplugged)'
       },
       hotFolders: WATCH_FOLDERS,
-      hasPendingScan: Boolean(latestScan)
+      hasPendingScan: Boolean(latestScan),
+      installationChecklist: installDiagnostics
     }));
     return;
   }
 
-  // 1b. Trigger Engine Launch on Demand
+  // 1b. Dedicated Installation & Environment Audit Endpoint
+  if (url.pathname === '/nanopix/installation-status') {
+    pollFtdiHardwareBus();
+    const diag = getInstallationDiagnostics();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, ...diag }));
+    return;
+  }
+
+  // 1c. Ensure Required Folders on Demand
+  if (url.pathname === '/nanopix/ensure-folders') {
+    const requiredDirs = [
+      path.join(__dirname, 'PatientData'),
+      path.join(__dirname, 'nanopix_scans'),
+      path.join(os.homedir(), 'Documents', 'DentiaScans')
+    ];
+    const created = [];
+    requiredDirs.forEach(dir => {
+      try {
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+          created.push(dir);
+        }
+      } catch (_) {}
+    });
+    const diag = getInstallationDiagnostics();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, created, ...diag }));
+    return;
+  }
+
+  // 1d. Trigger Engine Launch on Demand
   if (url.pathname === '/nanopix/launch-engine' || url.pathname === '/nanopix/launch' || url.pathname === '/nanopix/open-app' || url.pathname === '/launch-nanopix') {
     const launchResult = launchEighteethDesktopApp();
     res.writeHead(200, { 'Content-Type': 'application/json' });

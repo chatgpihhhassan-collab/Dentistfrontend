@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Download, Terminal, Usb, CheckCircle2, AlertCircle, ChevronRight, MonitorPlay, Activity } from 'lucide-react';
+import { Download, Terminal, Usb, CheckCircle2, AlertCircle, ChevronRight, MonitorPlay, Activity, Minus } from 'lucide-react';
 
 export default function NanoPixSetupGuide() {
   const [activeStep, setActiveStep] = useState(1);
@@ -119,22 +119,23 @@ export default function NanoPixSetupGuide() {
     },
     {
       id: 3,
-      title: "Run the Bridge",
+      title: "Run Bridge & Windows Protocol",
       icon: <Terminal className="w-6 h-6" />,
       content: (
         <div className="space-y-4">
           <p className="text-slate-600 text-sm">
-            The bridge must be running on the Doctor's PC for the web app to receive X-Rays.
+            The bridge must be running on the Doctor's PC for the web app to communicate with your Eighteeth sensor and receive X-Rays.
           </p>
           <div className="bg-slate-900 rounded-xl p-5 text-slate-300 text-sm font-mono space-y-4">
             <div>
-              <p className="text-slate-500 mb-1">// Method 1: Auto-Start (Recommended)</p>
-              <p className="text-emerald-400">Double-click: <span className="text-white">INSTALL_AUTO_STARTUP_SERVICE.bat</span></p>
-              <p className="text-xs mt-1">This configures the bridge to automatically run in the background every time the PC turns on.</p>
+              <p className="text-emerald-400 font-bold mb-1">// Method 1: Permanent 1-Click Protocol & Auto-Start (Recommended)</p>
+              <p className="text-white font-bold">Double-click: <span className="text-amber-300">REGISTER_DENTIA_PROTOCOL.bat</span></p>
+              <p className="text-xs text-slate-400 mt-1">Registers the <code className="text-sky-300">dentia-hw://</code> browser protocol and configures background auto-start whenever Windows boots up.</p>
             </div>
             <div className="border-t border-slate-800 pt-3">
-              <p className="text-slate-500 mb-1">// Method 2: Manual Start</p>
-              <p className="text-blue-400">Double-click: <span className="text-white">START_NANOPIX_AUTO_SYNC.bat</span></p>
+              <p className="text-blue-400 font-bold mb-1">// Method 2: Current Session Direct Run</p>
+              <p className="text-white font-bold">Double-click: <span className="text-sky-300">START_NANOPIX_AUTO_SYNC.bat</span></p>
+              <p className="text-xs text-slate-400 mt-1">Starts the Node.js bridge on port 5066 and launches the NanoPix acquisition engine.</p>
             </div>
           </div>
         </div>
@@ -142,31 +143,52 @@ export default function NanoPixSetupGuide() {
     },
     {
       id: 4,
-      title: "Verify Connection",
+      title: "Verify Connection & Minimize Window",
       icon: <MonitorPlay className="w-6 h-6" />,
       content: (
         <div className="space-y-4">
+          {/* Critical Minimize Warning Banner */}
+          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-950 space-y-2">
+            <div className="flex items-center gap-2 font-black text-sm text-amber-900 uppercase tracking-wider">
+              <Minus className="w-5 h-5 text-amber-700 stroke-[3]" />
+              <span>⚠️ Critical Step: Minimize NanoPix Window (Do Not Close)</span>
+            </div>
+            <p className="text-xs text-slate-700 leading-relaxed">
+              When the hardware section launches <strong>NanoPix.exe</strong>, its desktop window will open on your screen.
+              <strong> Minimize [ — ] the window to your Windows taskbar. Do NOT click Close [ ✕ ]!</strong>
+              The window must stay running in the background for Dentia's local bridge to receive live radiographs.
+            </p>
+            <div className="flex items-center gap-3 text-[11px] font-semibold pt-1">
+              <span className="flex items-center gap-1 text-emerald-800">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> [ — ] Minimize: Stays active in background
+              </span>
+              <span className="flex items-center gap-1 text-rose-800">
+                <AlertCircle className="w-3.5 h-3.5 text-rose-600" /> [ ✕ ] Close: Breaks sensor connection
+              </span>
+            </div>
+          </div>
+
           <p className="text-slate-600 text-sm">
-            Check the status of your hardware connection directly from the clinical chart.
+            Check the status of your hardware connection directly from the clinical chart:
           </p>
           
           <div className="flex gap-4">
             <div className="flex-1 bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col items-center text-center">
               <Activity className="w-8 h-8 text-emerald-500 mb-2" />
               <h4 className="font-bold text-emerald-900 text-sm">Bridge Active</h4>
-              <p className="text-xs text-emerald-700 mt-1">Web app is communicating with local port 5066.</p>
+              <p className="text-xs text-emerald-700 mt-1">Web app communicates with local port 5066.</p>
             </div>
             
             <div className="flex-1 bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col items-center text-center">
               <Usb className="w-8 h-8 text-emerald-500 mb-2" />
               <h4 className="font-bold text-emerald-900 text-sm">USB Connected</h4>
-              <p className="text-xs text-emerald-700 mt-1">Sensor is plugged in and drivers are functioning.</p>
+              <p className="text-xs text-emerald-700 mt-1">Eighteeth sensor is plugged in and drivers armed.</p>
             </div>
           </div>
 
           <div className="bg-slate-50 p-4 border border-slate-200 rounded-xl">
             <p className="text-sm text-slate-700">
-              When inside a patient's chart, look for the hardware badge in the top corner. Clicking it will display a live diagnostics panel to confirm everything is operational.
+              When inside a patient chart, click the <strong>Hardware Badge</strong> in the navigation bar to inspect the 4-step installation checklist and live folder verification in the right-side panel.
             </p>
           </div>
         </div>
