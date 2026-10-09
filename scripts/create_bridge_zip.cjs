@@ -4,8 +4,8 @@ const { execSync } = require('child_process');
 
 const rootDir = path.resolve(__dirname, '..');
 const publicDir = path.join(rootDir, 'public');
-const stageDir = path.join(rootDir, 'temp_stage_bridge4');
-const tempZip = path.join(rootDir, 'temp_full_bridge4.zip');
+const stageDir = path.join(rootDir, 'temp_stage_bridge6');
+const tempZip = path.join(rootDir, 'temp_full_bridge6.zip');
 
 console.log('🧹 Cleaning previous builds...');
 if (fs.existsSync(stageDir)) fs.rmSync(stageDir, { recursive: true, force: true });
@@ -50,8 +50,6 @@ const engineDest = path.join(stageDir, 'drivers', 'eighteeth_engine', '1.1.1.9')
 function copyDirSync(src, dest) {
   fs.mkdirSync(dest, { recursive: true });
   fs.readdirSync(src).forEach(file => {
-    if (file === 'FinCloud') return; // Skip locked/heavy cloud sync software
-    
     const srcFile = path.join(src, file);
     const destFile = path.join(dest, file);
     if (fs.statSync(srcFile).isDirectory()) {
@@ -74,8 +72,8 @@ if (fs.existsSync(engineSrc)) {
 console.log('⏳ Waiting 5 seconds for Windows Defender to release file locks...');
 execSync('powershell -Command "Start-Sleep -Seconds 5"');
 
-console.log('🗜️ Compressing to temporary ZIP file...');
-execSync(`powershell -NoProfile -Command "Compress-Archive -Path '${stageDir}\\*' -DestinationPath '${tempZip}' -Force"`, { stdio: 'inherit' });
+console.log('🗜️ Compressing to temporary ZIP file using tar...');
+execSync(`tar -a -c -f "${tempZip}" -C "${stageDir}" *`, { stdio: 'inherit' });
 
 console.log('🔪 Splitting ZIP into 45MB chunks for GitHub/Vercel bypass...');
 const CHUNK_SIZE = 45 * 1024 * 1024; // 45 MB chunks

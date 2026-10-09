@@ -67,7 +67,7 @@ function launchEighteethDesktopApp() {
     const child = spawn('powershell.exe', [
       '-ExecutionPolicy', 'Bypass',
       '-WindowStyle', 'Hidden',
-      '-Command', `Start-Process -FilePath '${targetExe}' -WorkingDirectory '${workingDir}'`
+      '-Command', `Start-Process -FilePath '${targetExe}' -WorkingDirectory '${workingDir}' -WindowStyle Normal`
     ], {
       detached: true,
       stdio: 'ignore'
