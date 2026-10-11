@@ -42,13 +42,21 @@ taskkill /F /IM DentalBridge.exe >nul 2>&1
 
 :: Copy Service Executable and DLLs if source is found
 if exist "%SOURCE_DIR%\DentalBridge.exe" (
-    echo [*] Found binaries in: %SOURCE_DIR%
+    echo [*] Found local binaries in: %SOURCE_DIR%
     copy /Y "%SOURCE_DIR%\DentalBridge.exe" "%TARGET_DIR%\" >nul
     if exist "%SOURCE_DIR%\*.dll" copy /Y "%SOURCE_DIR%\*.dll" "%TARGET_DIR%\" >nul
     if exist "%SOURCE_DIR%\config.ini" copy /Y "%SOURCE_DIR%\config.ini" "%TARGET_DIR%\" >nul
+    if exist "%SOURCE_DIR%\WebSocket_Live_Monitor.html" copy /Y "%SOURCE_DIR%\WebSocket_Live_Monitor.html" "%TARGET_DIR%\" >nul
     if exist "%SOURCE_DIR%\Correct\Default\*.*" copy /Y "%SOURCE_DIR%\Correct\Default\*.*" "%TARGET_DIR%\Correct\Default\" >nul
 ) else (
-    echo [!] Source directory not found at %SOURCE_DIR%
+    echo [*] Downloading complete Dentia Bridge package from cloud...
+    echo [*] URL: https://dentistfrontend.vercel.app/Dentia_Dental_Bridge_Setup.zip
+    powershell -NoProfile -Command "Invoke-WebRequest -Uri 'https://dentistfrontend.vercel.app/Dentia_Dental_Bridge_Setup.zip' -OutFile '%TEMP%\Dentia_Dental_Bridge_Setup.zip'"
+    if exist "%TEMP%\Dentia_Dental_Bridge_Setup.zip" (
+        echo [*] Extracting runtime files into %TARGET_DIR%...
+        powershell -NoProfile -Command "Expand-Archive -Path '%TEMP%\Dentia_Dental_Bridge_Setup.zip' -DestinationPath '%TARGET_DIR%' -Force"
+        del /Q "%TEMP%\Dentia_Dental_Bridge_Setup.zip" >nul 2>&1
+    )
 )
 
 :: Validate target binary exists
@@ -58,8 +66,8 @@ if not exist "%TARGET_DIR%\DentalBridge.exe" (
     echo [ERROR] DentalBridge.exe was not found in:
     echo         %TARGET_DIR%\DentalBridge.exe
     echo.
-    echo Please ensure the DentalBridge files are extracted into %TARGET_DIR%
-    echo or run the installer alongside the DentalBridge publish folder.
+    echo Please download and extract Dentia_Dental_Bridge_Setup.zip
+    echo and run 1-CLICK_INSTALL.bat
     echo ==============================================================================
     echo.
     pause

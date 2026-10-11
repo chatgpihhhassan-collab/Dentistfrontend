@@ -23,13 +23,22 @@ export default function NanoPixSetupGuide() {
               <p className="text-xs text-blue-700 mb-4">
                 The local service that connects your X-ray sensor to this web interface.
               </p>
-              <a 
-                href="/Dentia_Web_Installer.bat" 
-                download
-                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg flex items-center justify-center gap-2 transition"
-              >
-                <Download className="w-4 h-4" /> Download Bridge
-              </a>
+              <div className="flex flex-col gap-2">
+                <a 
+                  href="/Dentia_Dental_Bridge_Setup.zip" 
+                  download
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg flex items-center justify-center gap-2 transition shadow-sm"
+                >
+                  <Download className="w-4 h-4" /> Download Complete Setup (.zip)
+                </a>
+                <a 
+                  href="/Dentia_Web_Installer.bat" 
+                  download
+                  className="w-full py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition text-center"
+                >
+                  Download Auto-Installer Script (.bat)
+                </a>
+              </div>
             </div>
 
             {/* FTDI Driver Download */}

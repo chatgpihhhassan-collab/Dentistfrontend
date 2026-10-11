@@ -374,11 +374,12 @@ export default function DentalSensorView({
           {/* 1-Click Installer Link when Bridge is Offline */}
           {!bridgeOnline && (
             <a
-              href="/Dentia_Web_Installer.bat"
+              href="/Dentia_Dental_Bridge_Setup.zip"
               download
               className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md transition-all"
+              title="Download Complete Dental Bridge Setup (.zip)"
             >
-              <Download className="w-3.5 h-3.5" /> 1-Click Bridge Setup
+              <Download className="w-3.5 h-3.5" /> 1-Click Bridge Setup (.zip)
             </a>
           )}
 
