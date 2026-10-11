@@ -20,6 +20,12 @@ if not exist "%SOURCE_DIR%\DentalBridge.exe" (
     set "SOURCE_DIR=%~dp0..\..\DentalBridge.Service\publish"
 )
 if not exist "%SOURCE_DIR%\DentalBridge.exe" (
+    set "SOURCE_DIR=F:\DentistApp_Theme2\DentistAPIClone\API_dentist\DentalBridge\publish"
+)
+if not exist "%SOURCE_DIR%\DentalBridge.exe" (
+    set "SOURCE_DIR=F:\DentistApp_Theme2\DentalBridge.Service\publish"
+)
+if not exist "%SOURCE_DIR%\DentalBridge.exe" (
     set "SOURCE_DIR=%~dp0"
 )
 
@@ -34,18 +40,30 @@ if not exist "%TARGET_DIR%\Correct\Default" mkdir "%TARGET_DIR%\Correct\Default"
 :: Terminate previous running instance
 taskkill /F /IM DentalBridge.exe >nul 2>&1
 
-:: Copy Service Executable and DLLs
+:: Copy Service Executable and DLLs if source is found
 if exist "%SOURCE_DIR%\DentalBridge.exe" (
+    echo [*] Found binaries in: %SOURCE_DIR%
     copy /Y "%SOURCE_DIR%\DentalBridge.exe" "%TARGET_DIR%\" >nul
+    if exist "%SOURCE_DIR%\*.dll" copy /Y "%SOURCE_DIR%\*.dll" "%TARGET_DIR%\" >nul
+    if exist "%SOURCE_DIR%\config.ini" copy /Y "%SOURCE_DIR%\config.ini" "%TARGET_DIR%\" >nul
+    if exist "%SOURCE_DIR%\Correct\Default\*.*" copy /Y "%SOURCE_DIR%\Correct\Default\*.*" "%TARGET_DIR%\Correct\Default\" >nul
+) else (
+    echo [!] Source directory not found at %SOURCE_DIR%
 )
-if exist "%SOURCE_DIR%\*.dll" (
-    copy /Y "%SOURCE_DIR%\*.dll" "%TARGET_DIR%\" >nul
-)
-if exist "%SOURCE_DIR%\config.ini" (
-    copy /Y "%SOURCE_DIR%\config.ini" "%TARGET_DIR%\" >nul
-)
-if exist "%SOURCE_DIR%\Correct\Default\*.*" (
-    copy /Y "%SOURCE_DIR%\Correct\Default\*.*" "%TARGET_DIR%\Correct\Default\" >nul
+
+:: Validate target binary exists
+if not exist "%TARGET_DIR%\DentalBridge.exe" (
+    echo.
+    echo ==============================================================================
+    echo [ERROR] DentalBridge.exe was not found in:
+    echo         %TARGET_DIR%\DentalBridge.exe
+    echo.
+    echo Please ensure the DentalBridge files are extracted into %TARGET_DIR%
+    echo or run the installer alongside the DentalBridge publish folder.
+    echo ==============================================================================
+    echo.
+    pause
+    exit /b 1
 )
 
 :: Register Windows Startup (Current User Run Key)
@@ -61,12 +79,12 @@ echo @echo off > "%TARGET_DIR%\View_Logs.bat"
 echo TITLE Dentia Hardware Bridge Live Logs >> "%TARGET_DIR%\View_Logs.bat"
 echo powershell -Command "Get-Content -Path '%LOGS_DIR%\bridge_*.log' -Tail 50 -Wait" >> "%TARGET_DIR%\View_Logs.bat"
 
-:: Launch Background Service Immediately
+:: Launch Background Service
 echo [*] Launching Dental Bridge background service...
 start "" "%TARGET_DIR%\DentalBridge.exe"
 
 :: Quick verification
-timeout /t 2 >nul
+timeout /t 3 >nul
 powershell -Command "try { $r = Invoke-RestMethod -Uri 'http://127.0.0.1:5050/api/status' -TimeoutSec 3; Write-Host ' [STATUS CHECK] Bridge is active on port 5050. Model:' $r.model 'State:' $r.state } catch { Write-Host ' [STATUS NOTE] Service starting up in background...' }"
 
 echo.
