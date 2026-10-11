@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
  */
 export function useNanoPixSensor({
   patientId = null,
-  toothKey = '19',
+  toothKey = null,
   doctorId = null,
   autoConnect = true,
   onCapture = null
@@ -14,8 +14,8 @@ export function useNanoPixSensor({
   const [bridgeOnline, setBridgeOnline] = useState(false);
   const [deviceConnected, setDeviceConnected] = useState(false);
   const [deviceStatus, setDeviceStatus] = useState('OFFLINE'); // OFFLINE, DISCONNECTED, READY, ARMED, CAPTURING
-  const [deviceModel, setDeviceModel] = useState('Eighteeth NanoPix 1.5/2');
-  const [deviceSerial, setDeviceSerial] = useState('iRayC7DB5M40P4');
+  const [deviceModel, setDeviceModel] = useState('');
+  const [deviceSerial, setDeviceSerial] = useState('');
   const [isArmed, setIsArmed] = useState(false);
   const [lastCapturedImage, setLastCapturedImage] = useState(null);
   const [captureHistory, setCaptureHistory] = useState([]);
@@ -240,11 +240,16 @@ export function useNanoPixSensor({
       return false;
     }
 
+    if (!targetPatientId || !targetToothKey) {
+      setError('Patient ID and Tooth Key are required to arm the sensor. (No mock defaults allowed)');
+      return false;
+    }
+
     try {
       socketRef.current.send(JSON.stringify({
         command: 'ARM',
-        patientId: Number(targetPatientId) || 46,
-        toothKey: String(targetToothKey || '19'),
+        patientId: Number(targetPatientId),
+        toothKey: String(targetToothKey),
         doctorId: targetDoctorId ? Number(targetDoctorId) : null
       }));
       setIsArmed(true);

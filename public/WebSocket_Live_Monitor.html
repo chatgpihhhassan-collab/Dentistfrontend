@@ -244,6 +244,11 @@
         <span id="statusText">Connecting...</span>
       </div>
 
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <input id="armPatientId" type="number" placeholder="Patient ID" style="background: #020617; border: 1px solid #334155; color: #f8fafc; padding: 7px 10px; border-radius: 8px; font-size: 11px; width: 95px;" title="Patient ID">
+        <input id="armToothKey" type="text" placeholder="Tooth #" style="background: #020617; border: 1px solid #334155; color: #f8fafc; padding: 7px 10px; border-radius: 8px; font-size: 11px; width: 70px;" title="Tooth Key (e.g. 19, 14, 21)">
+      </div>
+
       <button id="btnArm" class="btn-primary" onclick="armSensor()">
         ⚡ Arm Sensor
       </button>
@@ -280,7 +285,7 @@
       <div id="previewBox" class="preview-box">
         <div id="shotAlert" class="shot-alert">
           <span>⚡ X-RAY EXPOSURE RECEIVED! (16-Bit Radiograph Detected)</span>
-          <span id="shotDetailsBadge">1300x1800 • Tooth #19</span>
+          <span id="shotDetailsBadge">-</span>
         </div>
 
         <img id="xrayImage" style="display: none;" alt="X-Ray Radiograph">
@@ -288,13 +293,13 @@
         <div id="placeholder" class="placeholder-text">
           <b>No X-Ray Exposure Received Yet</b>
           1. Sensor ko USB par lagayein.<br>
-          2. Upar <strong>"Arm Sensor"</strong> button dabayein.<br>
-          3. X-Ray Machine fire karein — yahan <strong>foran picture</strong> nazar aayegi!
+          2. Patient ID & Tooth # darj karke <strong>"Arm Sensor"</strong> button dabayein.<br>
+          3. X-Ray Machine fire karein — yahan <strong>asli picture</strong> nazar aayegi!
         </div>
       </div>
 
       <div class="details-row">
-        <div>Sensor Model: <b id="modelVal">Eighteeth Nano-Pix 2</b></div>
+        <div>Sensor Model: <b id="modelVal">No Device Connected</b></div>
         <div>Sensor State: <b id="stateVal" style="color: #38bdf8;">DISCONNECTED</b></div>
         <div>Total Shots: <b id="shotCountVal" style="color: #34d399;">0</b></div>
         <div>Last Packet: <b id="lastPacketVal">-</b></div>
@@ -428,10 +433,10 @@
 
         // Show Flash Alert
         shotAlert.style.display = 'flex';
-        shotDetailsBadge.innerText = `${data.width || 1300}x${data.height || 1800} (16-Bit) • Tooth #${data.toothKey || '19'}`;
+        shotDetailsBadge.innerText = `${data.width || 1300}x${data.height || 1800} (16-Bit) • Tooth #${data.toothKey || '-'}`;
         setTimeout(() => { shotAlert.style.display = 'none'; }, 6000);
 
-        appendPacket('SHOT', `⚡ [XRAY_CAPTURED] Received Radiograph! Tooth #${data.toothKey || '19'}, Size: ${data.width || 1300}x${data.height || 1800}, 16-Bit Grayscale.`);
+        appendPacket('SHOT', `⚡ [XRAY_CAPTURED] Received Radiograph! Tooth #${data.toothKey || '-'}, Size: ${data.width || 1300}x${data.height || 1800}, 16-Bit Grayscale.`);
         return;
       }
 
@@ -448,7 +453,7 @@
         }
 
         if (data.model) modelVal.innerText = data.model;
-        appendPacket('STATUS', `[DEVICE_STATUS] State=${data.state}, Connected=${data.connected}, Model=${data.model || 'Nano-Pix'}`);
+        appendPacket('STATUS', `[DEVICE_STATUS] State=${data.state}, Connected=${data.connected}, Model=${data.model || 'No Device Connected'}`);
         return;
       }
 
@@ -488,18 +493,28 @@
     }
 
     async function armSensor() {
+      const pIdInput = document.getElementById('armPatientId');
+      const tKeyInput = document.getElementById('armToothKey');
+      const pId = pIdInput ? parseInt(pIdInput.value, 10) : 0;
+      const tKey = tKeyInput ? tKeyInput.value.trim() : '';
+
+      if (!pId || !tKey) {
+        alert('Please enter a valid Patient ID and Tooth # before arming the sensor. (No mock defaults allowed)');
+        return;
+      }
+
       try {
-        appendPacket('SYSTEM', 'Sending POST /api/arm for Patient #46 Tooth #19...');
+        appendPacket('SYSTEM', `Sending POST /api/arm for Patient #${pId} Tooth #${tKey}...`);
         const res = await fetch('http://127.0.0.1:5050/api/arm', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ patientId: 46, toothKey: "19" })
+          body: JSON.stringify({ patientId: pId, toothKey: tKey })
         });
         const data = await res.json();
         if (data.success) {
-          appendPacket('SYSTEM', 'Sensor Armed successfully! Now press X-Ray trigger switch.');
+          appendPacket('SYSTEM', `Sensor Armed successfully for Patient #${pId}, Tooth #${tKey}! Now press X-Ray trigger switch.`);
         } else {
-          appendPacket('SYSTEM', 'Arming returned false: Sensor may be disconnected from USB.');
+          appendPacket('SYSTEM', 'Arming returned false: ' + (data.error || 'Sensor may be disconnected from USB.'));
         }
       } catch (err) {
         appendPacket('SYSTEM', 'Error calling /api/arm: ' + err.message);
