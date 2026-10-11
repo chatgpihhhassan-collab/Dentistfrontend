@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dentia — Real-Time WebSocket Hardware Monitor (Port 5050)</title>
+  <style>
+    :root {
+      --bg: #030712;
+      --card: #0f172a;
+      --card-border: #1e293b;
+      --teal: #0d9488;
+      --teal-glow: #14b8a6;
+      --emerald: #10b981;
+      --rose: #f43f5e;
+      --amber: #f59e0b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; }
+    body { background-color: var(--bg); color: var(--text); padding: 20px; min-height: 100vh; display: flex; flex-direction: column; gap: 16px; }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      gap: 12px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand h1 { font-size: 18px; font-weight: 800; letter-spacing: -0.5px; }
+    .brand span { font-size: 11px; background: rgba(13, 148, 136, 0.2); color: var(--teal-glow); padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(20, 184, 166, 0.3); }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: #1e293b;
+      border: 1px solid #334155;
+    }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #64748b; }
+    .status-badge.connected { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); color: #34d399; }
+    .status-badge.connected .status-dot { background: #10b981; box-shadow: 0 0 10px #10b981; animation: pulse 1.5s infinite; }
+    .status-badge.disconnected { background: rgba(244, 63, 94, 0.15); border-color: rgba(244, 63, 94, 0.4); color: #fb7185; }
+    .status-badge.disconnected .status-dot { background: #f43f5e; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.2); }
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    button {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      background: #1e293b;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    button:hover { background: #334155; }
+    button.btn-primary { background: linear-gradient(135deg, #0d9488, #059669); border: none; color: white; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3); }
+    button.btn-primary:hover { background: linear-gradient(135deg, #14b8a6, #10b981); }
+    button.btn-danger { background: #be123c; border: none; }
+    button.btn-danger:hover { background: #e11d48; }
+
+    main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      flex: 1;
+    }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .panel h2 {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Live Preview Section */
+    .preview-box {
+      flex: 1;
+      min-height: 380px;
+      background: #020617;
+      border: 2px dashed #1e293b;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .preview-box.has-image {
+      border: 2px solid #0d9488;
+      background: #000;
+      box-shadow: 0 0 30px rgba(13, 148, 136, 0.25);
+    }
+    .preview-box img {
+      max-width: 100%;
+      max-height: 480px;
+      object-fit: contain;
+      image-rendering: high-quality;
+    }
+    .shot-alert {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      background: rgba(16, 185, 129, 0.95);
+      color: #022c22;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 800;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
+      animation: flash 0.4s ease-in-out;
+      z-index: 10;
+    }
+    @keyframes flash {
+      0% { transform: scale(0.95); opacity: 0; }
+      50% { transform: scale(1.03); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .placeholder-text {
+      text-align: center;
+      color: #64748b;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .placeholder-text b { color: var(--teal-glow); display: block; font-size: 15px; margin-bottom: 4px; }
+
+    /* Log Stream Section */
+    .stream-box {
+      flex: 1;
+      height: 420px;
+      background: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 12px;
+      overflow-y: auto;
+      font-size: 11px;
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .packet {
+      padding: 6px 10px;
+      border-radius: 6px;
+      background: #090d16;
+      border-left: 3px solid #334155;
+      word-break: break-all;
+    }
+    .packet.capture {
+      border-left-color: #f43f5e;
+      background: rgba(244, 63, 94, 0.08);
+      font-weight: bold;
+    }
+    .packet.status { border-left-color: #3b82f6; }
+    .packet.log { border-left-color: #10b981; }
+    .packet .time { color: #64748b; margin-right: 8px; font-weight: normal; }
+    .packet .tag {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 800;
+      margin-right: 6px;
+      text-transform: uppercase;
+    }
+    .tag-shot { background: #f43f5e; color: white; }
+    .tag-status { background: #3b82f6; color: white; }
+    .tag-log { background: #10b981; color: white; }
+
+    .details-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+      padding: 8px 12px;
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 8px;
+    }
+    .details-row b { color: var(--text); }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <h1>Dentia Hardware Live Stream Monitor</h1>
+      <span id="protocolBadge">ws://127.0.0.1:5050/ws</span>
+    </div>
+
+    <div class="toolbar">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <input id="wsUrlInput" type="text" value="ws://127.0.0.1:5050/ws" style="background: #020617; border: 1px solid #334155; color: #38bdf8; padding: 7px 10px; border-radius: 8px; font-size: 11px; font-family: monospace; width: 190px;" title="WebSocket Target URL">
+        <button onclick="reconnectCustomUrl()" style="padding: 7px 12px; font-size: 11px;">Re-connect</button>
+      </div>
+
+      <div id="statusBadge" class="status-badge disconnected">
+        <span class="status-dot"></span>
+        <span id="statusText">Connecting...</span>
+      </div>
+
+      <button id="btnArm" class="btn-primary" onclick="armSensor()">
+        ⚡ Arm Sensor
+      </button>
+
+      <button onclick="pingWebSocket()">
+        📡 Ping WS
+      </button>
+
+      <button onclick="clearMonitor()">
+        🧹 Clear
+      </button>
+
+      <a href="/" style="text-decoration: none;">
+        <button type="button" style="background: #0284c7; border: none; color: white;">
+          🏥 Open App
+        </button>
+      </a>
+    </div>
+  </header>
+
+  <!-- HTTPS / Vercel Insecure Content Helper Banner -->
+  <div id="httpsWarning" style="display: none; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); color: #fbbf24; padding: 10px 16px; border-radius: 10px; font-size: 12px; line-height: 1.5;">
+    ⚠️ <strong>HTTPS Cloud Tip (dentistfrontend.vercel.app):</strong> Browsers restrict direct <code>ws://127.0.0.1</code> calls from cloud HTTPS. If connection fails, click the <strong>lock/tune icon (left of URL bar)</strong> ➔ <strong>Site Settings</strong> ➔ change <strong>"Insecure content"</strong> to <strong>"Allow"</strong> ➔ reload.
+  </div>
+
+  <main>
+    <!-- Left: X-Ray Shot Visual Reception View -->
+    <section class="panel">
+      <h2>
+        <span>⚡ Shot / Fire Detection Output</span>
+        <span id="captureTime" style="font-size: 11px; color: var(--teal-glow);">Waiting for exposure...</span>
+      </h2>
+
+      <div id="previewBox" class="preview-box">
+        <div id="shotAlert" class="shot-alert">
+          <span>⚡ X-RAY EXPOSURE RECEIVED! (16-Bit Radiograph Detected)</span>
+          <span id="shotDetailsBadge">1300x1800 • Tooth #19</span>
+        </div>
+
+        <img id="xrayImage" style="display: none;" alt="X-Ray Radiograph">
+
+        <div id="placeholder" class="placeholder-text">
+          <b>No X-Ray Exposure Received Yet</b>
+          1. Sensor ko USB par lagayein.<br>
+          2. Upar <strong>"Arm Sensor"</strong> button dabayein.<br>
+          3. X-Ray Machine fire karein — yahan <strong>foran picture</strong> nazar aayegi!
+        </div>
+      </div>
+
+      <div class="details-row">
+        <div>Sensor Model: <b id="modelVal">Eighteeth Nano-Pix 2</b></div>
+        <div>Sensor State: <b id="stateVal" style="color: #38bdf8;">DISCONNECTED</b></div>
+        <div>Total Shots: <b id="shotCountVal" style="color: #34d399;">0</b></div>
+        <div>Last Packet: <b id="lastPacketVal">-</b></div>
+      </div>
+    </section>
+
+    <!-- Right: Real-Time WebSocket Raw Packet Stream -->
+    <section class="panel">
+      <h2>
+        <span>📦 Live WebSocket Packet Stream</span>
+        <span id="packetCountBadge" style="font-size: 10px; color: var(--text-muted);">0 packets</span>
+      </h2>
+
+      <div id="streamBox" class="stream-box"></div>
+    </section>
+  </main>
+
+  <script>
+    let ws = null;
+    let packetCount = 0;
+    let shotCount = 0;
+    let WS_URL = 'ws://127.0.0.1:5050/ws';
+
+    const wsUrlInput = document.getElementById('wsUrlInput');
+    const protocolBadge = document.getElementById('protocolBadge');
+    const statusBadge = document.getElementById('statusBadge');
+    const statusText = document.getElementById('statusText');
+    const streamBox = document.getElementById('streamBox');
+    const previewBox = document.getElementById('previewBox');
+    const xrayImage = document.getElementById('xrayImage');
+    const placeholder = document.getElementById('placeholder');
+    const shotAlert = document.getElementById('shotAlert');
+    const shotDetailsBadge = document.getElementById('shotDetailsBadge');
+    const captureTime = document.getElementById('captureTime');
+    const stateVal = document.getElementById('stateVal');
+    const modelVal = document.getElementById('modelVal');
+    const shotCountVal = document.getElementById('shotCountVal');
+    const lastPacketVal = document.getElementById('lastPacketVal');
+    const packetCountBadge = document.getElementById('packetCountBadge');
+
+    // Detect HTTPS on cloud deployment (Vercel)
+    if (window.location.protocol === 'https:') {
+      const warningEl = document.getElementById('httpsWarning');
+      if (warningEl) warningEl.style.display = 'block';
+    }
+
+    function reconnectCustomUrl() {
+      if (ws) {
+        try { ws.close(); } catch(_) {}
+      }
+      WS_URL = (wsUrlInput && wsUrlInput.value.trim()) ? wsUrlInput.value.trim() : 'ws://127.0.0.1:5050/ws';
+      if (protocolBadge) protocolBadge.innerText = WS_URL;
+      connectWebSocket();
+    }
+
+    // Synthesized Audio Chime when X-Ray fires
+    function playShotChime() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+        osc.frequency.exponentialRampToValueAtTime(1760, audioCtx.currentTime + 0.15); // A6
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.35);
+      } catch (_) {}
+    }
+
+    function connectWebSocket() {
+      statusText.innerText = 'Connecting to ' + WS_URL + '...';
+      try {
+        ws = new WebSocket(WS_URL);
+
+        ws.onopen = () => {
+          statusBadge.className = 'status-badge connected';
+          statusText.innerText = '🟢 Connected to ' + WS_URL;
+          appendPacket('SYSTEM', 'Connected to Dental Bridge WebSocket server at ' + WS_URL);
+        };
+
+        ws.onmessage = (event) => {
+          packetCount++;
+          packetCountBadge.innerText = packetCount + ' packets';
+          lastPacketVal.innerText = new Date().toLocaleTimeString();
+
+          try {
+            const data = JSON.parse(event.data);
+            handleIncomingPacket(data);
+          } catch (e) {
+            appendPacket('RAW', event.data);
+          }
+        };
+
+        ws.onclose = () => {
+          statusBadge.className = 'status-badge disconnected';
+          statusText.innerText = '🔴 Disconnected (Retrying in 2.5s...)';
+          stateVal.innerText = 'OFFLINE';
+          stateVal.style.color = '#f43f5e';
+          setTimeout(connectWebSocket, 2500);
+        };
+
+        ws.onerror = () => {
+          try { ws.close(); } catch(_) {}
+        };
+      } catch (err) {
+        setTimeout(connectWebSocket, 3000);
+      }
+    }
+
+    function handleIncomingPacket(data) {
+      // 1. Physical X-Ray Shot Event!
+      if (data.type === 'XRAY_CAPTURED') {
+        shotCount++;
+        shotCountVal.innerText = shotCount;
+        playShotChime();
+
+        const timeStr = data.capturedAt ? new Date(data.capturedAt).toLocaleTimeString() : new Date().toLocaleTimeString();
+        captureTime.innerText = '⚡ Exposure received at ' + timeStr;
+
+        // Render preview image
+        if (data.previewBase64) {
+          xrayImage.src = data.previewBase64;
+          xrayImage.style.display = 'block';
+          placeholder.style.display = 'none';
+          previewBox.classList.add('has-image');
+        }
+
+        // Show Flash Alert
+        shotAlert.style.display = 'flex';
+        shotDetailsBadge.innerText = `${data.width || 1300}x${data.height || 1800} (16-Bit) • Tooth #${data.toothKey || '19'}`;
+        setTimeout(() => { shotAlert.style.display = 'none'; }, 6000);
+
+        appendPacket('SHOT', `⚡ [XRAY_CAPTURED] Received Radiograph! Tooth #${data.toothKey || '19'}, Size: ${data.width || 1300}x${data.height || 1800}, 16-Bit Grayscale.`);
+        return;
+      }
+
+      // 2. Hardware Device State Change
+      if (data.type === 'DEVICE_STATUS') {
+        stateVal.innerText = data.state || (data.connected ? 'READY' : 'DISCONNECTED');
+        if (data.state === 'ARMED') {
+          stateVal.style.color = '#f59e0b';
+          captureTime.innerText = '⏳ Waiting for X-ray exposure...';
+        } else if (data.connected) {
+          stateVal.style.color = '#10b981';
+        } else {
+          stateVal.style.color = '#f43f5e';
+        }
+
+        if (data.model) modelVal.innerText = data.model;
+        appendPacket('STATUS', `[DEVICE_STATUS] State=${data.state}, Connected=${data.connected}, Model=${data.model || 'Nano-Pix'}`);
+        return;
+      }
+
+      // 3. Real-Time Bridge Diagnostic Log
+      if (data.type === 'LOG' && data.log) {
+        appendPacket('LOG', `[${data.log.Category || 'BRIDGE'}] ${data.log.Message}`);
+        return;
+      }
+
+      // 4. Default Fallback
+      appendPacket('MESSAGE', JSON.stringify(data));
+    }
+
+    function appendPacket(type, text) {
+      const row = document.createElement('div');
+      row.className = 'packet ' + (type === 'SHOT' ? 'capture' : (type === 'STATUS' ? 'status' : 'log'));
+
+      const timeSpan = document.createElement('span');
+      timeSpan.className = 'time';
+      timeSpan.innerText = new Date().toLocaleTimeString();
+
+      const tagSpan = document.createElement('span');
+      tagSpan.className = 'tag ' + (type === 'SHOT' ? 'tag-shot' : (type === 'STATUS' ? 'tag-status' : 'tag-log'));
+      tagSpan.innerText = type;
+
+      const textSpan = document.createElement('span');
+      textSpan.innerText = text;
+
+      row.appendChild(timeSpan);
+      row.appendChild(tagSpan);
+      row.appendChild(textSpan);
+
+      streamBox.prepend(row);
+      while (streamBox.children.length > 150) {
+        streamBox.removeChild(streamBox.lastChild);
+      }
+    }
+
+    async function armSensor() {
+      try {
+        appendPacket('SYSTEM', 'Sending POST /api/arm for Patient #46 Tooth #19...');
+        const res = await fetch('http://127.0.0.1:5050/api/arm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ patientId: 46, toothKey: "19" })
+        });
+        const data = await res.json();
+        if (data.success) {
+          appendPacket('SYSTEM', 'Sensor Armed successfully! Now press X-Ray trigger switch.');
+        } else {
+          appendPacket('SYSTEM', 'Arming returned false: Sensor may be disconnected from USB.');
+        }
+      } catch (err) {
+        appendPacket('SYSTEM', 'Error calling /api/arm: ' + err.message);
+      }
+    }
+
+    function pingWebSocket() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ action: 'PING', time: Date.now() }));
+        appendPacket('SYSTEM', 'Sent: { "action": "PING" }');
+      } else {
+        alert('WebSocket is not connected right now.');
+      }
+    }
+
+    function clearMonitor() {
+      streamBox.innerHTML = '';
+      xrayImage.style.display = 'none';
+      placeholder.style.display = 'block';
+      previewBox.classList.remove('has-image');
+      captureTime.innerText = 'Waiting for exposure...';
+    }
+
+    // Auto connect on start
+    connectWebSocket();
+  </script>
+</body>
+</html>

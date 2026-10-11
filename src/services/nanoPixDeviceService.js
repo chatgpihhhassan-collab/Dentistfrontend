@@ -239,6 +239,81 @@ class NanoPixDeviceService {
 
       connectSSE();
     }
+
+    // Connect to C# Dental Bridge WebSocket (ws://127.0.0.1:5050/ws)
+    let ws5050 = null;
+    let wsReconnectTimer = null;
+
+    const connectWs5050 = () => {
+      if (typeof WebSocket === 'undefined') return;
+      try {
+        ws5050 = new WebSocket('ws://127.0.0.1:5050/ws');
+
+        ws5050.onopen = () => {
+          this._bridge5050Connected = true;
+          this.log('SUCCESS', 'Connected to C# Dental Bridge on ws://127.0.0.1:5050');
+          this.fetchRemoteBridgeLogs();
+        };
+
+        ws5050.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (!data) return;
+
+            if (data.type === 'LOG' && data.log) {
+              this.log(data.log.level || 'INFO', `[${data.log.category || 'BRIDGE'}] ${data.log.message}`, data.log.details);
+            } else if (data.type === 'DEVICE_STATUS') {
+              const isNowConnected = Boolean(data.connected);
+              this.deviceInfo.model = data.model || this.deviceInfo.model;
+              this.deviceInfo.serialNumber = data.serial || this.deviceInfo.serialNumber;
+              this.deviceInfo.status = data.state || (isNowConnected ? 'Ready (Armed)' : 'Disconnected');
+
+              if (this.isConnected !== isNowConnected) {
+                this.isConnected = isNowConnected;
+                if (this.isConnected) {
+                  this.emit('connected', this.deviceInfo);
+                  window.dispatchEvent(new CustomEvent('nanopix:connected', { detail: this.deviceInfo }));
+                } else {
+                  this.emit('disconnected');
+                  window.dispatchEvent(new CustomEvent('nanopix:disconnected'));
+                }
+              }
+            } else if (data.type === 'XRAY_CAPTURED') {
+              handleIncomingScan({
+                filename: `capture_${Date.now()}.png`,
+                dataUrl: data.previewBase64,
+                toothKey: data.toothKey || '19',
+                patientId: data.patientId || '46',
+                timestamp: data.capturedAt
+              });
+            }
+          } catch (_) {}
+        };
+
+        ws5050.onclose = () => {
+          this._bridge5050Connected = false;
+          if (!wsReconnectTimer) {
+            wsReconnectTimer = setTimeout(() => {
+              wsReconnectTimer = null;
+              connectWs5050();
+            }, 3000);
+          }
+        };
+
+        ws5050.onerror = () => {
+          try { ws5050.close(); } catch (_) {}
+        };
+      } catch (_) {
+        if (!wsReconnectTimer) {
+          wsReconnectTimer = setTimeout(() => {
+            wsReconnectTimer = null;
+            connectWs5050();
+          }, 4000);
+        }
+      }
+    };
+
+    connectWs5050();
   }
 
   // ---------------------------------------------------------------------------
@@ -500,27 +575,55 @@ class NanoPixDeviceService {
   }
 
   // ---------------------------------------------------------------------------
-  // ROBUST LOCAL BRIDGE TRANSPORT (HANDLES VERCEL HTTPS & DEV PROXY)
+  // ROBUST LOCAL BRIDGE TRANSPORT (HANDLES PORT 5050, 5066 & CLOUD HOSTING)
   // ---------------------------------------------------------------------------
   getBridgeEndpoints(endpoint) {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
     const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    
-    // If running on localhost / dev proxy, try relative first, then direct 127.0.0.1 and localhost
-    if (isLocal) {
-      return [
-        cleanEndpoint,
-        `http://127.0.0.1:5066${cleanEndpoint}`,
-        `http://localhost:5066${cleanEndpoint}`
-      ];
-    }
-    // If running on remote cloud (e.g. Vercel https://dentistfrontend.vercel.app),
-    // NEVER fetch relative /nanopix/* because Vercel returns index.html (status 200)!
-    // Directly target local hardware bridge on port 5066:
+
+    // Priority 1: Native C# Dental Bridge on Port 5050
+    // Priority 2: Secondary / Fallback Agent on Port 5066
+    // Priority 3: Relative dev proxy endpoint if local
     return [
+      `http://127.0.0.1:5050${cleanEndpoint}`,
+      `http://localhost:5050${cleanEndpoint}`,
       `http://127.0.0.1:5066${cleanEndpoint}`,
-      `http://localhost:5066${cleanEndpoint}`
+      `http://localhost:5066${cleanEndpoint}`,
+      ...(isLocal ? [cleanEndpoint] : [])
     ];
+  }
+
+  async fetchRemoteBridgeLogs() {
+    try {
+      const data = await this.fetchBridgeJson('/api/logs', { timeout: 2500 });
+      if (data && data.success && Array.isArray(data.logs)) {
+        data.logs.forEach(l => {
+          const exists = this.logs.some(existing => existing.id === l.Id || (existing.time === l.Timestamp && existing.message.includes(l.Message)));
+          if (!exists) {
+            this.logs.unshift({
+              id: l.Id || `${Date.now()}-${Math.random()}`,
+              time: l.Timestamp,
+              type: l.Level || 'INFO',
+              message: `[${l.Category || 'BRIDGE'}] ${l.Message}`,
+              details: l.Details
+            });
+          }
+        });
+        if (this.logs.length > 200) this.logs = this.logs.slice(0, 200);
+        this.emit('log', this.logs[0]);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('nanopix:log', { detail: this.logs[0] }));
+        }
+      }
+    } catch (_) {}
+  }
+
+  async clearBridgeLogs() {
+    this.logs = [];
+    try {
+      await this.fetchBridgeJson('/api/logs/clear', { method: 'POST', timeout: 1500 });
+    } catch (_) {}
+    this.emit('log', null);
   }
 
   async fetchBridgeJson(endpoint, options = {}) {

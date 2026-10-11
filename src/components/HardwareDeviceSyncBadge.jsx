@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Camera, CheckCircle2, HardDrive, RefreshCw, Sparkles, X, Usb, Activity, Radio, AlertCircle, Video, Zap, Minus, ChevronDown, ChevronUp } from 'lucide-react';
+import { Camera, CheckCircle2, HardDrive, RefreshCw, Sparkles, X, Usb, Activity, Radio, AlertCircle, Video, Zap, Minus, ChevronDown, ChevronUp, Copy, Check, Terminal, Trash2 } from 'lucide-react';
 import { useHardwareDeviceWatcher } from '../hooks/useHardwareDeviceWatcher';
 import { CameraCapturePanel } from './CameraCapturePanel';
 import nanoPixService from '../services/nanoPixDeviceService';
@@ -17,6 +17,10 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
 
   const [showLogs, setShowLogs] = useState(false);
   const [logs, setLogs] = useState(() => nanoPixService.getLogs());
+  const [logFilter, setLogFilter] = useState('ALL');
+  const [pingResult, setPingResult] = useState(null);
+  const [pinging, setPinging] = useState(false);
+  const [copiedLogs, setCopiedLogs] = useState(false);
   const [showWebcamTest, setShowWebcamTest] = useState(false);
 
   // ── Bridge Health Check State ──────────────────────────────────────────────
@@ -76,10 +80,11 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
     }
   };
 
-  // Run health check when modal opens
+  // Run health check and sync bridge logs when modal opens
   useEffect(() => {
     if (showModal) {
       checkBridgeHealth();
+      nanoPixService.fetchRemoteBridgeLogs();
     }
   }, [showModal]);
 
@@ -108,6 +113,7 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
 
     // Initial check on mount so health is already resolved before modal opens
     checkBridgeHealth();
+    nanoPixService.fetchRemoteBridgeLogs();
 
     return () => {
       if (typeof unsubC === 'function') unsubC();
@@ -139,10 +145,59 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
     await refreshDevices();
     try {
       await nanoPixService.scanHardwareSensors();
+      await nanoPixService.fetchRemoteBridgeLogs();
     } catch (err) {
       console.warn('🩺 [HARDWARE DIAGNOSTIC] NanoPix sensor rescan notice:', err.message);
     }
     setTimeout(() => setIsScanning(false), 600);
+  };
+
+  const handlePingBridge = async () => {
+    setPinging(true);
+    const start = performance.now();
+    try {
+      const res = await fetch('http://127.0.0.1:5050/api/status', {
+        signal: AbortSignal.timeout(2500)
+      });
+      const latency = Math.round(performance.now() - start);
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setPingResult({
+          ok: true,
+          latency,
+          message: `${latency}ms • USB: ${data.usbConnected ? 'Connected' : 'Unplugged'}`
+        });
+      } else {
+        setPingResult({ ok: false, message: `HTTP ${res.status}` });
+      }
+    } catch (err) {
+      setPingResult({ ok: false, message: 'Offline / Port 5050' });
+    } finally {
+      setPinging(false);
+    }
+  };
+
+  const handleCopyLogs = () => {
+    if (!logs || logs.length === 0) return;
+    const report = [
+      `=== Dentia Bridge Hardware Diagnostic Logs ===`,
+      `Exported: ${new Date().toISOString()}`,
+      `Total Entries: ${logs.length}`,
+      `Bridge Port: 5050 (ws://127.0.0.1:5050/ws)`,
+      `Disk Log Folder: %ProgramData%\\DentalBridge\\logs`,
+      `----------------------------------------`,
+      ...logs.map((l) => `[${l.time}] [${l.type || 'INFO'}] ${l.message} ${l.details ? JSON.stringify(l.details) : ''}`),
+      `=== End Logs ===`
+    ].join('\n');
+
+    navigator.clipboard?.writeText(report);
+    setCopiedLogs(true);
+    setTimeout(() => setCopiedLogs(false), 2000);
+  };
+
+  const handleClearLogs = async () => {
+    await nanoPixService.clearBridgeLogs();
+    setLogs([]);
   };
 
   // ── Try fetching diagnostics from the DENTIA_DIAGNOSE.ps1 listener (port 5067) ──
@@ -920,14 +975,15 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
 
                             if (data && data.success) {
                               checkBridgeHealth();
+                              nanoPixService.fetchRemoteBridgeLogs();
                             } else if (data && !data.success) {
                               setPipelineError(data.message || 'Hardware Error: Device not detected. Please verify USB connection.');
                             } else {
-                              setPipelineError("Cannot connect to local NanoPix Agent on port 5066. Please verify bridge is running.");
+                              setPipelineError("Cannot connect to local Dental Bridge on port 5050. Please verify bridge is running.");
                             }
                           } catch (e) {
                             console.error("Arming failed:", e);
-                            setPipelineError("Cannot connect to local NanoPix Agent on port 5066. Please launch START_NANOPIX_AUTO_SYNC.bat on this PC.");
+                            setPipelineError("Cannot connect to local Dental Bridge on port 5050. Please launch DentalBridge.exe or InstallDentalBridge.bat on this PC.");
                           }
                         }}
                         className={`w-10 h-10 rounded-full flex items-center justify-center text-[11px] font-bold transition-all duration-300 cursor-pointer ${isReached ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30' : 'bg-fuchsia-600 text-white shadow-md shadow-fuchsia-600/30 hover:bg-fuchsia-700 hover:scale-105 active:scale-95 animate-pulse ring-4 ring-fuchsia-100'}`}
@@ -961,24 +1017,132 @@ export const HardwareDeviceSyncBadge = ({ onOpenCapturePanel }) => {
           </div>
 
           {showLogs && (
-            <div className="bg-slate-900 rounded-xl p-3 h-48 overflow-y-auto font-mono text-[10px] space-y-1.5 border border-slate-800 shadow-inner">
-              {logs.length > 0 ? logs.map((log, i) => {
-                let colorClass = 'text-slate-300';
-                if (log.type === 'API') colorClass = 'text-sky-300';
-                else if (log.type === 'WARN') colorClass = 'text-amber-400';
-                else if (log.type === 'SUCCESS') colorClass = 'text-emerald-400';
-                else if (log.type === 'EXPOSURE') colorClass = 'text-fuchsia-400';
-                
-                return (
-                  <div key={log.id || i} className="border-b border-slate-800/50 pb-1 mb-1">
-                    <span className="text-slate-500 mr-2">[{log.time}]</span>
-                    <span className={`font-semibold ${colorClass}`}>[{log.type}]</span>
-                    <span className="text-slate-300 ml-2">{log.message}</span>
-                  </div>
-                );
-              }) : (
-                <div className="text-slate-500 text-center py-6">No logs available yet...</div>
-              )}
+            <div className="bg-slate-950 rounded-2xl p-3.5 border border-slate-800 shadow-2xl flex flex-col gap-2.5">
+              {/* Header / Info bar */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800 text-[11px]">
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 font-mono text-[10px] border border-emerald-500/20">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    ws://127.0.0.1:5050/ws
+                  </span>
+                  <span className="text-slate-400 text-[10px] hidden sm:inline" title="Physical Log Location on Doctor PC">
+                    📁 <span className="font-mono text-slate-300">%ProgramData%\DentalBridge\logs</span>
+                  </span>
+                </div>
+
+                {/* Actions: Ping, Copy, Clear */}
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={handlePingBridge}
+                    disabled={pinging}
+                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 active:bg-slate-650 text-slate-200 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer border border-slate-700"
+                    title="Ping local hardware bridge on port 5050"
+                  >
+                    <Activity className={`w-3 h-3 ${pinging ? 'animate-spin text-teal-400' : 'text-teal-400'}`} />
+                    {pingResult ? pingResult.message : (pinging ? 'Pinging...' : 'Ping 5050')}
+                  </button>
+
+                  <button
+                    onClick={handleCopyLogs}
+                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 active:bg-slate-650 text-slate-200 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer border border-slate-700"
+                    title="Copy all logs to clipboard"
+                  >
+                    {copiedLogs ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-slate-400" />}
+                    {copiedLogs ? 'Copied!' : 'Copy Logs'}
+                  </button>
+
+                  <button
+                    onClick={handleClearLogs}
+                    className="px-2 py-1 bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-300 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer border border-slate-700"
+                    title="Clear console & bridge memory buffer"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Filter Tabs */}
+              <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[10px]">
+                {[
+                  { key: 'ALL', label: `All (${logs.length})` },
+                  { key: 'ERROR', label: `Errors (${logs.filter(l => (l.type || '').toUpperCase().includes('ERR') || (l.message || '').toUpperCase().includes('ERR')).length})`, danger: true },
+                  { key: 'WARN', label: `Warnings (${logs.filter(l => (l.type || '').toUpperCase().includes('WARN') || (l.message || '').toUpperCase().includes('WARN')).length})`, warn: true },
+                  { key: 'HARDWARE', label: 'Hardware / USB' },
+                  { key: 'CAPTURE', label: 'Exposure' }
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setLogFilter(tab.key)}
+                    className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                      logFilter === tab.key
+                        ? 'bg-teal-600 text-white shadow-xs'
+                        : tab.danger && logs.some(l => (l.type || '').toUpperCase().includes('ERR') || (l.message || '').toUpperCase().includes('ERR'))
+                        ? 'bg-rose-950/60 text-rose-300 border border-rose-800 hover:bg-rose-900/60'
+                        : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Log List */}
+              <div className="bg-slate-900/90 rounded-xl p-3 h-52 overflow-y-auto font-mono text-[10px] space-y-1.5 border border-slate-800/80 shadow-inner">
+                {(() => {
+                  const filtered = logs.filter((log) => {
+                    if (logFilter === 'ALL') return true;
+                    const typeUpper = (log.type || '').toUpperCase();
+                    const msgUpper = (log.message || '').toUpperCase();
+                    if (logFilter === 'ERROR') return typeUpper.includes('ERR') || msgUpper.includes('ERR') || msgUpper.includes('FAIL');
+                    if (logFilter === 'WARN') return typeUpper.includes('WARN') || msgUpper.includes('WARN');
+                    if (logFilter === 'SUCCESS') return typeUpper.includes('SUCCESS') || msgUpper.includes('READY');
+                    if (logFilter === 'CAPTURE') return typeUpper.includes('EXPOSURE') || typeUpper.includes('CAPTURE') || msgUpper.includes('XRAY') || msgUpper.includes('SCAN');
+                    if (logFilter === 'HARDWARE') return msgUpper.includes('USB') || msgUpper.includes('FPDSYS') || msgUpper.includes('AED') || msgUpper.includes('SENSOR') || msgUpper.includes('DRIVER');
+                    return true;
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="text-slate-500 text-center py-8">
+                        {logFilter === 'ALL' ? 'No bridge logs recorded yet. Sensor is ready.' : `No ${logFilter.toLowerCase()} entries found.`}
+                      </div>
+                    );
+                  }
+
+                  return filtered.map((log, i) => {
+                    const type = (log.type || 'INFO').toUpperCase();
+                    let badgeClass = 'bg-sky-500/15 text-sky-300 border-sky-500/30';
+                    if (type.includes('ERR') || type.includes('FAIL')) {
+                      badgeClass = 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+                    } else if (type.includes('WARN')) {
+                      badgeClass = 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+                    } else if (type.includes('SUCCESS') || type.includes('READY')) {
+                      badgeClass = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+                    } else if (type.includes('EXPOSURE') || type.includes('CAPTURE')) {
+                      badgeClass = 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/40';
+                    }
+
+                    return (
+                      <div key={log.id || i} className="border-b border-slate-800/60 pb-1.5 mb-1.5 last:border-b-0">
+                        <div className="flex items-start gap-2">
+                          <span className="text-slate-500 shrink-0 font-mono">[{log.time}]</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border shrink-0 ${badgeClass}`}>
+                            {log.type || 'INFO'}
+                          </span>
+                          <span className="text-slate-200 break-words flex-1 leading-relaxed">
+                            {log.message}
+                          </span>
+                        </div>
+                        {log.details && (
+                          <div className="mt-1 ml-6 text-slate-400 bg-slate-950/70 p-1.5 rounded border border-slate-800/60 text-[9px] overflow-x-auto">
+                            {typeof log.details === 'object' ? JSON.stringify(log.details, null, 2) : String(log.details)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
             </div>
           )}
         </div>

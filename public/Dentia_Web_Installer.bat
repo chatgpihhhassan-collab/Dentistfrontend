@@ -13,17 +13,22 @@ echo ===========================================================================
 echo.
 
 set "TARGET_DIR=%ProgramData%\DentalBridge\bin"
-set "SOURCE_DIR=%~dp0..\..\DentalBridge.Service\publish"
+set "LOGS_DIR=%ProgramData%\DentalBridge\logs"
+set "SOURCE_DIR=%~dp0..\..\DentistAPIClone\API_dentist\DentalBridge\publish"
 
-:: If running standalone or downloaded from web server, fallback to current folder
+if not exist "%SOURCE_DIR%\DentalBridge.exe" (
+    set "SOURCE_DIR=%~dp0..\..\DentalBridge.Service\publish"
+)
 if not exist "%SOURCE_DIR%\DentalBridge.exe" (
     set "SOURCE_DIR=%~dp0"
 )
 
 echo [*] Target Directory: %TARGET_DIR%
+echo [*] Logs Directory:   %LOGS_DIR%
 echo [*] Installing runtime binaries and calibration profiles...
 
 if not exist "%TARGET_DIR%" mkdir "%TARGET_DIR%"
+if not exist "%LOGS_DIR%" mkdir "%LOGS_DIR%"
 if not exist "%TARGET_DIR%\Correct\Default" mkdir "%TARGET_DIR%\Correct\Default"
 
 :: Terminate previous running instance
@@ -51,13 +56,23 @@ reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "DentiaDentalBri
 echo [*] Configuring local loopback network port 5050...
 netsh advfirewall firewall add rule name="Dentia Dental Bridge (Port 5050)" dir=in action=allow protocol=TCP localport=5050 >nul 2>&1
 
+:: Create a convenient log viewing script
+echo @echo off > "%TARGET_DIR%\View_Logs.bat"
+echo TITLE Dentia Hardware Bridge Live Logs >> "%TARGET_DIR%\View_Logs.bat"
+echo powershell -Command "Get-Content -Path '%LOGS_DIR%\bridge_*.log' -Tail 50 -Wait" >> "%TARGET_DIR%\View_Logs.bat"
+
 :: Launch Background Service Immediately
 echo [*] Launching Dental Bridge background service...
 start "" "%TARGET_DIR%\DentalBridge.exe"
 
+:: Quick verification
+timeout /t 2 >nul
+powershell -Command "try { $r = Invoke-RestMethod -Uri 'http://127.0.0.1:5050/api/status' -TimeoutSec 3; Write-Host ' [STATUS CHECK] Bridge is active on port 5050. Model:' $r.model 'State:' $r.state } catch { Write-Host ' [STATUS NOTE] Service starting up in background...' }"
+
 echo.
 echo ==============================================================================
 echo   SUCCESS! Dentia Hardware Bridge is now active on ws://127.0.0.1:5050
+echo   Disk Logs: %LOGS_DIR%
 echo   Return to your web browser - your NanoPix sensor is now connected!
 echo ==============================================================================
 echo.

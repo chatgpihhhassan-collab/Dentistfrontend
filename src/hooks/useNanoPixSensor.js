@@ -19,6 +19,7 @@ export function useNanoPixSensor({
   const [isArmed, setIsArmed] = useState(false);
   const [lastCapturedImage, setLastCapturedImage] = useState(null);
   const [captureHistory, setCaptureHistory] = useState([]);
+  const [logs, setLogs] = useState([]);
   const [error, setError] = useState(null);
 
   const socketRef = useRef(null);
@@ -85,6 +86,23 @@ export function useNanoPixSensor({
       setBridgeOnline(true);
       setError(null);
       backoffDelayRef.current = 1000; // Reset backoff on successful connect
+
+      // Fetch recent logs from bridge REST endpoint
+      fetch('http://127.0.0.1:5050/api/logs')
+        .then(r => r.json())
+        .then(d => {
+          if (d && Array.isArray(d.logs)) {
+            setLogs(d.logs.map(l => ({
+              id: l.Id || Date.now(),
+              time: l.Timestamp,
+              type: l.Level || 'INFO',
+              category: l.Category || 'SYSTEM',
+              message: l.Message,
+              details: l.Details
+            })).reverse());
+          }
+        })
+        .catch(() => {});
     };
 
     ws.onmessage = (event) => {
@@ -188,6 +206,23 @@ export function useNanoPixSensor({
         break;
       }
 
+      case 'LOG': {
+        if (msg.log) {
+          setLogs((prev) => [
+            {
+              id: msg.log.Id || Date.now(),
+              time: msg.log.Timestamp,
+              type: msg.log.Level || 'INFO',
+              category: msg.log.Category || 'SYSTEM',
+              message: msg.log.Message,
+              details: msg.log.Details
+            },
+            ...prev.slice(0, 150)
+          ]);
+        }
+        break;
+      }
+
       case 'ERROR': {
         setError(msg.message || 'An error occurred in hardware bridge.');
         break;
@@ -239,6 +274,11 @@ export function useNanoPixSensor({
     } catch (_) {}
   }, []);
 
+  const clearLogs = useCallback(() => {
+    setLogs([]);
+    fetch('http://127.0.0.1:5050/api/logs/clear', { method: 'POST' }).catch(() => {});
+  }, []);
+
   // Lifecycle
   useEffect(() => {
     isMountedRef.current = true;
@@ -264,6 +304,8 @@ export function useNanoPixSensor({
     isArmed,
     lastCapturedImage,
     captureHistory,
+    logs,
+    clearLogs,
     error,
     armSensor,
     abortArming,

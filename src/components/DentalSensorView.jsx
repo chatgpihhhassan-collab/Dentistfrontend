@@ -18,7 +18,12 @@ import {
   Shield,
   Layers,
   Sparkles,
-  Volume2
+  Volume2,
+  Activity,
+  Terminal,
+  Copy,
+  Check,
+  Trash2
 } from 'lucide-react';
 import { useNanoPixSensor } from '../hooks/useNanoPixSensor';
 
@@ -38,6 +43,9 @@ export default function DentalSensorView({
   const [activeTab, setActiveTab] = useState('viewer');
   const [toastMessage, setToastMessage] = useState(null);
   const [isUploadingCloud, setIsUploadingCloud] = useState(false);
+  const [showLogsDrawer, setShowLogsDrawer] = useState(false);
+  const [sensorLogFilter, setSensorLogFilter] = useState('ALL');
+  const [copiedSensorLogs, setCopiedSensorLogs] = useState(false);
 
   // Medical Canvas Viewer Transform State
   const [zoom, setZoom] = useState(1.0);
@@ -64,6 +72,8 @@ export default function DentalSensorView({
     isArmed,
     lastCapturedImage,
     captureHistory,
+    logs = [],
+    clearLogs,
     error,
     armSensor,
     abortArming,
@@ -453,14 +463,147 @@ export default function DentalSensorView({
           </button>
 
           <button
+            onClick={() => setShowLogsDrawer(v => !v)}
+            className={`px-3 py-2 rounded-xl font-semibold flex items-center gap-1.5 transition-all text-xs border cursor-pointer ${
+              showLogsDrawer
+                ? 'bg-teal-500/20 border-teal-500 text-teal-300'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+            title="Toggle Live Bridge Hardware Logs"
+          >
+            <Terminal className="w-3.5 h-3.5" />
+            <span>Logs</span>
+            {logs && logs.length > 0 && (
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                logs.some(l => (l.type || '').toUpperCase().includes('ERR'))
+                  ? 'bg-rose-500 text-white'
+                  : 'bg-slate-700 text-slate-300'
+              }`}>
+                {logs.length}
+              </span>
+            )}
+          </button>
+
+          <button
             onClick={reconnect}
-            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors"
+            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors cursor-pointer"
             title="Reconnect WebSocket Bridge"
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
+
+      {/* Live Hardware Diagnostics & Logs Drawer */}
+      {showLogsDrawer && (
+        <div className="bg-slate-950 border-b border-slate-800 p-3 text-xs shadow-2xl animate-in slide-in-from-top duration-200">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 mb-2 border-b border-slate-800/80">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 font-mono text-[10px] border border-emerald-500/20">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                ws://127.0.0.1:5050/ws
+              </span>
+              <span className="text-slate-400 text-[10px] hidden sm:inline" title="Doctor PC Disk Log Location">
+                📁 Doctor PC Log File: <span className="font-mono text-slate-300">%ProgramData%\DentalBridge\logs</span>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {/* Filter chips */}
+              <div className="flex items-center gap-1 text-[10px]">
+                {[
+                  { key: 'ALL', label: `All (${logs.length})` },
+                  { key: 'ERROR', label: `Errors (${logs.filter(l => (l.type || '').toUpperCase().includes('ERR') || (l.message || '').toUpperCase().includes('ERR')).length})` },
+                  { key: 'WARN', label: `Warnings (${logs.filter(l => (l.type || '').toUpperCase().includes('WARN') || (l.message || '').toUpperCase().includes('WARN')).length})` },
+                  { key: 'HARDWARE', label: 'Hardware / USB' },
+                  { key: 'CAPTURE', label: 'Capture' }
+                ].map((f) => (
+                  <button
+                    key={f.key}
+                    onClick={() => setSensorLogFilter(f.key)}
+                    className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer ${
+                      sensorLogFilter === f.key
+                        ? 'bg-teal-600 text-white'
+                        : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Copy Logs */}
+              <button
+                onClick={() => {
+                  const txt = [
+                    `=== Dentia Bridge Chairside Hardware Logs ===`,
+                    `Exported: ${new Date().toISOString()}`,
+                    `Total: ${logs.length}`,
+                    `Disk Log Folder: %ProgramData%\\DentalBridge\\logs`,
+                    `---------------------------------------------`,
+                    ...logs.map(l => `[${l.time}] [${l.type || 'INFO'}] ${l.message} ${l.details ? JSON.stringify(l.details) : ''}`)
+                  ].join('\n');
+                  navigator.clipboard?.writeText(txt);
+                  setCopiedSensorLogs(true);
+                  setTimeout(() => setCopiedSensorLogs(false), 2000);
+                }}
+                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer border border-slate-700"
+                title="Copy all logs to clipboard"
+              >
+                {copiedSensorLogs ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-slate-400" />}
+                {copiedSensorLogs ? 'Copied' : 'Copy'}
+              </button>
+
+              {/* Clear */}
+              <button
+                onClick={clearLogs}
+                className="p-1 bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-300 rounded-lg text-[10px] transition-all cursor-pointer border border-slate-700"
+                title="Clear Logs"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+
+          <div className="h-36 overflow-y-auto font-mono text-[10px] space-y-1 bg-slate-900/80 rounded-xl p-2.5 border border-slate-800/80">
+            {(() => {
+              const filtered = (logs || []).filter((log) => {
+                if (sensorLogFilter === 'ALL') return true;
+                const typeUpper = (log.type || '').toUpperCase();
+                const msgUpper = (log.message || '').toUpperCase();
+                if (sensorLogFilter === 'ERROR') return typeUpper.includes('ERR') || msgUpper.includes('ERR') || msgUpper.includes('FAIL');
+                if (sensorLogFilter === 'WARN') return typeUpper.includes('WARN') || msgUpper.includes('WARN');
+                if (sensorLogFilter === 'HARDWARE') return msgUpper.includes('USB') || msgUpper.includes('FPDSYS') || msgUpper.includes('AED') || msgUpper.includes('SENSOR') || msgUpper.includes('DRIVER');
+                if (sensorLogFilter === 'CAPTURE') return typeUpper.includes('EXPOSURE') || typeUpper.includes('CAPTURE') || msgUpper.includes('XRAY') || msgUpper.includes('SCAN');
+                return true;
+              });
+
+              if (filtered.length === 0) {
+                return <div className="text-slate-500 text-center py-4">No {sensorLogFilter.toLowerCase()} logs found.</div>;
+              }
+
+              return filtered.map((l, i) => {
+                const type = (l.type || 'INFO').toUpperCase();
+                let badgeColor = 'text-sky-400 bg-sky-950/60 border-sky-800';
+                if (type.includes('ERR') || type.includes('FAIL')) badgeColor = 'text-rose-400 bg-rose-950/60 border-rose-800';
+                else if (type.includes('WARN')) badgeColor = 'text-amber-400 bg-amber-950/60 border-amber-800';
+                else if (type.includes('SUCCESS') || type.includes('READY')) badgeColor = 'text-emerald-400 bg-emerald-950/60 border-emerald-800';
+                else if (type.includes('EXPOSURE') || type.includes('CAPTURE')) badgeColor = 'text-fuchsia-400 bg-fuchsia-950/60 border-fuchsia-800';
+
+                return (
+                  <div key={l.id || i} className="flex items-start gap-2 border-b border-slate-800/40 pb-1 last:border-b-0">
+                    <span className="text-slate-500 shrink-0">[{l.time}]</span>
+                    <span className={`px-1 py-0.2 rounded text-[9px] font-bold border shrink-0 ${badgeColor}`}>
+                      {l.type || 'INFO'}
+                    </span>
+                    <span className="text-slate-200 break-words flex-1 leading-tight">{l.message}</span>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        </div>
+      )}
 
       {/* --------------------------------------------------------------------- */}
       {/* 3. MEDICAL VIEWER CANVAS & INTERACTIVE TOOLBAR                        */}
