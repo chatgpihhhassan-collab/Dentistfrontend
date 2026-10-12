@@ -114,11 +114,12 @@ echo TITLE Dentia Hardware Bridge Live Logs >> "%TARGET_DIR%\View_Logs.bat"
 echo powershell -Command "Get-Content -Path '%LOGS_DIR%\bridge_*.log' -Tail 50 -Wait" >> "%TARGET_DIR%\View_Logs.bat"
 
 echo [*] Launching Dental Bridge background service...
-start "" "%TARGET_DIR%\DentalBridge.exe"
+cd /d "%TARGET_DIR%"
+start "" "%TARGET_DIR%\DentalBridge.exe" --workdir "%TARGET_DIR%"
 
 :: Quick connection verification
 timeout /t 3 >nul
-powershell -NoProfile -Command "try { $r = Invoke-RestMethod -Uri 'http://127.0.0.1:5050/api/status' -TimeoutSec 3; Write-Host ' [STATUS CHECK] Bridge is active on port 5050. Model:' $r.model 'State:' $r.state } catch { Write-Host ' [STATUS NOTE] Service starting up in background...' }"
+powershell -NoProfile -Command "try { $r = Invoke-RestMethod -Uri 'http://127.0.0.1:5050/api/status' -TimeoutSec 4; Write-Host ' [STATUS CHECK] Bridge is active on port 5050!' -ForegroundColor Green; Write-Host '               Model:' $r.model; Write-Host '               State:' $r.state; Write-Host '               Driver:' $r.driver } catch { Write-Host ' [STATUS NOTE] Service starting up in background...' }"
 
 echo.
 echo ==============================================================================
@@ -127,4 +128,4 @@ echo   Disk Logs: %LOGS_DIR%
 echo   Return to your web browser - your NanoPix sensor is now connected!
 echo ==============================================================================
 echo.
-timeout /t 5
+pause
