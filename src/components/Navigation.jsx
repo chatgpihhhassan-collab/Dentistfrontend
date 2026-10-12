@@ -191,7 +191,7 @@ export default function Navigation() {
                         </div>
                     ) : (
                         <div className="flex items-center space-x-3">
-                            <Link to="/auth" className="bg-primary-teal hover:bg-primary-hover text-white font-bold py-2.5 px-6 rounded-full text-sm transition-all shadow-md hover:shadow-lg flex items-center gap-2">
+                            <Link to="/book" className="bg-primary-teal hover:bg-primary-hover text-white font-bold py-2.5 px-6 rounded-full text-sm transition-all shadow-md hover:shadow-lg flex items-center gap-2">
                                 <CalendarPlus className="w-4 h-4" />
                                 Book Visit
                             </Link>

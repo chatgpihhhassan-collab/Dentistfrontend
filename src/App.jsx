@@ -128,6 +128,7 @@ export default function App() {
             <Route path="/" element={<BlockSuperAdmin><LandingDashboard /></BlockSuperAdmin>} />
             <Route path="/dashboard" element={<BlockSuperAdmin><LandingDashboard /></BlockSuperAdmin>} />
             <Route path="/login" element={<BlockSuperAdmin><Auth /></BlockSuperAdmin>} />
+            <Route path="/auth" element={<Navigate to="/login" replace />} />
             
             {/* 🛡️ Protected Clinician Workspace & Clinical Patient Records */}
             <Route path="/directory" element={<ProtectedRoute><PatientDirectory /></ProtectedRoute>} />
