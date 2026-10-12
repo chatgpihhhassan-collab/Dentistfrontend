@@ -74,13 +74,24 @@ if not exist "%TARGET_DIR%\DentalBridge.exe" (
     exit /b 1
 )
 
-:: Register Windows Startup (Current User Run Key)
-echo [*] Registering Windows Auto-Start...
-reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "DentiaDentalBridge" /t REG_SZ /d "\"%TARGET_DIR%\DentalBridge.exe\"" /f >nul 2>&1
+:: Register 4-Layer Windows Auto-Start Persistence (Reboot & Logon)
+echo [*] Registering 4-Layer Windows Auto-Start Persistence (Reboot & Logon)...
+:: Layer 1: Windows Scheduled Task (Runs on any doctor logon with highest elevated privileges)
+schtasks /create /tn "DentiaDentalBridge" /tr "\"%TARGET_DIR%\DentalBridge.exe\" --workdir \"%TARGET_DIR%\"" /sc onlogon /rl highest /f >nul 2>&1
 
-:: Configure Windows Firewall for Port 5050
-echo [*] Configuring local loopback network port 5050...
+:: Layer 2: Machine-Wide Registry (Applies to all doctor profiles on this PC)
+reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /v "DentiaDentalBridge" /t REG_SZ /d "\"%TARGET_DIR%\DentalBridge.exe\" --workdir \"%TARGET_DIR%\"" /f >nul 2>&1
+
+:: Layer 3: Current User Profile Registry
+reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "DentiaDentalBridge" /t REG_SZ /d "\"%TARGET_DIR%\DentalBridge.exe\" --workdir \"%TARGET_DIR%\"" /f >nul 2>&1
+
+:: Layer 4: Common Startup Folder Shortcut
+powershell -NoProfile -Command "$w=New-Object -ComObject WScript.Shell;$cs=[Environment]::GetFolderPath('CommonStartup');if(Test-Path $cs){$s=$w.CreateShortcut(\"$cs\Dentia Dental Bridge.lnk\");$s.TargetPath=\"%TARGET_DIR%\DentalBridge.exe\";$s.WorkingDirectory=\"%TARGET_DIR%\";$s.Arguments=\"--workdir `\"%TARGET_DIR%`\"\";$s.Save();}" >nul 2>&1
+
+:: Configure Windows Firewall for Ports 5050 & 5066
+echo [*] Configuring local loopback network ports 5050 & 5066...
 netsh advfirewall firewall add rule name="Dentia Dental Bridge (Port 5050)" dir=in action=allow protocol=TCP localport=5050 >nul 2>&1
+netsh advfirewall firewall add rule name="Dentia Dental Bridge (Port 5066)" dir=in action=allow protocol=TCP localport=5066 >nul 2>&1
 
 :: Create a convenient log viewing script
 echo @echo off > "%TARGET_DIR%\View_Logs.bat"
