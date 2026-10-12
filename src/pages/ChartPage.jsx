@@ -1049,14 +1049,19 @@ export default function ChartPage() {
     if (!patientId) return;
 
     const handleNanoPixIncomingScan = async (scan) => {
-      if (!scan || !scan.dataUrl) return;
+      if (!scan) return;
+      const imageSrc = scan.previewBase64 || scan.dataUrl || scan.imageUrl;
+      if (!imageSrc) return;
+      scan.dataUrl = imageSrc;
+      scan.imageUrl = imageSrc;
+
       const radId = scan.id || `NP_${Date.now()}`;
       const tKey = scan.toothKey || (detailedTooth ? String(detailedTooth) : '19');
       const imgName = scan.filename || `NanoPix_Tooth_${tKey}_${new Date().toLocaleTimeString().replace(/:/g, '-')}.png`;
 
       console.log(
-        `%c[NANOPIX STEP 4/4 - CHART & ODONTOGRAM MOUNTED] ✨ Radiograph Mounted on Dental Chart!%c\n• Patient: #${patientId}\n• Tooth: #${tKey}\n• Filename: ${imgName}\n• Source Folder: ${scan.folder || scan.source || 'D:\\PatientData'}\n• Image Length: ${scan.dataUrl.length} chars\n• Odontogram Tooth #${tKey} spotlighted!`,
-        'background: #059669; color: white; font-weight: 900; font-size: 11px; padding: 3px 8px; border-radius: 4px;',
+        `%c[FRONTEND RECEIVE - ChartPage.jsx (handleNanoPixIncomingScan)] ✨ Mounting Real Radiograph onto Dental Chart & Odontogram!%c\n• Patient: #${patientId}\n• Tooth: #${tKey}\n• Filename: ${imgName}\n• Resolution: ${scan.resolution || (scan.width ? `${scan.width}x${scan.height}` : '1300x1800')}\n• Source: ${scan.source || 'DentalBridge Local'}\n• Image Length: ${imageSrc.length} chars\n• Odontogram Tooth #${tKey} spotlighted!`,
+        'background: #059669; color: white; font-weight: 900; font-size: 12px; padding: 4px 8px; border-radius: 4px;',
         'color: #047857; font-weight: bold;'
       );
 
@@ -2802,13 +2807,28 @@ export default function ChartPage() {
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const handleGlobalNanoPixScan = async (scan) => {
-      if (!scan || !scan.dataUrl) return;
-      console.log('⚡ [ZERO-TOUCH SENSOR CAPTURE] Global radiograph arrived from bridge for Patient:', patientId, scan);
+      if (!scan) return;
+      const imageSrc = scan.previewBase64 || scan.dataUrl || scan.imageUrl;
+      if (!imageSrc) return;
+      scan.dataUrl = imageSrc;
+      scan.imageUrl = imageSrc;
+
+      console.log(
+        '%c[FRONTEND RECEIVE - ChartPage.jsx (handleGlobalNanoPixScan)] ⚡ Zero-Touch Ingestion into Patient Radiographs!',
+        'background: #059669; color: white; font-weight: bold; font-size: 12px; padding: 3px 6px; border-radius: 4px;',
+        {
+          patientId,
+          toothKey: scan.toothKey,
+          filename: scan.filename,
+          resolution: scan.resolution,
+          length: imageSrc.length
+        }
+      );
       try {
-        const res = await fetch(scan.dataUrl);
+        const res = await fetch(imageSrc);
         const blob = await res.blob();
         const mime = blob.type || (scan.filename?.endsWith('.png') ? 'image/png' : 'image/jpeg');
-        const file = new File([blob], scan.filename || `NanoPix_Patient_${patientId}_${Date.now()}.jpg`, { type: mime });
+        const file = new File([blob], scan.filename || `NanoPix_Patient_${patientId}_${Date.now()}.png`, { type: mime });
         await handleUploadXray({ target: { files: [file] } });
       } catch (err) {
         console.error('Failed to auto-ingest hardware scan into chart:', err);

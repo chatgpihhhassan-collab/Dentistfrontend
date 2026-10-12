@@ -52,33 +52,37 @@ class NanoPixDeviceService {
     let isPolling = false;
 
     const handleIncomingScan = (scan) => {
-      if (!scan || !scan.dataUrl) return;
+      if (!scan) return;
+      const imageSrc = scan.previewBase64 || scan.dataUrl;
+      if (!imageSrc) return;
+      scan.dataUrl = imageSrc;
+      scan.previewBase64 = imageSrc;
+
       const scanKey = `${scan.id || scan.filename}_${scan.timestamp || ''}`;
       if (this.lastProcessedScanId === scanKey) return;
       this.lastProcessedScanId = scanKey;
 
       console.log(
-        `%c[NANOPIX STEP 3/4 - BROWSER INGESTION] 📥 Radiograph Arrived from Hardware Bridge!%c\n• File: ${scan.filename}\n• Folder: ${scan.folder || 'Project_Scans'}\n• Size: ${scan.fileSizeKb || '~8.0'} KB\n• Tooth: #${scan.toothKey || '19'}\n• Patient: #${scan.patientId || 'Active'}`,
+        `%c[FRONTEND RECEIVE - nanoPixDeviceService.js] 📥 Radiograph Arrived from DentalBridge (http://127.0.0.1:5050/nanopix/latest-scan)!%c\n• File: ${scan.filename}\n• Folder: ${scan.folder || 'captures'}\n• Size: ${scan.fileSizeKb || '~8.0'} KB\n• Tooth: #${scan.toothKey || '19'}\n• Patient: #${scan.patientId || 'Active'}`,
         'background: #0284C7; color: white; font-weight: 900; font-size: 11px; padding: 3px 8px; border-radius: 4px;',
         'color: #0369A1; font-weight: bold;'
       );
 
-      this.log('EXPOSURE', `⚡ [STEP 3/4] Scan received from folder "${scan.folder || 'Project_Scans'}": ${scan.filename}`, scan);
+      this.log('EXPOSURE', `⚡ Scan received from DentalBridge: ${scan.filename}`, scan);
       this.playConnectChime();
       this.emit('scan-acquired', scan);
       window.dispatchEvent(new CustomEvent('nanopix:scan-acquired', { detail: scan }));
     };
 
     this.telemetry = {
-      driver: 'FTDI D2XX Kernel DLL',
+      driver: 'FTDI D2XX Kernel DLL / FpdSys.dll',
       deviceCount: 1,
       rxQueueBytes: 0,
       txQueueBytes: 0,
       serial: 'iRayC7DB5M40P4'
     };
 
-    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const baseUrl = isLocal ? '' : 'http://localhost:5066';
+    const baseUrl = 'http://127.0.0.1:5050';
     let consecutiveErrors = 0;
     let loggedBridgeNotice = false;
 
@@ -93,12 +97,12 @@ class NanoPixDeviceService {
         if (res && res.ok) {
           if (!this._bridgeConnected || consecutiveErrors > 0) {
             this._bridgeConnected = true;
-            console.log('🩺 [HARDWARE DIAGNOSTIC] Nano-Pix Hardware Bridge is ONLINE on port 5066! Ready for exposures.');
+            console.log('🩺 [HARDWARE DIAGNOSTIC] DentalBridge is ONLINE on port 5050! Ready for exposures.');
           }
           consecutiveErrors = 0;
           const data = await res.json().catch(() => null);
           if (data && data.hasScan && data.scan) {
-            console.log('%c[NANOPIX EXPOSURE] 📥 Real Radiograph scan received from Hardware Bridge!', 'color: #34d399; font-weight: bold;', data.scan.filename);
+            console.log('%c[FRONTEND POLLING RECEIVE - nanoPixDeviceService.js] 📥 Real Radiograph scan received from DentalBridge /nanopix/latest-scan!', 'color: #34d399; font-weight: bold;', data.scan.filename);
             handleIncomingScan(data.scan);
           }
 

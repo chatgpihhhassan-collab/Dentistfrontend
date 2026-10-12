@@ -274,14 +274,32 @@ export const NanoPixCaptureModal = ({
 
   // Automatic Real-Time Hardware Bridge Auto-Acquisition
   const handleAutoScan = async (scanData) => {
-    if (!scanData || !scanData.dataUrl) return;
-    const fileName = scanData.filename || `NanoPix_${activeSlotKey}_Exposure.jpg`;
-    const captureTime = scanData.timestamp || new Date().toISOString();
+    if (!scanData) return;
+    const imageSrc = scanData.previewBase64 || scanData.dataUrl || scanData.imageUrl;
+    if (!imageSrc) return;
+    scanData.dataUrl = imageSrc;
+
+    const fileName = scanData.filename || `NanoPix_${activeSlotKey}_Exposure.png`;
+    const captureTime = scanData.timestamp || scanData.capturedAt || new Date().toISOString();
     const fileSizeKb = scanData.fileSizeKb || null;
+
+    console.log(
+      '%c[FRONTEND RECEIVE - NanoPixCaptureModal.jsx (handleAutoScan)] 📸 Auto-Ingesting Captured Radiograph into Inspection Slot!',
+      'background: #d97706; color: white; font-weight: bold; font-size: 12px; padding: 3px 6px; border-radius: 4px;',
+      {
+        slot: activeSlotKey,
+        fileName,
+        captureTime,
+        patientId: scanData.patientId,
+        toothKey: scanData.toothKey,
+        dataLength: imageSrc.length
+      }
+    );
+
     nanoPixService.log('SUCCESS', `Auto-ingesting radiograph: "${fileName}" (Captured at: ${new Date(captureTime).toLocaleTimeString()})`);
     
     try {
-      const file = dataUrlToFile(scanData.dataUrl, fileName);
+      const file = dataUrlToFile(imageSrc, fileName);
       if (file) {
         await processImageForActiveSlot(file, fileName, captureTime, fileSizeKb);
       }

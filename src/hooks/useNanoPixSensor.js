@@ -174,12 +174,28 @@ export function useNanoPixSensor({
       }
 
       case 'XRAY_CAPTURED': {
+        console.log(
+          '%c[FRONTEND RECEIVE - useNanoPixSensor.js] ⚡ Radiograph Received via WebSocket (ws://127.0.0.1:5050/ws)!',
+          'background: #0284c7; color: white; font-weight: bold; font-size: 13px; padding: 4px 8px; border-radius: 4px;',
+          {
+            patientId: msg.patientId || patientId,
+            toothKey: msg.toothKey || toothKey,
+            resolution: `${msg.width || 1300}x${msg.height || 1800}`,
+            sensorSN: msg.sensorSN || deviceSerial,
+            previewBase64Length: msg.previewBase64 ? msg.previewBase64.length : 0,
+            encryptedPayloadLength: msg.encryptedPayload ? msg.encryptedPayload.length : 0,
+            timestamp: msg.capturedAt || new Date().toISOString()
+          }
+        );
+
         playCaptureChime();
         setDeviceStatus('READY');
         setIsArmed(false);
 
         const capturedData = {
           previewBase64: msg.previewBase64,
+          dataUrl: msg.previewBase64, // Normalized for components expecting dataUrl
+          imageUrl: msg.previewBase64,
           encryptedPayload: msg.encryptedPayload,
           iv: msg.iv,
           tag: msg.tag,
@@ -202,6 +218,7 @@ export function useNanoPixSensor({
         }
 
         // Global event dispatch for clinical tabs and chart
+        console.log('%c[FRONTEND EVENT DISPATCH - useNanoPixSensor.js] 📡 Dispatching "nanopix:scan-acquired" event to ChartPage & Modal...', 'color: #0284c7; font-weight: bold;', capturedData);
         window.dispatchEvent(new CustomEvent('nanopix:scan-acquired', { detail: capturedData }));
         break;
       }
@@ -224,6 +241,7 @@ export function useNanoPixSensor({
       }
 
       case 'ERROR': {
+        console.warn('[FRONTEND RECEIVE - useNanoPixSensor.js] ❌ Bridge Error Message:', msg.message);
         setError(msg.message || 'An error occurred in hardware bridge.');
         break;
       }
@@ -246,12 +264,14 @@ export function useNanoPixSensor({
     }
 
     try {
-      socketRef.current.send(JSON.stringify({
+      const armCommand = {
         command: 'ARM',
         patientId: Number(targetPatientId),
         toothKey: String(targetToothKey),
         doctorId: targetDoctorId ? Number(targetDoctorId) : null
-      }));
+      };
+      console.log('%c[FRONTEND SEND - useNanoPixSensor.js] 📤 Sending ARM Command to DentalBridge (ws://127.0.0.1:5050/ws):', 'background: #7c3aed; color: white; font-weight: bold; padding: 3px 6px; border-radius: 3px;', armCommand);
+      socketRef.current.send(JSON.stringify(armCommand));
       setIsArmed(true);
       setDeviceStatus('ARMED');
       return true;
@@ -265,6 +285,7 @@ export function useNanoPixSensor({
   const abortArming = useCallback(() => {
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return;
     try {
+      console.log('%c[FRONTEND SEND - useNanoPixSensor.js] 📤 Sending ABORT Command to DentalBridge (ws://127.0.0.1:5050/ws)...', 'background: #f59e0b; color: white; font-weight: bold; padding: 3px 6px; border-radius: 3px;');
       socketRef.current.send(JSON.stringify({ command: 'ABORT' }));
       setIsArmed(false);
       setDeviceStatus(deviceConnected ? 'READY' : 'DISCONNECTED');
@@ -275,6 +296,7 @@ export function useNanoPixSensor({
   const checkDiagnostic = useCallback(() => {
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return;
     try {
+      console.log('%c[FRONTEND SEND - useNanoPixSensor.js] 📤 Sending DIAGNOSTIC Ping to DentalBridge...', 'background: #6366f1; color: white; font-weight: bold; padding: 3px 6px; border-radius: 3px;');
       socketRef.current.send(JSON.stringify({ command: 'DIAGNOSTIC' }));
     } catch (_) {}
   }, []);
