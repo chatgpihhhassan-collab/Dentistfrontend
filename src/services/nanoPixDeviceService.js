@@ -210,7 +210,11 @@ class NanoPixDeviceService {
             try {
               const item = JSON.parse(event.data);
               if (item) {
-                this.log(item.type, item.message, item.details);
+                const lvl = item.type || item.Type || item.level || item.Level || 'INFO';
+                const msg = item.message ?? item.Message ?? item.msg ?? (typeof item === 'string' ? item : '');
+                if (msg && msg !== 'undefined' && !String(msg).endsWith('undefined')) {
+                  this.log(lvl, msg, item.details || item.Details);
+                }
               }
             } catch (err) {}
           });
@@ -265,7 +269,17 @@ class NanoPixDeviceService {
             if (!data) return;
 
             if (data.type === 'LOG' && data.log) {
-              this.log(data.log.level || 'INFO', `[${data.log.category || 'BRIDGE'}] ${data.log.message}`, data.log.details);
+              const l = data.log;
+              const lvl = l.level || l.Level || 'INFO';
+              const cat = l.category || l.Category || 'BRIDGE';
+              const rawMsg = l.message ?? l.Message ?? l.msg ?? (typeof l === 'string' ? l : '');
+              if (rawMsg && rawMsg !== 'undefined' && !rawMsg.endsWith('undefined')) {
+                this.log(lvl, `[${cat}] ${rawMsg}`, l.details || l.Details);
+              }
+            } else if (data.type === 'ERROR' && (data.message || data.Message)) {
+              this.log('ERROR', `[BRIDGE] ${data.message || data.Message}`);
+            } else if (data.type === 'WARN' && (data.message || data.Message)) {
+              this.log('WARN', `[BRIDGE] ${data.message || data.Message}`);
             } else if (data.type === 'DEVICE_STATUS') {
               const isNowConnected = Boolean(data.connected);
               this.deviceInfo.model = data.model || this.deviceInfo.model;
@@ -407,6 +421,9 @@ class NanoPixDeviceService {
   // 0. STRUCTURED DIAGNOSTIC LOGGING ENGINE
   // ---------------------------------------------------------------------------
   log(type, message, details = null) {
+    if (!message || message === 'undefined' || (typeof message === 'string' && (message.trim() === '' || message.endsWith('undefined')))) {
+      return;
+    }
     const timestamp = new Date().toLocaleTimeString();
     const logItem = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
@@ -602,14 +619,21 @@ class NanoPixDeviceService {
       const data = await this.fetchBridgeJson('/api/logs', { timeout: 2500 });
       if (data && data.success && Array.isArray(data.logs)) {
         data.logs.forEach(l => {
-          const exists = this.logs.some(existing => existing.id === l.Id || (existing.time === l.Timestamp && existing.message.includes(l.Message)));
+          const msg = l.Message ?? l.message ?? l.msg ?? '';
+          if (!msg || msg === 'undefined' || String(msg).endsWith('undefined')) return;
+          const cat = l.Category ?? l.category ?? 'BRIDGE';
+          const lvl = l.Level ?? l.level ?? 'INFO';
+          const id = l.Id ?? l.id ?? `${Date.now()}-${Math.random()}`;
+          const time = l.Timestamp ?? l.timestamp ?? new Date().toLocaleTimeString();
+
+          const exists = this.logs.some(existing => existing.id === id || (existing.time === time && existing.message && existing.message.includes(msg)));
           if (!exists) {
             this.logs.unshift({
-              id: l.Id || `${Date.now()}-${Math.random()}`,
-              time: l.Timestamp,
-              type: l.Level || 'INFO',
-              message: `[${l.Category || 'BRIDGE'}] ${l.Message}`,
-              details: l.Details
+              id,
+              time,
+              type: lvl,
+              message: `[${cat}] ${msg}`,
+              details: l.Details ?? l.details
             });
           }
         });

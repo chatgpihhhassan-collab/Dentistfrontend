@@ -103,7 +103,7 @@ export const NanoPixCaptureModal = ({
   const hotFolderWatchRef = useRef(null);
 
   // Diagnostic Logs & Telemetry state
-  const [eventLogs, setEventLogs] = useState(() => nanoPixService.getLogs());
+  const [eventLogs, setEventLogs] = useState(() => (nanoPixService.getLogs() || []).filter(l => l && l.message && !String(l.message).endsWith('undefined')));
   const [showEventLog, setShowEventLog] = useState(false);
   const [telemetry, setTelemetry] = useState(() => nanoPixService.telemetry || {
     driver: 'FTDI D2XX Kernel DLL',
@@ -174,7 +174,8 @@ export const NanoPixCaptureModal = ({
     };
 
     const handleLog = (newLog) => {
-      setEventLogs(prev => [newLog, ...prev.slice(0, 79)]);
+      if (!newLog || !newLog.message || String(newLog.message).endsWith('undefined')) return;
+      setEventLogs(prev => [newLog, ...prev.filter(l => l && l.message && !String(l.message).endsWith('undefined')).slice(0, 79)]);
     };
 
     const handleTelemetry = (tel) => {
