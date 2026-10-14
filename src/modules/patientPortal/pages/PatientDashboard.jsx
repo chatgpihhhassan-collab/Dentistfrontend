@@ -92,7 +92,9 @@ export default function PatientDashboard() {
                         const appts = await apptRes.json();
                         setAppointmentsList(Array.isArray(appts) ? appts : []);
                     }
-                } catch {}
+                } catch (e) {
+                    console.warn('Failed to load patient appointments telemetry:', e);
+                }
 
                 // 3. Odontogram Teeth Telemetry
                 try {
@@ -106,7 +108,9 @@ export default function PatientDashboard() {
                         const tData = await teethRes.json();
                         setTeethState(Array.isArray(tData) ? tData : []);
                     }
-                } catch {}
+                } catch (e) {
+                    console.warn('Failed to load patient odontogram telemetry:', e);
+                }
 
                 // 4. Invoices Telemetry
                 try {
@@ -120,7 +124,9 @@ export default function PatientDashboard() {
                         const invData = await invRes.json();
                         setInvoicesList(Array.isArray(invData) ? invData : []);
                     }
-                } catch {}
+                } catch (e) {
+                    console.warn('Failed to load patient invoices telemetry:', e);
+                }
 
                 // 5. Doctors Directory for Specialist Attribution
                 try {
@@ -137,7 +143,9 @@ export default function PatientDashboard() {
                         const docData = await docRes.json();
                         setDoctorsList(Array.isArray(docData) ? docData : []);
                     }
-                } catch {}
+                } catch (e) {
+                    console.warn('Failed to load doctors directory telemetry:', e);
+                }
 
             } catch (err) {
                 console.error('Failed to load patient dashboard:', err);
