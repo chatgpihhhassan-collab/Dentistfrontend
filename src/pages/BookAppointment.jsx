@@ -10,6 +10,8 @@ import {
 import { downloadIcsFile, getGoogleCalendarUrl, APPOINTMENT_REASONS } from './AppointmentsList';
 import { getPatientAvatarUrl } from '../utils/avatarUtils';
 import aiVoice from '../utils/aiVoiceAssistant';
+import { normalizePakistaniPhone, formatPakistaniPhone } from '../validators';
+import apiFetch from '../utils/apiClient';
 
 export default function BookAppointment() {
     const navigate = useNavigate();
@@ -34,6 +36,7 @@ export default function BookAppointment() {
     const [lastBookedAppointment, setLastBookedAppointment] = useState(null);
     const [error, setError] = useState('');
     const [emailStatus, setEmailStatus] = useState(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Form Validation & AI Voice Assistant States
     const [errors, setErrors] = useState({});
@@ -59,15 +62,19 @@ export default function BookAppointment() {
                 return '';
             case 'phone':
                 if (!val) return 'Contact phone number is required.';
-                const digits = String(val).replace(/\D/g, '');
-                if (digits.length < 10) return 'Phone number must contain at least 10 digits.';
-                if (/[a-zA-Z]/.test(val)) return 'Phone number should not contain letters.';
+                const phoneCheck = normalizePakistaniPhone(val);
+                if (!phoneCheck.isValid) return phoneCheck.error;
                 return '';
             case 'preferredDate':
                 if (!val) return 'Appointment date and time is required.';
-                const selectedTime = new Date(val).getTime();
+                const selectedDate = new Date(val);
+                const selectedTime = selectedDate.getTime();
                 if (isNaN(selectedTime)) return 'Please choose a valid calendar date and time.';
                 if (selectedTime < Date.now() - 60000) return 'Appointment date and time cannot be in the past.';
+                const hour = selectedDate.getHours();
+                if (hour < 8 || hour >= 20) {
+                    return 'Operating Hours Alert: Appointments can only be booked between 08:00 AM and 08:00 PM.';
+                }
                 return '';
             case 'email':
                 if (val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
@@ -140,7 +147,7 @@ export default function BookAppointment() {
                 setLoadingPatients(true);
                 // 1. If a specific doctor is selected, fetch their patients
                 if (formData.doctorID) {
-                    const res = await fetch(`/api/patients/doctor/${formData.doctorID}`);
+                    const res = await apiFetch(`/api/patients/doctor/${formData.doctorID}`);
                     if (res.ok) {
                         const data = await res.json();
                         if (isMounted) setPatients(Array.isArray(data) ? data : []);
@@ -160,7 +167,7 @@ export default function BookAppointment() {
 
                 const responses = await Promise.all(
                     targetDoctorIds.map(id =>
-                        fetch(`/api/patients/doctor/${id}`)
+                        apiFetch(`/api/patients/doctor/${id}`)
                             .then(r => (r.ok ? r.json() : []))
                             .catch(() => [])
                     )
@@ -225,6 +232,7 @@ export default function BookAppointment() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (isSubmitting) return;
 
         // 1. Full Form Validation Check
         const validationErrors = validateAll();
@@ -252,10 +260,12 @@ export default function BookAppointment() {
             return;
         }
 
+        setIsSubmitting(true);
         try {
+            const phoneNorm = normalizePakistaniPhone(formData.phone);
             const payload = {
                 fullName: (formData.fullName || '').trim(),
-                phone: (formData.phone || '').trim(),
+                phone: phoneNorm.isValid ? phoneNorm.normalized : (formData.phone || '').trim(),
                 email: (formData.email || '').trim() || null,
                 preferredDate: formData.preferredDate,
                 doctorID: formData.doctorID ? parseInt(formData.doctorID, 10) : null,
@@ -263,7 +273,7 @@ export default function BookAppointment() {
                 status: 'Confirmed'
             };
 
-            const response = await fetch('/api/appointments', {
+            const response = await apiFetch('/api/appointments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -274,7 +284,7 @@ export default function BookAppointment() {
 
                 // Double guarantee: ensure Reason is directly saved to SQL database even on older deployed backend DLLs
                 if (newId && payload.reason) {
-                    await fetch(`/api/appointments/${newId}`, {
+                    await apiFetch(`/api/appointments/${newId}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -294,7 +304,10 @@ export default function BookAppointment() {
                 } catch (vErr) {}
             } else {
                 const errorData = await response.json().catch(() => ({}));
-                const msg = errorData.message || 'Failed to book appointment. Please try again.';
+                if (errorData?.error?.fields) {
+                    setErrors(prev => ({ ...prev, ...errorData.error.fields }));
+                }
+                const msg = errorData?.error?.message || errorData.message || 'Failed to book appointment. Please try again.';
                 setError(msg);
                 try {
                     aiVoice.speakDoctorError(null, msg);
@@ -306,6 +319,8 @@ export default function BookAppointment() {
             try {
                 aiVoice.speakDoctorError(null, 'Server connection error occurred.');
             } catch (vErr) {}
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -729,9 +744,10 @@ export default function BookAppointment() {
                                     {/* Submit Button */}
                                     <button 
                                         type="submit" 
-                                        className="w-full py-4 mt-4 bg-[#4A7CD2] hover:bg-[#3b66b2] text-white font-bold text-sm rounded-2xl shadow-lg transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center justify-center space-x-2"
+                                        disabled={isSubmitting}
+                                        className={`w-full py-4 mt-4 bg-[#4A7CD2] hover:bg-[#3b66b2] text-white font-bold text-sm rounded-2xl shadow-lg transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center justify-center space-x-2 ${isSubmitting ? 'opacity-60 cursor-not-allowed' : ''}`}
                                     >
-                                        <span>Confirm Appointment</span>
+                                        <span>{isSubmitting ? 'Verifying & Confirming...' : 'Confirm Appointment'}</span>
                                         <ChevronRight className="w-4 h-4" />
                                     </button>
                                 </form>

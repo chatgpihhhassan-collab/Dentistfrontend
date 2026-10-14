@@ -11,6 +11,9 @@ import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
 import { getPatientAvatarUrl, validateImageFile, fileToDataUrl } from '../utils/avatarUtils';
 import aiVoice from '../utils/aiVoiceAssistant';
+import { normalizePakistaniPhone, formatPakistaniPhone, formatCnic, validateCnic } from '../validators';
+import AIBadgeAndActions from '../components/AIBadgeAndActions';
+import apiFetch from '../utils/apiClient';
 
 export default function NewPatientPage() {
     const [doctor, setDoctor] = useState(null);
@@ -26,7 +29,7 @@ export default function NewPatientPage() {
         gender: '', 
         region: 'PK',
         nhiNumber: '',
-        dentitionType: 'Permanent', // 'Permanent' | 'Pediatric' | 'Mixed'
+        dentitionType: 'Adult', // 'Adult' | 'Pediatric' | 'Mixed'
         guardianName: '',
         guardianRelationship: '',
         currentTreatmentPlan: 'General Consultation',
@@ -48,13 +51,13 @@ export default function NewPatientPage() {
     };
 
     const handleDobChange = (dobVal) => {
-        let detectedDentition = 'Permanent';
+        let detectedDentition = 'Adult';
         if (dobVal) {
             const age = calculateAge(dobVal);
             if (age !== null) {
                 if (age < 6) detectedDentition = 'Pediatric';
                 else if (age <= 12) detectedDentition = 'Mixed';
-                else detectedDentition = 'Permanent';
+                else detectedDentition = 'Adult';
             }
         }
         setNewPatient(prev => ({
@@ -74,6 +77,7 @@ export default function NewPatientPage() {
     const [askedClinicalDetails, setAskedClinicalDetails] = useState(false);
     const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
     const [isExtendedOpen, setIsExtendedOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Auto-open extended drawer if AI or preset fills any optional field
     useEffect(() => {
@@ -272,9 +276,13 @@ export default function NewPatientPage() {
                 return '';
             case 'phone':
                 if (!val) return ''; // Optional
-                const digits = String(val).replace(/\D/g, '');
-                if (digits.length < 7) return 'Phone number must contain at least 7 digits.';
-                if (/[a-zA-Z]/.test(val)) return 'Phone number should not contain letters.';
+                const phoneCheck = normalizePakistaniPhone(val);
+                if (!phoneCheck.isValid) return phoneCheck.error;
+                return '';
+            case 'nhiNumber':
+                if (!val) return '';
+                const cnicCheck = validateCnic(val);
+                if (!cnicCheck.isValid) return cnicCheck.error;
                 return '';
             case 'email':
                 if (val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
@@ -292,6 +300,7 @@ export default function NewPatientPage() {
         const fieldsToValidate = ['firstName', 'lastName', 'dob', 'gender'];
         if (newPatient.phone && newPatient.phone.trim()) fieldsToValidate.push('phone');
         if (newPatient.email && newPatient.email.trim()) fieldsToValidate.push('email');
+        if (newPatient.nhiNumber && newPatient.nhiNumber.trim()) fieldsToValidate.push('nhiNumber');
 
         fieldsToValidate.forEach(field => {
             const err = validateField(field, newPatient[field]);
@@ -573,7 +582,7 @@ export default function NewPatientPage() {
 
         try {
             const docId = doctor?.doctorID || doctor?.doctorId || doctor?.id || 1;
-            const res = await fetch('/api/patients/ai-intake', {
+            const res = await apiFetch('/api/patients/ai-intake', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -694,6 +703,7 @@ export default function NewPatientPage() {
 
     const handleCreatePatient = async (e) => {
         if (e) e.preventDefault();
+        if (isSubmitting) return;
 
         // 1. Run Complete Form Validation
         const validationErrors = validateAll();
@@ -702,9 +712,10 @@ export default function NewPatientPage() {
             const allTouched = { firstName: true, lastName: true, dob: true, gender: true };
             if (newPatient.phone) allTouched.phone = true;
             if (newPatient.email) allTouched.email = true;
+            if (newPatient.nhiNumber) allTouched.nhiNumber = true;
             setTouched(allTouched);
 
-            const fieldKeys = ['firstName', 'lastName', 'dob', 'gender', 'phone', 'email'];
+            const fieldKeys = ['firstName', 'lastName', 'dob', 'gender', 'phone', 'nhiNumber', 'email'];
             const firstFailedKey = fieldKeys.find(k => validationErrors[k]);
             const labels = {
                 firstName: 'first name',
@@ -712,6 +723,7 @@ export default function NewPatientPage() {
                 dob: 'date of birth',
                 gender: 'gender selection',
                 phone: 'contact phone number',
+                nhiNumber: 'CNIC / National ID',
                 email: 'email address'
             };
 
@@ -732,28 +744,38 @@ export default function NewPatientPage() {
             return;
         }
 
+        setIsSubmitting(true);
         try {
             const city = newPatient.city;
             const postcode = newPatient.postcode;
             const fullAddress = [newPatient.address, city, postcode].filter(Boolean).join(', ');
             const docId = doctor?.doctorID || doctor?.doctorId || doctor?.id || 1;
             
+            const allergies = (newPatient.selectedAllergies && newPatient.selectedAllergies.length > 0)
+                ? newPatient.selectedAllergies.join(', ')
+                : 'No Known Drug Allergies (NKDA)';
+
             const combinedNotes = [
-                newPatient.selectedAllergies?.length ? `Medical Alerts: ${newPatient.selectedAllergies.join(', ')}` : '',
+                `Medical Alerts: ${allergies}`,
                 newPatient.medicalNotes
             ].filter(Boolean).join(' | ');
 
+            const phoneNorm = newPatient.phone ? normalizePakistaniPhone(newPatient.phone) : null;
+            const formattedPhone = phoneNorm?.isValid ? phoneNorm.normalized : (newPatient.phone || '');
+            const formattedCnic = newPatient.nhiNumber ? formatCnic(newPatient.nhiNumber) : '';
+
             const payload = { 
                 ...newPatient, 
+                phone: formattedPhone,
+                nhiNumber: formattedCnic,
                 address: fullAddress, 
                 doctorID: docId,
                 email: newPatient.email || `${newPatient.firstName.toLowerCase()}.${newPatient.lastName.toLowerCase()}@dentiaclinic.com`,
                 profileImageDataUrl: newPatient.profileImageDataUrl,
                 profileImageMimeType: newPatient.profileImageMimeType,
-                nhiNumber: newPatient.nhiNumber,
                 currentTreatmentPlan: newPatient.currentTreatmentPlan || 'General Consultation'
             };
-            const res = await fetch('/api/patients', {
+            const res = await apiFetch('/api/patients', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -764,7 +786,7 @@ export default function NewPatientPage() {
                 // Save intake note to clinical logs if provided
                 if (combinedNotes && created.patientID) {
                     try {
-                        await fetch(`/api/patients/${created.patientID}/clinical-logs`, {
+                        await apiFetch(`/api/patients/${created.patientID}/clinical-logs`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -794,6 +816,16 @@ export default function NewPatientPage() {
                     existingPatientId: errData.existingPatientId,
                     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 }]);
+            } else if (res.status === 400) {
+                const errData = await res.json().catch(() => ({}));
+                if (errData?.error?.fields) {
+                    setErrors(prev => ({ ...prev, ...errData.error.fields }));
+                }
+                const msg = errData?.error?.message || errData.message || "Failed to create patient. Check required fields.";
+                showToast(`⚠️ ${msg}`, "error");
+                try {
+                    aiVoice.speakDoctorError(null, msg);
+                } catch (vErr) {}
             } else {
                 const errMsg = await res.text().catch(() => "");
                 showToast(errMsg || "Failed to create patient. Check required fields.", "error");
@@ -801,6 +833,8 @@ export default function NewPatientPage() {
         } catch (err) {
             console.error(err);
             showToast("Error connecting to server.", "error");
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -1198,9 +1232,9 @@ export default function NewPatientPage() {
                                 <div className="grid grid-cols-3 gap-2">
                                     <button
                                         type="button"
-                                        onClick={() => setNewPatient(prev => ({ ...prev, dentitionType: 'Permanent' }))}
+                                        onClick={() => setNewPatient(prev => ({ ...prev, dentitionType: 'Adult' }))}
                                         className={`py-1.5 px-2 rounded-xl text-xs font-black transition-all cursor-pointer text-center border ${
-                                            newPatient.dentitionType === 'Permanent'
+                                            newPatient.dentitionType === 'Adult'
                                                 ? 'bg-[#4A7CD2] text-white border-[#4A7CD2] shadow-xs'
                                                 : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                                         }`}
@@ -1657,11 +1691,21 @@ export default function NewPatientPage() {
 
                         <button 
                             type="button" 
+                            disabled={isSubmitting}
                             onClick={handleCreatePatient}
-                            className="px-5 py-2.5 bg-[#4A7CD2] hover:bg-[#3665B7] text-white font-black rounded-xl shadow-md hover:shadow-lg transition-all text-xs cursor-pointer flex items-center gap-1.5 transform hover:scale-[1.02] active:scale-[0.98]"
+                            className={`px-5 py-2.5 bg-[#4A7CD2] hover:bg-[#3665B7] text-white font-black rounded-xl shadow-md hover:shadow-lg transition-all text-xs cursor-pointer flex items-center gap-1.5 transform hover:scale-[1.02] active:scale-[0.98] ${isSubmitting ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
-                            <UserPlus className="w-3.5 h-3.5" />
-                            <span>Create Patient Profile</span>
+                            {isSubmitting ? (
+                                <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Saving Profile...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <UserPlus className="w-3.5 h-3.5" />
+                                    <span>Create Patient Profile</span>
+                                </>
+                            )}
                         </button>
                     </div>
 
@@ -1758,6 +1802,16 @@ export default function NewPatientPage() {
                                                     <UserCheck className="w-3.5 h-3.5" /> View Existing Dental Chart (#{m.existingPatientId})
                                                 </button>
                                             </div>
+                                        )}
+
+                                        {!isDoc && (
+                                            <AIBadgeAndActions
+                                                promptId="patient-intake-extractor"
+                                                version="1.0.0"
+                                                feature="intake"
+                                                textToCopy={m.text}
+                                                className="mt-2"
+                                            />
                                         )}
 
                                         <span className="text-[8px] text-muted-text block mt-1 text-right">{m.time}</span>

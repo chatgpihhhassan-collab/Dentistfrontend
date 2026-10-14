@@ -14,6 +14,7 @@ import { getPatientAvatarUrl, validateImageFile, fileToDataUrl } from '../utils/
 import { preloadJawImages, preloadPatientJawTemplates } from '../utils/jawImagePreloader';
 import { fetchWithCache, prefetchApi, invalidateCache, setCachedData } from '../utils/apiCache';
 import FullPageSkeletonLoader from '../components/FullPageSkeletonLoader';
+import apiFetch from '../utils/apiClient';
 
 export default function PatientDirectory() {
     const [patients, setPatients] = useState([]);
@@ -138,7 +139,7 @@ export default function PatientDirectory() {
         if (!editPatientModal.patient) return;
         setSavingEdit(true);
         try {
-            const res = await fetch(`/api/patients/${editPatientModal.patient.patientID}`, {
+            const res = await apiFetch(`/api/patients/${editPatientModal.patient.patientID}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -213,7 +214,7 @@ export default function PatientDirectory() {
         try {
             const docId = doctor?.doctorID || 1;
             // 1. Reset treatment plan in Patients table to empty / NULL
-            await fetch(`/api/patients/${selectedPatient.patientID}/treatment-plan`, {
+            await apiFetch(`/api/patients/${selectedPatient.patientID}/treatment-plan`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -224,7 +225,7 @@ export default function PatientDirectory() {
             });
 
             // 2. Insert clinical log entry documenting the revert
-            await fetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
+            await apiFetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -269,7 +270,7 @@ export default function PatientDirectory() {
         try {
             const docId = doctor?.doctorID || 1;
             // Revert tooth state to Healthy in DB
-            await fetch('/api/patients/teeth/update-bulk', {
+            await apiFetch('/api/patients/teeth/update-bulk', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -283,7 +284,7 @@ export default function PatientDirectory() {
                 })
             });
 
-            await fetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
+            await apiFetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -322,7 +323,7 @@ export default function PatientDirectory() {
             setSelectedTeethState(patientChartsCacheRef.current[pId]);
             return;
         }
-        fetch(`/api/patients/${pId}/chart`)
+        apiFetch(`/api/patients/${pId}/chart`)
             .then(res => res.json())
             .then(data => {
                 const safeData = Array.isArray(data) ? data : [];
@@ -341,7 +342,7 @@ export default function PatientDirectory() {
         let exportLogs = clinicalLogs;
         if (!exportLogs || exportLogs.length === 0) {
             try {
-                const res = await fetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`);
+                const res = await apiFetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`);
                 if (res.ok) {
                     const data = await res.json();
                     if (Array.isArray(data)) {
@@ -599,7 +600,7 @@ export default function PatientDirectory() {
             if (!isCancelled) setIsSlowConnection(true);
         }, 7000);
 
-        const fetchPatients = fetch(`/api/patients/doctor/${docInfo.doctorID}`)
+        const fetchPatients = apiFetch(`/api/patients/doctor/${docInfo.doctorID}`)
             .then(res => res.ok ? res.json() : [])
             .then((data) => {
                 if (isCancelled) return [];
@@ -611,9 +612,9 @@ export default function PatientDirectory() {
                     setSelectedPatient(prev => prev || data[0]);
                     // Speculatively prefetch top patient chart & prescriptions for instant click-through
                     const topP = data[0];
-                    prefetchApi(`patient_${topP.patientID}`, () => fetch(`/api/patients/${topP.patientID}`).then(r => r.json()));
-                    prefetchApi(`patient_${topP.patientID}_chart`, () => fetch(`/api/patients/${topP.patientID}/chart`).then(r => r.json()));
-                    prefetchApi(`patient_${topP.patientID}_prescriptions`, () => fetch(`/api/patients/${topP.patientID}/prescriptions`).then(r => r.json()));
+                    prefetchApi(`patient_${topP.patientID}`, () => apiFetch(`/api/patients/${topP.patientID}`).then(r => r.json()));
+                    prefetchApi(`patient_${topP.patientID}_chart`, () => apiFetch(`/api/patients/${topP.patientID}/chart`).then(r => r.json()));
+                    prefetchApi(`patient_${topP.patientID}_prescriptions`, () => apiFetch(`/api/patients/${topP.patientID}/prescriptions`).then(r => r.json()));
                 }
                 setLoadProgress(prev => Math.max(prev, 60));
                 setLoadStatusMessage('Patient profiles loaded. Retrieving clinic schedule...');
@@ -623,7 +624,7 @@ export default function PatientDirectory() {
                 return [];
             });
 
-        const fetchAppts = fetch(`/api/appointments?doctorId=${docInfo.doctorID}`)
+        const fetchAppts = apiFetch(`/api/appointments?doctorId=${docInfo.doctorID}`)
             .then(res => res.ok ? res.json() : [])
             .then((data) => {
                 if (isCancelled) return [];
@@ -668,7 +669,7 @@ export default function PatientDirectory() {
         if (!isLogsDrawerOpen) return;
 
         setLoadingLogs(true);
-        fetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`)
+        apiFetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`)
             .then(res => res.ok ? res.json() : [])
             .then(data => {
                 setClinicalLogs(Array.isArray(data) ? data : []);
@@ -1071,9 +1072,9 @@ export default function PatientDirectory() {
                                                         onClick={() => setSelectedPatient(p)}
                                                         onPointerEnter={() => {
                                                             preloadPatientJawTemplates(isPed ? 'pediatric' : 'adult');
-                                                            prefetchApi(`patient_${p.patientID}`, () => fetch(`/api/patients/${p.patientID}`).then(r => r.json()));
-                                                            prefetchApi(`patient_${p.patientID}_chart`, () => fetch(`/api/patients/${p.patientID}/chart`).then(r => r.json()));
-                                                            prefetchApi(`patient_${p.patientID}_prescriptions`, () => fetch(`/api/patients/${p.patientID}/prescriptions`).then(r => r.json()));
+                                                            prefetchApi(`patient_${p.patientID}`, () => apiFetch(`/api/patients/${p.patientID}`).then(r => r.json()));
+                                                            prefetchApi(`patient_${p.patientID}_chart`, () => apiFetch(`/api/patients/${p.patientID}/chart`).then(r => r.json()));
+                                                            prefetchApi(`patient_${p.patientID}_prescriptions`, () => apiFetch(`/api/patients/${p.patientID}/prescriptions`).then(r => r.json()));
                                                         }}
                                                         className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex justify-between items-center ${isSelected ? 'bg-[#EAF0FC] border-[#4A7CD2] shadow-sm scale-[1.01]' : 'bg-white border-[#EAF0FC] hover:bg-light-teal/10'}`}
                                                     >
@@ -1360,7 +1361,7 @@ export default function PatientDirectory() {
                                                              try {
                                                                  const docId = doctor?.doctorID || 1;
                                                                  // 1. Update treatment plan in Patients table
-                                                                 await fetch(`/api/patients/${selectedPatient.patientID}/treatment-plan`, {
+                                                                 await apiFetch(`/api/patients/${selectedPatient.patientID}/treatment-plan`, {
                                                                      method: 'POST',
                                                                      headers: { 'Content-Type': 'application/json' },
                                                                      body: JSON.stringify({
@@ -1370,7 +1371,7 @@ export default function PatientDirectory() {
                                                                      })
                                                                  });
                                                                  // 2. Insert clinical log entry
-                                                                 await fetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
+                                                                 await apiFetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
                                                                      method: 'POST',
                                                                      headers: { 'Content-Type': 'application/json' },
                                                                      body: JSON.stringify({
@@ -1481,7 +1482,7 @@ export default function PatientDirectory() {
                                                              try {
                                                                  const docId = doctor?.doctorID || 1;
                                                                  // 1. Update treatment plan in Patients table
-                                                                 await fetch(`/api/patients/${selectedPatient.patientID}/treatment-plan`, {
+                                                                 await apiFetch(`/api/patients/${selectedPatient.patientID}/treatment-plan`, {
                                                                      method: 'POST',
                                                                      headers: { 'Content-Type': 'application/json' },
                                                                      body: JSON.stringify({
@@ -1491,7 +1492,7 @@ export default function PatientDirectory() {
                                                                      })
                                                                  });
                                                                  // 2. Insert clinical log entry
-                                                                 await fetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
+                                                                 await apiFetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
                                                                      method: 'POST',
                                                                      headers: { 'Content-Type': 'application/json' },
                                                                      body: JSON.stringify({
@@ -1600,7 +1601,7 @@ export default function PatientDirectory() {
                                                                  try {
                                                                      const docId = doctor?.doctorID || 1;
                                                                      // 1. Mark tooth as Damaged / Decay in TeethState (bulk update endpoint)
-                                                                     await fetch('/api/patients/teeth/update-bulk', {
+                                                                     await apiFetch('/api/patients/teeth/update-bulk', {
                                                                          method: 'POST',
                                                                          headers: { 'Content-Type': 'application/json' },
                                                                          body: JSON.stringify({
@@ -1614,7 +1615,7 @@ export default function PatientDirectory() {
                                                                          })
                                                                      });
                                                                      // 2. Insert clinical log entry
-                                                                     await fetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
+                                                                     await apiFetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
                                                                          method: 'POST',
                                                                          headers: { 'Content-Type': 'application/json' },
                                                                          body: JSON.stringify({
@@ -1755,10 +1756,10 @@ export default function PatientDirectory() {
                                                      onPointerEnter={() => {
                                                          preloadJawImages({ immediate: true });
                                                          if (selectedPatient?.patientID) {
-                                                             prefetchApi(`patient_${selectedPatient.patientID}`, () => fetch(`/api/patients/${selectedPatient.patientID}`).then(r => r.json()));
-                                                             prefetchApi(`patient_${selectedPatient.patientID}_chart`, () => fetch(`/api/patients/${selectedPatient.patientID}/chart`).then(r => r.json()));
-                                                             prefetchApi(`patient_${selectedPatient.patientID}_prescriptions`, () => fetch(`/api/patients/${selectedPatient.patientID}/prescriptions`).then(r => r.json()));
-                                                             prefetchApi(`patient_${selectedPatient.patientID}_diagnostic`, () => fetch(`/api/patients/${selectedPatient.patientID}/diagnostic-assessment`).then(r => r.ok && r.status !== 204 ? r.json() : null));
+                                                             prefetchApi(`patient_${selectedPatient.patientID}`, () => apiFetch(`/api/patients/${selectedPatient.patientID}`).then(r => r.json()));
+                                                             prefetchApi(`patient_${selectedPatient.patientID}_chart`, () => apiFetch(`/api/patients/${selectedPatient.patientID}/chart`).then(r => r.json()));
+                                                             prefetchApi(`patient_${selectedPatient.patientID}_prescriptions`, () => apiFetch(`/api/patients/${selectedPatient.patientID}/prescriptions`).then(r => r.json()));
+                                                             prefetchApi(`patient_${selectedPatient.patientID}_diagnostic`, () => apiFetch(`/api/patients/${selectedPatient.patientID}/diagnostic-assessment`).then(r => r.ok && r.status !== 204 ? r.json() : null));
                                                          }
                                                      }}
                                                      className="w-full bg-[#4A7CD2] hover:bg-[#3665B7] text-white py-2.5 rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5"

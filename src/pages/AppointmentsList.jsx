@@ -11,6 +11,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import jsPDF from 'jspdf';
 import aiVoice from '../utils/aiVoiceAssistant';
+import apiFetch from '../utils/apiClient';
 
 // Helper: Download .ics calendar event file for Apple / Google / Outlook / Notion Calendar
 export const downloadIcsFile = (appointment, clinicName = "DENTIA Dental Care") => {
@@ -357,7 +358,7 @@ export default function AppointmentsList() {
         setToastMessage(`Moved ${targetAppt.fullName} to ${newStatus}!`);
 
         try {
-            const res = await fetch(`/api/appointments/${apptId}`, {
+            const res = await apiFetch(`/api/appointments/${apptId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -392,7 +393,7 @@ export default function AppointmentsList() {
             setLoading(true);
             const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
             const doctorId = doctorData.doctorID || doctorData.DoctorID;
-            const res = await fetch(`/api/appointments${doctorId ? `?doctorId=${doctorId}` : ''}`);
+            const res = await apiFetch(`/api/appointments${doctorId ? `?doctorId=${doctorId}` : ''}`);
             if (res.ok) {
                 const data = await res.json();
                 setAppointments(data);
@@ -444,7 +445,7 @@ export default function AppointmentsList() {
 
                 // 1. If a specific doctor is selected, fetch their patients
                 if (newApptForm.doctorID) {
-                    const res = await fetch(`/api/patients/doctor/${newApptForm.doctorID}`);
+                    const res = await apiFetch(`/api/patients/doctor/${newApptForm.doctorID}`);
                     if (res.ok) {
                         const data = await res.json();
                         if (isMounted) setModalPatients(Array.isArray(data) ? data : []);
@@ -465,7 +466,7 @@ export default function AppointmentsList() {
 
                 const responses = await Promise.all(
                     targetDoctorIds.map(id =>
-                        fetch(`/api/patients/doctor/${id}`)
+                        apiFetch(`/api/patients/doctor/${id}`)
                             .then(r => (r.ok ? r.json() : []))
                             .catch(() => [])
                     )
@@ -555,7 +556,7 @@ export default function AppointmentsList() {
         if (!updateModal.appointment) return;
         try {
             setError('');
-            const res = await fetch(`/api/appointments/${updateModal.appointment.appointmentID}`, {
+            const res = await apiFetch(`/api/appointments/${updateModal.appointment.appointmentID}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -619,7 +620,7 @@ export default function AppointmentsList() {
                 status: 'Confirmed'
             };
 
-            const res = await fetch('/api/appointments', {
+            const res = await apiFetch('/api/appointments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -632,7 +633,7 @@ export default function AppointmentsList() {
                 // Double guarantee: if remote API server has an older build where POST omitted Reason column,
                 // immediate PUT ensures Reason is directly saved to SQL database
                 if (newId && payload.reason) {
-                    await fetch(`/api/appointments/${newId}`, {
+                    await apiFetch(`/api/appointments/${newId}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
