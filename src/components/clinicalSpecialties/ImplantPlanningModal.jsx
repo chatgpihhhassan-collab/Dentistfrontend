@@ -123,7 +123,8 @@ export default function ImplantPlanningModal({
         if (Array.isArray(data) && data.length > 0) {
           setPlansList(data);
           try {
-            localStorage.setItem(`dentia_implant_plans_${patientId}`, JSON.stringify(data));
+            sessionStorage.setItem(`dentia_implant_plans_${patientId}`, JSON.stringify(data));
+            localStorage.removeItem(`dentia_implant_plans_${patientId}`);
           } catch (e) {}
           return;
         }
@@ -210,9 +211,10 @@ export default function ImplantPlanningModal({
         updatedAt: new Date().toISOString()
       };
       try {
-        const prev = JSON.parse(localStorage.getItem(`dentia_implant_plans_${patientId}`) || '[]');
+        const prev = JSON.parse(sessionStorage.getItem(`dentia_implant_plans_${patientId}`) || localStorage.getItem(`dentia_implant_plans_${patientId}`) || '[]');
         const updated = [localPlan, ...prev.filter(p => (p.implantPlanID !== localPlan.implantPlanID && String(p.toothNumber) !== String(localPlan.toothNumber)))];
-        localStorage.setItem(`dentia_implant_plans_${patientId}`, JSON.stringify(updated));
+        sessionStorage.setItem(`dentia_implant_plans_${patientId}`, JSON.stringify(updated));
+        localStorage.removeItem(`dentia_implant_plans_${patientId}`);
         setPlansList(updated);
       } catch (e) {}
 

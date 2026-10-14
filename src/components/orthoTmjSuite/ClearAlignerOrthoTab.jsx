@@ -84,7 +84,8 @@ export default function ClearAlignerOrthoTab({
         if (Array.isArray(data) && data.length > 0) {
           setPlansList(data);
           try {
-            localStorage.setItem(`dentia_aligner_plans_${patientId}`, JSON.stringify(data));
+            sessionStorage.setItem(`dentia_aligner_plans_${patientId}`, JSON.stringify(data));
+            localStorage.removeItem(`dentia_aligner_plans_${patientId}`);
           } catch (e) {}
           if (!activePlanId) handleSelectPlan(data[0]);
           return;
@@ -177,12 +178,13 @@ export default function ClearAlignerOrthoTab({
         };
       }
 
-      // Update local storage mirror
+      // Update session storage mirror
       try {
-        const currentCached = JSON.parse(localStorage.getItem(`dentia_aligner_plans_${patientId}`) || '[]');
+        const currentCached = JSON.parse(sessionStorage.getItem(`dentia_aligner_plans_${patientId}`) || localStorage.getItem(`dentia_aligner_plans_${patientId}`) || '[]');
         const filtered = currentCached.filter(p => p.orthoAlignerID !== savedRecord.orthoAlignerID);
         filtered.unshift(savedRecord);
-        localStorage.setItem(`dentia_aligner_plans_${patientId}`, JSON.stringify(filtered));
+        sessionStorage.setItem(`dentia_aligner_plans_${patientId}`, JSON.stringify(filtered));
+        localStorage.removeItem(`dentia_aligner_plans_${patientId}`);
         setPlansList(filtered);
         setActivePlanId(savedRecord.orthoAlignerID);
       } catch (e) {}

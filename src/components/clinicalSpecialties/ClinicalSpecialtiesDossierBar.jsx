@@ -47,7 +47,10 @@ export default function ClinicalSpecialtiesDossierBar({
           const data = await impRes.value.json();
           if (Array.isArray(data) && data.length > 0) {
             setImplantPlans(data);
-            try { localStorage.setItem(`dentia_implant_plans_${patientId}`, JSON.stringify(data)); } catch (e) {}
+            try {
+              sessionStorage.setItem(`dentia_implant_plans_${patientId}`, JSON.stringify(data));
+              localStorage.removeItem(`dentia_implant_plans_${patientId}`);
+            } catch (e) {}
           }
         }
 
@@ -55,7 +58,10 @@ export default function ClinicalSpecialtiesDossierBar({
           const data = await bioRes.value.json();
           if (Array.isArray(data) && data.length > 0) {
             setBiopsyRecords(data);
-            try { localStorage.setItem(`dentia_biopsy_records_${patientId}`, JSON.stringify(data)); } catch (e) {}
+            try {
+              sessionStorage.setItem(`dentia_biopsy_records_${patientId}`, JSON.stringify(data));
+              localStorage.removeItem(`dentia_biopsy_records_${patientId}`);
+            } catch (e) {}
           }
         }
 
@@ -63,7 +69,10 @@ export default function ClinicalSpecialtiesDossierBar({
           const data = await aliRes.value.json();
           if (Array.isArray(data) && data.length > 0) {
             setAlignerPlans(data);
-            try { localStorage.setItem(`dentia_aligner_plans_${patientId}`, JSON.stringify(data)); } catch (e) {}
+            try {
+              sessionStorage.setItem(`dentia_aligner_plans_${patientId}`, JSON.stringify(data));
+              localStorage.removeItem(`dentia_aligner_plans_${patientId}`);
+            } catch (e) {}
           }
         }
       } catch (err) {

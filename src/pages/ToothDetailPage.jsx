@@ -487,7 +487,8 @@ export default function ToothDetailPage() {
           if (preloadedAssessment) {
             setLiveOrthoAssessment(preloadedAssessment);
             try {
-              localStorage.setItem(`dentia_diagnostic_assessment_${pid}`, JSON.stringify(preloadedAssessment));
+              sessionStorage.setItem(`dentia_diagnostic_assessment_${pid}`, JSON.stringify(preloadedAssessment));
+              localStorage.removeItem(`dentia_diagnostic_assessment_${pid}`);
             } catch (e) {}
             console.log(`✅ [ToothDetailPage:TMJ] Live diagnostic assessment set to:`, preloadedAssessment);
           }
@@ -636,9 +637,10 @@ export default function ToothDetailPage() {
           return nextList;
         });
 
-        // Persist surface zones to localStorage
+        // Persist surface zones to sessionStorage
         try {
-          localStorage.setItem(`dentist_surface_zones_patient_${pid}_tooth_${tKey}`, JSON.stringify(surfacesToSave));
+          sessionStorage.setItem(`dentist_surface_zones_patient_${pid}_tooth_${tKey}`, JSON.stringify(surfacesToSave));
+          localStorage.removeItem(`dentist_surface_zones_patient_${pid}_tooth_${tKey}`);
         } catch (e) {}
 
         setIsEditingNotes(false);
@@ -744,7 +746,8 @@ export default function ToothDetailPage() {
       };
       mergedAssessment = merged;
       try {
-        localStorage.setItem(`dentia_diagnostic_assessment_${pid}`, JSON.stringify(merged));
+        sessionStorage.setItem(`dentia_diagnostic_assessment_${pid}`, JSON.stringify(merged));
+        localStorage.removeItem(`dentia_diagnostic_assessment_${pid}`);
       } catch (e) {}
       return merged;
     });

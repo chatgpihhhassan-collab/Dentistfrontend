@@ -453,18 +453,19 @@ export function syncDynamicPatients(patientsList) {
       };
     });
     try {
-      localStorage.setItem('dentia_synced_patients', JSON.stringify(_liveClinicPatients));
+      sessionStorage.setItem('dentia_synced_patients', JSON.stringify(_liveClinicPatients));
+      localStorage.removeItem('dentia_synced_patients');
     } catch (e) {}
   }
 }
 
 /**
- * Get current cached patients from memory or LocalStorage (synced from DB)
+ * Get current cached patients from memory or SessionStorage (synced from DB)
  */
 export function getDynamicPatients() {
   if (_liveClinicPatients.length > 0) return _liveClinicPatients;
   try {
-    const cached = localStorage.getItem('dentia_synced_patients');
+    const cached = sessionStorage.getItem('dentia_synced_patients') || localStorage.getItem('dentia_synced_patients');
     if (cached) {
       const parsed = JSON.parse(cached);
       if (Array.isArray(parsed) && parsed.length > 0) {

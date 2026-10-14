@@ -95,7 +95,8 @@ export default function BiopsyPathologyModal({
         if (Array.isArray(data) && data.length > 0) {
           setRecordsList(data);
           try {
-            localStorage.setItem(`dentia_biopsy_records_${patientId}`, JSON.stringify(data));
+            sessionStorage.setItem(`dentia_biopsy_records_${patientId}`, JSON.stringify(data));
+            localStorage.removeItem(`dentia_biopsy_records_${patientId}`);
           } catch (e) {}
           return;
         }
@@ -161,9 +162,10 @@ export default function BiopsyPathologyModal({
         updatedAt: new Date().toISOString()
       };
       try {
-        const prev = JSON.parse(localStorage.getItem(`dentia_biopsy_records_${patientId}`) || '[]');
+        const prev = JSON.parse(sessionStorage.getItem(`dentia_biopsy_records_${patientId}`) || localStorage.getItem(`dentia_biopsy_records_${patientId}`) || '[]');
         const updated = [localRecord, ...prev.filter(r => r.biopsyID !== localRecord.biopsyID)];
-        localStorage.setItem(`dentia_biopsy_records_${patientId}`, JSON.stringify(updated));
+        sessionStorage.setItem(`dentia_biopsy_records_${patientId}`, JSON.stringify(updated));
+        localStorage.removeItem(`dentia_biopsy_records_${patientId}`);
         setRecordsList(updated);
       } catch (e) {}
 

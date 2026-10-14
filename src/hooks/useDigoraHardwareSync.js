@@ -353,8 +353,10 @@ export function useDigoraHardwareSync({
       // Cache locally for instant loading and page-reload persistence
       if (typeof window !== 'undefined') {
         try {
-          localStorage.setItem(`dentia_radiograph_${radId}`, realDataUrl);
-          localStorage.setItem(`dentia_latest_radiograph`, realDataUrl);
+          sessionStorage.setItem(`dentia_radiograph_${radId}`, realDataUrl);
+          sessionStorage.setItem(`dentia_latest_radiograph`, realDataUrl);
+          localStorage.removeItem(`dentia_radiograph_${radId}`);
+          localStorage.removeItem(`dentia_latest_radiograph`);
         } catch (_) {}
       }
 
@@ -384,7 +386,8 @@ export function useDigoraHardwareSync({
             const savedId = devRecord.radiographID || devRecord.RadiographID;
             if (savedId && typeof window !== 'undefined') {
               try {
-                localStorage.setItem(`dentia_radiograph_${savedId}`, realDataUrl);
+                sessionStorage.setItem(`dentia_radiograph_${savedId}`, realDataUrl);
+                localStorage.removeItem(`dentia_radiograph_${savedId}`);
               } catch (_) {}
             }
           }

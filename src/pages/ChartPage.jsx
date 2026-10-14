@@ -972,8 +972,10 @@ export default function ChartPage() {
 
       if (typeof window !== 'undefined' && directImgUrl) {
         try {
-          localStorage.setItem(`dentia_radiograph_${radId}`, directImgUrl);
-          localStorage.setItem('dentia_latest_radiograph', directImgUrl);
+          sessionStorage.setItem(`dentia_radiograph_${radId}`, directImgUrl);
+          sessionStorage.setItem('dentia_latest_radiograph', directImgUrl);
+          localStorage.removeItem(`dentia_radiograph_${radId}`);
+          localStorage.removeItem('dentia_latest_radiograph');
         } catch (_) {}
       }
 
@@ -1288,7 +1290,8 @@ export default function ChartPage() {
               console.log(`📋 [Diagnostic Suite Restored from DB Table for Patient #${patientId}]:`, preloadedAssessment);
               setLiveOrthoAssessment(preloadedAssessment);
               try {
-                localStorage.setItem(`dentia_diagnostic_assessment_${patientId}`, JSON.stringify(preloadedAssessment));
+                sessionStorage.setItem(`dentia_diagnostic_assessment_${patientId}`, JSON.stringify(preloadedAssessment));
+                localStorage.removeItem(`dentia_diagnostic_assessment_${patientId}`);
               } catch (e) {}
             } else {
               let detectedAssessment = null;
@@ -1457,7 +1460,8 @@ export default function ChartPage() {
                 console.log(`📐 [Diagnostic Suite Restored from DB Teeth Chart for Patient #${patientId}]:`, detectedAssessment);
                 setLiveOrthoAssessment(detectedAssessment);
                 try {
-                  localStorage.setItem(`dentia_diagnostic_assessment_${patientId}`, JSON.stringify(detectedAssessment));
+                  sessionStorage.setItem(`dentia_diagnostic_assessment_${patientId}`, JSON.stringify(detectedAssessment));
+                  localStorage.removeItem(`dentia_diagnostic_assessment_${patientId}`);
                 } catch (e) {}
               }
             }
@@ -1677,7 +1681,8 @@ export default function ChartPage() {
       };
       mergedAssessment = merged;
       try {
-        localStorage.setItem(`dentia_diagnostic_assessment_${pid}`, JSON.stringify(merged));
+        sessionStorage.setItem(`dentia_diagnostic_assessment_${pid}`, JSON.stringify(merged));
+        localStorage.removeItem(`dentia_diagnostic_assessment_${pid}`);
       } catch (e) {}
       return merged;
     });

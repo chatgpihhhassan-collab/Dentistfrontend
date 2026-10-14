@@ -50,7 +50,7 @@ export const NanoPixPatientPromptModal = ({ isOpen, onClose, onSelectPatient }) 
         // Fallback to active session patients if available in local storage
         if (patientList.length === 0) {
           try {
-            const cached = localStorage.getItem('clinic_patients_cache');
+            const cached = sessionStorage.getItem('clinic_patients_cache') || localStorage.getItem('clinic_patients_cache');
             if (cached) {
               const parsed = JSON.parse(cached);
               if (Array.isArray(parsed)) patientList = parsed;

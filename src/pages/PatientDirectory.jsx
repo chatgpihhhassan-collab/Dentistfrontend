@@ -607,7 +607,8 @@ export default function PatientDirectory() {
                 setPatients(data || []);
                 if (data && data.length > 0) {
                     try {
-                        localStorage.setItem('clinic_patients_cache', JSON.stringify(data));
+                        sessionStorage.setItem('clinic_patients_cache', JSON.stringify(data));
+                        localStorage.removeItem('clinic_patients_cache');
                     } catch (e) {}
                     setSelectedPatient(prev => prev || data[0]);
                     // Speculatively prefetch top patient chart & prescriptions for instant click-through
