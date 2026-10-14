@@ -133,15 +133,15 @@ export default function ThreeDentalJawArch({
     const width = container.clientWidth;
     const height = container.clientHeight;
 
-    // 1. Three.js Scene & Orthographic Camera
+    // 1. Three.js Scene & Orthographic Camera (Synchronized with CSS object-contain letterboxing)
     const scene = new THREE.Scene();
     const aspect = width / height;
     const frustumSize = 10;
     const camera = new THREE.OrthographicCamera(
-      (-frustumSize * aspect) / 2,
-      (frustumSize * aspect) / 2,
-      frustumSize / 2,
-      -frustumSize / 2,
+      aspect >= 1 ? (-frustumSize * aspect) / 2 : -frustumSize / 2,
+      aspect >= 1 ? (frustumSize * aspect) / 2 : frustumSize / 2,
+      aspect >= 1 ? frustumSize / 2 : (frustumSize / aspect) / 2,
+      aspect >= 1 ? -frustumSize / 2 : -(frustumSize / aspect) / 2,
       0.1,
       100
     );
@@ -1044,10 +1044,17 @@ function createClinicalOverlayCanvas(status, comments, toothNum, isMaxilla) {
     const updateSize = (nw, nh) => {
       if (!isMounted || nw <= 0 || nh <= 0) return;
       const nAspect = nw / nh;
-      camera.left = (-frustumSize * nAspect) / 2;
-      camera.right = (frustumSize * nAspect) / 2;
-      camera.top = frustumSize / 2;
-      camera.bottom = -frustumSize / 2;
+      if (nAspect >= 1) {
+        camera.left = (-frustumSize * nAspect) / 2;
+        camera.right = (frustumSize * nAspect) / 2;
+        camera.top = frustumSize / 2;
+        camera.bottom = -frustumSize / 2;
+      } else {
+        camera.left = -frustumSize / 2;
+        camera.right = frustumSize / 2;
+        camera.top = (frustumSize / nAspect) / 2;
+        camera.bottom = -(frustumSize / nAspect) / 2;
+      }
       camera.updateProjectionMatrix();
       renderer.setSize(nw, nh);
     };
@@ -1092,35 +1099,38 @@ function createClinicalOverlayCanvas(status, comments, toothNum, isMaxilla) {
   }, [jawType, teethState, highlightedTeeth]);
 
   return (
-    <div className={`relative w-full aspect-square select-none flex items-center justify-center ${className}`}>
-      {/* 1. Empty Jaw Clinical Background Template (Equalized & Calibrated Proportions) */}
-      <picture className="contents">
-        <source srcSet={bgImage} type="image/webp" />
-        <img
-          src={fallbackBgImage}
-          alt={jawTitle}
-          loading="eager"
-          decoding="async"
-          className={`w-full h-full object-contain filter contrast-105 pointer-events-none absolute inset-0 transition-transform ${
-            isMaxilla ? 'scale-[1.12] -translate-y-1' : 'scale-[1.06] translate-y-0.5'
-          }`}
-          onError={(e) => {
-            if (e.target.src && !e.target.src.endsWith('.jpg')) {
-              e.target.src = fallbackBgImage;
-            } else {
-              e.target.style.display = 'none';
-            }
-          }}
-        />
-      </picture>
+    <div className={`relative w-full aspect-square select-none flex items-center justify-center overflow-hidden ${className}`}>
+      {/* 1:1 Aspect Ratio Lock Viewport (Prevents Letterbox Mismatch on Sidebar Toggle) */}
+      <div className="relative aspect-square w-full h-full max-w-full max-h-full flex items-center justify-center">
+        {/* 1. Empty Jaw Clinical Background Template (Equalized & Calibrated Proportions) */}
+        <picture className="contents">
+          <source srcSet={bgImage} type="image/webp" />
+          <img
+            src={fallbackBgImage}
+            alt={jawTitle}
+            loading="eager"
+            decoding="async"
+            className={`w-full h-full object-contain filter contrast-105 pointer-events-none absolute inset-0 transition-transform ${
+              isMaxilla ? 'scale-[1.12]' : 'scale-[1.06]'
+            }`}
+            onError={(e) => {
+              if (e.target.src && !e.target.src.endsWith('.jpg')) {
+                e.target.src = fallbackBgImage;
+              } else {
+                e.target.style.display = 'none';
+              }
+            }}
+          />
+        </picture>
 
-      {/* 2. Three.js Canvas Layer (Synchronized 1:1 with Arch Scale) */}
-      <div 
-        ref={mountRef} 
-        className={`absolute inset-0 w-full h-full z-10 pointer-events-auto transition-transform ${
-          isMaxilla ? 'scale-[1.12] -translate-y-1' : 'scale-[1.06] translate-y-0.5'
-        }`} 
-      />
+        {/* 2. Three.js Canvas Layer (Synchronized 1:1 with Arch Scale) */}
+        <div 
+          ref={mountRef} 
+          className={`absolute inset-0 w-full h-full z-10 pointer-events-auto transition-transform ${
+            isMaxilla ? 'scale-[1.12]' : 'scale-[1.06]'
+          }`} 
+        />
+      </div>
 
       {/* 3. 🌟 ULTRA-SMART FLOATING CLINICAL HUD (Unclipped, Screen-Clamped, Doctor-Intuitive) 🌟 */}
       {hoveredTooth && (() => {

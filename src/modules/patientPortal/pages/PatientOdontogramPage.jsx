@@ -712,7 +712,7 @@ export default function PatientOdontogramPage() {
                                                 isPediatric={false}
                                                 teethState={teethState}
                                                 highlightedTeeth={[selectedToothNum]}
-                                                className="w-full max-w-[210px] h-[195px] aspect-square"
+                                                className="w-full max-w-[210px] max-h-[195px] aspect-square"
                                                 onToothClick={(toothNum) => setSelectedToothNum(Number(toothNum))}
                                             />
                                         </div>
@@ -737,7 +737,7 @@ export default function PatientOdontogramPage() {
                                                 isPediatric={false}
                                                 teethState={teethState}
                                                 highlightedTeeth={[selectedToothNum]}
-                                                className="w-full max-w-[210px] h-[195px] aspect-square"
+                                                className="w-full max-w-[210px] max-h-[195px] aspect-square"
                                                 onToothClick={(toothNum) => setSelectedToothNum(Number(toothNum))}
                                             />
                                         </div>

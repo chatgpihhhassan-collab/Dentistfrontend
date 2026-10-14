@@ -9449,7 +9449,7 @@ export default function ChartPage() {
                                     isPediatric={dentitionMode === 'pediatric'}
                                     teethState={teethState}
                                     highlightedTeeth={highlightedTeeth}
-                                    className={jawDensity === 'compact' ? "w-full max-w-[280px] xl:max-w-[310px] h-[180px] xl:h-[200px] aspect-square" : "w-full max-w-[340px] xl:max-w-[370px] h-[270px] xl:h-[295px] aspect-square"}
+                                    className={jawDensity === 'compact' ? "w-full max-w-[280px] xl:max-w-[310px] max-h-[190px] xl:max-h-[210px] aspect-square" : "w-full max-w-[340px] xl:max-w-[370px] max-h-[270px] xl:max-h-[295px] aspect-square"}
                                     onToothClick={(toothNum, status, socket) => {
                                       setDetailedTooth(toothNum);
                                       setHighlightedTeeth([toothNum]);
@@ -9493,7 +9493,7 @@ export default function ChartPage() {
                                     isPediatric={dentitionMode === 'pediatric'}
                                     teethState={teethState}
                                     highlightedTeeth={highlightedTeeth}
-                                    className={jawDensity === 'compact' ? "w-full max-w-[280px] xl:max-w-[310px] h-[180px] xl:h-[200px] aspect-square" : "w-full max-w-[340px] xl:max-w-[370px] h-[270px] xl:h-[295px] aspect-square"}
+                                    className={jawDensity === 'compact' ? "w-full max-w-[280px] xl:max-w-[310px] max-h-[190px] xl:max-h-[210px] aspect-square" : "w-full max-w-[340px] xl:max-w-[370px] max-h-[270px] xl:max-h-[295px] aspect-square"}
                                     onToothClick={(toothNum, status, socket) => {
                                       setDetailedTooth(toothNum);
                                       setHighlightedTeeth([toothNum]);
@@ -9538,7 +9538,7 @@ export default function ChartPage() {
                                     isPediatric={dentitionMode === 'pediatric'}
                                     teethState={teethState}
                                     highlightedTeeth={highlightedTeeth}
-                                    className={jawDensity === 'compact' ? "w-full max-w-[320px] h-[210px] aspect-square" : "w-full max-w-[380px] h-[290px] aspect-square"}
+                                    className={jawDensity === 'compact' ? "w-full max-w-[320px] max-h-[220px] aspect-square" : "w-full max-w-[380px] max-h-[290px] aspect-square"}
                                     onToothClick={(toothNum, status, socket) => {
                                       setDetailedTooth(toothNum);
                                       setHighlightedTeeth([toothNum]);
