@@ -28,6 +28,7 @@ import ChartRadiographFilmstrip from '../components/ChartRadiographFilmstrip';
 import RadiographImpactInspectorModal from '../components/RadiographImpactInspectorModal';
 import ClinicalReportEditor from '../components/ClinicalReportEditor';
 import { extractAiFindingsFromReport, extractSoapFromReport, compressImageForUpload, isTestRadiograph, getHumanReadableReport, recombineReportWithStructuredData } from '../utils/aiRadiologyUtils';
+import AIBadgeAndActions from '../components/AIBadgeAndActions';
 import { useDigoraHardwareSync } from '../hooks/useDigoraHardwareSync';
 import { API_BASE_URL } from '../config/apiConfig';
 import DigoraScannerModal from '../components/DigoraScannerModal';
@@ -3140,7 +3141,7 @@ export default function ChartPage() {
   const handlePrintXray = async () => {
     if (!selectedRadiograph) return;
     const rId = selectedRadiograph.radiographID || selectedRadiograph.RadiographID;
-    const imgUrl = radiographBlobUrl || `https://dentist-api-dev.vitonta.com/api/radiographs/${rId}/image`;
+    const imgUrl = radiographBlobUrl || `${(API_BASE_URL || 'https://dentist-api-dev.vitonta.com').replace(/\/$/, '')}/api/radiographs/${rId}/image`;
     const base64Img = await getBase64FromImageUrl(imgUrl);
     const pName = `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim() || 'Patient';
     const pRefNo = patient?.referenceNumber || patient?.referenceNo || (patient?.patientID || patient?.id ? `DEN-2026-${String(patient.patientID || patient.id).padStart(5, '0')}` : 'DEN-2026-PATIENT');
@@ -3302,7 +3303,7 @@ export default function ChartPage() {
   const handleDownloadXrayPDF = async () => {
     if (!selectedRadiograph) return;
     const rId = selectedRadiograph.radiographID || selectedRadiograph.RadiographID;
-    const imgUrl = radiographBlobUrl || `https://dentist-api-dev.vitonta.com/api/radiographs/${rId}/image`;
+    const imgUrl = radiographBlobUrl || `${(API_BASE_URL || 'https://dentist-api-dev.vitonta.com').replace(/\/$/, '')}/api/radiographs/${rId}/image`;
     const base64Img = await getBase64FromImageUrl(imgUrl);
     const pName = `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim() || 'Patient';
     const docName = `Dr. ${doctor?.firstName || doctor?.name || 'Ahmed'}`;
@@ -4117,7 +4118,7 @@ export default function ChartPage() {
 
     const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
     const doctorId = doctorData.doctorID || doctorData.DoctorID || patient?.doctorID || patient?.DoctorID || 1;
-    const targetUrl = 'https://dentist-api-dev.vitonta.com/api/ai-dental-notes/recordings';
+    const targetUrl = `${(API_BASE_URL || 'https://dentist-api-dev.vitonta.com').replace(/\/$/, '')}/api/ai-dental-notes/recordings`;
 
     const makeFormData = (includeBlob = true) => {
       const fd = new FormData();
@@ -8905,6 +8906,7 @@ export default function ChartPage() {
                                     isApplying={isApplyingAiFindings}
                                     onReanalyze={handleReanalyzeXray}
                                     isReanalyzing={isReanalyzingXray}
+                                    onEdit={() => setIsEditingXrayAnalysis(true)}
                                   />
 
                                   {/* Save to History Button */}
@@ -12109,6 +12111,16 @@ export default function ChartPage() {
                             <ClinicalActionChips 
                               chips={m.chips} 
                               onSelectChip={(cmd) => handleSendMessage(null, cmd)} 
+                            />
+                          )}
+
+                          {!isDoc && m.type !== 'welcome_card' && (
+                            <AIBadgeAndActions
+                              promptId="clinical-copilot-qa"
+                              version="1.0.0"
+                              feature="copilot"
+                              textToCopy={m.text}
+                              className="mt-2"
                             />
                           )}
 

@@ -5,9 +5,10 @@ import './index.css'
 import App from './App.jsx'
 import { recordDoctorActivity } from './components/IdleSessionManager'
 import { purgeClinicianSession } from './services/sessionSecurityService'
+import { API_BASE_URL } from './config/apiConfig'
 
 // Global API Configuration & Token Authorization Interceptors
-const API_HOST = 'https://dentist-api-dev.vitonta.com';
+const API_HOST = API_BASE_URL || 'https://dentist-api-dev.vitonta.com';
 const isRemoteHostNeeded = typeof window !== 'undefined' && 
   !window.location.hostname.includes('vitonta.com') && 
   window.location.hostname !== 'localhost' && 

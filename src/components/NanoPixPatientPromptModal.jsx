@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, User, Sparkles, X, Check, ArrowRight, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config/apiConfig';
 
 export const NanoPixPatientPromptModal = ({ isOpen, onClose, onSelectPatient }) => {
   const [patients, setPatients] = useState([]);
@@ -36,7 +37,8 @@ export const NanoPixPatientPromptModal = ({ isOpen, onClose, onSelectPatient }) 
 
         if (patientList.length === 0) {
           try {
-            const res = await fetch('https://dentist-api-dev.vitonta.com/api/patients');
+            const cleanBase = (API_BASE_URL || 'https://dentist-api-dev.vitonta.com').replace(/\/$/, '');
+            const res = await fetch(`${cleanBase}/api/patients`);
             const cType = res.headers.get('content-type') || '';
             if (res.ok && cType.includes('application/json')) {
               const data = await res.json();

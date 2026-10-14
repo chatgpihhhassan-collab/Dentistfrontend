@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../../../config/apiConfig';
 
-const API_BASE = 'https://dentist-api-dev.vitonta.com';
+const API_BASE = (API_BASE_URL || 'https://dentist-api-dev.vitonta.com').replace(/\/$/, '');
 
 export async function applyAIFindingsToPatientRecord(patientId, findingsData = null) {
   try {
