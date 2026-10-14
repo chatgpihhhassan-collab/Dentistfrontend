@@ -51,6 +51,19 @@ export default function PatientReports() {
 
     const patient = JSON.parse(localStorage.getItem('patient') || '{}');
     const patientRefNo = patient.referenceNumber || (patient.referenceNo || `DEN-2026-${String(patient.patientID || patient.patientId || '00000').padStart(5, '0')}`);
+    const patientToken = patient?.token;
+
+    const getRadiographSrc = (xray) => {
+        if (!xray) return null;
+        const url = xray.imageUrl || xray.imageDataUrl;
+        if (!url) return null;
+        if (url.startsWith('data:')) return url;
+        const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL || ''}${url.startsWith('/') ? '' : '/'}${url}`;
+        if (patientToken && fullUrl.includes('/api/radiographs/')) {
+            return `${fullUrl}${fullUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(patientToken)}`;
+        }
+        return fullUrl;
+    };
 
     useEffect(() => {
         const fetchAllData = async () => {
@@ -613,9 +626,9 @@ export default function PatientReports() {
                                                     onClick={() => { setSelectedXray(xray); setXrayZoom(1); setXrayInverted(false); }}
                                                     className="relative h-48 bg-slate-950 flex items-center justify-center cursor-pointer group overflow-hidden"
                                                 >
-                                                    {xray.imageDataUrl ? (
+                                                    {getRadiographSrc(xray) ? (
                                                         <img 
-                                                            src={xray.imageDataUrl} 
+                                                            src={getRadiographSrc(xray)} 
                                                             alt={xray.imageName} 
                                                             className="h-full w-full object-contain group-hover:scale-105 transition-transform"
                                                         />
@@ -743,10 +756,12 @@ export default function PatientReports() {
                                         <RotateCcw className="w-4 h-4" />
                                     </button>
 
-                                    {selectedXray.imageDataUrl && (
+                                    {getRadiographSrc(selectedXray) && (
                                         <a
-                                            href={selectedXray.imageDataUrl}
+                                            href={getRadiographSrc(selectedXray)}
                                             download={selectedXray.imageName || 'dental_xray.png'}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
                                             className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer shadow-2xs"
                                             title="Download Image"
                                         >
@@ -769,9 +784,9 @@ export default function PatientReports() {
                                 
                                 {/* Left: Radiographic Viewport (Contained in clean Slate Canvas) */}
                                 <div className="lg:col-span-7 bg-slate-950 p-4 sm:p-6 flex items-center justify-center relative overflow-auto min-h-[380px] max-h-[64vh]">
-                                    {selectedXray.imageDataUrl ? (
+                                    {getRadiographSrc(selectedXray) ? (
                                         <img
-                                            src={selectedXray.imageDataUrl}
+                                            src={getRadiographSrc(selectedXray)}
                                             alt={selectedXray.imageName}
                                             style={{
                                                 transform: `scale(${xrayZoom})`,
