@@ -16,15 +16,7 @@ import { establishDoctorSession, purgeClinicianSession } from './sessionSecurity
 import { DEFAULT_CLINIC_DOCTORS } from '../utils/safeApiUtils';
 import aiVoice from '../utils/aiVoiceAssistant';
 import { resolveDoctorInstruction as localFallbackBrain, getDynamicPatients, searchClinicPatients } from '../components/aiDoctor/clinicalDentalBrain';
-
-const getGroqKey = () => import.meta.env.VITE_GROQ_API_KEY || (typeof window !== 'undefined' && window.__GROQ_KEY__) || ['gsk', 'YIHDxc4gx5S8IRBlqdEkWGdyb3FYY3ht2J3DSJB5s8pbj4qz9sQF'].join('_');
-const GROQ_MODELS = [
-  "openai/gpt-oss-20b",
-  "allam-2-7b",
-  "qwen/qwen3.8-27b",
-  "openai/gpt-oss-120b"
-];
-let activeModelIndex = 0;
+import { voiceCommandOutputSchema } from '../validators/aiOutputSchemas';
 
 // Multi-turn conversation history memory (keeps last 6 interactions)
 let conversationHistory = [];
@@ -208,7 +200,7 @@ function cleanAndParseJSON(rawText) {
 }
 
 /**
- * Main Jarvis Brain Query Function
+ * Main Jarvis Brain Query Function - Routes through secure backend AI engine
  */
 export async function queryJarvis(userInput, context = {}) {
   if (!userInput || !userInput.trim()) {
@@ -218,65 +210,102 @@ export async function queryJarvis(userInput, context = {}) {
     };
   }
 
-  const prompt = buildSystemPrompt(context);
-  const messages = [
-    { role: "system", content: prompt },
-    ...conversationHistory.slice(-6),
-    { role: "user", content: userInput.trim() }
-  ];
+  try {
+    const payload = {
+      doctorSpeech: userInput.trim(),
+      activePatientId: context.patientId ? parseInt(context.patientId, 10) : null,
+      activeTooth: context.activeTooth ? parseInt(context.activeTooth, 10) : null,
+      region: context.region || 'PK',
+      activeRoute: context.pathname || (typeof window !== 'undefined' ? window.location.pathname : '/chart')
+    };
 
-  let lastError = null;
-  const numModels = GROQ_MODELS.length;
-  for (let offset = 0; offset < numModels; offset++) {
-    const idx = (activeModelIndex + offset) % numModels;
-    const model = GROQ_MODELS[idx];
-    try {
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${getGroqKey()}`,
-          "Content-Type": "application/json",
-          "User-Agent": "DentiaJarvis/2.0"
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: messages,
-          max_tokens: 350,
-          temperature: 0.3
-        })
-      });
+    const res = await fetch('/api/ai/voice-command', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
 
-      if (res.status === 429) {
-        console.warn(`[Jarvis LLM Rate Limit]: Model ${model} returned 429. Switching active model...`);
-        lastError = new Error(`Groq HTTP error 429 on ${model}`);
-        activeModelIndex = (idx + 1) % numModels;
-        continue;
+    if (res.ok) {
+      const envelope = await res.json();
+      if (envelope.success && envelope.data) {
+        // Validate with Zod schema
+        const validated = voiceCommandOutputSchema.safeParse(envelope.data);
+        if (validated.success) {
+          const aiData = validated.data;
+          const entities = aiData.entities || {};
+
+          // Normalize into Jarvis action format
+          let normAction = { type: 'NONE', name: 'none' };
+          const intent = aiData.intent;
+
+          if (intent === 'SET_TOOTH_CONDITION' && entities.fdiTooth) {
+            normAction = {
+              type: 'SET_TOOTH_CONDITION',
+              name: 'set_tooth_condition',
+              tooth: entities.fdiTooth,
+              condition: entities.condition || 'Damaged/Decay',
+              surface: entities.surface || 'O',
+              color: entities.statusColor || '#EF4444'
+            };
+          } else if (intent === 'OPEN_PATIENT') {
+            normAction = {
+              type: 'OPEN_PATIENT',
+              name: 'open_patient',
+              data: {
+                patientId: entities.patientId,
+                name: entities.patientName
+              }
+            };
+          } else if (intent === 'NAVIGATE' && entities.navigationPath) {
+            normAction = {
+              type: 'NAVIGATE',
+              name: 'navigate',
+              path: entities.navigationPath,
+              data: { path: entities.navigationPath }
+            };
+          } else if (intent === 'OPEN_IMAGING') {
+            normAction = {
+              type: 'OPEN_MODAL',
+              name: 'open_imaging',
+              modal: entities.modalType || 'digora',
+              data: { modal: entities.modalType || 'digora' }
+            };
+          } else if (intent === 'START_SCRIBE') {
+            normAction = {
+              type: 'SCRIBE',
+              name: 'start_scribe'
+            };
+          } else if (intent === 'JARVIS_SLEEP') {
+            normAction = {
+              type: 'SLEEP',
+              name: 'jarvis_off'
+            };
+          } else if (intent === 'DESTRUCTIVE_ACTION') {
+            normAction = {
+              type: 'DESTRUCTIVE_ACTION',
+              name: 'destructive',
+              needsConfirmation: true,
+              data: entities
+            };
+          }
+
+          return {
+            reply: aiData.spokenReply,
+            speech: aiData.spokenReply,
+            action: normAction,
+            needs_confirmation: aiData.needsConfirmation,
+            meta: envelope.meta
+          };
+        }
       }
-
-      if (!res.ok) {
-        throw new Error(`Groq HTTP error ${res.status}`);
-      }
-
-      const data = await res.json();
-      const rawContent = data.choices?.[0]?.message?.content || "";
-      const parsed = cleanAndParseJSON(rawContent);
-
-      if (parsed && parsed.reply) {
-        activeModelIndex = idx; // Lock in working model
-        // Record to history
-        conversationHistory.push({ role: "user", content: userInput });
-        conversationHistory.push({ role: "assistant", content: rawContent });
-        return parsed;
-      }
-    } catch (err) {
-      lastError = err;
-      console.warn(`[Jarvis LLM Error on ${model}]:`, err.message || err);
     }
+  } catch (err) {
+    console.warn("⚠️ [Jarvis Backend AI Gateway Notice - Falling back to local brain]:", err.message || err);
   }
 
-  console.warn("⚠️ [Jarvis LLM Network Error - Falling back to local brain]:", lastError);
-
-  // Graceful fallback to local rule-based brain if offline
+  // Graceful fallback to local rule-based brain if offline or backend is unreachable
   const fallback = localFallbackBrain(userInput, context);
   return {
     reply: fallback.text || `Doctor, main aapka hukum samajh rahi hoon: "${userInput}".`,

@@ -5,6 +5,7 @@ import {
     LayoutGrid, AlignLeft, Check, Loader2, ArrowUpRight
 } from 'lucide-react';
 import { extractAiFindingsFromReport } from '../utils/aiRadiologyUtils';
+import AIBadgeAndActions from './AIBadgeAndActions';
 
 /**
  * Parses raw dental radiology report into structured categories with tooth tags, severity badges, and document view
@@ -15,7 +16,8 @@ export default function RadiologyReportViewer({
     onApplyFindings, 
     isApplying = false,
     onReanalyze,
-    isReanalyzing = false
+    isReanalyzing = false,
+    onEdit = null
 }) {
     const [viewMode, setViewMode] = useState('cards'); // 'cards' | 'document'
 
@@ -489,6 +491,19 @@ export default function RadiologyReportViewer({
                     </div>
                 </div>
             )}
+
+            {/* 🤖 Clinical AI Safety Guardrail & Telemetry Controls */}
+            <AIBadgeAndActions
+                promptId="radiograph-findings-helper"
+                version="1.0.0"
+                feature="radiology"
+                textToCopy={rawReportText}
+                onRegenerate={onReanalyze}
+                isRegenerating={isReanalyzing}
+                onToggleEdit={onEdit}
+                isEditing={false}
+                className="my-1.5 px-2 bg-white/70 rounded-xl"
+            />
 
             {/* Clinical Legend Footer */}
             <div className="bg-slate-50/90 border border-slate-200/80 p-2.5 rounded-xl flex flex-wrap items-center justify-between text-[10px] font-bold text-muted-text">
