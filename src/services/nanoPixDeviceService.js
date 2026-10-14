@@ -188,64 +188,74 @@ class NanoPixDeviceService {
 
     setTimeout(pollBridge, 500);
 
-    // Live SSE Stream from local hardware bridge — WITH AUTO-RECONNECT
-    if (typeof EventSource !== 'undefined') {
-      let sseReconnectTimer = null;
-      const sseUrl = `${baseUrl}/nanopix/events`;
+    // Live SSE Stream from local hardware bridge — WITH RESILIENT RETRY & POLLING FALLBACK
+    if (typeof EventSource !== 'undefined' && typeof window !== 'undefined') {
+      const isAuthPage = window.location.pathname.startsWith('/login');
+      if (!isAuthPage) {
+        let sseReconnectTimer = null;
+        let sseConsecutiveErrors = 0;
+        const maxSseRetries = 3;
+        const sseUrl = `${baseUrl}/nanopix/events`;
 
-      const connectSSE = () => {
-        try {
-          const es = new EventSource(sseUrl);
+        const connectSSE = () => {
+          if (sseConsecutiveErrors >= maxSseRetries) {
+            // Gracefully stop SSE retries; polling continues as primary telemetry
+            return;
+          }
+          try {
+            const es = new EventSource(sseUrl);
 
-          es.addEventListener('scan', (event) => {
-            try {
-              const scan = JSON.parse(event.data);
-              if (scan) {
-                handleIncomingScan(scan);
-              }
-            } catch (err) {}
-          });
-
-          es.addEventListener('log', (event) => {
-            try {
-              const item = JSON.parse(event.data);
-              if (item) {
-                const lvl = item.type || item.Type || item.level || item.Level || 'INFO';
-                const msg = item.message ?? item.Message ?? item.msg ?? (typeof item === 'string' ? item : '');
-                if (msg && msg !== 'undefined' && !String(msg).endsWith('undefined')) {
-                  this.log(lvl, msg, item.details || item.Details);
+            es.addEventListener('scan', (event) => {
+              try {
+                const scan = JSON.parse(event.data);
+                if (scan) {
+                  handleIncomingScan(scan);
                 }
-              }
-            } catch (err) {}
-          });
+              } catch (err) {}
+            });
 
-          es.onerror = () => {
-            try { es.close(); } catch (_) {}
-            // Auto-reconnect after 3 seconds instead of dying permanently
-            if (!sseReconnectTimer) {
+            es.addEventListener('log', (event) => {
+              try {
+                const item = JSON.parse(event.data);
+                if (item) {
+                  const lvl = item.type || item.Type || item.level || item.Level || 'INFO';
+                  const msg = item.message ?? item.Message ?? item.msg ?? (typeof item === 'string' ? item : '');
+                  if (msg && msg !== 'undefined' && !String(msg).endsWith('undefined')) {
+                    this.log(lvl, msg, item.details || item.Details);
+                  }
+                }
+              } catch (err) {}
+            });
+
+            es.onerror = () => {
+              try { es.close(); } catch (_) {}
+              sseConsecutiveErrors++;
+              if (sseConsecutiveErrors < maxSseRetries && !sseReconnectTimer) {
+                sseReconnectTimer = setTimeout(() => {
+                  sseReconnectTimer = null;
+                  connectSSE();
+                }, 5000 * sseConsecutiveErrors);
+              }
+            };
+
+            es.onopen = () => {
+              sseConsecutiveErrors = 0;
+              console.log('%c[NANOPIX SSE] ✅ Connected to Hardware Bridge live stream (SSE)', 'color: #34d399; font-weight: bold;');
+            };
+          } catch (e) {
+            sseConsecutiveErrors++;
+            if (sseConsecutiveErrors < maxSseRetries && !sseReconnectTimer) {
               sseReconnectTimer = setTimeout(() => {
                 sseReconnectTimer = null;
-                console.log('%c[NANOPIX SSE] 🔄 Reconnecting to Hardware Bridge SSE stream...', 'color: #f59e0b; font-weight: bold;');
                 connectSSE();
-              }, 3000);
+              }, 5000 * sseConsecutiveErrors);
             }
-          };
-
-          es.onopen = () => {
-            console.log('%c[NANOPIX SSE] ✅ Connected to Hardware Bridge live stream (SSE)', 'color: #34d399; font-weight: bold;');
-          };
-        } catch (e) {
-          // Retry on connection failure
-          if (!sseReconnectTimer) {
-            sseReconnectTimer = setTimeout(() => {
-              sseReconnectTimer = null;
-              connectSSE();
-            }, 3000);
           }
-        }
-      };
+        };
 
-      connectSSE();
+        // Delay initial SSE connection to let HTTP poll verify bridge first
+        setTimeout(connectSSE, 2000);
+      }
     }
 
     // Connect to C# Dental Bridge WebSocket (ws://127.0.0.1:5050/ws)
