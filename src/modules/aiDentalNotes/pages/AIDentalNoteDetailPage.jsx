@@ -18,6 +18,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import Navigation from '../../../components/Navigation';
+import { AIBadgeAndActions } from '../../../components/ai';
 
 const AIDentalNoteDetailPage = () => {
     const { noteId } = useParams();
@@ -28,6 +29,7 @@ const AIDentalNoteDetailPage = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
+    const [errorMessage, setErrorMessage] = useState('');
 
     const calculateAge = (dobString) => {
         if (!dobString) return '';
@@ -79,7 +81,7 @@ const AIDentalNoteDetailPage = () => {
                 }
             } catch (err) {
                 console.error("Error loading note/doctor details:", err);
-                alert("Failed to load clinical details.");
+                setErrorMessage("Failed to load clinical details. Please verify your connection.");
             } finally {
                 setLoading(false);
             }
@@ -139,7 +141,7 @@ const AIDentalNoteDetailPage = () => {
             setTimeout(() => setSuccessMessage(''), 4000);
         } catch (err) {
             console.error("Save/Approve error:", err);
-            alert("Failed to save clinical note changes.");
+            setErrorMessage("Failed to save clinical note changes: " + (err.message || 'Server error'));
         } finally {
             setSaving(false);
         }
@@ -221,6 +223,33 @@ const AIDentalNoteDetailPage = () => {
                         <span className="text-sm font-semibold text-emerald-800">{successMessage}</span>
                     </div>
                 )}
+
+                {/* Error Alert Banner */}
+                {errorMessage && (
+                    <div className="bg-rose-50 border-l-4 border-rose-500 p-4 rounded-r-xl shadow-sm flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
+                        <div className="flex items-center gap-3">
+                            <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
+                            <span className="text-sm font-semibold text-rose-800">{errorMessage}</span>
+                        </div>
+                        <button 
+                            onClick={() => setErrorMessage('')}
+                            className="text-rose-400 hover:text-rose-600 text-xs font-semibold px-2 py-1 rounded"
+                        >
+                            Dismiss
+                        </button>
+                    </div>
+                )}
+
+                {/* AI Safety and Attribution Header */}
+                <AIBadgeAndActions
+                    promptId="clinical-note-summarizer"
+                    version="2.0.0"
+                    feature="ambient-scribe"
+                    confidence={note.confidence || 0.94}
+                    basedOn={`Patient voice dictation session & consultation audio for ${patient ? `${patient.firstName} ${patient.lastName}` : 'Patient'}`}
+                    textToCopy={`CLINICAL NOTE (SOAP)\nChief Complaint: ${note.chiefComplaint || ''}\nHistory: ${note.history || ''}\nExamination: ${note.examination || ''}\nAssessment: ${note.assessment || ''}\nTreatment Performed: ${note.treatmentPerformed || ''}\nPost-Op Advice: ${note.postOpAdvice || ''}\nFollow-Up: ${note.followUp || ''}`}
+                    showFeedback={true}
+                />
 
                 {/* Patient Profile Bar */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

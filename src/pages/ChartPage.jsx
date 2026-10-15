@@ -29,6 +29,7 @@ import RadiographImpactInspectorModal from '../components/RadiographImpactInspec
 import ClinicalReportEditor from '../components/ClinicalReportEditor';
 import { extractAiFindingsFromReport, extractSoapFromReport, compressImageForUpload, isTestRadiograph, getHumanReadableReport, recombineReportWithStructuredData } from '../utils/aiRadiologyUtils';
 import AIBadgeAndActions from '../components/AIBadgeAndActions';
+import { AIFindingsConfirmModal } from '../components/ai';
 import { useDigoraHardwareSync } from '../hooks/useDigoraHardwareSync';
 import { API_BASE_URL } from '../config/apiConfig';
 import DigoraScannerModal from '../components/DigoraScannerModal';
@@ -708,6 +709,13 @@ export default function ChartPage() {
   const [alignerPrefill, setAlignerPrefill] = useState(null);
   const [liveOrthoAssessment, setLiveOrthoAssessment] = useState(null);
   const [specialtyRefreshTrigger, setSpecialtyRefreshTrigger] = useState(0);
+  
+  // Gated Clinician Review Modal State for AI Findings
+  const [pendingAiFindingsModal, setPendingAiFindingsModal] = useState({
+    isOpen: false,
+    findings: [],
+    radiograph: null
+  });
   
   // Eighteeth Nano-Pix Intraoral RVG Sensor Hardware Integration States
   const [showNanoPixModal, setShowNanoPixModal] = useState(false);
@@ -2784,12 +2792,16 @@ export default function ChartPage() {
         const detectedFindings = extractAiFindingsFromReport(newRecord.analysisSummary || newRecord.AnalysisSummary);
 
         if (detectedFindings && detectedFindings.length > 0) {
-          // Step 5: Auto-apply to dental chart
-          console.log(`[STEP 5/5: CHART AUTO-APPLY] Applying ${detectedFindings.length} findings to Dental Chart:`, detectedFindings.map(f => `#${f.toothKey || f.toothNumber} (${f.condition})`));
-          await handleApplyAiFindingsToChart(detectedFindings, newRecord);
+          // Step 5: Gated clinician review before charting (Safety Mandate)
+          console.log(`[STEP 5/5: CLINICAL REVIEW GATE] Opening confirmation modal for ${detectedFindings.length} findings:`, detectedFindings.map(f => `#${f.toothKey || f.toothNumber} (${f.condition})`));
+          setPendingAiFindingsModal({
+            isOpen: true,
+            findings: detectedFindings,
+            radiograph: newRecord
+          });
           setToast({ 
             visible: true, 
-            message: `✨ AI detected & applied ${detectedFindings.length} findings (Teeth: ${detectedFindings.map(f => '#' + (f.toothKey || f.toothNumber)).join(', ')}) directly to Dental Chart!` 
+            message: `✨ AI detected ${detectedFindings.length} findings. Please review and confirm before charting.` 
           });
         } else {
           console.log('[STEP 5/5: CHART AUTO-APPLY] No actionable tooth pathology detected in report.');
@@ -3008,9 +3020,13 @@ export default function ChartPage() {
         const detectedFindings = extractAiFindingsFromReport(data.analysisSummary);
         console.log(`%c[AI RE-ANALYZE FINDINGS] Detected ${detectedFindings.length} teeth pathologies:`, 'color: #3B82F6; font-weight: bold;', detectedFindings.map(f => `#${f.toothKey || f.toothNumber} (${f.condition}, CDT: ${f.cdtCode || 'N/A'})`));
         if (detectedFindings && detectedFindings.length > 0) {
-          console.log(`%c[AI RE-ANALYZE AUTO-APPLY] Automatically syncing ${detectedFindings.length} findings to Dental Chart...`, 'color: #8B5CF6; font-weight: bold;');
-          await handleApplyAiFindingsToChart(detectedFindings, updatedRad);
-          setToast({ visible: true, message: `✨ Live AI Analysis complete & synced ${detectedFindings.length} findings to Dental Chart!` });
+          console.log(`%c[AI RE-ANALYZE CLINICAL GATE] Prompting doctor confirmation for ${detectedFindings.length} findings...`, 'color: #8B5CF6; font-weight: bold;');
+          setPendingAiFindingsModal({
+            isOpen: true,
+            findings: detectedFindings,
+            radiograph: updatedRad
+          });
+          setToast({ visible: true, message: `✨ Live AI analysis identified ${detectedFindings.length} findings. Review before charting.` });
         } else {
           console.warn('[AI RE-ANALYZE] No tooth pathologies identified in this radiograph projection.');
           setToast({ visible: true, message: "✨ Live AI Radiograph Analysis complete!" });
@@ -3018,11 +3034,11 @@ export default function ChartPage() {
       } else {
         const errTxt = await res.text().catch(() => '');
         console.error(`[AI RE-ANALYZE ERROR] Server returned HTTP ${res.status}:`, errTxt);
-        alert(`Live AI Vision analysis failed (HTTP ${res.status}): ${errTxt}`);
+        setToast({ visible: true, message: `Live AI Vision analysis failed (HTTP ${res.status}): ${errTxt || 'Service temporarily unavailable'}` });
       }
     } catch (err) {
       console.error("[AI RE-ANALYZE EXCEPTION] Network or runtime error during re-analysis:", err);
-      alert("Error analyzing radiograph: " + err.message);
+      setToast({ visible: true, message: "Error analyzing radiograph: " + (err.message || 'Network error') });
     } finally {
       setIsReanalyzingXray(false);
       setTimeout(() => setToast({ visible: false, message: "" }), 3500);
@@ -12626,6 +12642,24 @@ export default function ChartPage() {
         patientName={patient ? `${patient.firstName || ''} ${patient.lastName || ''}`.trim() : `Patient #${patientId}`}
         operatoryId="Op-1"
         digoraSync={digoraSync}
+      />
+
+      {/* 🛡️ Clinician Review & Gating Modal for AI Findings (Principle #4: Trust & Control) */}
+      <AIFindingsConfirmModal
+        isOpen={pendingAiFindingsModal.isOpen}
+        findings={pendingAiFindingsModal.findings}
+        radiograph={pendingAiFindingsModal.radiograph}
+        onClose={() => setPendingAiFindingsModal({ isOpen: false, findings: [], radiograph: null })}
+        onConfirm={async (approvedFindings) => {
+          if (approvedFindings && approvedFindings.length > 0) {
+            await handleApplyAiFindingsToChart(approvedFindings, pendingAiFindingsModal.radiograph);
+            setToast({
+              visible: true,
+              message: `✅ Clinician confirmed & charted ${approvedFindings.length} AI findings!`
+            });
+            setTimeout(() => setToast({ visible: false, message: "" }), 4000);
+          }
+        }}
       />
 
       <Footer />

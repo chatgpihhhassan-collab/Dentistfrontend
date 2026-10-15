@@ -74,6 +74,7 @@ export default function NewPatientPage() {
     const [isRecording, setIsRecording] = useState(false);
     const [speechSupported, setSpeechSupported] = useState(true);
     const [recentlySyncedField, setRecentlySyncedField] = useState({});
+    const [lastAiFillSnapshot, setLastAiFillSnapshot] = useState(null);
     const [askedClinicalDetails, setAskedClinicalDetails] = useState(false);
     const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
     const [isExtendedOpen, setIsExtendedOpen] = useState(false);
@@ -596,6 +597,9 @@ export default function NewPatientPage() {
             if (!res.ok) throw new Error("AI Intake parsing failed.");
             const data = await res.json();
 
+            // Preserve snapshot for clinician undo guardrail (Principle #4)
+            setLastAiFillSnapshot({ ...newPatient });
+
             // Populate form fields with extracted details (Strict stopword protection)
             const invalidNames = ['my', 'a', 'an', 'the', 'new', 'this', 'patient', 'profile', 'record', 'someone', 'user', 'entry', 'mariz'];
             const updated = { ...newPatient };
@@ -1039,6 +1043,30 @@ export default function NewPatientPage() {
 
                     {/* Form Body: Scrollable with custom-scrollbar */}
                     <form onSubmit={handleCreatePatient} className="flex-1 overflow-y-auto pr-1.5 space-y-3.5 min-h-0 custom-scrollbar">
+                        
+                        {/* 🛡️ AI Auto-fill Diff Review & Undo Banner (Principle #4: Trust & Control) */}
+                        {lastAiFillSnapshot && (
+                            <div className="bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200/90 rounded-2xl p-3 px-4 flex items-center justify-between text-xs text-cyan-950 shadow-2xs animate-in fade-in duration-200">
+                                <div className="flex items-center gap-2.5">
+                                    <Sparkles className="w-4 h-4 text-cyan-600 shrink-0" />
+                                    <span>
+                                        <strong>AI Smart Intake applied.</strong> Review highlighted fields before saving.
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setNewPatient(lastAiFillSnapshot);
+                                        setLastAiFillSnapshot(null);
+                                        setRecentlySyncedField({});
+                                        showToast("Reverted AI auto-fill to previous values", "info");
+                                    }}
+                                    className="font-bold underline text-cyan-700 hover:text-cyan-900 cursor-pointer ml-3 px-2 py-1 rounded hover:bg-cyan-100/50 transition-colors"
+                                >
+                                    Undo AI Fill
+                                </button>
+                            </div>
+                        )}
                             
                         {/* ============================================================ */}
                         {/* SECTION 1: ESSENTIAL CLINICAL INTAKE (MANDATORY / MUST) */}

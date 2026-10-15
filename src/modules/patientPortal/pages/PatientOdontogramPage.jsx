@@ -376,6 +376,37 @@ export default function PatientOdontogramPage() {
         };
     };
 
+    // Plain-language translation helper for patient dental education (Principle #1)
+    const getPlainLanguageExplanation = (tooth) => {
+        if (!tooth) return '';
+        const s = (tooth.status || '').toLowerCase();
+        const toothName = tooth.name;
+        const surfaces = tooth.surfaces;
+
+        if (s.includes('normal') || s.includes('healthy') || s.includes('sound')) {
+            return `Your ${toothName} is clinically sound and healthy with no active cavities or treatments needed. Daily brushing and flossing will keep it protected!`;
+        }
+        if (s.includes('caries') || s.includes('decay') || s.includes('cavity')) {
+            return `Your ${toothName} has a dental cavity (decay) on the ${surfaces} surface. A gentle, tooth-colored filling is planned to clean out the decay and restore complete strength.`;
+        }
+        if (s.includes('canal') || s.includes('rct') || s.includes('pulp')) {
+            return `The inner nerve of your ${toothName} is inflamed or infected. Root canal treatment gently cleans and seals the root canals, eliminating pain and saving your natural tooth.`;
+        }
+        if (s.includes('crown') || s.includes('cap')) {
+            return `Your ${toothName} has received or is planned for a protective dental crown (cap). This covers the entire tooth to provide durable chewing power and restore its natural appearance.`;
+        }
+        if (s.includes('missing') || s.includes('extract')) {
+            return `Your ${toothName} is missing or scheduled for extraction. Your dentist can discuss replacement choices such as a dental implant or bridge to restore your complete bite.`;
+        }
+        if (s.includes('implant')) {
+            return `Your ${toothName} is a dental implant—a durable titanium anchor with a natural-looking crown that functions and feels just like an original tooth.`;
+        }
+        if (s.includes('calculus') || s.includes('bone loss') || s.includes('periodont')) {
+            return `Your ${toothName} shows plaque or tartar buildup along the gumline. Professional dental cleaning (scaling) will protect the supporting bone and keep your gums healthy.`;
+        }
+        return `Your dentist noted "${tooth.status}" for your ${toothName}. Please ask your dental team for personalized details during your next visit.`;
+    };
+
     // Calculate accurate clinical counts
     const activePathologyTeeth = useMemo(() => {
         return teethState.filter(t => {
@@ -990,6 +1021,22 @@ export default function PatientOdontogramPage() {
                                 <span className="text-emerald-700 font-bold">Active Record</span>
                             </div>
                         </div>
+                    </div>
+
+                    {/* 🌟 Plain-Language Patient Explanation Card (Principle #1: Plain language for patients) */}
+                    <div className="p-2.5 rounded-xl bg-gradient-to-r from-teal-50/80 via-cyan-50/60 to-emerald-50/70 border border-teal-200/70 text-xs space-y-1.5 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-teal-800 uppercase tracking-wider flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-primary-teal shrink-0" />
+                                <span>Plain-Language Explanation</span>
+                            </span>
+                            <span className="text-[9px] text-teal-700 font-semibold bg-white px-1.5 py-0.5 rounded border border-teal-200">
+                                Patient Friendly
+                            </span>
+                        </div>
+                        <p className="text-[11.5px] text-slate-700 leading-relaxed font-sans">
+                            {getPlainLanguageExplanation(activeTooth)}
+                        </p>
                     </div>
 
                     {/* Quick Action Footer */}

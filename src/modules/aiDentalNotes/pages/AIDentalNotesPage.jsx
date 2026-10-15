@@ -19,14 +19,39 @@ import {
   Sparkles
 } from 'lucide-react';
 import { submitTranscript, updateNote, approveNote } from '../services/aiDentalNotesApi';
+import { 
+  AIBadgeAndActions, 
+  AILoadingState, 
+  AIErrorFallback, 
+  AIEmptyStateCard 
+} from '../../../components/ai';
 
 const AIDentalNotesPage = () => {
     const [patient, setPatient] = useState(null);
     const [dentist, setDentist] = useState({ id: 2, firstName: 'Bishan', lastName: 'Hussain' });
     const [isRecording, setIsRecording] = useState(false);
-    const [transcript, setTranscript] = useState('');
+    
+    // Persistent draft storage (Principle #3: Dictations and drafts are NEVER lost)
+    const [transcript, setTranscript] = useState(() => {
+        try {
+            return localStorage.getItem('dentia_scribe_draft_transcript') || '';
+        } catch {
+            return '';
+        }
+    });
     const [isProcessing, setIsProcessing] = useState(false);
-    const [dentalNote, setDentalNote] = useState(null);
+    const [processingError, setProcessingError] = useState(null);
+    const [speechError, setSpeechError] = useState('');
+    const [toastNotification, setToastNotification] = useState(null);
+    
+    const [dentalNote, setDentalNote] = useState(() => {
+        try {
+            const saved = localStorage.getItem('dentia_scribe_draft_note');
+            return saved ? JSON.parse(saved) : null;
+        } catch {
+            return null;
+        }
+    });
     const [noteId, setNoteId] = useState(null);
     const [sessionId, setSessionId] = useState(null);
     const [checklistStatus, setChecklistStatus] = useState(null);
@@ -38,6 +63,23 @@ const AIDentalNotesPage = () => {
     const [bookingText, setBookingText] = useState('');
 
     const recognitionRef = useRef(null);
+
+    // Save transcript and note changes to draft persistence
+    useEffect(() => {
+        try {
+            if (transcript) {
+                localStorage.setItem('dentia_scribe_draft_transcript', transcript);
+            }
+        } catch {}
+    }, [transcript]);
+
+    useEffect(() => {
+        try {
+            if (dentalNote) {
+                localStorage.setItem('dentia_scribe_draft_note', JSON.stringify(dentalNote));
+            }
+        } catch {}
+    }, [dentalNote]);
 
     // Load active patient from Query Params or default to 5
     useEffect(() => {
@@ -101,7 +143,7 @@ const AIDentalNotesPage = () => {
         window.speechSynthesis.cancel();
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            alert("Web Speech API is not supported in this browser. Please use Chrome.");
+            setSpeechError("Speech recognition is not supported in this browser. Please use Chrome/Edge or type notes manually.");
             return;
         }
 
@@ -173,11 +215,16 @@ const AIDentalNotesPage = () => {
 
     const handleProcessNotes = async () => {
         if (!transcript.trim()) {
-            alert("Please speak or write some transcript before processing.");
+            setToastNotification({
+                type: 'warning',
+                message: "Please speak or write clinical notes before processing."
+            });
+            setTimeout(() => setToastNotification(null), 3500);
             return;
         }
         stopSpeechRecognition();
         setIsProcessing(true);
+        setProcessingError(null);
 
         try {
             const res = await submitTranscript(transcript, patient.patientID, dentist.id);
@@ -216,7 +263,11 @@ const AIDentalNotesPage = () => {
 
         } catch (err) {
             console.error("Failed processing notes:", err);
-            alert("Error processing clinical notes. Make sure the backend is active.");
+            setProcessingError({
+                code: 'SERVER_ERROR',
+                message: err.message || 'Error processing clinical notes',
+                userMessage: "Unable to process clinical notes with AI. Your consultation transcript is safely preserved."
+            });
         } finally {
             setIsProcessing(false);
         }
@@ -242,7 +293,8 @@ const AIDentalNotesPage = () => {
         } catch (err) {
             console.error("Voice booking failed:", err);
             const errMsg = err.response?.data?.message || "Failed to book appointment. Please try another slot.";
-            alert(errMsg);
+            setToastNotification({ type: 'error', message: errMsg });
+            setTimeout(() => setToastNotification(null), 4000);
             if (!isAudioMuted) {
                 window.speechSynthesis.cancel();
                 const utterance = new SpeechSynthesisUtterance(errMsg);
@@ -261,7 +313,18 @@ const AIDentalNotesPage = () => {
             // 2. Approve
             await approveNote(noteId);
             
-            alert("Clinical note saved and approved in DB successfully!");
+            // Clear local draft persistence upon verified approval
+            try {
+                localStorage.removeItem('dentia_scribe_draft_transcript');
+                localStorage.removeItem('dentia_scribe_draft_note');
+            } catch {}
+
+            setToastNotification({
+                type: 'success',
+                message: "Clinical note saved and approved in DB successfully!"
+            });
+            setTimeout(() => setToastNotification(null), 4000);
+
             // Reset page
             setDentalNote(null);
             setTranscript('');
@@ -271,7 +334,11 @@ const AIDentalNotesPage = () => {
             setBookingText('');
         } catch (err) {
             console.error("Approve failed:", err);
-            alert("Failed to save and approve note.");
+            setToastNotification({
+                type: 'error',
+                message: "Failed to save and approve note: " + (err.message || 'Server error')
+            });
+            setTimeout(() => setToastNotification(null), 4000);
         }
     };
 
@@ -332,6 +399,44 @@ const AIDentalNotesPage = () => {
                         </button>
                     </div>
                 </header>
+
+                {/* Toast Notification Banner */}
+                {toastNotification && (
+                    <div className={`p-4 rounded-2xl shadow-xl border flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-3 duration-200 ${
+                        toastNotification.type === 'error' ? 'bg-rose-950/80 border-rose-700/60 text-rose-200' :
+                        toastNotification.type === 'warning' ? 'bg-amber-950/80 border-amber-700/60 text-amber-200' :
+                        'bg-teal-950/80 border-teal-700/60 text-teal-200'
+                    }`}>
+                        <div className="flex items-center gap-2.5 text-sm font-medium">
+                            {toastNotification.type === 'error' && <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />}
+                            {toastNotification.type === 'warning' && <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />}
+                            {toastNotification.type === 'success' && <CheckCircle2 className="w-5 h-5 text-teal-400 shrink-0" />}
+                            <span>{toastNotification.message}</span>
+                        </div>
+                        <button 
+                            onClick={() => setToastNotification(null)} 
+                            className="text-xs px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                        >
+                            Dismiss
+                        </button>
+                    </div>
+                )}
+
+                {/* Speech API Compatibility Notice Banner */}
+                {speechError && (
+                    <div className="p-4 bg-amber-950/60 border border-amber-700/60 rounded-2xl text-amber-300 text-xs flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                            <span>{speechError}</span>
+                        </div>
+                        <button 
+                            onClick={() => setSpeechError('')} 
+                            className="text-xs font-semibold underline underline-offset-2 hover:text-white"
+                        >
+                            Dismiss
+                        </button>
+                    </div>
+                )}
 
                 {/* Scribing Core Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -495,8 +600,25 @@ const AIDentalNotesPage = () => {
                             </div>
                         )}
 
-                        {/* Editor Draft Panel */}
-                        {dentalNote ? (
+                        {/* Dynamic Clinical Note States */}
+                        {isProcessing ? (
+                            <AILoadingState 
+                                title="Analyzing Clinical Consultation"
+                                text="Dentia AI Scribe is parsing dentist dictation..."
+                                subtext="Extracting Chief Complaint, Examination, Diagnosis, and Treatment Rendered..."
+                                onCancel={() => setIsProcessing(false)}
+                                className="bg-slate-800/60 border-slate-700 text-slate-100"
+                            />
+                        ) : processingError ? (
+                            <AIErrorFallback
+                                error={processingError}
+                                preservedInput={transcript}
+                                onRetry={handleProcessNotes}
+                                onDismiss={() => setProcessingError(null)}
+                                onContinueManual={() => setProcessingError(null)}
+                                className="bg-slate-800/60 border-slate-700"
+                            />
+                        ) : dentalNote ? (
                             <div className="bg-slate-800/40 backdrop-blur-md rounded-2xl border border-slate-700/50 overflow-hidden shadow-xl">
                                 <div className="bg-gradient-to-r from-teal-900/80 to-cyan-950/80 px-6 py-4 flex justify-between items-center border-b border-slate-700/50">
                                     <div className="flex items-center gap-2">
@@ -510,6 +632,19 @@ const AIDentalNotesPage = () => {
 
                                 <div className="p-6 space-y-6">
                                     
+                                    {/* Standard Clinical AI Safety Disclaimer, Confidence & Actions */}
+                                    <AIBadgeAndActions
+                                        promptId="clinical-note-summarizer"
+                                        version="2.0.0"
+                                        feature="ambient-scribe"
+                                        confidence={0.93}
+                                        basedOn={`Dictation transcript for ${patient ? `${patient.firstName} ${patient.lastName}` : 'Patient'}`}
+                                        textToCopy={`CLINICAL NOTE (SOAP)\nSummary: ${dentalNote.summary || ''}\nChief Complaint: ${dentalNote.chiefComplaint || ''}\nHistory: ${dentalNote.history || ''}\nExamination: ${dentalNote.examination || ''}\nAssessment: ${dentalNote.assessment || ''}\nTreatment Performed: ${dentalNote.treatmentPerformed || ''}\nPost-Op Advice: ${dentalNote.postOpAdvice || ''}\nFollow-Up: ${dentalNote.followUp || ''}`}
+                                        onRegenerate={handleProcessNotes}
+                                        isRegenerating={isProcessing}
+                                        showFeedback={true}
+                                    />
+
                                     {/* Warnings list */}
                                     {dentalNote.aiWarnings && dentalNote.aiWarnings.length > 0 && (
                                         <div className="p-4 bg-amber-500/10 border-l-4 border-amber-500 rounded-r-xl space-y-1">
@@ -614,11 +749,20 @@ const AIDentalNotesPage = () => {
                                 </div>
                             </div>
                         ) : (
-                            <div className="bg-slate-800/20 border border-dashed border-slate-700/60 rounded-2xl p-16 flex flex-col items-center justify-center text-center">
-                                <Sparkles className="w-12 h-12 text-slate-500 mb-4 animate-pulse" />
-                                <h4 className="text-md font-bold text-slate-300">No Note Generated</h4>
-                                <p className="text-xs text-slate-500 max-w-sm mt-1">Dictate your dentist-patient consultation on the left to instantly populate clinical notes.</p>
-                            </div>
+                            <AIEmptyStateCard
+                                title="Ambient Clinical Scribe"
+                                description="Dictate your consultation with the patient or select a quick template chip below to begin drafting clinical notes."
+                                suggestions={[
+                                    "Periodic oral evaluation & hygiene prophylaxis for adult recall",
+                                    "Composite restoration on tooth 16 occlusal surface under local infiltration",
+                                    "Emergency pulp vitality test and root canal therapy referral for tooth 36",
+                                    "Surgical extraction of impacted lower right third molar (tooth 48)"
+                                ]}
+                                onSelectSuggestion={(suggestion) => {
+                                    setTranscript(prev => (prev ? prev + ' ' : '') + suggestion);
+                                }}
+                                className="bg-slate-800/30 border-slate-700/60 text-slate-200"
+                            />
                         )}
                     </div>
                 </div>

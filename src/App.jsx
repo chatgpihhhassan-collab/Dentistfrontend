@@ -8,6 +8,7 @@ import IdleSessionManager from './components/IdleSessionManager';
 import GlobalNanoPixHardwareSyncManager from './components/GlobalNanoPixHardwareSyncManager';
 
 // 🌟 Route-level Lazy Loading: Isolates heavy 3D, PDF, and clinical modules
+const Doctor3DAssistantWidget = lazy(() => import('./components/aiDoctor/Doctor3DAssistantWidget'));
 const ChartPage = lazy(() => import('./pages/ChartPage'));
 const ToothDetailPage = lazy(() => import('./pages/ToothDetailPage'));
 const NewPatientPage = lazy(() => import('./pages/NewPatientPage'));
@@ -123,6 +124,9 @@ export default function App() {
       <ErrorBoundary>
         <IdleSessionManager />
         <GlobalNanoPixHardwareSyncManager />
+        <Suspense fallback={null}>
+          <Doctor3DAssistantWidget />
+        </Suspense>
         <Suspense fallback={<PageFallback />}>
           <Routes>
             <Route path="/" element={<BlockSuperAdmin><LandingDashboard /></BlockSuperAdmin>} />
