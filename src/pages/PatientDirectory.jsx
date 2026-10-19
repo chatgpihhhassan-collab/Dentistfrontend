@@ -1304,8 +1304,66 @@ export default function PatientDirectory() {
 
                             {/* Active Consultation Info Block */}
                             <div className="bg-white rounded-[2rem] border border-[#EAF0FC] p-6 shadow-sm space-y-4">
-                                <div className="border-b border-light-teal/20 pb-3">
-                                    <h4 className="text-sm font-bold text-dark-slate">Consultation</h4>
+                                {/* Card Header: Title & Action Controls */}
+                                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
+                                        <h4 className="text-sm font-extrabold text-[#10244B] tracking-tight">Active Consultation</h4>
+                                    </div>
+
+                                    {selectedPatient && (
+                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                            {/* Modern WhatsApp Notification Toggle Switch */}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleTogglePatientWhatsApp(!Boolean(selectedPatient.whatsAppOptIn))}
+                                                className={`group px-3 py-1.5 rounded-xl border transition-all cursor-pointer shadow-2xs flex items-center gap-2 text-xs font-bold whitespace-nowrap select-none ${
+                                                    Boolean(selectedPatient.whatsAppOptIn)
+                                                        ? 'bg-emerald-50 hover:bg-emerald-100/80 text-emerald-800 border-emerald-300/80 ring-1 ring-emerald-400/20'
+                                                        : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                                                }`}
+                                                title={Boolean(selectedPatient.whatsAppOptIn) ? "WhatsApp Notifications are ON. Click to turn OFF." : "WhatsApp Notifications are OFF. Click to turn ON."}
+                                            >
+                                                <MessageCircle className={`w-3.5 h-3.5 ${Boolean(selectedPatient.whatsAppOptIn) ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                                <span className="text-[11px] font-extrabold tracking-tight">WhatsApp</span>
+                                                
+                                                {/* Sleek Mini Switch Pill */}
+                                                <div className={`w-7 h-3.5 rounded-full transition-colors flex items-center p-0.5 ${
+                                                    Boolean(selectedPatient.whatsAppOptIn) ? 'bg-emerald-500 justify-end' : 'bg-slate-300 justify-start'
+                                                }`}>
+                                                    <div className="w-2.5 h-2.5 rounded-full bg-white shadow-xs transition-transform" />
+                                                </div>
+                                            </button>
+
+                                            {/* Direct WhatsApp Web Chat Button */}
+                                            {selectedPatient.phone && Boolean(selectedPatient.whatsAppOptIn) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const clean = (selectedPatient.phone || '').replace(/[^\d]/g, '');
+                                                        const num = clean.startsWith('0') ? '92' + clean.slice(1) : clean.startsWith('3') ? '92' + clean : clean;
+                                                        window.open(`https://wa.me/${num}`, "_blank");
+                                                    }}
+                                                    className="px-2.5 py-1.5 rounded-xl border border-emerald-200 bg-white hover:bg-emerald-50 text-emerald-700 hover:text-emerald-800 text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+                                                    title={`Open Direct WhatsApp Web Chat with ${selectedPatient.firstName}`}
+                                                >
+                                                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                                    <span className="hidden sm:inline">Chat</span>
+                                                </button>
+                                            )}
+
+                                            {/* Edit Patient Info */}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleOpenEditPatient(selectedPatient)}
+                                                className="px-2.5 py-1.5 bg-slate-50 hover:bg-[#4A7CD2] text-slate-700 hover:text-white border border-slate-200 hover:border-[#4A7CD2] rounded-xl transition-all shadow-2xs flex items-center gap-1.5 text-xs font-bold whitespace-nowrap cursor-pointer"
+                                                title="Edit Patient Information"
+                                            >
+                                                <Pencil className="w-3.5 h-3.5" />
+                                                <span>Edit</span>
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {selectedPatient ? (() => {
@@ -1339,86 +1397,39 @@ export default function PatientDirectory() {
 
                                      return (
                                          <div className="space-y-4">
-                                                <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100">
-                                                    <div className="flex items-center gap-3 min-w-0">
-                                                        <div className="w-12 h-12 rounded-2xl overflow-hidden border border-slate-200/80 shadow-xs flex-shrink-0 bg-white ring-2 ring-slate-100 flex items-center justify-center">
-                                                            <img 
-                                                                src={getPatientAvatarUrl(selectedPatient)} 
-                                                                alt={`${selectedPatient.firstName} ${selectedPatient.lastName}`}
-                                                                className="w-full h-full object-cover" 
-                                                            />
-                                                        </div>
-                                                        <div className="min-w-0">
-                                                            <h4 className="text-base font-extrabold text-[#10244B] tracking-tight truncate whitespace-nowrap">
+                                                {/* Patient Profile Dossier Banner */}
+                                                <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-gradient-to-r from-slate-50/80 via-blue-50/20 to-white border border-slate-200/70 shadow-2xs">
+                                                    <div className="w-13 h-13 rounded-2xl overflow-hidden border border-slate-200 shadow-xs flex-shrink-0 bg-white ring-2 ring-white flex items-center justify-center">
+                                                        <img 
+                                                            src={getPatientAvatarUrl(selectedPatient)} 
+                                                            alt={`${selectedPatient.firstName} ${selectedPatient.lastName}`}
+                                                            className="w-full h-full object-cover" 
+                                                        />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <h4 className="text-base font-extrabold text-[#10244B] tracking-tight">
                                                                 {selectedPatient.firstName} {selectedPatient.lastName}
                                                             </h4>
-                                                            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium whitespace-nowrap mt-0.5">
-                                                                <span className="font-bold text-slate-700">Age: {getAge(selectedPatient.dob)}</span>
-                                                                <span className="text-slate-300">•</span>
-                                                                <span className="capitalize">{selectedPatient.gender || 'Male'}</span>
-                                                                {selectedPatient.phone ? (
-                                                                    <>
-                                                                        <span className="text-slate-300">•</span>
-                                                                        <span className="font-mono text-slate-600 font-semibold">{selectedPatient.phone}</span>
-                                                                    </>
-                                                                ) : null}
-                                                            </div>
+                                                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-[#EAF0FC] text-[#4A7CD2] border border-[#BFDBFE]">
+                                                                ID #{selectedPatient.patientID}
+                                                            </span>
                                                         </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                                        {/* Modern WhatsApp Notification Toggle Switch */}
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleTogglePatientWhatsApp(!Boolean(selectedPatient.whatsAppOptIn))}
-                                                            className={`group px-3 py-1.5 rounded-xl border transition-all cursor-pointer shadow-2xs flex items-center gap-2 text-xs font-bold whitespace-nowrap select-none ${
-                                                                Boolean(selectedPatient.whatsAppOptIn)
-                                                                    ? 'bg-emerald-50 hover:bg-emerald-100/80 text-emerald-800 border-emerald-300/80 ring-1 ring-emerald-400/20'
-                                                                    : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
-                                                            }`}
-                                                            title={Boolean(selectedPatient.whatsAppOptIn) ? "WhatsApp Notifications are ON. Click to turn OFF." : "WhatsApp Notifications are OFF. Click to turn ON."}
-                                                        >
-                                                            <MessageCircle className={`w-3.5 h-3.5 ${Boolean(selectedPatient.whatsAppOptIn) ? 'text-emerald-600' : 'text-slate-400'}`} />
-                                                            <span className="text-[11px] font-extrabold tracking-tight">WhatsApp</span>
-                                                            
-                                                            {/* Sleek Mini Switch Pill */}
-                                                            <div className={`w-7 h-3.5 rounded-full transition-colors flex items-center p-0.5 ${
-                                                                Boolean(selectedPatient.whatsAppOptIn) ? 'bg-emerald-500 justify-end' : 'bg-slate-300 justify-start'
-                                                            }`}>
-                                                                <div className="w-2.5 h-2.5 rounded-full bg-white shadow-xs transition-transform" />
-                                                            </div>
-                                                        </button>
-
-                                                        {/* Direct WhatsApp Web Chat Button */}
-                                                        {selectedPatient.phone && Boolean(selectedPatient.whatsAppOptIn) && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    const clean = (selectedPatient.phone || '').replace(/[^\d]/g, '');
-                                                                    const num = clean.startsWith('0') ? '92' + clean.slice(1) : clean.startsWith('3') ? '92' + clean : clean;
-                                                                    window.open(`https://wa.me/${num}`, "_blank");
-                                                                }}
-                                                                className="px-2.5 py-1.5 rounded-xl border border-emerald-200 bg-white hover:bg-emerald-50 text-emerald-700 hover:text-emerald-800 text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
-                                                                title={`Open Direct WhatsApp Web Chat with ${selectedPatient.firstName}`}
-                                                            >
-                                                                <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                                                                <span className="hidden sm:inline">Chat</span>
-                                                            </button>
-                                                        )}
-
-                                                        {/* Edit Patient Info */}
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleOpenEditPatient(selectedPatient)}
-                                                            className="px-2.5 py-1.5 bg-slate-50 hover:bg-[#4A7CD2] text-slate-700 hover:text-white border border-slate-200 hover:border-[#4A7CD2] rounded-xl transition-all shadow-2xs flex items-center gap-1.5 text-xs font-bold whitespace-nowrap cursor-pointer"
-                                                            title="Edit Patient Information"
-                                                        >
-                                                            <Pencil className="w-3.5 h-3.5" />
-                                                            <span>Edit</span>
-                                                        </button>
+                                                        <div className="flex items-center gap-2 text-xs text-slate-500 font-medium mt-1 flex-wrap">
+                                                            <span className="font-bold text-slate-700">Age: {getAge(selectedPatient.dob)}</span>
+                                                            <span className="text-slate-300">•</span>
+                                                            <span className="capitalize">{selectedPatient.gender || 'Male'}</span>
+                                                            {selectedPatient.phone ? (
+                                                                <>
+                                                                    <span className="text-slate-300">•</span>
+                                                                    <span className="font-mono text-slate-700 font-bold">{selectedPatient.phone}</span>
+                                                                </>
+                                                            ) : null}
+                                                        </div>
                                                     </div>
                                                 </div>
 
-                                             {/* Interactive Treatment Modality Buttons */}
+                                                {/* Interactive Treatment Modality Buttons */}
                                              <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-black text-muted-text py-1">
                                                  <button
                                                      type="button"
