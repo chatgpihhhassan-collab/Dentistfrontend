@@ -13,6 +13,7 @@ import { getPatientAvatarUrl, validateImageFile, fileToDataUrl } from '../utils/
 import aiVoice from '../utils/aiVoiceAssistant';
 import { normalizePakistaniPhone, formatPakistaniPhone, formatCnic, validateCnic } from '../validators';
 import AIBadgeAndActions from '../components/AIBadgeAndActions';
+import WhatsAppOptInToggle from '../components/whatsapp/WhatsAppOptInToggle';
 import apiFetch from '../utils/apiClient';
 
 export default function NewPatientPage() {
@@ -36,7 +37,8 @@ export default function NewPatientPage() {
         selectedAllergies: [],
         medicalNotes: '',
         profileImageDataUrl: null,
-        profileImageMimeType: null
+        profileImageMimeType: null,
+        whatsAppOptIn: true
     });
 
     const calculateAge = (dobString) => {
@@ -1446,6 +1448,15 @@ export default function NewPatientPage() {
                                             <span>{errors.phone}</span>
                                         </p>
                                     )}
+
+                                    {/* WhatsApp Consent Toggle */}
+                                    <div className="mt-2.5">
+                                        <WhatsAppOptInToggle 
+                                            checked={newPatient.whatsAppOptIn ?? true}
+                                            onChange={(checked) => setNewPatient(prev => ({ ...prev, whatsAppOptIn: checked }))}
+                                            phone={newPatient.phone}
+                                        />
+                                    </div>
                                 </div>
 
                                 {/* Street Address Lookup & Autocomplete */}

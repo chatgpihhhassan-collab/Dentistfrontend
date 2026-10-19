@@ -27,6 +27,7 @@ const ClinicalGuidePage = lazy(() => import('./pages/ClinicalGuidePage'));
 const DoctorTreatmentPricing = lazy(() => import('./pages/DoctorTreatmentPricing'));
 const DentiaAIRadiologyStudioPage = lazy(() => import('./modules/aiRadiologyStudio/pages/DentiaAIRadiologyStudioPage'));
 const NanoPixSetupGuide = lazy(() => import('./pages/NanoPixSetupGuide'));
+const WhatsAppAdminPage = lazy(() => import('./pages/WhatsAppAdminPage'));
 
 // 🌟 Patient Portal Lazy Loaded Modules
 const PatientPortalLayout = lazy(() => import('./modules/patientPortal/layouts/PatientPortalLayout'));
@@ -181,6 +182,16 @@ export default function App() {
                 <AdminRoute>
                     <OrganizationManagement />
                 </AdminRoute>
+            } />
+            <Route path="/admin/whatsapp" element={
+                <ProtectedRoute>
+                    <WhatsAppAdminPage />
+                </ProtectedRoute>
+            } />
+            <Route path="/whatsapp-manager" element={
+                <ProtectedRoute>
+                    <WhatsAppAdminPage />
+                </ProtectedRoute>
             } />
             
             {/* Public Pages */}

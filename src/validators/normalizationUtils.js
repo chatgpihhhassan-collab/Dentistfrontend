@@ -55,6 +55,27 @@ export function formatPakistaniPhone(raw) {
 }
 
 /**
+ * Derives OpenWA chatId (923XXXXXXXXX@c.us) from a Pakistani phone number.
+ */
+export function getWhatsAppChatId(raw) {
+  const norm = normalizePakistaniPhone(raw);
+  if (!norm.isValid) return null;
+  const digits = norm.normalized.replace('+', '');
+  return `${digits}@c.us`;
+}
+
+/**
+ * Derives click-to-chat WhatsApp direct URL (https://wa.me/923XXXXXXXXX).
+ */
+export function getWhatsAppDirectUrl(raw, text = '') {
+  const norm = normalizePakistaniPhone(raw);
+  if (!norm.isValid) return null;
+  const digits = norm.normalized.replace('+', '');
+  const encoded = text ? `?text=${encodeURIComponent(text)}` : '';
+  return `https://wa.me/${digits}${encoded}`;
+}
+
+/**
  * Formats a Pakistani CNIC into XXXXX-XXXXXXX-X (13 digits).
  */
 export function formatCnic(raw) {

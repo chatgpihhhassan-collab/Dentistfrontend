@@ -6,7 +6,7 @@ import {
     Search, ChevronLeft, ChevronRight, Plus, Calendar, Clock, 
     Sparkles, Activity, CheckCircle2, Save, Loader2, Smile, ShieldAlert, Check, X, RotateCcw,
     Download, FileText, Filter, Eye, ChevronDown, RefreshCw, Pencil, Camera, UploadCloud, Trash2,
-    CreditCard, Stethoscope
+    CreditCard, Stethoscope, MessageCircle, MessageCircleOff
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import '../index.css';
@@ -14,6 +14,7 @@ import { getPatientAvatarUrl, validateImageFile, fileToDataUrl } from '../utils/
 import { preloadJawImages, preloadPatientJawTemplates } from '../utils/jawImagePreloader';
 import { fetchWithCache, prefetchApi, invalidateCache, setCachedData } from '../utils/apiCache';
 import FullPageSkeletonLoader from '../components/FullPageSkeletonLoader';
+import WhatsAppOptInToggle from '../components/whatsapp/WhatsAppOptInToggle';
 import apiFetch from '../utils/apiClient';
 
 export default function PatientDirectory() {
@@ -77,7 +78,8 @@ export default function PatientDirectory() {
         address: '',
         region: 'South Region',
         profileImageDataUrl: null,
-        profileImageMimeType: null
+        profileImageMimeType: null,
+        whatsAppOptIn: true
     });
     const [savingEdit, setSavingEdit] = useState(false);
 
@@ -129,7 +131,8 @@ export default function PatientDirectory() {
             address: p.address || '',
             region: p.region || 'South Region',
             profileImageDataUrl: p.profileImageDataUrl || (p.profileImage ? `data:${p.profileImageMimeType || 'image/jpeg'};base64,${p.profileImage}` : null),
-            profileImageMimeType: p.profileImageMimeType || null
+            profileImageMimeType: p.profileImageMimeType || null,
+            whatsAppOptIn: p.whatsAppOptIn !== undefined ? p.whatsAppOptIn : true
         });
         setEditPatientModal({ visible: true, patient: p });
     };
@@ -145,6 +148,7 @@ export default function PatientDirectory() {
                 body: JSON.stringify({
                     ...editPatientModal.patient,
                     ...editForm,
+                    whatsAppOptIn: editForm.whatsAppOptIn,
                     dob: editForm.dob ? new Date(editForm.dob).toISOString() : null
                 })
             });
@@ -152,6 +156,7 @@ export default function PatientDirectory() {
                 const updated = {
                     ...editPatientModal.patient,
                     ...editForm,
+                    whatsAppOptIn: editForm.whatsAppOptIn,
                     dob: editForm.dob ? new Date(editForm.dob).toISOString() : null
                 };
                 setPatients(prev => prev.map(p => p.patientID === updated.patientID ? updated : p));
@@ -1088,7 +1093,7 @@ export default function PatientDirectory() {
                                                                 />
                                                             </div>
                                                             <div>
-                                                                <h5 className="text-sm font-extrabold text-[#10244B] flex items-center gap-1.5">
+                                                                <h5 className="text-sm font-extrabold text-[#10244B] flex items-center gap-1.5 flex-wrap">
                                                                     <span>{p.firstName} {p.lastName}</span>
                                                                     {isPed ? (
                                                                         <span className="text-[8.5px] font-black text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
@@ -1103,6 +1108,32 @@ export default function PatientDirectory() {
                                                                             Age: {pAge}
                                                                         </span>
                                                                     ) : null}
+                                                                    {/* WhatsApp Active / Inactive Badge Pill */}
+                                                                    {p.phone && (
+                                                                        (p.whatsAppOptIn ?? true) ? (
+                                                                            <span 
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    const clean = (p.phone || '').replace(/[^\d]/g, '');
+                                                                                    const num = clean.startsWith('0') ? '92' + clean.slice(1) : clean.startsWith('3') ? '92' + clean : clean;
+                                                                                    window.open(`https://wa.me/${num}`, '_blank');
+                                                                                }}
+                                                                                className="text-[8px] font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-200 inline-flex items-center gap-1 transition shadow-2xs"
+                                                                                title={`WhatsApp Active: Click to open chat with ${p.phone}`}
+                                                                            >
+                                                                                <MessageCircle className="w-2.5 h-2.5 text-emerald-600" />
+                                                                                <span>WhatsApp Active</span>
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span 
+                                                                                className="text-[8px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 inline-flex items-center gap-1"
+                                                                                title="WhatsApp Inactive / Opted-out"
+                                                                            >
+                                                                                <MessageCircleOff className="w-2.5 h-2.5 text-slate-400" />
+                                                                                <span>WhatsApp Inactive</span>
+                                                                            </span>
+                                                                        )
+                                                                    )}
                                                                 </h5>
                                                                 <span className="text-[10px] text-muted-text font-black uppercase tracking-wider">Patient ID: #{p.patientID}</span>
                                                             </div>
@@ -1204,19 +1235,55 @@ export default function PatientDirectory() {
                                                            />
                                                        </div>
                                                        <div>
-                                                           <h5 className="text-sm font-black text-[#10244B]">{selectedPatient.firstName} {selectedPatient.lastName}</h5>
+                                                           <h5 className="text-sm font-black text-[#10244B] flex items-center gap-2">
+                                                               <span>{selectedPatient.firstName} {selectedPatient.lastName}</span>
+                                                               {selectedPatient.phone && (
+                                                                   (selectedPatient.whatsAppOptIn ?? true) ? (
+                                                                       <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1 shadow-2xs">
+                                                                           <MessageCircle className="w-2.5 h-2.5 text-emerald-600" />
+                                                                           <span>WhatsApp Active</span>
+                                                                       </span>
+                                                                   ) : (
+                                                                       <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200 inline-flex items-center gap-1">
+                                                                           <MessageCircleOff className="w-2.5 h-2.5 text-slate-400" />
+                                                                           <span>WhatsApp Inactive</span>
+                                                                       </span>
+                                                                   )
+                                                               )}
+                                                           </h5>
                                                            <span className="text-[10px] text-muted-text font-black uppercase tracking-wider">Age: {getAge(selectedPatient.dob)} • {selectedPatient.gender || 'Male'} • {selectedPatient.phone || 'No Phone'}</span>
                                                        </div>
                                                    </div>
-                                                   <button
-                                                       type="button"
-                                                       onClick={() => handleOpenEditPatient(selectedPatient)}
-                                                       className="p-2 bg-blue-50 hover:bg-[#4A7CD2] text-[#4A7CD2] hover:text-white rounded-xl transition cursor-pointer shadow-2xs flex items-center gap-1 text-[11px] font-bold"
-                                                       title="Edit Patient Information"
-                                                   >
-                                                       <Pencil className="w-3.5 h-3.5" />
-                                                       <span>Edit</span>
-                                                   </button>
+                                                   <div className="flex items-center gap-1.5">
+                                                       {selectedPatient.phone && (
+                                                           <button
+                                                               type="button"
+                                                               onClick={() => {
+                                                                   const clean = (selectedPatient.phone || '').replace(/[^\d]/g, '');
+                                                                   const num = clean.startsWith('0') ? '92' + clean.slice(1) : clean.startsWith('3') ? '92' + clean : clean;
+                                                                   window.open(`https://wa.me/${num}`, '_blank');
+                                                               }}
+                                                               className={`p-2 rounded-xl border transition cursor-pointer shadow-2xs flex items-center gap-1 text-[11px] font-bold ${
+                                                                   (selectedPatient.whatsAppOptIn ?? true)
+                                                                       ? 'bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border-emerald-200'
+                                                                       : 'bg-slate-50 hover:bg-slate-200 text-slate-600 border-slate-200'
+                                                               }`}
+                                                               title="Open Direct WhatsApp Chat"
+                                                           >
+                                                               <MessageCircle className="w-3.5 h-3.5" />
+                                                               <span className="hidden sm:inline">WhatsApp</span>
+                                                           </button>
+                                                       )}
+                                                       <button
+                                                           type="button"
+                                                           onClick={() => handleOpenEditPatient(selectedPatient)}
+                                                           className="p-2 bg-blue-50 hover:bg-[#4A7CD2] text-[#4A7CD2] hover:text-white rounded-xl transition cursor-pointer shadow-2xs flex items-center gap-1 text-[11px] font-bold"
+                                                           title="Edit Patient Information"
+                                                       >
+                                                           <Pencil className="w-3.5 h-3.5" />
+                                                           <span>Edit</span>
+                                                       </button>
+                                                   </div>
                                                </div>
 
                                              {/* Interactive Treatment Modality Buttons */}
@@ -2252,6 +2319,15 @@ export default function PatientDirectory() {
                                     onChange={(e) => setEditForm(prev => ({ ...prev, address: e.target.value }))}
                                     placeholder="e.g. House #12, Street 4, Lahore"
                                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none"
+                                />
+                            </div>
+
+                            {/* WhatsApp Opt-In Consent Toggle */}
+                            <div className="pt-1">
+                                <WhatsAppOptInToggle 
+                                    checked={editForm.whatsAppOptIn ?? true}
+                                    onChange={(checked) => setEditForm(prev => ({ ...prev, whatsAppOptIn: checked }))}
+                                    phone={editForm.phone}
                                 />
                             </div>
 

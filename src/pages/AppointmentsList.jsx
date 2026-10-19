@@ -5,7 +5,7 @@ import {
     ListFilter, ChevronLeft, ChevronRight, ChevronDown, Download, Plus, 
     ExternalLink, CalendarDays, Eye, RefreshCw, Check, X, ShieldAlert,
     Share2, CalendarCheck, Stethoscope, ArrowRight, UserCheck, 
-    FileText, Activity, MapPin, Volume2, VolumeX, Printer
+    FileText, Activity, MapPin, Volume2, VolumeX, Printer, MessageCircle
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import Navigation from '../components/Navigation';
@@ -1825,9 +1825,26 @@ export default function AppointmentsList() {
                                 <span className="text-slate-500">Scheduled Time</span>
                                 <span className="font-bold text-slate-800">{formatDate(selectedAppointment.preferredDate)}</span>
                             </div>
-                            <div className="flex justify-between py-2 border-b border-slate-100">
+                            <div className="flex justify-between items-center py-2 border-b border-slate-100">
                                 <span className="text-slate-500">Contact Phone</span>
-                                <span className="font-bold text-slate-800">{selectedAppointment.phone || 'Not provided'}</span>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="font-bold text-slate-800">{selectedAppointment.phone || 'Not provided'}</span>
+                                    {selectedAppointment.phone && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const clean = (selectedAppointment.phone || '').replace(/[^\d]/g, '');
+                                                const num = clean.startsWith('0') ? '92' + clean.slice(1) : clean.startsWith('3') ? '92' + clean : clean;
+                                                window.open(`https://wa.me/${num}`, '_blank');
+                                            }}
+                                            className="p-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                                            title="Chat with Patient on WhatsApp"
+                                        >
+                                            <MessageCircle className="w-3 h-3 text-emerald-600" />
+                                            <span>WhatsApp</span>
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                             <div className="flex justify-between py-2 border-b border-slate-100">
                                 <span className="text-slate-500">Email</span>

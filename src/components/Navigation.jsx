@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { LogOut, Home, Users, Calendar, Stethoscope, Info, CalendarPlus, Phone, Clock, Mail, Star, UserCheck, DollarSign, Building2, Shield } from 'lucide-react';
+import { LogOut, Home, Users, Calendar, Stethoscope, Info, CalendarPlus, Phone, Clock, Mail, Star, UserCheck, DollarSign, Building2, Shield, MessageCircle } from 'lucide-react';
 import { HardwareDeviceSyncBadge } from './HardwareDeviceSyncBadge';
 import { purgeClinicianSession } from '../services/sessionSecurityService';
 
@@ -109,6 +109,13 @@ export default function Navigation() {
                                         title="Doctor Fee Schedules & Treatment Pricing"
                                     >
                                         <DollarSign className="w-5 h-5" />
+                                    </Link>
+                                    <Link 
+                                        to="/admin/whatsapp" 
+                                        className={getLinkClass(location.pathname === '/admin/whatsapp' || location.pathname === '/whatsapp-manager')}
+                                        title="WhatsApp Gateway & Messaging Hub"
+                                    >
+                                        <MessageCircle className="w-5 h-5 text-emerald-600" />
                                     </Link>
                                 </>
                             )}

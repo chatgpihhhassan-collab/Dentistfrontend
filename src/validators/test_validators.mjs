@@ -9,7 +9,9 @@ import {
   validateCnic,
   sanitizeText,
   validateLuhnCardNumber,
-  isValidFdiToothNumber
+  isValidFdiToothNumber,
+  getWhatsAppChatId,
+  getWhatsAppDirectUrl
 } from './normalizationUtils.js';
 
 import { patientSchema } from './patientSchema.js';
@@ -42,6 +44,11 @@ assert(p2.isValid && p2.normalized === '+923214455667', 'Normalizes formatted +9
 
 const p3 = normalizePakistaniPhone('12345');
 assert(!p3.isValid, 'Rejects short invalid phone number 12345');
+
+// WhatsApp OpenWA ChatId and Direct URLs
+assert(getWhatsAppChatId('03001234567') === '923001234567@c.us', 'Derives OpenWA chatId 923001234567@c.us from 03001234567');
+assert(getWhatsAppDirectUrl('03001234567') === 'https://wa.me/923001234567', 'Derives direct wa.me link for 03001234567');
+assert(getWhatsAppChatId('invalid-phone') === null, 'Returns null chatId for invalid phone');
 
 // CNIC formatting & validation
 assert(formatCnic('3520112345671') === '35201-1234567-1', 'Formats 13 digit CNIC with dashes');
