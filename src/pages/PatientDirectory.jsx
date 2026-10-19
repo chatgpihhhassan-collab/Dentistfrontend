@@ -16,6 +16,7 @@ import { fetchWithCache, prefetchApi, invalidateCache, setCachedData } from '../
 import FullPageSkeletonLoader from '../components/FullPageSkeletonLoader';
 import WhatsAppOptInToggle from '../components/whatsapp/WhatsAppOptInToggle';
 import apiFetch from '../utils/apiClient';
+import { updatePatientWhatsAppOptIn } from '../services/whatsappService';
 
 export default function PatientDirectory() {
     const [patients, setPatients] = useState([]);
@@ -50,6 +51,7 @@ export default function PatientDirectory() {
     const [logsSearchFilter, setLogsSearchFilter] = useState('');
     const [logsTypeFilter, setLogsTypeFilter] = useState('ALL');
     const [dentitionFilter, setDentitionFilter] = useState('ALL'); // 'ALL' | 'ADULT' | 'PEDIATRIC' | 'MIXED'
+    const [whatsAppFilter, setWhatsAppFilter] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'INACTIVE'
 
     // Consultation Treatment Modality Tagger States
     const [activeTreatmentTag, setActiveTreatmentTag] = useState(null); // 'braces' | 'whitening' | 'cavity' | null
@@ -79,7 +81,7 @@ export default function PatientDirectory() {
         region: 'South Region',
         profileImageDataUrl: null,
         profileImageMimeType: null,
-        whatsAppOptIn: true
+        whatsAppOptIn: false
     });
     const [savingEdit, setSavingEdit] = useState(false);
 
@@ -132,15 +134,53 @@ export default function PatientDirectory() {
             region: p.region || 'South Region',
             profileImageDataUrl: p.profileImageDataUrl || (p.profileImage ? `data:${p.profileImageMimeType || 'image/jpeg'};base64,${p.profileImage}` : null),
             profileImageMimeType: p.profileImageMimeType || null,
-            whatsAppOptIn: p.whatsAppOptIn !== undefined ? p.whatsAppOptIn : true
+            whatsAppOptIn: p.whatsAppOptIn !== undefined ? Boolean(p.whatsAppOptIn) : false
         });
         setEditPatientModal({ visible: true, patient: p });
+    };
+
+    const handleTogglePatientWhatsApp = async (newVal) => {
+        if (!selectedPatient) return;
+        console.log('[PatientDirectory] Toggling WhatsApp consent for Patient ID:', selectedPatient.patientID, 'New value:', newVal);
+        try {
+            const res = await updatePatientWhatsAppOptIn(selectedPatient.patientID, newVal);
+            console.log('[PatientDirectory] updatePatientWhatsAppOptIn API response:', res);
+            
+            const nowIso = new Date().toISOString();
+            setSelectedPatient(prev => ({
+                ...prev,
+                whatsAppOptIn: newVal,
+                whatsAppOptInAt: newVal ? nowIso : prev.whatsAppOptInAt
+            }));
+            
+            setPatients(prev => prev.map(p => p.patientID === selectedPatient.patientID ? {
+                ...p,
+                whatsAppOptIn: newVal,
+                whatsAppOptInAt: newVal ? nowIso : p.whatsAppOptInAt
+            } : p));
+
+            invalidateCache('doctor_' + (doctor?.doctorID || '') + '_patients');
+            invalidateCache(`patient_${selectedPatient.patientID}`);
+
+            if (res.upcomingAppointmentQueued) {
+                const dateStr = res.queuedAppointmentDate 
+                    ? new Date(res.queuedAppointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                    : 'upcoming appointment';
+                showToast(`WhatsApp activated! Upcoming appointment reminder for ${dateStr} has been queued.`, 'success');
+            } else {
+                showToast(newVal ? 'WhatsApp activated for patient.' : 'WhatsApp deactivated for patient.', 'info');
+            }
+        } catch (err) {
+            console.error('[PatientDirectory] Error toggling WhatsApp status:', err);
+            showToast(err.message || 'Failed to update WhatsApp consent status', 'error');
+        }
     };
 
     const handleSavePatientEdit = async (e) => {
         e.preventDefault();
         if (!editPatientModal.patient) return;
         setSavingEdit(true);
+        console.log('[PatientDirectory] Saving edited patient:', editPatientModal.patient.patientID, editForm);
         try {
             const res = await apiFetch(`/api/patients/${editPatientModal.patient.patientID}`, {
                 method: 'PUT',
@@ -159,6 +199,23 @@ export default function PatientDirectory() {
                     whatsAppOptIn: editForm.whatsAppOptIn,
                     dob: editForm.dob ? new Date(editForm.dob).toISOString() : null
                 };
+
+                // If WhatsApp was just activated, trigger opt-in service to check retroactive appointment dispatch
+                if (editForm.whatsAppOptIn && !editPatientModal.patient.whatsAppOptIn) {
+                    console.log('[PatientDirectory] WhatsApp newly activated during edit. Triggering retroactive check...');
+                    updatePatientWhatsAppOptIn(updated.patientID, true)
+                        .then(waRes => {
+                            console.log('[PatientDirectory] Retroactive dispatch check completed:', waRes);
+                            if (waRes.upcomingAppointmentQueued) {
+                                const dateStr = waRes.queuedAppointmentDate 
+                                    ? new Date(waRes.queuedAppointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                                    : 'upcoming appointment';
+                                showToast(`WhatsApp activated! Upcoming appointment reminder for ${dateStr} has been queued.`, 'success');
+                            }
+                        })
+                        .catch(err => console.error('[PatientDirectory] Retroactive check error:', err));
+                }
+
                 setPatients(prev => prev.map(p => p.patientID === updated.patientID ? updated : p));
                 if (selectedPatient && selectedPatient.patientID === updated.patientID) {
                     setSelectedPatient(prev => ({ ...prev, ...updated }));
@@ -173,6 +230,7 @@ export default function PatientDirectory() {
                 showToast(errMsg || 'Failed to update patient info', 'error');
             }
         } catch (err) {
+            console.error('[PatientDirectory] Error saving patient edit:', err);
             showToast('Network error while updating patient', 'error');
         } finally {
             setSavingEdit(false);
@@ -699,9 +757,15 @@ export default function PatientDirectory() {
         return Math.abs(ageDate.getUTCFullYear() - 1970);
     };
 
-    const getFilteredPatientsByTab = useCallback((tabId, searchStr = '') => {
+    const getFilteredPatientsByTab = useCallback((tabId, searchStr = '', waFilter = whatsAppFilter) => {
         const cSearch = (searchStr || '').trim().toLowerCase();
         return patients.filter(p => {
+            // 1. WhatsApp Opt-In Filter Check
+            const isOptedIn = Boolean(p.whatsAppOptIn);
+            if (waFilter === 'ACTIVE' && !isOptedIn) return false;
+            if (waFilter === 'INACTIVE' && isOptedIn) return false;
+
+            // 2. Text Search Query Matching
             const matchesQuery = !cSearch || (
                 (p.firstName && p.firstName.toLowerCase().includes(cSearch)) || 
                 (p.lastName && p.lastName.toLowerCase().includes(cSearch)) || 
@@ -714,6 +778,7 @@ export default function PatientDirectory() {
             );
             if (!matchesQuery) return false;
 
+            // 3. Dentition Classification Matching
             const age = getAge(p.dob);
             const pType = (p.dentitionType || '').toLowerCase();
             if (tabId === 'PEDIATRIC') {
@@ -727,22 +792,27 @@ export default function PatientDirectory() {
             }
             return true;
         });
-    }, [patients]);
+    }, [patients, whatsAppFilter]);
+
+    const whatsAppActiveCount = useMemo(() => patients.filter(p => Boolean(p.whatsAppOptIn)).length, [patients]);
+    const whatsAppInactiveCount = useMemo(() => patients.filter(p => !p.whatsAppOptIn).length, [patients]);
 
     const filteredPatients = useMemo(() => {
-        return getFilteredPatientsByTab(dentitionFilter, cleanSearch);
-    }, [getFilteredPatientsByTab, dentitionFilter, cleanSearch]);
+        const result = getFilteredPatientsByTab(dentitionFilter, cleanSearch, whatsAppFilter);
+        console.log(`[PatientDirectory] Filtered ${result.length} patients (Dentition: ${dentitionFilter}, WhatsApp: ${whatsAppFilter}, Query: '${cleanSearch}')`);
+        return result;
+    }, [getFilteredPatientsByTab, dentitionFilter, cleanSearch, whatsAppFilter]);
 
-    // Automatically select the top first patient whenever dentitionFilter tab changes
+    // Automatically select the top first patient whenever dentitionFilter or whatsAppFilter tab changes
     useEffect(() => {
         if (!patients || patients.length === 0) return;
-        const topList = getFilteredPatientsByTab(dentitionFilter, cleanSearch);
+        const topList = getFilteredPatientsByTab(dentitionFilter, cleanSearch, whatsAppFilter);
         if (topList.length > 0) {
             setSelectedPatient(topList[0]);
         } else {
             setSelectedPatient(null);
         }
-    }, [dentitionFilter]);
+    }, [dentitionFilter, whatsAppFilter]);
 
     // Automatically select the top matching patient when search term changes
     useEffect(() => {
@@ -1024,6 +1094,42 @@ export default function PatientDirectory() {
                                         <span className="text-[10px] font-bold text-[#4A7CD2] bg-[#EAF0FC] px-2 py-0.5 rounded border border-light-teal">Today</span>
                                     </div>
 
+                                    {/* WhatsApp Status Filter Tabs */}
+                                    <div className="flex items-center gap-1 bg-[#F1F5F9] p-1 rounded-xl border border-slate-200/80">
+                                        {[
+                                            { id: 'ALL', label: `All Patients (${patients.length})`, icon: null },
+                                            { id: 'ACTIVE', label: `🟢 WhatsApp Active (${whatsAppActiveCount})`, icon: null },
+                                            { id: 'INACTIVE', label: `⚪ Inactive (${whatsAppInactiveCount})`, icon: null }
+                                        ].map(tab => (
+                                            <button
+                                                key={tab.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    console.log(`[PatientDirectory] WhatsApp filter set to: ${tab.id}`);
+                                                    setWhatsAppFilter(tab.id);
+                                                    setCurrentPage(1);
+                                                    const list = getFilteredPatientsByTab(dentitionFilter, cleanSearch, tab.id);
+                                                    if (list.length > 0) {
+                                                        setSelectedPatient(list[0]);
+                                                    } else {
+                                                        setSelectedPatient(null);
+                                                    }
+                                                }}
+                                                className={`flex-1 py-1 px-1 rounded-lg text-[9px] font-black transition-all cursor-pointer text-center ${
+                                                    whatsAppFilter === tab.id
+                                                        ? tab.id === 'ACTIVE'
+                                                            ? 'bg-emerald-600 text-white shadow-2xs'
+                                                            : tab.id === 'INACTIVE'
+                                                                ? 'bg-slate-700 text-white shadow-2xs'
+                                                                : 'bg-[#4A7CD2] text-white shadow-2xs'
+                                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                                                }`}
+                                            >
+                                                {tab.label}
+                                            </button>
+                                        ))}
+                                    </div>
+
                                     {/* Dentition Classification Filter Tabs */}
                                     <div className="flex items-center gap-1 bg-[#F8FAFC] p-1 rounded-xl border border-[#EAF0FC]">
                                         {[
@@ -1038,7 +1144,7 @@ export default function PatientDirectory() {
                                                 onClick={() => {
                                                     setDentitionFilter(tab.id);
                                                     setCurrentPage(1);
-                                                    const tabList = getFilteredPatientsByTab(tab.id, cleanSearch);
+                                                    const tabList = getFilteredPatientsByTab(tab.id, cleanSearch, whatsAppFilter);
                                                     if (tabList.length > 0) {
                                                         setSelectedPatient(tabList[0]);
                                                     } else {
@@ -1109,8 +1215,8 @@ export default function PatientDirectory() {
                                                                         </span>
                                                                     ) : null}
                                                                     {/* WhatsApp Active / Inactive Badge Pill */}
-                                                                    {p.phone && (
-                                                                        (p.whatsAppOptIn ?? true) ? (
+                                                                    {Boolean(p.whatsAppOptIn) ? (
+                                                                        p.phone ? (
                                                                             <span 
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation();
@@ -1126,13 +1232,21 @@ export default function PatientDirectory() {
                                                                             </span>
                                                                         ) : (
                                                                             <span 
-                                                                                className="text-[8px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 inline-flex items-center gap-1"
-                                                                                title="WhatsApp Inactive / Opted-out"
+                                                                                className="text-[8px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 inline-flex items-center gap-1"
+                                                                                title="WhatsApp Active but no phone number provided"
                                                                             >
-                                                                                <MessageCircleOff className="w-2.5 h-2.5 text-slate-400" />
-                                                                                <span>WhatsApp Inactive</span>
+                                                                                <MessageCircle className="w-2.5 h-2.5 text-amber-600" />
+                                                                                <span>Active (No Phone)</span>
                                                                             </span>
                                                                         )
+                                                                    ) : (
+                                                                        <span 
+                                                                            className="text-[8px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 inline-flex items-center gap-1"
+                                                                            title="WhatsApp Inactive / Not Opted-in"
+                                                                        >
+                                                                            <MessageCircleOff className="w-2.5 h-2.5 text-slate-400" />
+                                                                            <span>WhatsApp Inactive</span>
+                                                                        </span>
                                                                     )}
                                                                 </h5>
                                                                 <span className="text-[10px] text-muted-text font-black uppercase tracking-wider">Patient ID: #{p.patientID}</span>
@@ -1237,18 +1351,23 @@ export default function PatientDirectory() {
                                                        <div>
                                                            <h5 className="text-sm font-black text-[#10244B] flex items-center gap-2">
                                                                <span>{selectedPatient.firstName} {selectedPatient.lastName}</span>
-                                                               {selectedPatient.phone && (
-                                                                   (selectedPatient.whatsAppOptIn ?? true) ? (
+                                                               {Boolean(selectedPatient.whatsAppOptIn) ? (
+                                                                   selectedPatient.phone ? (
                                                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1 shadow-2xs">
                                                                            <MessageCircle className="w-2.5 h-2.5 text-emerald-600" />
                                                                            <span>WhatsApp Active</span>
                                                                        </span>
                                                                    ) : (
-                                                                       <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200 inline-flex items-center gap-1">
-                                                                           <MessageCircleOff className="w-2.5 h-2.5 text-slate-400" />
-                                                                           <span>WhatsApp Inactive</span>
+                                                                       <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 inline-flex items-center gap-1">
+                                                                           <MessageCircle className="w-2.5 h-2.5 text-amber-600" />
+                                                                           <span>Active (No Phone)</span>
                                                                        </span>
                                                                    )
+                                                               ) : (
+                                                                   <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200 inline-flex items-center gap-1">
+                                                                       <MessageCircleOff className="w-2.5 h-2.5 text-slate-400" />
+                                                                       <span>WhatsApp Inactive</span>
+                                                                   </span>
                                                                )}
                                                            </h5>
                                                            <span className="text-[10px] text-muted-text font-black uppercase tracking-wider">Age: {getAge(selectedPatient.dob)} • {selectedPatient.gender || 'Male'} • {selectedPatient.phone || 'No Phone'}</span>
@@ -1264,7 +1383,7 @@ export default function PatientDirectory() {
                                                                    window.open(`https://wa.me/${num}`, '_blank');
                                                                }}
                                                                className={`p-2 rounded-xl border transition cursor-pointer shadow-2xs flex items-center gap-1 text-[11px] font-bold ${
-                                                                   (selectedPatient.whatsAppOptIn ?? true)
+                                                                   Boolean(selectedPatient.whatsAppOptIn)
                                                                        ? 'bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border-emerald-200'
                                                                        : 'bg-slate-50 hover:bg-slate-200 text-slate-600 border-slate-200'
                                                                }`}
@@ -1812,6 +1931,99 @@ export default function PatientDirectory() {
                                                      <span className="font-extrabold text-muted-text uppercase tracking-wider">Email:</span>
                                                      <span className="font-black text-dark-slate">{selectedPatient.email || 'N/A'}</span>
                                                  </div>
+
+                                             {/* 📱 WhatsApp Status & Opt-In Dispatch Audit Card */}
+                                             <div className={`p-3 rounded-2xl border transition-all ${
+                                                 Boolean(selectedPatient.whatsAppOptIn)
+                                                     ? 'bg-gradient-to-br from-emerald-50/70 to-teal-50/50 border-emerald-200/80 shadow-xs'
+                                                     : 'bg-slate-50/90 border-slate-200 shadow-2xs'
+                                             }`}>
+                                                 <div className="flex items-center justify-between mb-2">
+                                                     <div className="flex items-center gap-1.5">
+                                                         <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${
+                                                             Boolean(selectedPatient.whatsAppOptIn) ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-600'
+                                                         }`}>
+                                                             <MessageCircle className="w-3.5 h-3.5" />
+                                                         </div>
+                                                         <div>
+                                                             <span className="text-[11px] font-black text-dark-slate block leading-tight">WhatsApp Dispatch</span>
+                                                             <span className="text-[9px] font-bold text-muted-text">Automated Reminders & Confirmations</span>
+                                                         </div>
+                                                     </div>
+                                                     {Boolean(selectedPatient.whatsAppOptIn) ? (
+                                                         <span className="text-[9px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1">
+                                                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                             Active
+                                                         </span>
+                                                     ) : (
+                                                         <span className="text-[9px] font-bold text-slate-500 bg-slate-200/70 px-2 py-0.5 rounded-full border border-slate-300">
+                                                             Disabled
+                                                         </span>
+                                                     )}
+                                                 </div>
+
+                                                 <div className="space-y-1.5 text-[10px]">
+                                                     <div className="flex justify-between items-center text-slate-600">
+                                                         <span className="font-bold">Phone Number:</span>
+                                                         <span className="font-extrabold text-slate-900 font-mono">
+                                                             {selectedPatient.phone || <span className="text-rose-500 font-bold">No Phone Recorded</span>}
+                                                         </span>
+                                                     </div>
+                                                     {selectedPatient.whatsAppOptInAt && (
+                                                         <div className="flex justify-between items-center text-slate-600">
+                                                             <span className="font-bold">Consent Logged:</span>
+                                                             <span className="font-extrabold text-slate-900">
+                                                                 {new Date(selectedPatient.whatsAppOptInAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                             </span>
+                                                         </div>
+                                                     )}
+                                                 </div>
+
+                                                 <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center gap-2">
+                                                     {Boolean(selectedPatient.whatsAppOptIn) ? (
+                                                         <>
+                                                             {selectedPatient.phone && (
+                                                                 <button
+                                                                     type="button"
+                                                                     onClick={() => {
+                                                                         const clean = (selectedPatient.phone || '').replace(/[^\d]/g, '');
+                                                                         const num = clean.startsWith('0') ? '92' + clean.slice(1) : clean.startsWith('3') ? '92' + clean : clean;
+                                                                         window.open(`https://wa.me/${num}`, "_blank");
+                                                                     }}
+                                                                     className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 rounded-xl text-[10px] font-extrabold flex items-center justify-center gap-1 shadow-xs transition cursor-pointer"
+                                                                 >
+                                                                     <MessageCircle className="w-3 h-3" />
+                                                                     Chat on WhatsApp
+                                                                 </button>
+                                                             )}
+                                                             <button
+                                                                 type="button"
+                                                                 onClick={() => handleTogglePatientWhatsApp(false)}
+                                                                 className="bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 py-1.5 px-2.5 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 transition cursor-pointer"
+                                                                 title="Opt-out patient from WhatsApp notifications"
+                                                             >
+                                                                 <MessageCircleOff className="w-3 h-3 text-rose-500" />
+                                                                 Deactivate
+                                                             </button>
+                                                         </>
+                                                     ) : (
+                                                         <button
+                                                             type="button"
+                                                             onClick={() => handleTogglePatientWhatsApp(true)}
+                                                             className="w-full bg-[#4A7CD2] hover:bg-[#3b67b3] text-white py-1.5 rounded-xl text-[10px] font-extrabold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
+                                                             title="Opt-in patient to WhatsApp notifications and trigger retroactive reminder for upcoming appointments"
+                                                         >
+                                                             <MessageCircle className="w-3 h-3" />
+                                                             Activate WhatsApp Notifications
+                                                         </button>
+                                                     )}
+                                                 </div>
+                                                 {!Boolean(selectedPatient.whatsAppOptIn) && (
+                                                     <p className="text-[9px] text-slate-500 mt-1.5 leading-snug">
+                                                         💡 Activating will automatically scan and queue reminders for any upcoming appointments.
+                                                     </p>
+                                                 )}
+                                             </div>
                                                  <div className="flex justify-between items-center">
                                                      <span className="font-extrabold text-muted-text uppercase tracking-wider">Address:</span>
                                                      <span className="font-black text-dark-slate text-right">{selectedPatient.address || 'N/A'}</span>

@@ -5,13 +5,14 @@ import {
     ListFilter, ChevronLeft, ChevronRight, ChevronDown, Download, Plus, 
     ExternalLink, CalendarDays, Eye, RefreshCw, Check, X, ShieldAlert,
     Share2, CalendarCheck, Stethoscope, ArrowRight, UserCheck, 
-    FileText, Activity, MapPin, Volume2, VolumeX, Printer, MessageCircle
+    FileText, Activity, MapPin, Volume2, VolumeX, Printer, MessageCircle, MessageCircleOff
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import jsPDF from 'jspdf';
 import aiVoice from '../utils/aiVoiceAssistant';
 import apiFetch from '../utils/apiClient';
+import { resendAppointmentWhatsApp } from '../services/whatsappService';
 
 // Helper: Download .ics calendar event file for Apple / Google / Outlook / Notion Calendar
 export const downloadIcsFile = (appointment, clinicName = "DENTIA Dental Care") => {
@@ -318,6 +319,7 @@ export default function AppointmentsList() {
 
     // Status update modal state
     const [updateModal, setUpdateModal] = useState({ visible: false, appointment: null, newStatus: '', newReason: '', newNotes: '' });
+    const [resendingWhatsApp, setResendingWhatsApp] = useState(false);
     
     // Quick New Appointment Modal
     const [showNewModal, setShowNewModal] = useState(false);
@@ -852,6 +854,108 @@ export default function AppointmentsList() {
         }
     };
 
+    const handleResendWhatsApp = async (appt) => {
+        if (!appt) return;
+        const apptId = appt.appointmentID || appt.id;
+        console.log(`[AppointmentsList] Clinician triggered manual resend for appointment #${apptId}`);
+        setResendingWhatsApp(true);
+        try {
+            const res = await resendAppointmentWhatsApp(apptId);
+            console.log(`[AppointmentsList] Manual resend API response:`, res);
+            setToastMessage(`WhatsApp confirmation for ${appt.fullName} queued successfully!`);
+            setAppointments(prev => prev.map(a => a.appointmentID === apptId ? {
+                ...a,
+                whatsAppStatus: 'QUEUED',
+                WhatsAppStatus: 'QUEUED'
+            } : a));
+            if (selectedAppointment && (selectedAppointment.appointmentID === apptId || selectedAppointment.id === apptId)) {
+                setSelectedAppointment(prev => ({
+                    ...prev,
+                    whatsAppStatus: 'QUEUED',
+                    WhatsAppStatus: 'QUEUED'
+                }));
+            }
+        } catch (err) {
+            console.error(`[AppointmentsList] Error resending WhatsApp:`, err);
+            setToastMessage(err.message || 'Could not queue WhatsApp reminder.');
+        } finally {
+            setResendingWhatsApp(false);
+        }
+    };
+
+    const getWhatsAppDeliveryBadge = (apt) => {
+        if (!apt) return null;
+        const status = (apt.whatsAppStatus || apt.WhatsAppStatus || '').toUpperCase();
+        const optIn = apt.whatsAppOptIn ?? apt.WhatsAppOptIn;
+        const phone = apt.phone || apt.Phone;
+
+        if (!phone) {
+            return (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200" title="No phone number recorded">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                    <span>No Phone</span>
+                </span>
+            );
+        }
+
+        if (optIn === false) {
+            return (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200" title="Patient opted out / WhatsApp disabled">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                    <span>Skipped (Inactive)</span>
+                </span>
+            );
+        }
+
+        switch (status) {
+            case 'SENT':
+            case 'DELIVERED':
+            case 'READ':
+                return (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs" title={`WhatsApp delivered: ${status}`}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>WhatsApp Sent 🟢</span>
+                    </span>
+                );
+            case 'QUEUED':
+                return (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs" title="Reminder queued for dispatch">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                        <span>Queued ⏳</span>
+                    </span>
+                );
+            case 'FAILED':
+                return (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs" title="WhatsApp dispatch failed">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                        <span>Failed 🔴</span>
+                    </span>
+                );
+            case 'SKIPPED':
+                return (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200" title="Skipped">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                        <span>Skipped ⚪</span>
+                    </span>
+                );
+            default:
+                if (optIn) {
+                    return (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200" title="WhatsApp Active for Patient">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                            <span>WhatsApp Ready 🟢</span>
+                        </span>
+                    );
+                }
+                return (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                        <span>WhatsApp Inactive ⚪</span>
+                    </span>
+                );
+        }
+    };
+
     return (
         <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans pb-24 relative overflow-x-hidden selection:bg-[#4A7CD2]/20 selection:text-[#4A7CD2]">
             
@@ -1342,7 +1446,10 @@ export default function AppointmentsList() {
                                                                 </span>
                                                             </div>
                                                         </div>
-                                                        {getStatusBadge(apt.status)}
+                                                        <div className="flex flex-col items-end gap-1">
+                                                            {getStatusBadge(apt.status)}
+                                                            {getWhatsAppDeliveryBadge(apt)}
+                                                        </div>
                                                     </div>
 
                                                     {apt.reason && (
@@ -1532,10 +1639,7 @@ export default function AppointmentsList() {
 
                                                         <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-[11px]">
                                                             <span className="text-slate-500 font-medium truncate max-w-[130px]">{apt.phone || apt.email || 'No phone'}</span>
-                                                            
-                                                            <div className="flex items-center gap-1 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                                                                <span>Drag to move</span>
-                                                            </div>
+                                                            {getWhatsAppDeliveryBadge(apt)}
                                                         </div>
                                                     </div>
                                                 );
@@ -1687,7 +1791,10 @@ export default function AppointmentsList() {
                                                     )}
                                                 </td>
                                                 <td className="py-4 px-6">
-                                                    {getStatusBadge(apt.status)}
+                                                    <div className="flex flex-col gap-1 items-start">
+                                                        {getStatusBadge(apt.status)}
+                                                        {getWhatsAppDeliveryBadge(apt)}
+                                                    </div>
                                                 </td>
                                                 <td className="py-4 px-6 text-right">
                                                     <div className="flex items-center justify-end gap-2">
@@ -1761,9 +1868,10 @@ export default function AppointmentsList() {
                                     lookupResults.map(apt => (
                                         <div key={apt.appointmentID} className="p-5 bg-slate-50/80 rounded-2xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                             <div className="space-y-1">
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-2 flex-wrap">
                                                     <span className="font-bold text-slate-900 text-sm">{apt.fullName}</span>
                                                     {getStatusBadge(apt.status)}
+                                                    {getWhatsAppDeliveryBadge(apt)}
                                                 </div>
                                                 <div className="text-xs text-[#4A7CD2] font-bold flex items-center gap-1.5">
                                                     <Clock className="w-3.5 h-3.5" />
@@ -1933,6 +2041,101 @@ export default function AppointmentsList() {
                                         <span>Method: <strong className="text-slate-700">{selectedAppointment.paymentMethod}</strong></span>
                                     )}
                                 </div>
+                            )}
+                        </div>
+
+                        {/* 📱 WhatsApp Notification & Delivery Status Card */}
+                        <div className={`p-4 rounded-2xl border transition-all ${
+                            (selectedAppointment.whatsAppOptIn ?? selectedAppointment.WhatsAppOptIn)
+                                ? 'bg-gradient-to-br from-emerald-50/70 to-teal-50/50 border-emerald-200/80 shadow-xs'
+                                : 'bg-slate-50 border-slate-200'
+                        }`}>
+                            <div className="flex items-center justify-between mb-2.5">
+                                <div className="flex items-center gap-2">
+                                    <div className={`w-7 h-7 rounded-xl flex items-center justify-center ${
+                                        (selectedAppointment.whatsAppOptIn ?? selectedAppointment.WhatsAppOptIn)
+                                            ? 'bg-emerald-600 text-white'
+                                            : 'bg-slate-300 text-slate-600'
+                                    }`}>
+                                        <MessageCircle className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <h5 className="text-xs font-black text-slate-900 leading-tight">WhatsApp Notification</h5>
+                                        <span className="text-[10px] font-bold text-slate-500">Automated Patient Messaging</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    {getWhatsAppDeliveryBadge(selectedAppointment)}
+                                </div>
+                            </div>
+
+                            <div className="space-y-1.5 text-xs text-slate-600 pt-1">
+                                <div className="flex justify-between items-center">
+                                    <span className="font-medium">Patient Recipient:</span>
+                                    <span className="font-bold font-mono text-slate-800">
+                                        {selectedAppointment.phone || <span className="text-rose-500 font-bold">No Phone Recorded</span>}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="font-medium">Opt-In Consent:</span>
+                                    <span className="font-bold">
+                                        {(selectedAppointment.whatsAppOptIn ?? selectedAppointment.WhatsAppOptIn) ? (
+                                            <span className="text-emerald-700 font-extrabold">Active (Allowed)</span>
+                                        ) : (
+                                            <span className="text-slate-500 font-bold">Inactive / Opted-out</span>
+                                        )}
+                                    </span>
+                                </div>
+                                {(selectedAppointment.whatsAppSentAt || selectedAppointment.WhatsAppSentAt) && (
+                                    <div className="flex justify-between items-center">
+                                        <span className="font-medium">Last Dispatched:</span>
+                                        <span className="font-bold text-slate-700">
+                                            {new Date(selectedAppointment.whatsAppSentAt || selectedAppointment.WhatsAppSentAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="mt-3 pt-2.5 border-t border-slate-200/70 flex items-center gap-2">
+                                {selectedAppointment.phone && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const clean = (selectedAppointment.phone || '').replace(/[^\d]/g, '');
+                                            const num = clean.startsWith('0') ? '92' + clean.slice(1) : clean.startsWith('3') ? '92' + clean : clean;
+                                            window.open(`https://wa.me/${num}`, '_blank');
+                                        }}
+                                        className="flex-1 py-2 px-3 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                                        title="Open direct WhatsApp Web chat with patient"
+                                    >
+                                        <MessageCircle className="w-3.5 h-3.5" />
+                                        <span>Chat on WhatsApp</span>
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    disabled={resendingWhatsApp || !selectedAppointment.phone || !(selectedAppointment.whatsAppOptIn ?? selectedAppointment.WhatsAppOptIn)}
+                                    onClick={() => handleResendWhatsApp(selectedAppointment)}
+                                    className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                                    title="Manually re-trigger WhatsApp appointment confirmation message"
+                                >
+                                    {resendingWhatsApp ? (
+                                        <>
+                                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                            <span>Queuing...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <MessageCircle className="w-3.5 h-3.5" />
+                                            <span>Resend Confirmation</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                            {!(selectedAppointment.whatsAppOptIn ?? selectedAppointment.WhatsAppOptIn) && (
+                                <p className="text-[10px] text-amber-700 bg-amber-50/80 p-2 rounded-lg border border-amber-200 mt-2">
+                                    ⚠️ Patient has WhatsApp notifications disabled. Enable WhatsApp consent in their Patient Directory profile to send reminders.
+                                </p>
                             )}
                         </div>
 

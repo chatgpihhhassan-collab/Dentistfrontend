@@ -78,3 +78,18 @@ export async function getPatientWhatsAppStatus(patientId) {
     }
     return await response.json();
 }
+
+export async function resendAppointmentWhatsApp(appointmentId) {
+    console.log(`[whatsappService] Dispatching manual WhatsApp resend for appointment #${appointmentId}`);
+    const response = await apiFetch(`/api/whatsapp/appointments/${appointmentId}/resend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(data.message || 'Failed to resend WhatsApp confirmation');
+    }
+    console.log(`[whatsappService] Manual resend successful for appointment #${appointmentId}:`, data);
+    return data;
+}
+

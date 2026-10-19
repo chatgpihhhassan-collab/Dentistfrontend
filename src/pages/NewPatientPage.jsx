@@ -38,7 +38,7 @@ export default function NewPatientPage() {
         medicalNotes: '',
         profileImageDataUrl: null,
         profileImageMimeType: null,
-        whatsAppOptIn: true
+        whatsAppOptIn: false
     });
 
     const calculateAge = (dobString) => {
@@ -278,7 +278,12 @@ export default function NewPatientPage() {
                 if (!val || val === '') return 'Please select patient gender.';
                 return '';
             case 'phone':
-                if (!val) return ''; // Optional
+                if (!val || !val.trim()) {
+                    if (newPatient.whatsAppOptIn) {
+                        return 'WhatsApp is active! Mobile phone number is required to send notifications.';
+                    }
+                    return ''; // Optional if WhatsApp is inactive
+                }
                 const phoneCheck = normalizePakistaniPhone(val);
                 if (!phoneCheck.isValid) return phoneCheck.error;
                 return '';
@@ -298,10 +303,21 @@ export default function NewPatientPage() {
     };
 
     const validateAll = () => {
+        console.log('[NewPatientPage] Running full form validation. State:', {
+            firstName: newPatient.firstName,
+            lastName: newPatient.lastName,
+            dob: newPatient.dob,
+            gender: newPatient.gender,
+            phone: newPatient.phone,
+            whatsAppOptIn: newPatient.whatsAppOptIn
+        });
         const newErrors = {};
-        // Section 1: Only Essential Intake fields are mandatory
+        // Section 1: Essential Intake fields
         const fieldsToValidate = ['firstName', 'lastName', 'dob', 'gender'];
-        if (newPatient.phone && newPatient.phone.trim()) fieldsToValidate.push('phone');
+        // Phone is strictly mandatory when WhatsApp is enabled, or if clinician typed any digits
+        if (newPatient.whatsAppOptIn || (newPatient.phone && newPatient.phone.trim())) {
+            fieldsToValidate.push('phone');
+        }
         if (newPatient.email && newPatient.email.trim()) fieldsToValidate.push('email');
         if (newPatient.nhiNumber && newPatient.nhiNumber.trim()) fieldsToValidate.push('nhiNumber');
 
@@ -310,6 +326,7 @@ export default function NewPatientPage() {
             if (err) newErrors[field] = err;
         });
 
+        console.log('[NewPatientPage] Validation complete. Errors found:', Object.keys(newErrors));
         return newErrors;
     };
 
@@ -634,6 +651,25 @@ export default function NewPatientPage() {
                 syncedMap.medicalNotes = true; 
             }
 
+            // Detect Doctor's Spoken or Typed WhatsApp Opt-in / Opt-out Intent
+            if (/\b(enable|activate|turn on|with|yes|active)\s*(whats\s*app|wa)\b|\bwhats\s*app\s*(active|enabled|on|yes)\b/i.test(cleanText)) {
+                console.log('[AI Intake] Spoken/typed command detected: ENABLE WhatsApp');
+                updated.whatsAppOptIn = true;
+                syncedMap.whatsAppOptIn = true;
+                setIsExtendedOpen(true);
+            } else if (/\b(disable|deactivate|turn off|without|no|off)\s*(whats\s*app|wa)\b|\bwhats\s*app\s*(inactive|disabled|off|no)\b/i.test(cleanText)) {
+                console.log('[AI Intake] Spoken/typed command detected: DISABLE WhatsApp');
+                updated.whatsAppOptIn = false;
+                syncedMap.whatsAppOptIn = true;
+            }
+
+            if (data.whatsAppOptIn !== undefined && data.whatsAppOptIn !== null) {
+                console.log('[AI Intake] Backend parsed whatsAppOptIn:', data.whatsAppOptIn);
+                updated.whatsAppOptIn = Boolean(data.whatsAppOptIn);
+                syncedMap.whatsAppOptIn = true;
+                if (updated.whatsAppOptIn) setIsExtendedOpen(true);
+            }
+
             setNewPatient(updated);
             setRecentlySyncedField(syncedMap);
             // Determine next conversational step / response
@@ -664,6 +700,9 @@ export default function NewPatientPage() {
             } else if (!updated.gender) {
                 aiReplyText = `Understood! What is the patient's **gender** (Male / Female / Other)?`;
                 nextSuggestions = ["Male", "Female", "Other"];
+            } else if (updated.whatsAppOptIn && (!updated.phone || !updated.phone.trim())) {
+                aiReplyText = `I've enabled WhatsApp messaging for **${updated.firstName || 'the patient'}**! 📱 Please provide the patient's **mobile phone number** (e.g. 0300 1234567) so we can dispatch their appointment reminders.`;
+                nextSuggestions = [updated.region === 'PK' ? "0300 1234567" : "021 555 1234"];
             } else if (!updated.phone && !updated.city) {
                 aiReplyText = `Great! What is the patient's **phone number** and **city / address**?`;
                 nextSuggestions = ["0321 4455667, F-8 Islamabad", "0300 1234567, Lahore", "021 555 1234, Auckland NZ"];
@@ -714,12 +753,19 @@ export default function NewPatientPage() {
         // 1. Run Complete Form Validation
         const validationErrors = validateAll();
         if (Object.keys(validationErrors).length > 0) {
+            console.warn('[NewPatientPage] Submission blocked by validation errors:', validationErrors);
             setErrors(validationErrors);
             const allTouched = { firstName: true, lastName: true, dob: true, gender: true };
-            if (newPatient.phone) allTouched.phone = true;
+            if (newPatient.whatsAppOptIn || newPatient.phone) allTouched.phone = true;
             if (newPatient.email) allTouched.email = true;
             if (newPatient.nhiNumber) allTouched.nhiNumber = true;
             setTouched(allTouched);
+
+            // Auto-expand contact info section if phone has an error
+            if (validationErrors.phone) {
+                console.log('[NewPatientPage] Auto-expanding Section 2 due to phone error');
+                setIsExtendedOpen(true);
+            }
 
             const fieldKeys = ['firstName', 'lastName', 'dob', 'gender', 'phone', 'nhiNumber', 'email'];
             const firstFailedKey = fieldKeys.find(k => validationErrors[k]);
@@ -776,16 +822,19 @@ export default function NewPatientPage() {
                 nhiNumber: formattedCnic,
                 address: fullAddress, 
                 doctorID: docId,
+                whatsAppOptIn: Boolean(newPatient.whatsAppOptIn),
                 email: newPatient.email || `${newPatient.firstName.toLowerCase()}.${newPatient.lastName.toLowerCase()}@dentiaclinic.com`,
                 profileImageDataUrl: newPatient.profileImageDataUrl,
                 profileImageMimeType: newPatient.profileImageMimeType,
                 currentTreatmentPlan: newPatient.currentTreatmentPlan || 'General Consultation'
             };
+            console.log('[NewPatientPage] Dispatching POST /api/patients payload:', { ...payload, profileImageDataUrl: payload.profileImageDataUrl ? '[ATTACHED]' : null });
             const res = await apiFetch('/api/patients', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
+            console.log('[NewPatientPage] POST /api/patients response status:', res.status);
             if (res.ok) {
                 const created = await res.json();
 
@@ -1412,12 +1461,23 @@ export default function NewPatientPage() {
                                         : 'max-h-0 opacity-0 p-0 pointer-events-none'
                                 }`}
                             >
-                                {/* Phone Number (Optional) */}
+                                {/* Phone Number (Conditional Requirement) */}
                                 <div>
                                     <div className="flex justify-between items-center mb-0.5 ml-1">
                                         <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider flex items-center gap-1.5">
-                                            <Phone className="w-3 h-3 text-slate-400" /> Phone Number <span className="text-[9.5px] text-slate-400 font-normal lowercase">(optional)</span>
+                                            <Phone className="w-3 h-3 text-slate-400" /> 
+                                            <span>Phone Number</span>
+                                            {newPatient.whatsAppOptIn ? (
+                                                <span className="text-red-500 font-black text-xs" title="Mandatory for WhatsApp Notifications">*</span>
+                                            ) : (
+                                                <span className="text-[9.5px] text-slate-400 font-normal lowercase">(optional)</span>
+                                            )}
                                         </label>
+                                        {newPatient.whatsAppOptIn && (
+                                            <span className="text-[8.5px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                                Required for WhatsApp
+                                            </span>
+                                        )}
                                         {recentlySyncedField.phone && (
                                             <span className="text-[8.5px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-0.5 animate-pulse">
                                                 <Check className="w-2.5 h-2.5" /> Synced
@@ -1430,6 +1490,7 @@ export default function NewPatientPage() {
                                         value={newPatient.phone} 
                                         onBlur={() => handleFieldBlur('phone')}
                                         onChange={e => {
+                                            console.log('[NewPatientPage] Phone input updated:', e.target.value);
                                             setNewPatient({...newPatient, phone: e.target.value});
                                             if (errors.phone) setErrors(prev => ({ ...prev, phone: '' }));
                                         }} 
@@ -1438,9 +1499,13 @@ export default function NewPatientPage() {
                                                 ? 'bg-red-50/50 border-red-500 focus:ring-red-400/30 text-red-900 ring-2 ring-red-400/20'
                                                 : recentlySyncedField.phone 
                                                 ? 'bg-emerald-50/70 border-emerald-400 ring-2 ring-emerald-400/20' 
+                                                : newPatient.whatsAppOptIn && !newPatient.phone
+                                                ? 'bg-amber-50/40 border-amber-300 focus:border-amber-500 focus:ring-amber-400/25'
                                                 : 'bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2] focus:ring-[#4A7CD2]/25'
                                         }`} 
-                                        placeholder={newPatient.region === 'PK' ? "e.g. 0321 4455667 (Optional)" : "e.g. 021 123 4567 (Optional)"} 
+                                        placeholder={newPatient.whatsAppOptIn
+                                            ? (newPatient.region === 'PK' ? "e.g. 0321 4455667 (Required for WhatsApp)" : "e.g. 021 123 4567 (Required for WhatsApp)")
+                                            : (newPatient.region === 'PK' ? "e.g. 0321 4455667 (Optional)" : "e.g. 021 123 4567 (Optional)")} 
                                     />
                                     {errors.phone && touched.phone && (
                                         <p className="text-[10px] font-bold text-red-600 flex items-center gap-1 mt-1 animate-fade-in">
@@ -1452,8 +1517,30 @@ export default function NewPatientPage() {
                                     {/* WhatsApp Consent Toggle */}
                                     <div className="mt-2.5">
                                         <WhatsAppOptInToggle 
-                                            checked={newPatient.whatsAppOptIn ?? true}
-                                            onChange={(checked) => setNewPatient(prev => ({ ...prev, whatsAppOptIn: checked }))}
+                                            checked={Boolean(newPatient.whatsAppOptIn)}
+                                            onChange={(checked) => {
+                                                console.log('[NewPatientPage] Doctor toggled WhatsApp consent to:', checked);
+                                                setNewPatient(prev => ({ ...prev, whatsAppOptIn: checked }));
+                                                if (checked) {
+                                                    setIsExtendedOpen(true);
+                                                    if (!newPatient.phone || !newPatient.phone.trim()) {
+                                                        setTouched(prev => ({ ...prev, phone: true }));
+                                                        setErrors(prev => ({ ...prev, phone: 'WhatsApp is active! Mobile phone number is required to send notifications.' }));
+                                                        setTimeout(() => {
+                                                            const phoneEl = document.querySelector('input[name="phone"]');
+                                                            if (phoneEl) phoneEl.focus();
+                                                        }, 100);
+                                                    }
+                                                } else {
+                                                    if (!newPatient.phone) {
+                                                        setErrors(prev => {
+                                                            const copy = { ...prev };
+                                                            delete copy.phone;
+                                                            return copy;
+                                                        });
+                                                    }
+                                                }
+                                            }}
                                             phone={newPatient.phone}
                                         />
                                     </div>
