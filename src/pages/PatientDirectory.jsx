@@ -369,10 +369,14 @@ export default function PatientDirectory() {
     };
 
     useEffect(() => {
-        // Speculatively preload jaw arch templates in background during idle moments
+        // Speculatively preload jaw arch templates only during long idle moments (15s) off the critical render path
         const preloadTimer = setTimeout(() => {
-            preloadJawImages();
-        }, 1200);
+            if ('requestIdleCallback' in window) {
+                window.requestIdleCallback(() => {
+                    preloadJawImages({ urls: ['/empty_maxilla_jaw.webp', '/empty_mandible_jaw.webp'] });
+                });
+            }
+        }, 15000);
 
         return () => {
             clearTimeout(preloadTimer);
@@ -655,37 +659,57 @@ export default function PatientDirectory() {
         setDoctor(docInfo);
 
         let isCancelled = false;
-        setIsPageLoading(true);
-        setLoadProgress(20);
-        setLoadStatusMessage('Doctor authenticated. Requesting patient directory...');
 
-        // Timeout guard: If network takes > 7s on slow connection, provide status & bypass
+        // 🌟 INSTANT SWR RENDER: Check sessionStorage cache immediately (0ms instant display)
+        let hasCachedData = false;
+        try {
+            const cachedStr = sessionStorage.getItem('clinic_patients_cache');
+            if (cachedStr) {
+                const cachedPatients = JSON.parse(cachedStr);
+                if (Array.isArray(cachedPatients) && cachedPatients.length > 0) {
+                    hasCachedData = true;
+                    setPatients(cachedPatients);
+                    setSelectedPatient(prev => prev || cachedPatients[0]);
+                    setIsPageLoading(false); // Instant render without waiting for network!
+                    setLoadProgress(100);
+                }
+            }
+        } catch (e) {}
+
+        if (!hasCachedData) {
+            setIsPageLoading(true);
+            setLoadProgress(25);
+            setLoadStatusMessage('Doctor authenticated. Requesting patient directory...');
+        }
+
+        // Timeout guard: If network takes > 3.5s, unblock screen immediately so clinician is never trapped
         const slowTimer = setTimeout(() => {
-            if (!isCancelled) setIsSlowConnection(true);
-        }, 7000);
+            if (!isCancelled) {
+                setIsSlowConnection(true);
+                setIsPageLoading(false);
+            }
+        }, 3500);
 
         const fetchPatients = apiFetch(`/api/patients/doctor/${docInfo.doctorID}`)
             .then(res => res.ok ? res.json() : [])
             .then((data) => {
                 if (isCancelled) return [];
-                setPatients(data || []);
-                if (data && data.length > 0) {
+                const patientList = Array.isArray(data) ? data : [];
+                setPatients(patientList);
+                if (patientList.length > 0) {
                     try {
-                        sessionStorage.setItem('clinic_patients_cache', JSON.stringify(data));
-                        localStorage.removeItem('clinic_patients_cache');
+                        sessionStorage.setItem('clinic_patients_cache', JSON.stringify(patientList));
                     } catch (e) {}
-                    setSelectedPatient(prev => prev || data[0]);
-                    // Speculatively prefetch top patient chart & prescriptions for instant click-through
-                    const topP = data[0];
-                    prefetchApi(`patient_${topP.patientID}`, () => apiFetch(`/api/patients/${topP.patientID}`).then(r => r.json()));
-                    prefetchApi(`patient_${topP.patientID}_chart`, () => apiFetch(`/api/patients/${topP.patientID}/chart`).then(r => r.json()));
-                    prefetchApi(`patient_${topP.patientID}_prescriptions`, () => apiFetch(`/api/patients/${topP.patientID}/prescriptions`).then(r => r.json()));
+                    setSelectedPatient(prev => prev || patientList[0]);
                 }
-                setLoadProgress(prev => Math.max(prev, 60));
+                setLoadProgress(prev => Math.max(prev, 70));
                 setLoadStatusMessage('Patient profiles loaded. Retrieving clinic schedule...');
-                return data;
+                // Instant dismissal of full-screen loader as soon as patient list arrives!
+                setIsPageLoading(false);
+                return patientList;
             }).catch(err => {
                 console.error("Patients load error:", err);
+                setIsPageLoading(false);
                 return [];
             });
 
@@ -693,10 +717,10 @@ export default function PatientDirectory() {
             .then(res => res.ok ? res.json() : [])
             .then((data) => {
                 if (isCancelled) return [];
-                setAppointments(data || []);
-                setLoadProgress(prev => Math.max(prev, 85));
-                setLoadStatusMessage('Appointments synchronized. Finalizing clinic database...');
-                return data;
+                const apptList = Array.isArray(data) ? data : [];
+                setAppointments(apptList);
+                setLoadProgress(prev => Math.max(prev, 90));
+                return apptList;
             }).catch(err => {
                 console.error("Appointments load error:", err);
                 return [];
@@ -707,16 +731,11 @@ export default function PatientDirectory() {
             clearTimeout(slowTimer);
             setLoadProgress(100);
             setLoadStatusMessage('✓ Clinic Records 100% Ready — All Systems Synchronized');
-            
-            const isInstant = pRes?.status === 'fulfilled' && aRes?.status === 'fulfilled';
+            setIsPageLoading(false);
+            setIsReadyBadgeVisible(true);
             setTimeout(() => {
-                if (isCancelled) return;
-                setIsPageLoading(false);
-                setIsReadyBadgeVisible(true);
-                setTimeout(() => {
-                    if (!isCancelled) setIsReadyBadgeVisible(false);
-                }, 2800);
-            }, isInstant ? 150 : 350);
+                if (!isCancelled) setIsReadyBadgeVisible(false);
+            }, 2200);
         });
 
         return () => {

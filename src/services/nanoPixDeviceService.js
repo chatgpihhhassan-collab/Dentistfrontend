@@ -88,10 +88,22 @@ class NanoPixDeviceService {
 
     const pollBridge = async () => {
       if (isPolling) return;
+
+      // 🛑 ROUTE GUARD: Only poll local USB hardware bridge on active patient chart or radiology studio
+      if (typeof window !== 'undefined') {
+        const path = window.location.pathname || '';
+        const isCaptureContext = path.startsWith('/chart') || path.includes('/radiology');
+        if (!isCaptureContext) {
+          // On directory, admin, or portal pages, back off cleanly without firing requests
+          setTimeout(pollBridge, 25000);
+          return;
+        }
+      }
+
       isPolling = true;
       try {
         const res = await fetch(`${baseUrl}/nanopix/latest-scan?consume=true`, {
-          signal: AbortSignal.timeout(1500)
+          signal: AbortSignal.timeout(1200)
         }).catch(() => null);
 
         if (res && res.ok) {
@@ -108,7 +120,7 @@ class NanoPixDeviceService {
 
           // Also fetch live USB telemetry when bridge is active
           const tRes = await fetch(`${baseUrl}/nanopix/telemetry`, {
-            signal: AbortSignal.timeout(1500)
+            signal: AbortSignal.timeout(1200)
           }).catch(() => null);
 
           if (tRes && tRes.ok) {
@@ -155,43 +167,29 @@ class NanoPixDeviceService {
           this.emit('disconnected');
           window.dispatchEvent(new CustomEvent('nanopix:disconnected'));
         }
-        if (!loggedBridgeNotice && consecutiveErrors >= 3) {
-          loggedBridgeNotice = true;
-          this._bridgeConnected = false;
-          console.warn('🩺 [HARDWARE DIAGNOSTIC] Local Hardware Bridge on port 5066 not reachable from browser.', {
-            endpoint: `${baseUrl}/nanopix/latest-scan`,
-            clientHost: typeof window !== 'undefined' ? window.location.host : 'unknown',
-            clientProtocol: typeof window !== 'undefined' ? window.location.protocol : 'unknown',
-            reason: e.message,
-            solution: 'If the Eighteeth sensor is plugged into this PC, run START_NANOPIX_AUTO_SYNC.bat to activate background port 5066.'
-          });
-        }
       } finally {
         isPolling = false;
-        // Fast responsive polling: 1.5s when active, max 4s if temporary standby
-        const nextDelay = consecutiveErrors >= 3 ? 4000 : 1500;
+        // Exponential backoff if local bridge is not running on 5050 to avoid network tab flooding
+        const nextDelay = consecutiveErrors >= 2 ? 30000 : 2500;
         setTimeout(pollBridge, nextDelay);
       }
     };
 
-    // Initial check starts immediately with ?initial=true
-    setTimeout(() => {
-      fetch(`${baseUrl}/nanopix/latest-scan?initial=true`)
-        .then(r => r.json())
-        .then(data => {
-          if (data && data.hasScan && data.scan) {
-            handleIncomingScan(data.scan);
-          }
-        })
-        .catch(() => {});
-    }, 200);
+    // Only start polling on chart / imaging pages
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname || '';
+      if (path.startsWith('/chart') || path.includes('/radiology')) {
+        setTimeout(pollBridge, 1000);
+      } else {
+        setTimeout(pollBridge, 25000);
+      }
+    }
 
-    setTimeout(pollBridge, 500);
-
-    // Live SSE Stream from local hardware bridge — WITH RESILIENT RETRY & POLLING FALLBACK
+    // Live SSE Stream from local hardware bridge — ONLY on active imaging routes
     if (typeof EventSource !== 'undefined' && typeof window !== 'undefined') {
-      const isAuthPage = window.location.pathname.startsWith('/login');
-      if (!isAuthPage) {
+      const path = window.location.pathname || '';
+      const isCapturePage = path.startsWith('/chart') || path.includes('/radiology');
+      if (isCapturePage) {
         let sseReconnectTimer = null;
         let sseConsecutiveErrors = 0;
         const maxSseRetries = 3;
