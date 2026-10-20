@@ -36,13 +36,15 @@ export default function PatientDirectory() {
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
-    const patientsPerPage = 5;
+    const patientsPerPage = 6;
 
     const [upcomingPage, setUpcomingPage] = useState(1);
-    const upcomingPerPage = 5;
+    const upcomingPerPage = 6;
 
     const [pastPage, setPastPage] = useState(1);
-    const pastPerPage = 5;
+    const pastPerPage = 6;
+
+    const [scheduleTab, setScheduleTab] = useState('UPCOMING'); // 'UPCOMING' | 'PAST'
 
     const [selectedTeethState, setSelectedTeethState] = useState([]);
     const [clinicalLogs, setClinicalLogs] = useState([]);
@@ -1001,8 +1003,10 @@ export default function PatientDirectory() {
     }
 
     return (
-        <div className="min-h-screen bg-[#F4F6FA] text-dark-slate flex flex-col font-sans selection:bg-light-teal selection:text-primary-teal relative overflow-x-hidden">
-            <Navigation />
+        <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-[#F4F6FA] text-dark-slate flex flex-col font-sans selection:bg-light-teal selection:text-primary-teal relative">
+            <div className="flex-shrink-0">
+                <Navigation />
+            </div>
 
             {/* 🌟 100% READY FLOATING CONFIRMATION BADGE 🌟 */}
             {isReadyBadgeVisible && (
@@ -1012,265 +1016,178 @@ export default function PatientDirectory() {
                 </div>
             )}
 
-            {/* Main Dashboard Layout matching reference image */}
-            <main className="flex-grow max-w-[1800px] w-full mx-auto px-4 py-8 space-y-6">
+            {/* Main Clinical Command Center (Scroll-Less Single-Viewport Layout) */}
+            <main className="flex-1 min-h-0 max-w-[1920px] w-full mx-auto px-3 sm:px-4 py-2 sm:py-2.5 flex flex-col gap-2.5 overflow-hidden">
                 
-                {/* Search Header and Greeting */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div className="space-y-1">
-                        <h2 className="text-2xl font-bold tracking-tight text-dark-slate flex items-center gap-1.5">
-                            {getDynamicGreeting()} <span className="text-[#4A7CD2]">Dr. {doctor?.lastName || 'Doctor'}</span>
-                        </h2>
+                {/* 1. Ultra-Compact Top Clinical Ribbon (Header + Stats + Actions) */}
+                <div className="flex-shrink-0 bg-white rounded-2xl border border-[#EAF0FC] px-3.5 py-2 shadow-2xs flex flex-wrap lg:flex-nowrap items-center justify-between gap-3">
+                    
+                    {/* Left: Doctor Greeting & Live Telemetry Pill */}
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                            <span className="relative flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                            </span>
+                            <h2 className="text-sm sm:text-base font-extrabold tracking-tight text-dark-slate flex items-center gap-1.5 whitespace-nowrap">
+                                {getDynamicGreeting()}, <span className="text-[#4A7CD2]">Dr. {doctor?.lastName || 'Doctor'}</span>
+                            </h2>
+                        </div>
+
+                        {/* Vertical Divider */}
+                        <div className="hidden xl:block h-4 w-px bg-slate-200"></div>
+
+                        {/* 4 Live Clinical Metric Badges */}
+                        <div className="hidden sm:flex items-center gap-1.5 flex-wrap">
+                            <div className="bg-[#EAF0FC] border border-[#4A7CD2]/25 px-2.5 py-0.5 rounded-lg flex items-center gap-1.5 text-xs font-bold text-[#4A7CD2]">
+                                <Calendar className="w-3 h-3 text-[#4A7CD2]" />
+                                <span className="text-[10px] text-slate-600 font-semibold">Visited Today:</span>
+                                <span className="text-xs font-black text-[#10244B]">{todayVisitedCount}</span>
+                            </div>
+                            <div className="bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+                                <Plus className="w-3 h-3 text-emerald-600" />
+                                <span className="text-[10px] text-emerald-800 font-semibold">New Today:</span>
+                                <span className="text-xs font-black text-emerald-950">{todayRegisteredCount}</span>
+                            </div>
+                            <div className="bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-lg flex items-center gap-1.5 text-xs font-bold text-indigo-700">
+                                <RotateCcw className="w-3 h-3 text-indigo-600" />
+                                <span className="text-[10px] text-indigo-800 font-semibold">Revisited:</span>
+                                <span className="text-xs font-black text-indigo-950">{revisitedPatientCount}</span>
+                            </div>
+                            <div className="bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-lg flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                                <span className="text-[10px] text-slate-500 font-semibold">Total Active:</span>
+                                <span className="text-xs font-black text-slate-800">{patients.length}</span>
+                            </div>
+                        </div>
                     </div>
-                    <div className="relative w-full sm:w-80">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                        <input 
-                            type="text" 
-                            placeholder="Find Patients or Appointments..." 
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-[#EAF0FC] rounded-full text-xs font-bold text-dark-slate placeholder-muted-text focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/25 shadow-sm" 
-                        />
+
+                    {/* Right: Search + Quick Add Patient + Activity Notes */}
+                    <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
+                        <div className="relative w-full sm:w-64">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                            <input 
+                                type="text" 
+                                placeholder="Search patient, phone, notes..." 
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-dark-slate placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/25 focus:bg-white transition-all shadow-2xs" 
+                            />
+                            {searchTerm && (
+                                <button 
+                                    type="button" 
+                                    onClick={() => setSearchTerm('')} 
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                                    title="Clear search"
+                                >
+                                    <X className="w-3 h-3" />
+                                </button>
+                            )}
+                        </div>
+
+                        <button 
+                            type="button"
+                            onClick={() => navigate('/new-patient')}
+                            className="bg-[#4A7CD2] hover:bg-[#3665B7] text-white px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 shadow-xs hover:shadow-sm transition-all whitespace-nowrap cursor-pointer flex-shrink-0"
+                            title="Register a new patient"
+                        >
+                            <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                            <span className="hidden sm:inline">Add Patient</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setIsLogsDrawerOpen(true)}
+                            className="p-1.5 bg-slate-100 hover:bg-[#EAF0FC] text-slate-700 hover:text-[#4A7CD2] border border-slate-200 rounded-xl transition-all flex items-center justify-center cursor-pointer flex-shrink-0"
+                            title="Open Clinical Notes & PDF Export"
+                        >
+                            <Activity className="w-4 h-4 text-[#4A7CD2]" />
+                        </button>
                     </div>
                 </div>
 
-                {/* Dashboard Grid blocks split: Left Content Panel & Right Schedule Sidebar */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* 2. Three-Column Clinical Cockpit Grid (Zero Page Scroll) */}
+                <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-3 overflow-hidden">
                     
-                    {/* Left Side Content Blocks (Stats + Split Patient List & Consultation Card) */}
-                    <div className="lg:col-span-8 space-y-6">
+                    {/* COLUMN 1: Patient Directory & Filter Pane */}
+                    <div className="lg:col-span-4 flex flex-col h-full bg-white rounded-2xl border border-[#EAF0FC] shadow-2xs overflow-hidden">
                         
-                        {/* 1. Today's Patient Visits Stats Card (Modernized Pro Clinical Showcase) */}
-                        <div className="bg-white rounded-[2rem] border border-[#EAF0FC] p-6 shadow-sm grid grid-cols-1 md:grid-cols-12 gap-6 items-center overflow-hidden relative">
-                            {/* Left Metrics */}
-                            <div className="md:col-span-7 space-y-3.5">
-                                <div className="flex items-center gap-2">
-                                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                    <span className="text-xs font-bold text-muted-text uppercase tracking-widest block">Today's Patient Visits</span>
-                                </div>
-                                <div className="flex items-baseline gap-2">
-                                    <h3 className="text-5xl font-extrabold text-dark-slate tracking-tight">
-                                        {todayVisitedCount}
-                                    </h3>
-                                    <span className="text-xs font-semibold text-slate-500">patients scheduled today</span>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-                                    <div className="bg-[#EAF0FC] border border-[#4A7CD2]/20 p-3 rounded-2xl transition hover:shadow-xs">
-                                        <span className="text-[10px] font-bold text-[#4A7CD2] block">Visited Today</span>
-                                        <div className="flex justify-between items-center mt-1">
-                                            <span className="text-xl font-extrabold text-dark-slate">{todayVisitedCount}</span>
-                                            <span className="bg-blue-100 text-[#4A7CD2] text-[8px] font-bold px-1.5 py-0.5 rounded-md">Today</span>
-                                        </div>
-                                    </div>
-                                    <div className="bg-emerald-50/80 border border-emerald-200/60 p-3 rounded-2xl transition hover:shadow-xs">
-                                        <span className="text-[10px] font-bold text-emerald-700 block">Today Registered</span>
-                                        <div className="flex justify-between items-center mt-1">
-                                            <span className="text-xl font-extrabold text-emerald-950">{todayRegisteredCount}</span>
-                                            <span className="bg-emerald-100 text-emerald-700 text-[8px] font-bold px-1.5 py-0.5 rounded-md">New</span>
-                                        </div>
-                                    </div>
-                                    <div className="bg-indigo-50/80 border border-indigo-200/60 p-3 rounded-2xl transition hover:shadow-xs">
-                                        <span className="text-[10px] font-bold text-indigo-700 block">Revisited</span>
-                                        <div className="flex justify-between items-center mt-1">
-                                            <span className="text-xl font-extrabold text-indigo-950">{revisitedPatientCount}</span>
-                                            <span className="bg-indigo-100 text-indigo-700 text-[8px] font-bold px-1.5 py-0.5 rounded-md">Return</span>
-                                        </div>
-                                    </div>
-                                </div>
+                        {/* Column 1 Header */}
+                        <div className="p-2.5 sm:p-3 border-b border-[#EAF0FC] flex flex-col gap-2 flex-shrink-0 bg-white">
+                            <div className="flex justify-between items-center">
+                                <h4 className="text-xs sm:text-sm font-extrabold text-[#10244B] flex items-center gap-2">
+                                    <span>Patient Directory</span>
+                                    <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                                        {filteredPatients.length} Active
+                                    </span>
+                                </h4>
+                                <span className="text-[10px] font-bold text-[#4A7CD2] bg-[#EAF0FC] px-2 py-0.5 rounded border border-[#BFDBFE]">Today</span>
                             </div>
 
-                            {/* Right Animated 3D Holographic AI Dental Hub (Aligned Flush with Returning Patient Block) */}
-                            <div className="md:col-span-5 flex flex-col justify-end w-full">
-                                <div className="w-full bg-gradient-to-l from-[#BFDBFE] via-[#DBEAFE] to-[#F0F6FF] rounded-3xl py-2.5 px-4 sm:px-5 border border-[#4A7CD2]/30 shadow-xs relative overflow-hidden group hover:border-[#4A7CD2]/50 transition-all duration-500">
-                                    {/* Tech Mesh Background Grid */}
-                                    <div className="absolute inset-0 bg-[radial-gradient(#4A7CD2_1px,transparent_1px)] [background-size:14px_14px] opacity-15 pointer-events-none"></div>
-                                    
-                                    {/* Glowing Ambient Radial Cones */}
-                                    <div className="absolute -right-6 -top-6 w-32 h-32 bg-[#3B82F6]/20 rounded-full blur-2xl pointer-events-none group-hover:scale-125 transition-all duration-700"></div>
-                                    <div className="absolute -left-6 -bottom-6 w-28 h-28 bg-[#6366F1]/15 rounded-full blur-2xl pointer-events-none"></div>
+                            {/* Patient Visit Scope Filter Tabs (Today's Patients vs All Patients) */}
+                            <div className="flex items-center gap-1 bg-[#F1F5F9] p-1 rounded-xl border border-slate-200/80">
+                                {[
+                                    { id: 'TODAY', label: `Today's (${todayVisitedCount})` },
+                                    { id: 'ALL', label: `All (${patients.length})` }
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        type="button"
+                                        onClick={() => {
+                                            setPatientVisitTab(tab.id);
+                                            setCurrentPage(1);
+                                            const list = getFilteredPatientsByTab(dentitionFilter, cleanSearch, tab.id);
+                                            if (list.length > 0) {
+                                                setSelectedPatient(list[0]);
+                                            } else {
+                                                setSelectedPatient(null);
+                                            }
+                                        }}
+                                        className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-black transition-all cursor-pointer text-center ${
+                                            patientVisitTab === tab.id
+                                                ? 'bg-[#4A7CD2] text-white shadow-2xs'
+                                                : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                                        }`}
+                                    >
+                                        {tab.label}
+                                    </button>
+                                ))}
+                            </div>
 
-                                    <div className="flex items-center justify-between gap-3 relative z-10">
-                                        {/* Left AI Telemetry Info */}
-                                        <div className="space-y-1.5">
-                                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/90 shadow-2xs border border-[#4A7CD2]/25">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-                                                <span className="text-[9px] font-black text-slate-800 uppercase tracking-wider">AI SCANNER LIVE</span>
-                                            </div>
-                                            
-                                            <div>
-                                                <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                                                    <span>Enamel Density</span>
-                                                    <span className="text-[#2563EB] font-extrabold text-xs">99.4%</span>
-                                                </h4>
-                                                <p className="text-[9.5px] text-slate-600 font-medium">Precision Health Diagnostic</p>
-                                            </div>
-
-                                            <div className="pt-0">
-                                                <span className="inline-flex items-center gap-1 text-[8.5px] font-extrabold text-[#2563EB] bg-white/85 border border-[#3B82F6]/30 px-2 py-0.5 rounded-lg shadow-2xs">
-                                                    <Activity className="w-2.5 h-2.5 text-[#2563EB] animate-pulse" />
-                                                    <span>Zero Pathology</span>
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Right Pure Animated 3D Holographic Dental Scanner (Compact Height) */}
-                                        <div className="relative w-20 h-20 sm:w-22 sm:h-22 flex items-center justify-center flex-shrink-0">
-                                            
-                                            {/* Outer Rotating Gyroscopic Orbit Ring 1 */}
-                                            <div className="absolute inset-0 rounded-full border border-dashed border-[#2563EB]/40 animate-orbit-spin pointer-events-none"></div>
-                                            
-                                            {/* Inner Counter-Rotating Orbit Ring 2 */}
-                                            <div className="absolute inset-1.5 rounded-full border border-blue-500/30 animate-orbit-spin-reverse pointer-events-none">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-[#2563EB] shadow-[0_0_6px_#2563EB] absolute -top-1 left-1/2 -translate-x-1/2"></div>
-                                            </div>
-
-                                            {/* Scanning Laser Beam */}
-                                            <div className="absolute left-1.5 right-1.5 h-0.5 bg-gradient-to-r from-transparent via-[#2563EB] to-transparent shadow-[0_0_8px_#2563EB] animate-scan-laser pointer-events-none z-20"></div>
-
-                                            {/* 3D Glossy Holographic Tooth Model */}
-                                            <div className="relative z-10 animate-float-tooth drop-shadow-[0_6px_14px_rgba(37,99,235,0.3)] cursor-pointer">
-                                                <svg 
-                                                    className="w-12 h-12 sm:w-13 sm:h-13" 
-                                                    viewBox="0 0 100 100" 
-                                                    fill="none" 
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                >
-                                                    <defs>
-                                                        {/* 3D Enamel Gradient */}
-                                                        <linearGradient id="tooth3DGradLight" x1="20%" y1="0%" x2="80%" y2="100%">
-                                                            <stop offset="0%" stopColor="#FFFFFF" />
-                                                            <stop offset="35%" stopColor="#F0F7FF" />
-                                                            <stop offset="70%" stopColor="#BAE6FD" />
-                                                            <stop offset="100%" stopColor="#3B82F6" />
-                                                        </linearGradient>
-
-                                                        {/* Specular Highlight Gradient */}
-                                                        <linearGradient id="toothGleamLight" x1="0%" y1="0%" x2="100%" y2="0%">
-                                                            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.95" />
-                                                            <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
-                                                        </linearGradient>
-
-                                                        {/* Ambient Shadow Filter */}
-                                                        <filter id="glowShadowLight" x="-20%" y="-20%" width="140%" height="140%">
-                                                            <feDropShadow dx="0" dy="3.5" stdDeviation="3" floodColor="#2563EB" floodOpacity="0.4"/>
-                                                        </filter>
-                                                    </defs>
-
-                                                    {/* Anatomical 3D Tooth Body */}
-                                                    <path 
-                                                        d="M26 24 C 20 34, 18 48, 24 64 C 28 74, 34 86, 38 88 C 42 90, 46 84, 48 70 C 50 62, 50 62, 52 70 C 54 84, 58 90, 62 88 C 66 86, 72 74, 76 64 C 82 48, 80 34, 74 24 C 68 14, 58 16, 50 20 C 42 16, 32 14, 26 24 Z" 
-                                                        fill="url(#tooth3DGradLight)" 
-                                                        filter="url(#glowShadowLight)"
-                                                    />
-
-                                                    {/* Specular 3D Gloss Highlight */}
-                                                    <path 
-                                                        d="M30 26 C 26 34, 25 44, 28 54 C 27 42, 30 32, 36 26 C 42 20, 48 22, 50 24 C 44 20, 35 20, 30 26 Z" 
-                                                        fill="url(#toothGleamLight)"
-                                                    />
-
-                                                    {/* Enamel Crown Contour Line */}
-                                                    <path 
-                                                        d="M36 28 C 42 33, 58 33, 64 28" 
-                                                        stroke="#FFFFFF" 
-                                                        strokeWidth="2.5" 
-                                                        strokeLinecap="round" 
-                                                        opacity="0.9"
-                                                    />
-
-                                                    {/* Floating Hologram Sparkles */}
-                                                    <circle cx="20" cy="20" r="2" fill="#2563EB" className="animate-ping" />
-                                                    <circle cx="80" cy="28" r="2.5" fill="#60A5FA" />
-                                                    <circle cx="78" cy="74" r="1.5" fill="#2563EB" />
-                                                </svg>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                            {/* Dentition Classification Filter Tabs */}
+                            <div className="flex items-center gap-1 bg-[#F8FAFC] p-0.5 rounded-xl border border-[#EAF0FC]">
+                                {[
+                                    { id: 'ALL', label: 'All' },
+                                    { id: 'ADULT', label: '🦷 Adult' },
+                                    { id: 'PEDIATRIC', label: '👶 Pediatric' },
+                                    { id: 'MIXED', label: '🔀 Mixed' }
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        type="button"
+                                        onClick={() => {
+                                            setDentitionFilter(tab.id);
+                                            setCurrentPage(1);
+                                            const tabList = getFilteredPatientsByTab(tab.id, cleanSearch, patientVisitTab);
+                                            if (tabList.length > 0) {
+                                                setSelectedPatient(tabList[0]);
+                                            } else {
+                                                setSelectedPatient(null);
+                                            }
+                                        }}
+                                        className={`flex-1 py-0.5 rounded-lg text-[9.5px] font-black transition-all cursor-pointer text-center ${
+                                            dentitionFilter === tab.id
+                                                ? 'bg-[#4A7CD2] text-white shadow-2xs'
+                                                : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                                        }`}
+                                    >
+                                        {tab.label}
+                                    </button>
+                                ))}
                             </div>
                         </div>
 
-                        {/* 2. Side-By-Side Patient List and Consultation detail */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            
-                            {/* Patient List Card Container */}
-                            <div className="bg-white rounded-[2rem] border border-[#EAF0FC] p-6 shadow-sm space-y-4">
-                                <div className="flex flex-col gap-2 border-b border-light-teal/20 pb-3">
-                                    <div className="flex justify-between items-center">
-                                        <h4 className="text-sm font-bold text-dark-slate flex items-center gap-2">
-                                            <span>Patient List</span>
-                                            <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                                                {filteredPatients.length} Active
-                                            </span>
-                                        </h4>
-                                        <span className="text-[10px] font-bold text-[#4A7CD2] bg-[#EAF0FC] px-2 py-0.5 rounded border border-light-teal">Today</span>
-                                    </div>
-
-                                    {/* Patient Visit Scope Filter Tabs (Today's Patients vs All Patients) */}
-                                    <div className="flex items-center gap-1 bg-[#F1F5F9] p-1 rounded-xl border border-slate-200/80">
-                                        {[
-                                            { id: 'TODAY', label: `Today's Patients (${todayVisitedCount})` },
-                                            { id: 'ALL', label: `All Patients (${patients.length})` }
-                                        ].map(tab => (
-                                            <button
-                                                key={tab.id}
-                                                type="button"
-                                                onClick={() => {
-                                                    setPatientVisitTab(tab.id);
-                                                    setCurrentPage(1);
-                                                    const list = getFilteredPatientsByTab(dentitionFilter, cleanSearch, tab.id);
-                                                    if (list.length > 0) {
-                                                        setSelectedPatient(list[0]);
-                                                    } else {
-                                                        setSelectedPatient(null);
-                                                    }
-                                                }}
-                                                className={`flex-1 py-1.5 px-2 rounded-lg text-[10px] font-black transition-all cursor-pointer text-center ${
-                                                    patientVisitTab === tab.id
-                                                        ? 'bg-[#4A7CD2] text-white shadow-2xs'
-                                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
-                                                }`}
-                                            >
-                                                {tab.label}
-                                            </button>
-                                        ))}
-                                    </div>
-
-                                    {/* Dentition Classification Filter Tabs */}
-                                    <div className="flex items-center gap-1 bg-[#F8FAFC] p-1 rounded-xl border border-[#EAF0FC]">
-                                        {[
-                                            { id: 'ALL', label: 'All' },
-                                            { id: 'ADULT', label: '🦷 Adult' },
-                                            { id: 'PEDIATRIC', label: '👶 Pediatric' },
-                                            { id: 'MIXED', label: '🔀 Mixed' }
-                                        ].map(tab => (
-                                            <button
-                                                key={tab.id}
-                                                type="button"
-                                                onClick={() => {
-                                                    setDentitionFilter(tab.id);
-                                                    setCurrentPage(1);
-                                                    const tabList = getFilteredPatientsByTab(tab.id, cleanSearch, whatsAppFilter);
-                                                    if (tabList.length > 0) {
-                                                        setSelectedPatient(tabList[0]);
-                                                    } else {
-                                                        setSelectedPatient(null);
-                                                    }
-                                                }}
-                                                className={`flex-1 py-1 rounded-lg text-[9.5px] font-black transition-all cursor-pointer text-center ${
-                                                    dentitionFilter === tab.id
-                                                        ? 'bg-[#4A7CD2] text-white shadow-2xs'
-                                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
-                                                }`}
-                                            >
-                                                {tab.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="space-y-3 h-[360px] flex flex-col justify-between">
-                                    <div className="space-y-3 flex-grow">
+                        {/* Scrollable Patient List Container */}
+                        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-2 space-y-1.5">
                                         {currentPatients.length === 0 ? (
                                             <div className="text-center py-8 space-y-2">
                                                 <p className="text-xs text-muted-text font-semibold">
@@ -1394,37 +1311,34 @@ export default function PatientDirectory() {
                                                 );
                                             })
                                         )}
-                                    </div>
+                        </div>
 
-                                    {/* Pagination Controls */}
-                                    {totalPages > 1 && (
-                                        <div className="flex justify-between items-center pt-4 border-t border-[#EAF0FC]">
-                                            <span className="text-[11px] font-extrabold text-[#4A7CD2] bg-[#EAF0FC] px-2.5 py-1 rounded-full border border-light-teal/65">
-                                                Page {currentPage} of {totalPages}
-                                            </span>
-                                            <div className="flex gap-2">
-                                                <button 
-                                                    disabled={currentPage === 1}
-                                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                                    className="p-1.5 rounded-lg border border-[#EAF0FC] disabled:opacity-40 hover:bg-[#EAF0FC]/40 cursor-pointer"
-                                                >
-                                                    <ChevronLeft className="w-3.5 h-3.5" />
-                                                </button>
-                                                <button 
-                                                    disabled={currentPage === totalPages}
-                                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                                    className="p-1.5 rounded-lg border border-[#EAF0FC] disabled:opacity-40 hover:bg-[#EAF0FC]/40 cursor-pointer"
-                                                >
-                                                    <ChevronRight className="w-3.5 h-3.5" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
+                        {/* Column 1 Pagination Footer */}
+                        <div className="flex-shrink-0 px-3 py-1.5 sm:py-2 border-t border-[#EAF0FC] bg-slate-50/70 flex justify-between items-center">
+                            <span className="text-[10px] font-extrabold text-[#4A7CD2] bg-[#EAF0FC] px-2 py-0.5 rounded-md border border-[#BFDBFE]">
+                                Page {currentPage} of {Math.max(totalPages, 1)}
+                            </span>
+                            <div className="flex gap-1.5">
+                                <button 
+                                    disabled={currentPage === 1}
+                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                    className="p-1 rounded-lg border border-slate-200 bg-white disabled:opacity-40 hover:bg-[#EAF0FC]/40 cursor-pointer text-slate-700 transition"
+                                >
+                                    <ChevronLeft className="w-3.5 h-3.5" />
+                                </button>
+                                <button 
+                                    disabled={currentPage >= totalPages}
+                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                    className="p-1 rounded-lg border border-slate-200 bg-white disabled:opacity-40 hover:bg-[#EAF0FC]/40 cursor-pointer text-slate-700 transition"
+                                >
+                                    <ChevronRight className="w-3.5 h-3.5" />
+                                </button>
                             </div>
+                        </div>
+                    </div>
 
-                            {/* Active Consultation Info Block */}
-                            <div className="bg-white rounded-[2rem] border border-[#EAF0FC] p-6 shadow-sm space-y-4">
+                    {/* COLUMN 2: Active Consultation Dossier & Clinical Actions */}
+                    <div className="lg:col-span-5 flex flex-col h-full bg-white rounded-2xl border border-[#EAF0FC] shadow-2xs overflow-hidden">
                                 {/* Card Header: Title & Action Controls */}
                                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                                     <div className="flex items-center gap-2">
@@ -1517,7 +1431,8 @@ export default function PatientDirectory() {
                                      const healthyPct = Math.round((healthyCount / 32) * 100) || 0;
 
                                      return (
-                                         <div className="space-y-4">
+                                         <>
+                                              <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-2.5 sm:p-3 space-y-2">
                                                 {/* Patient Profile Dossier Banner */}
                                                 <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-gradient-to-r from-slate-50/80 via-blue-50/20 to-white border border-slate-200/70 shadow-2xs">
                                                     <div className="w-13 h-13 rounded-2xl overflow-hidden border border-slate-200 shadow-xs flex-shrink-0 bg-white ring-2 ring-white flex items-center justify-center">
@@ -2003,243 +1918,291 @@ export default function PatientDirectory() {
                                                  </div>
                                              )}
 
-                                             {/* Percentage Detail (Infographic Stacked Horizontally) */}
-                                             <div className="pt-2 border-t border-light-teal/20 space-y-3">
-                                                 <span className="text-[10px] font-black text-muted-text uppercase tracking-widest block mb-1">Health Overview</span>
-                                                 <div className="space-y-2.5">
-                                                     {/* 1. Health */}
-                                                     <div className="space-y-1">
-                                                         <div className="flex justify-between items-center text-[10px] font-black text-dark-slate uppercase tracking-wider">
-                                                             <span>Health</span>
-                                                             <span className="text-[#4A7CD2] font-black">{healthyPct}%</span>
-                                                         </div>
-                                                         <div className="w-full bg-[#EAF0FC] h-2 rounded-full overflow-hidden">
-                                                             <div className="bg-[#4A7CD2] h-full rounded-full" style={{ width: `${healthyPct}%` }}></div>
-                                                         </div>
-                                                     </div>
-                                                     {/* 2. Caries */}
-                                                     <div className="space-y-1">
-                                                         <div className="flex justify-between items-center text-[10px] font-black text-dark-slate uppercase tracking-wider">
-                                                             <span>Caries</span>
-                                                             <span className="text-[#EF4444] font-black">{cariesPct}%</span>
-                                                         </div>
-                                                         <div className="w-full bg-[#EAF0FC] h-2 rounded-full overflow-hidden">
-                                                             <div className="bg-[#EF4444] h-full rounded-full" style={{ width: `${cariesPct}%` }}></div>
-                                                         </div>
-                                                     </div>
-                                                     {/* 3. RCT */}
-                                                     <div className="space-y-1">
-                                                         <div className="flex justify-between items-center text-[10px] font-black text-dark-slate uppercase tracking-wider">
-                                                             <span>RCT (Root Canal)</span>
-                                                             <span className="text-[#F59E0B] font-black">{rctPct}%</span>
-                                                         </div>
-                                                         <div className="w-full bg-[#EAF0FC] h-2 rounded-full overflow-hidden">
-                                                             <div className="bg-[#F59E0B] h-full rounded-full" style={{ width: `${rctPct}%` }}></div>
-                                                         </div>
-                                                     </div>
-                                                     {/* 4. Cleaning */}
-                                                     <div className="space-y-1">
-                                                         <div className="flex justify-between items-center text-[10px] font-black text-dark-slate uppercase tracking-wider">
-                                                             <span>Cleaning</span>
-                                                             <span className="text-[#3B82F6] font-black">{cleaningPct}%</span>
-                                                         </div>
-                                                         <div className="w-full bg-[#EAF0FC] h-2 rounded-full overflow-hidden">
-                                                             <div className="bg-[#3B82F6] h-full rounded-full" style={{ width: `${cleaningPct}%` }}></div>
-                                                         </div>
-                                                     </div>
-                                                     {/* 5. Treated */}
-                                                     <div className="space-y-1">
-                                                         <div className="flex justify-between items-center text-[10px] font-black text-dark-slate uppercase tracking-wider">
-                                                             <span>Treated</span>
-                                                             <span className="text-[#8B5CF6] font-black">{prosthesisPct}%</span>
-                                                         </div>
-                                                         <div className="w-full bg-[#EAF0FC] h-2 rounded-full overflow-hidden">
-                                                             <div className="bg-[#8B5CF6] h-full rounded-full" style={{ width: `${prosthesisPct}%` }}></div>
-                                                         </div>
-                                                     </div>
-                                                     {/* 6. Missing */}
-                                                     <div className="space-y-1">
-                                                         <div className="flex justify-between items-center text-[10px] font-black text-dark-slate uppercase tracking-wider">
-                                                             <span>Missing</span>
-                                                             <span className="text-[#64748B] font-black">{missingPct}%</span>
-                                                         </div>
-                                                         <div className="w-full bg-[#EAF0FC] h-2 rounded-full overflow-hidden">
-                                                             <div className="bg-[#64748B] h-full rounded-full" style={{ width: `${missingPct}%` }}></div>
-                                                         </div>
-                                                     </div>
-                                                 </div>
-                                             </div>
+                                             {/* Percentage Detail (Infographic 2-Column Grid for Ultra-Compact Heights) */}
+                                                <div className="pt-2 border-t border-[#EAF0FC] space-y-1.5">
+                                                    <span className="text-[9.5px] font-black text-muted-text uppercase tracking-widest block">Health Overview</span>
+                                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                                                        {/* 1. Health */}
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex justify-between items-center text-[9px] font-black text-dark-slate uppercase tracking-wider">
+                                                                <span>Health</span>
+                                                                <span className="text-[#4A7CD2] font-black">{healthyPct}%</span>
+                                                            </div>
+                                                            <div className="w-full bg-[#EAF0FC] h-1.5 rounded-full overflow-hidden">
+                                                                <div className="bg-[#4A7CD2] h-full rounded-full" style={{ width: `${healthyPct}%` }}></div>
+                                                            </div>
+                                                        </div>
+                                                        {/* 2. Caries */}
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex justify-between items-center text-[9px] font-black text-dark-slate uppercase tracking-wider">
+                                                                <span>Caries</span>
+                                                                <span className="text-[#EF4444] font-black">{cariesPct}%</span>
+                                                            </div>
+                                                            <div className="w-full bg-[#EAF0FC] h-1.5 rounded-full overflow-hidden">
+                                                                <div className="bg-[#EF4444] h-full rounded-full" style={{ width: `${cariesPct}%` }}></div>
+                                                            </div>
+                                                        </div>
+                                                        {/* 3. RCT */}
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex justify-between items-center text-[9px] font-black text-dark-slate uppercase tracking-wider">
+                                                                <span>RCT (Endo)</span>
+                                                                <span className="text-[#F59E0B] font-black">{rctPct}%</span>
+                                                            </div>
+                                                            <div className="w-full bg-[#EAF0FC] h-1.5 rounded-full overflow-hidden">
+                                                                <div className="bg-[#F59E0B] h-full rounded-full" style={{ width: `${rctPct}%` }}></div>
+                                                            </div>
+                                                        </div>
+                                                        {/* 4. Cleaning */}
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex justify-between items-center text-[9px] font-black text-dark-slate uppercase tracking-wider">
+                                                                <span>Cleaning</span>
+                                                                <span className="text-[#3B82F6] font-black">{cleaningPct}%</span>
+                                                            </div>
+                                                            <div className="w-full bg-[#EAF0FC] h-1.5 rounded-full overflow-hidden">
+                                                                <div className="bg-[#3B82F6] h-full rounded-full" style={{ width: `${cleaningPct}%` }}></div>
+                                                            </div>
+                                                        </div>
+                                                        {/* 5. Treated */}
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex justify-between items-center text-[9px] font-black text-dark-slate uppercase tracking-wider">
+                                                                <span>Treated</span>
+                                                                <span className="text-[#8B5CF6] font-black">{prosthesisPct}%</span>
+                                                            </div>
+                                                            <div className="w-full bg-[#EAF0FC] h-1.5 rounded-full overflow-hidden">
+                                                                <div className="bg-[#8B5CF6] h-full rounded-full" style={{ width: `${prosthesisPct}%` }}></div>
+                                                            </div>
+                                                        </div>
+                                                        {/* 6. Missing */}
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex justify-between items-center text-[9px] font-black text-dark-slate uppercase tracking-wider">
+                                                                <span>Missing</span>
+                                                                <span className="text-[#64748B] font-black">{missingPct}%</span>
+                                                            </div>
+                                                            <div className="w-full bg-[#EAF0FC] h-1.5 rounded-full overflow-hidden">
+                                                                <div className="bg-[#64748B] h-full rounded-full" style={{ width: `${missingPct}%` }}></div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
 
-                                             {/* Diagnostic Details list */}
-                                             <div className="space-y-2.5 text-[11px] border-t border-light-teal/20 pt-3">
-                                                 <div className="flex justify-between items-center">
-                                                     <span className="font-extrabold text-muted-text uppercase tracking-wider">Email:</span>
-                                                     <span className="font-black text-dark-slate">{selectedPatient.email || 'N/A'}</span>
-                                                 </div>
-                                                 <div className="flex justify-between items-center">
-                                                     <span className="font-extrabold text-muted-text uppercase tracking-wider">Address:</span>
-                                                     <span className="font-black text-dark-slate text-right">{selectedPatient.address || 'N/A'}</span>
-                                                 </div>
-                                             </div>
+                                                {/* Diagnostic Details list */}
+                                                <div className="space-y-1 text-[10px] border-t border-[#EAF0FC] pt-2">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="font-extrabold text-muted-text uppercase tracking-wider">Email:</span>
+                                                        <span className="font-black text-dark-slate truncate max-w-[200px]">{selectedPatient.email || 'N/A'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="font-extrabold text-muted-text uppercase tracking-wider">Address:</span>
+                                                        <span className="font-black text-dark-slate text-right truncate max-w-[200px]">{selectedPatient.address || 'N/A'}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
 
-                                             <div className="flex flex-col gap-2 mt-4">
-                                                 <button 
-                                                     onClick={() => navigate(`/chart/${selectedPatient.patientID}${activeTreatmentTag ? `?treatment=${activeTreatmentTag}` : ''}`)}
-                                                     onPointerEnter={() => {
-                                                         preloadJawImages({ immediate: true });
-                                                         if (selectedPatient?.patientID) {
-                                                             prefetchApi(`patient_${selectedPatient.patientID}`, () => apiFetch(`/api/patients/${selectedPatient.patientID}`).then(r => r.json()));
-                                                             prefetchApi(`patient_${selectedPatient.patientID}_chart`, () => apiFetch(`/api/patients/${selectedPatient.patientID}/chart`).then(r => r.json()));
-                                                             prefetchApi(`patient_${selectedPatient.patientID}_prescriptions`, () => apiFetch(`/api/patients/${selectedPatient.patientID}/prescriptions`).then(r => r.json()));
-                                                             prefetchApi(`patient_${selectedPatient.patientID}_diagnostic`, () => apiFetch(`/api/patients/${selectedPatient.patientID}/diagnostic-assessment`).then(r => r.ok && r.status !== 204 ? r.json() : null));
-                                                         }
-                                                     }}
-                                                     className="w-full bg-[#4A7CD2] hover:bg-[#3665B7] text-white py-2.5 rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                                                 >
-                                                     <Stethoscope className="w-3.5 h-3.5" />
-                                                     View Odontogram Chart
-                                                 </button>
-                                                 <button 
-                                                     onClick={() => navigate(`/chart/${selectedPatient.patientID}?tab=billing`)}
-                                                     className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300/80 py-2 rounded-xl text-xs font-bold shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                                                 >
-                                                     <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
-                                                     Treatment Plans & Invoices
-                                                 </button>
-                                             </div>
-                                         </div>
-                                     );
-                                 })() : (
-                                    <p className="text-xs text-muted-text italic text-center py-10">Select a patient to load details.</p>
+                                            {/* Primary Action Buttons Footer */}
+                                            <div className="flex-shrink-0 p-2 sm:p-2.5 border-t border-[#EAF0FC] bg-slate-50/70 grid grid-cols-2 gap-2">
+                                                <button 
+                                                    onClick={() => navigate(`/chart/${selectedPatient.patientID}${activeTreatmentTag ? `?treatment=${activeTreatmentTag}` : ''}`)}
+                                                    onPointerEnter={() => {
+                                                        preloadJawImages({ immediate: true });
+                                                        if (selectedPatient?.patientID) {
+                                                            prefetchApi(`patient_${selectedPatient.patientID}`, () => apiFetch(`/api/patients/${selectedPatient.patientID}`).then(r => r.json()));
+                                                            prefetchApi(`patient_${selectedPatient.patientID}_chart`, () => apiFetch(`/api/patients/${selectedPatient.patientID}/chart`).then(r => r.json()));
+                                                            prefetchApi(`patient_${selectedPatient.patientID}_prescriptions`, () => apiFetch(`/api/patients/${selectedPatient.patientID}/prescriptions`).then(r => r.json()));
+                                                            prefetchApi(`patient_${selectedPatient.patientID}_diagnostic`, () => apiFetch(`/api/patients/${selectedPatient.patientID}/diagnostic-assessment`).then(r => r.ok && r.status !== 204 ? r.json() : null));
+                                                        }
+                                                    }}
+                                                    className="w-full bg-[#4A7CD2] hover:bg-[#3665B7] text-white py-2 rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                                                >
+                                                    <Stethoscope className="w-3.5 h-3.5" />
+                                                    <span>Odontogram</span>
+                                                </button>
+                                                <button 
+                                                    onClick={() => navigate(`/chart/${selectedPatient.patientID}?tab=billing`)}
+                                                    className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300/80 py-2 rounded-xl text-xs font-bold shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                                                >
+                                                    <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
+                                                    <span>Plans & Invoices</span>
+                                                </button>
+                                            </div>
+                                        </>
+                                    );
+                                })() : (
+                                    <div className="flex-1 flex items-center justify-center p-6 text-center">
+                                        <p className="text-xs text-muted-text italic">Select a patient from the directory to review dossier.</p>
+                                    </div>
+                                )}
+                    </div>
+
+                    {/* COLUMN 3: Clinic Schedule & Appointments Panel */}
+                    <div className="lg:col-span-3 flex flex-col h-full bg-white rounded-2xl border border-[#EAF0FC] shadow-2xs overflow-hidden">
+                        
+                        {/* Column 3 Header: Schedule Title & Segmented Tab Switch */}
+                        <div className="p-2.5 sm:p-3 border-b border-[#EAF0FC] flex flex-col gap-2 flex-shrink-0 bg-white">
+                            <div className="flex justify-between items-center">
+                                <h4 className="text-xs sm:text-sm font-extrabold text-[#10244B] flex items-center gap-1.5">
+                                    <Calendar className="w-3.5 h-3.5 text-[#4A7CD2]" />
+                                    <span>Clinic Schedule</span>
+                                </h4>
+                                
+                                {/* Pagination Controls for Active Tab */}
+                                {scheduleTab === 'UPCOMING' && totalUpcomingPages > 1 && (
+                                    <div className="flex items-center gap-1">
+                                        <button 
+                                            disabled={upcomingPage === 1}
+                                            onClick={() => setUpcomingPage(prev => Math.max(prev - 1, 1))}
+                                            className="p-0.5 rounded-md border border-slate-200 disabled:opacity-40 hover:bg-[#EAF0FC]/40 cursor-pointer"
+                                        >
+                                            <ChevronLeft className="w-3 h-3 text-dark-slate" />
+                                        </button>
+                                        <span className="text-[8px] font-bold text-muted-text min-w-[24px] text-center">
+                                            {upcomingPage}/{totalUpcomingPages}
+                                        </span>
+                                        <button 
+                                            disabled={upcomingPage === totalUpcomingPages}
+                                            onClick={() => setUpcomingPage(prev => Math.min(prev + 1, totalUpcomingPages))}
+                                            className="p-0.5 rounded-md border border-slate-200 disabled:opacity-40 hover:bg-[#EAF0FC]/40 cursor-pointer"
+                                        >
+                                            <ChevronRight className="w-3 h-3 text-dark-slate" />
+                                        </button>
+                                    </div>
+                                )}
+
+                                {scheduleTab === 'PAST' && totalPastPages > 1 && (
+                                    <div className="flex items-center gap-1">
+                                        <button 
+                                            disabled={pastPage === 1}
+                                            onClick={() => setPastPage(prev => Math.max(prev - 1, 1))}
+                                            className="p-0.5 rounded-md border border-slate-200 disabled:opacity-40 hover:bg-[#EAF0FC]/40 cursor-pointer"
+                                        >
+                                            <ChevronLeft className="w-3 h-3 text-dark-slate" />
+                                        </button>
+                                        <span className="text-[8px] font-bold text-muted-text min-w-[24px] text-center">
+                                            {pastPage}/{totalPastPages}
+                                        </span>
+                                        <button 
+                                            disabled={pastPage === totalPastPages}
+                                            onClick={() => setPastPage(prev => Math.min(prev + 1, totalPastPages))}
+                                            className="p-0.5 rounded-md border border-slate-200 disabled:opacity-40 hover:bg-[#EAF0FC]/40 cursor-pointer"
+                                        >
+                                            <ChevronRight className="w-3 h-3 text-dark-slate" />
+                                        </button>
+                                    </div>
                                 )}
                             </div>
 
-                        </div>
-
-                    </div>
-
-                    {/* Right Side Schedule Sidebar (Calendar + dentist notes) */}
-                    <div className="lg:col-span-4 space-y-6">
-                        
-                        {/* Schedule Calendar widget */}
-                        <div className="bg-white rounded-[2rem] border border-[#EAF0FC] p-6 shadow-sm space-y-4">
-                            <div className="flex justify-between items-center">
-                                <h4 className="text-sm font-bold text-dark-slate flex items-center gap-1">
-                                    <Calendar className="w-4 h-4 text-primary-teal" /> Your Schedule
-                                </h4>
-                                <div className="flex gap-1">
-                                    <ChevronLeft className="w-4 h-4 text-muted-text hover:text-dark-slate cursor-pointer" />
-                                    <ChevronRight className="w-4 h-4 text-muted-text hover:text-dark-slate cursor-pointer" />
-                                </div>
-                            </div>
-
-                            {/* New Schedule (Upcoming) */}
-                            <div className="space-y-3">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-[10px] font-bold text-primary-teal uppercase tracking-widest block">Upcoming Appointments</span>
-                                    {totalUpcomingPages > 1 && (
-                                        <div className="flex gap-1 items-center">
-                                            <button 
-                                                disabled={upcomingPage === 1}
-                                                onClick={() => setUpcomingPage(prev => Math.max(prev - 1, 1))}
-                                                className="p-1 rounded-md border border-[#EAF0FC] disabled:opacity-40 hover:bg-[#EAF0FC]/40 cursor-pointer flex items-center justify-center"
-                                            >
-                                                <ChevronLeft className="w-3 h-3 text-dark-slate" />
-                                            </button>
-                                            <span className="text-[8px] font-bold text-muted-text min-w-[20px] text-center">
-                                                {upcomingPage}/{totalUpcomingPages}
-                                            </span>
-                                            <button 
-                                                disabled={upcomingPage === totalUpcomingPages}
-                                                onClick={() => setUpcomingPage(prev => Math.min(prev + 1, totalUpcomingPages))}
-                                                className="p-1 rounded-md border border-[#EAF0FC] disabled:opacity-40 hover:bg-[#EAF0FC]/40 cursor-pointer flex items-center justify-center"
-                                            >
-                                                <ChevronRight className="w-3 h-3 text-dark-slate" />
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="space-y-2 pr-1 min-h-[258px] flex flex-col justify-start">
-                                    {currentUpcoming.length === 0 ? (
-                                        <p className="text-[10px] text-muted-text italic py-2">No upcoming schedule logs.</p>
-                                    ) : (
-                                        currentUpcoming.map((app) => (
-                                            <div key={app.appointmentID} className="p-3 bg-[#EAF0FC]/40 border border-light-teal/50 rounded-xl flex justify-between items-center text-xs font-normal text-dark-slate">
-                                                <span>{app.fullName}</span>
-                                                <span className="bg-[#4A7CD2] text-white px-2 py-0.5 rounded-md flex items-center gap-1 font-normal text-[10px]">
-                                                    <Clock className="w-3 h-3" />
-                                                    {new Date(app.preferredDate).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                                </span>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Old Schedule (Completed / Past) */}
-                            <div className="space-y-3 border-t border-light-teal/20 pt-3">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-[10px] font-bold text-pink-600 uppercase tracking-widest block">Past Sessions</span>
-                                    {totalPastPages > 1 && (
-                                        <div className="flex gap-1 items-center">
-                                            <button 
-                                                disabled={pastPage === 1}
-                                                onClick={() => setPastPage(prev => Math.max(prev - 1, 1))}
-                                                className="p-1 rounded-md border border-[#EAF0FC] disabled:opacity-40 hover:bg-[#EAF0FC]/40 cursor-pointer flex items-center justify-center"
-                                            >
-                                                <ChevronLeft className="w-3 h-3 text-dark-slate" />
-                                            </button>
-                                            <span className="text-[8px] font-bold text-muted-text min-w-[20px] text-center">
-                                                {pastPage}/{totalPastPages}
-                                            </span>
-                                            <button 
-                                                disabled={pastPage === totalPastPages}
-                                                onClick={() => setPastPage(prev => Math.min(prev + 1, totalPastPages))}
-                                                className="p-1 rounded-md border border-[#EAF0FC] disabled:opacity-40 hover:bg-[#EAF0FC]/40 cursor-pointer flex items-center justify-center"
-                                            >
-                                                <ChevronRight className="w-3 h-3 text-dark-slate" />
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="space-y-2 min-h-[258px] flex flex-col justify-start pr-1">
-                                    {currentPast.length === 0 ? (
-                                        <p className="text-[10px] text-muted-text italic py-2">No completed session logs.</p>
-                                    ) : (
-                                        currentPast.map((app) => (
-                                            <div key={app.appointmentID} className="p-3 bg-red-50/30 border border-red-100/50 rounded-xl flex justify-between items-center text-xs font-normal text-dark-slate">
-                                                <span>{app.fullName}</span>
-                                                <span className="bg-pink-600 text-white px-2 py-0.5 rounded-md flex items-center gap-1 font-normal text-[10px]">
-                                                    {new Date(app.preferredDate).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                                </span>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Dentist notes cute cartoon card */}
-                        <div className="bg-gradient-to-r from-[#4A7CD2] to-[#6366F1] rounded-[2rem] border border-[#4A7CD2]/20 p-6 shadow-lg shadow-[#4A7CD2]/10 flex items-center justify-between overflow-hidden relative hover:scale-[1.02] transition-all duration-300">
-                            {/* Decorative background circle */}
-                            <div className="absolute -right-6 -bottom-6 w-28 h-28 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
-                            
-                            <div className="space-y-2.5 relative z-10">
-                                <h4 className="text-base font-extrabold text-white">New Patient</h4>
-                                <span className="text-[10px] font-bold text-white/80 uppercase tracking-widest block font-sans">Register a new profile</span>
-                                <button 
-                                    onClick={() => navigate('/new-patient')} 
-                                    className="bg-white hover:bg-slate-50 text-[#4A7CD2] font-black py-2 px-5 rounded-xl text-[10px] flex items-center shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer"
+                            {/* Segmented Switch: Upcoming vs Past Sessions */}
+                            <div className="flex items-center gap-1 bg-[#F1F5F9] p-0.5 rounded-xl border border-slate-200/80">
+                                <button
+                                    type="button"
+                                    onClick={() => setScheduleTab('UPCOMING')}
+                                    className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-black transition-all cursor-pointer text-center ${
+                                        scheduleTab === 'UPCOMING'
+                                            ? 'bg-[#4A7CD2] text-white shadow-2xs'
+                                            : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                                    }`}
                                 >
-                                    <Plus className="w-3.5 h-3.5 mr-1 text-[#4A7CD2] stroke-[3]" /> Add Patient
+                                    Upcoming ({newAppointments.length})
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setScheduleTab('PAST')}
+                                    className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-black transition-all cursor-pointer text-center ${
+                                        scheduleTab === 'PAST'
+                                            ? 'bg-rose-500 text-white shadow-2xs'
+                                            : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                                    }`}
+                                >
+                                    Past ({oldAppointments.length})
                                 </button>
                             </div>
-                            
-                            <div className="w-20 h-20 rounded-full bg-white/20 border border-white/30 shadow-inner flex items-center justify-center overflow-hidden flex-shrink-0 relative z-10">
-                                <img src="/dentist_cartoon_notes_icon.png" alt="ToothIcon" className="w-full h-full object-cover scale-110" />
-                            </div>
                         </div>
 
+                        {/* Scrollable Appointment List */}
+                        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-2 space-y-1.5">
+                            {scheduleTab === 'UPCOMING' ? (
+                                currentUpcoming.length === 0 ? (
+                                    <div className="text-center py-8">
+                                        <p className="text-xs text-muted-text italic">No upcoming appointments scheduled.</p>
+                                    </div>
+                                ) : (
+                                    currentUpcoming.map((app) => {
+                                        const matchedPatient = patients.find(p => p.patientID === app.patientID);
+                                        const isSelected = selectedPatient?.patientID === app.patientID;
+                                        return (
+                                            <div 
+                                                key={app.appointmentID} 
+                                                onClick={() => {
+                                                    if (matchedPatient) setSelectedPatient(matchedPatient);
+                                                }}
+                                                className={`p-2 rounded-xl border flex justify-between items-center text-xs transition cursor-pointer ${
+                                                    isSelected 
+                                                        ? 'bg-[#EAF0FC] border-[#4A7CD2] shadow-2xs' 
+                                                        : 'bg-white border-[#EAF0FC] hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <div className="min-w-0 pr-1">
+                                                    <p className="font-extrabold text-[#10244B] text-xs truncate">{app.fullName}</p>
+                                                    <span className="text-[9px] text-slate-500 font-semibold truncate block">{app.reason || 'General Checkup'}</span>
+                                                </div>
+                                                <span className="bg-[#4A7CD2] text-white px-2 py-0.5 rounded-md flex items-center gap-1 font-bold text-[9px] flex-shrink-0">
+                                                    <Clock className="w-2.5 h-2.5" />
+                                                    {new Date(app.preferredDate).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+                                        );
+                                    })
+                                )
+                            ) : (
+                                currentPast.length === 0 ? (
+                                    <div className="text-center py-8">
+                                        <p className="text-xs text-muted-text italic">No past sessions on record.</p>
+                                    </div>
+                                ) : (
+                                    currentPast.map((app) => {
+                                        const matchedPatient = patients.find(p => p.patientID === app.patientID);
+                                        const isSelected = selectedPatient?.patientID === app.patientID;
+                                        return (
+                                            <div 
+                                                key={app.appointmentID} 
+                                                onClick={() => {
+                                                    if (matchedPatient) setSelectedPatient(matchedPatient);
+                                                }}
+                                                className={`p-2 rounded-xl border flex justify-between items-center text-xs transition cursor-pointer ${
+                                                    isSelected 
+                                                        ? 'bg-rose-50 border-rose-300 shadow-2xs' 
+                                                        : 'bg-white border-[#EAF0FC] hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <div className="min-w-0 pr-1">
+                                                    <p className="font-extrabold text-[#10244B] text-xs truncate">{app.fullName}</p>
+                                                    <span className="text-[9px] text-slate-500 font-semibold truncate block">{app.reason || 'Completed Visit'}</span>
+                                                </div>
+                                                <span className="bg-rose-500 text-white px-2 py-0.5 rounded-md flex items-center gap-1 font-bold text-[9px] flex-shrink-0">
+                                                    <Clock className="w-2.5 h-2.5" />
+                                                    {new Date(app.preferredDate).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+                                        );
+                                    })
+                                )
+                            )}
+                        </div>
+
+                        {/* Compact Registration Callout at Bottom of Col 3 */}
+                        <div className="flex-shrink-0 p-2 sm:p-2.5 border-t border-[#EAF0FC] bg-gradient-to-r from-[#4A7CD2] to-[#6366F1] text-white flex items-center justify-between">
+                            <div>
+                                <p className="text-[11px] font-black leading-tight">Fast Registration</p>
+                                <p className="text-[9px] text-white/80 font-medium">Create a digital chart file</p>
+                            </div>
+                            <button 
+                                type="button"
+                                onClick={() => navigate('/new-patient')}
+                                className="bg-white hover:bg-slate-50 text-[#4A7CD2] px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 shadow-sm transition cursor-pointer"
+                            >
+                                <Plus className="w-3 h-3 stroke-[3]" />
+                                <span>Add</span>
+                            </button>
+                        </div>
                     </div>
 
                 </div>
@@ -2649,7 +2612,29 @@ export default function PatientDirectory() {
                 </div>
             )}
 
-            <Footer />
+            {/* Desktop Slim Clinical Status Bar (Zero Page Scroll) */}
+            <div className="hidden lg:flex flex-shrink-0 h-6 bg-white border-t border-[#EAF0FC] px-4 items-center justify-between text-[10px] text-slate-500 font-medium select-none z-10">
+                <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1.5 text-emerald-600 font-bold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+                        Cloud EHR Live
+                    </span>
+                    <span className="text-slate-300">|</span>
+                    <span>Directory: <strong className="text-slate-700">{patients.length} records</strong></span>
+                    <span className="text-slate-300">|</span>
+                    <span>Appointments: <strong className="text-slate-700">{appointments.length} total</strong></span>
+                </div>
+                <div className="flex items-center gap-3">
+                    <span>Odontogram & NanoPix: <strong className="text-[#4A7CD2]">Ready</strong></span>
+                    <span className="text-slate-300">|</span>
+                    <span className="text-slate-400 font-mono">{new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                </div>
+            </div>
+
+            {/* Mobile Standard Footer (Shown only on small screens) */}
+            <div className="block lg:hidden flex-shrink-0">
+                <Footer />
+            </div>
         </div>
     );
 }
