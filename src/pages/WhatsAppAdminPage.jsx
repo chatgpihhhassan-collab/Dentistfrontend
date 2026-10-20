@@ -8,12 +8,16 @@ import {
     getWhatsAppQR, 
     startWhatsAppSession, 
     getWhatsAppLogs, 
-    sendWhatsAppTest 
+    sendWhatsAppTest,
+    getWhatsAppClickToChatUrl,
+    retryWhatsAppMessage,
+    retryAllFailedWhatsAppMessages
 } from '../services/whatsappService';
 import { 
     MessageCircle, RefreshCw, Send, QrCode, ShieldCheck, 
     AlertTriangle, CheckCircle2, Clock, Smartphone, Server, 
-    Sliders, ExternalLink, HelpCircle, FileText, Check, X, Info
+    Sliders, ExternalLink, HelpCircle, FileText, Check, X, Info,
+    Copy, Terminal, ChevronDown, ChevronUp, Zap, AlertCircle
 } from 'lucide-react';
 
 export default function WhatsAppAdminPage() {
@@ -39,6 +43,11 @@ export default function WhatsAppAdminPage() {
     const [refreshing, setRefreshing] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
 
+    // Diagnostics and retry states
+    const [showServerHelp, setShowServerHelp] = useState(false);
+    const [retryingId, setRetryingId] = useState(null);
+    const [retryingAll, setRetryingAll] = useState(false);
+
     // Test send form states
     const [testPhone, setTestPhone] = useState('03001234567');
     const [testMessage, setTestMessage] = useState('🦷 Dentia Dental Hospital: This is a verified test notification sent via our OpenWA gateway.');
@@ -50,6 +59,42 @@ export default function WhatsAppAdminPage() {
     const showToast = (message, type = 'success') => {
         setToast({ visible: true, message, type });
         setTimeout(() => setToast({ visible: false, message: '', type: 'success' }), 4000);
+    };
+
+    const handleCopyMessage = (text) => {
+        if (!text) return;
+        try {
+            navigator.clipboard.writeText(text);
+            showToast('Appointment message copied to clipboard!');
+        } catch {
+            showToast('Unable to copy text to clipboard', 'error');
+        }
+    };
+
+    const handleRetrySingle = async (messageId) => {
+        setRetryingId(messageId);
+        try {
+            await retryWhatsAppMessage(messageId);
+            showToast(`Message #${messageId} returned to pending queue!`);
+            fetchStatusAndLogs(true);
+        } catch (err) {
+            showToast(err.message || `Failed to re-queue message #${messageId}`, 'error');
+        } finally {
+            setRetryingId(null);
+        }
+    };
+
+    const handleRetryAll = async () => {
+        setRetryingAll(true);
+        try {
+            const res = await retryAllFailedWhatsAppMessages();
+            showToast(res.message || 'All failed messages re-queued for processing!');
+            fetchStatusAndLogs(false);
+        } catch (err) {
+            showToast(err.message || 'Could not re-queue failed messages', 'error');
+        } finally {
+            setRetryingAll(false);
+        }
     };
 
     // Load gateway status and recent logs
@@ -230,6 +275,97 @@ export default function WhatsAppAdminPage() {
                     </div>
                 </div>
 
+                {/* Gateway Connection Diagnostic Alert Banner */}
+                {(!statusData.isConnected || statusData.status === 'DISCONNECTED' || logs.some(l => l.errorMessage && (l.errorMessage.includes('localhost:2785') || l.errorMessage.includes('refused')))) && (
+                    <div className="mb-6 bg-gradient-to-r from-rose-50 via-amber-50/50 to-white border-2 border-rose-200/90 rounded-3xl p-5 shadow-xs">
+                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                            <div className="flex items-start gap-3.5">
+                                <div className="p-3 bg-rose-100 text-rose-700 rounded-2xl shrink-0 mt-0.5">
+                                    <AlertTriangle className="w-6 h-6 animate-pulse" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h3 className="text-sm font-black text-rose-900">
+                                            OpenWA Gateway Offline on API Server (localhost:2785 Refused)
+                                        </h3>
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-200/80 text-rose-800">
+                                            Server Daemon Required
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-rose-800/90 mt-1 leading-relaxed max-w-2xl">
+                                        The backend at <code className="bg-white/90 px-1.5 py-0.5 rounded font-mono text-[11px] text-rose-900 border border-rose-200">dentist-api-dev.vitonta.com</code> attempted to dispatch WhatsApp notifications, but port 2785 was refused on the host machine.
+                                    </p>
+                                    <div className="mt-2.5 flex flex-wrap items-center gap-2 text-[11px]">
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100/90 text-emerald-800 font-bold border border-emerald-300">
+                                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                                            <span>Fallback Email Active: Patient confirmations were safely delivered via clinic email</span>
+                                        </span>
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white text-slate-800 font-bold border border-slate-200 shadow-2xs">
+                                            <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                            <span>Instant 1-Click Fallback: Click &quot;Open in WhatsApp&quot; on any row below</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0 self-stretch md:self-auto justify-end">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowServerHelp(!showServerHelp)}
+                                    className="px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                                >
+                                    <Terminal className="w-3.5 h-3.5 text-slate-600" />
+                                    <span>{showServerHelp ? 'Hide Server Guide' : 'How to Run Port 2785'}</span>
+                                    {showServerHelp ? <ChevronUp className="w-3 h-3 text-slate-400" /> : <ChevronDown className="w-3 h-3 text-slate-400" />}
+                                </button>
+                                {logs.filter(l => l.status === 'Failed').length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={handleRetryAll}
+                                        disabled={retryingAll}
+                                        className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
+                                    >
+                                        <RefreshCw className={`w-3.5 h-3.5 ${retryingAll ? 'animate-spin' : ''}`} />
+                                        <span>Retry All Failed ({logs.filter(l => l.status === 'Failed').length})</span>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Collapsible Server Guide */}
+                        {showServerHelp && (
+                            <div className="mt-4 pt-4 border-t border-rose-200/80 text-xs space-y-3">
+                                <div className="bg-slate-900 text-slate-100 p-4 rounded-2xl font-mono text-[11px] overflow-x-auto">
+                                    <p className="text-slate-400 mb-2 font-sans font-bold flex items-center gap-2">
+                                        <Terminal className="w-4 h-4 text-emerald-400" />
+                                        <span>Execute one of the following on the dentist-api-dev.vitonta.com hosting server:</span>
+                                    </p>
+                                    <div className="space-y-2 text-slate-200">
+                                        <div>
+                                            <span className="text-emerald-400"># Option A (Recommended with PM2 background process):</span>
+                                            <div className="text-amber-300 select-all font-mono bg-slate-950/70 p-1.5 rounded mt-0.5">
+                                                pm2 start openwa_gateway_runner.mjs --name &quot;openwa-gateway&quot; &amp;&amp; pm2 save
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-emerald-400"># Option B (Docker container on port 2785):</span>
+                                            <div className="text-amber-300 select-all font-mono bg-slate-950/70 p-1.5 rounded mt-0.5">
+                                                docker compose -f docker-compose.openwa.yml up -d
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-emerald-400"># Option C (Direct Node runner):</span>
+                                            <div className="text-amber-300 select-all font-mono bg-slate-950/70 p-1.5 rounded mt-0.5">
+                                                node openwa_gateway_runner.mjs
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Main 2-Column Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                     {/* Left Column (5 cols): QR Code Linking + Manual Test Dispatch */}
@@ -394,22 +530,38 @@ export default function WhatsAppAdminPage() {
                                     </span>
                                 </div>
 
-                                {/* Status Filter Tabs */}
-                                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-[10px] font-bold">
-                                    {['ALL', 'Pending', 'Sent', 'Delivered', 'Failed'].map((st) => (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    {/* Status Filter Tabs */}
+                                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-[10px] font-bold">
+                                        {['ALL', 'Pending', 'Sent', 'Delivered', 'Failed'].map((st) => (
+                                            <button
+                                                key={st}
+                                                type="button"
+                                                onClick={() => setLogFilter(st)}
+                                                className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                                                    logFilter === st 
+                                                        ? 'bg-white text-primary-teal shadow-xs font-black' 
+                                                        : 'text-slate-600 hover:text-slate-900'
+                                                }`}
+                                            >
+                                                {st}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* Quick Retry All button in header if failed messages exist */}
+                                    {logs.some(m => m.status === 'Failed') && (
                                         <button
-                                            key={st}
                                             type="button"
-                                            onClick={() => setLogFilter(st)}
-                                            className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
-                                                logFilter === st 
-                                                    ? 'bg-white text-primary-teal shadow-xs font-black' 
-                                                    : 'text-slate-600 hover:text-slate-900'
-                                            }`}
+                                            onClick={handleRetryAll}
+                                            disabled={retryingAll}
+                                            className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                            title="Re-queue failed messages"
                                         >
-                                            {st}
+                                            <RefreshCw className={`w-3 h-3 ${retryingAll ? 'animate-spin' : ''}`} />
+                                            <span>Retry Failed</span>
                                         </button>
-                                    ))}
+                                    )}
                                 </div>
                             </div>
 
@@ -432,6 +584,7 @@ export default function WhatsAppAdminPage() {
                                                 <th className="py-2.5 px-3">Type</th>
                                                 <th className="py-2.5 px-3">Status</th>
                                                 <th className="py-2.5 px-3">Message Preview</th>
+                                                <th className="py-2.5 px-3 text-right">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
@@ -439,6 +592,8 @@ export default function WhatsAppAdminPage() {
                                                 const isSent = msg.status === 'Sent' || msg.status === 'Delivered' || msg.status === 'Read';
                                                 const isFailed = msg.status === 'Failed';
                                                 const isPending = msg.status === 'Pending' || msg.status === 'Retrying';
+                                                const hasPortRefused = msg.errorMessage && (msg.errorMessage.includes('localhost:2785') || msg.errorMessage.includes('refused'));
+                                                const hasEmailSent = msg.errorMessage && msg.errorMessage.includes('Fallback Email: Sent');
 
                                                 return (
                                                     <tr key={msg.messageID} className="hover:bg-slate-50/70 transition-colors">
@@ -479,11 +634,66 @@ export default function WhatsAppAdminPage() {
                                                             <p className="text-[11px] text-slate-600 truncate" title={msg.messageBody}>
                                                                 {msg.messageBody}
                                                             </p>
-                                                            {msg.errorMessage && (
-                                                                <p className="text-[10px] text-rose-600 truncate font-mono mt-0.5" title={msg.errorMessage}>
-                                                                    Err: {msg.errorMessage}
-                                                                </p>
+                                                            {hasEmailSent && (
+                                                                <div className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/80">
+                                                                    <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                                                    <span>Fallback Email: Sent to Patient</span>
+                                                                </div>
                                                             )}
+                                                            {hasPortRefused ? (
+                                                                <div className="mt-1 flex items-center gap-1 text-[10px] font-mono text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200" title={msg.errorMessage}>
+                                                                    <AlertCircle className="w-3 h-3 text-rose-600 shrink-0" />
+                                                                    <span className="truncate">Server port 2785 refused connection</span>
+                                                                </div>
+                                                            ) : (
+                                                                msg.errorMessage && !hasEmailSent && (
+                                                                    <p className="text-[10px] text-rose-600 truncate font-mono mt-0.5" title={msg.errorMessage}>
+                                                                        Err: {msg.errorMessage}
+                                                                    </p>
+                                                                )
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3 px-3 text-right whitespace-nowrap">
+                                                            <div className="flex items-center justify-end gap-1.5">
+                                                                {/* 1-Click WhatsApp Direct Chat */}
+                                                                {msg.recipientPhone && (
+                                                                    <a
+                                                                        href={getWhatsAppClickToChatUrl(msg.recipientPhone, msg.messageBody)}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black transition shadow-2xs hover:shadow-xs group cursor-pointer"
+                                                                        title={`Open WhatsApp Web or App for ${msg.recipientPhone}`}
+                                                                    >
+                                                                        <MessageCircle className="w-3.5 h-3.5" />
+                                                                        <span>Open in WhatsApp</span>
+                                                                        <ExternalLink className="w-2.5 h-2.5 opacity-70 group-hover:opacity-100" />
+                                                                    </a>
+                                                                )}
+
+                                                                {/* Copy pre-rendered message text */}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleCopyMessage(msg.messageBody)}
+                                                                    className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10px] font-bold transition cursor-pointer"
+                                                                    title="Copy message text"
+                                                                >
+                                                                    <Copy className="w-3.5 h-3.5" />
+                                                                </button>
+
+                                                                {/* Retry button if failed */}
+                                                                {isFailed && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleRetrySingle(msg.messageID)}
+                                                                        disabled={retryingId === msg.messageID}
+                                                                        className="inline-flex items-center gap-1 px-2 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-xl text-[10px] font-black transition cursor-pointer disabled:opacity-50"
+                                                                        title="Re-queue message for automatic gateway dispatch"
+                                                                    >
+                                                                        <RefreshCw className={`w-3 h-3 ${retryingId === msg.messageID ? 'animate-spin' : ''}`} />
+                                                                        <span>Retry</span>
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 );

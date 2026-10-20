@@ -93,3 +93,61 @@ export async function resendAppointmentWhatsApp(appointmentId) {
     return data;
 }
 
+/**
+ * ⚡ Generates a zero-dependency wa.me Click-to-Chat URL.
+ * Automatically normalizes Pakistani mobile numbers (e.g. 03455097066 -> 923455097066).
+ * Enables instant 1-click dispatch directly from WhatsApp Web or WhatsApp Desktop/Mobile app.
+ */
+export function getWhatsAppClickToChatUrl(phone, text = '') {
+    if (!phone) return null;
+    const cleanDigits = phone.toString().replace(/[^0-9]/g, '');
+    let international = cleanDigits;
+    if (international.startsWith('0')) {
+        international = '92' + international.slice(1);
+    } else if (international.startsWith('3') && international.length === 10) {
+        international = '92' + international;
+    }
+    return `https://wa.me/${international}${text ? `?text=${encodeURIComponent(text)}` : ''}`;
+}
+
+/**
+ * Retries a specific failed WhatsApp message via the backend queue.
+ */
+export async function retryWhatsAppMessage(messageId) {
+    try {
+        const response = await apiFetch(`/api/whatsapp/messages/${messageId}/retry`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.message || `Failed to retry message #${messageId}`);
+        }
+        return data;
+    } catch (err) {
+        console.warn(`[whatsappService] Retry API call failed for message #${messageId}:`, err);
+        throw err;
+    }
+}
+
+/**
+ * Retries all failed WhatsApp messages via the backend queue.
+ */
+export async function retryAllFailedWhatsAppMessages() {
+    try {
+        const response = await apiFetch('/api/whatsapp/messages/retry-failed', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.message || 'Failed to retry failed WhatsApp messages');
+        }
+        return data;
+    } catch (err) {
+        console.warn('[whatsappService] Retry all failed API call failed:', err);
+        throw err;
+    }
+}
+
+
