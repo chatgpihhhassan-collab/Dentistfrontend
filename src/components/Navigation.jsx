@@ -1,19 +1,22 @@
 import React from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { LogOut, Home, Users, Calendar, Stethoscope, Info, CalendarPlus, Phone, Clock, Mail, Star, UserCheck, DollarSign, Building2, Shield, MessageCircle } from 'lucide-react';
+import { LogOut, Home, Users, Calendar, Stethoscope, Info, CalendarPlus, Phone, Clock, Mail, Star, UserCheck, DollarSign, Building2, Shield, MessageCircle, Globe } from 'lucide-react';
 import { HardwareDeviceSyncBadge } from './HardwareDeviceSyncBadge';
 import { purgeClinicianSession } from '../services/sessionSecurityService';
+import landingCmsService from '../services/landingCmsService';
 
 export default function Navigation() {
     const navigate = useNavigate();
     const location = useLocation();
     const [doctor, setDoctor] = React.useState(null);
+    const [config, setConfig] = React.useState(() => landingCmsService.getConfig());
 
     React.useEffect(() => {
         const stored = localStorage.getItem('doctor');
         if (stored) {
             setDoctor(JSON.parse(stored));
         }
+        return landingCmsService.subscribe(setConfig);
     }, []);
 
     const handleLogout = () => {
@@ -28,27 +31,41 @@ export default function Navigation() {
             ? `${baseClasses} text-primary-teal font-bold bg-white shadow-md scale-105 ring-1 ring-[#4A7CD2]/25`
             : `${baseClasses} text-slate-600 hover:text-primary-teal hover:bg-white/60 hover:scale-105`;
     };
+
+    const cleanPhone = `tel:${(config.phone || '').replace(/[^\d+]/g, '')}`;
+    const showTopBar = config.sections?.showTopContactBar !== false;
+
     return (
         <div className="pt-3 pb-2 px-4 sm:px-6 sticky top-0 z-50 bg-[#FBFBFA]/95 backdrop-blur-md border-b border-light-teal/40 transition-all shadow-xs">
-            {/* Top Contact Bar */}
-            <div className="w-full max-w-[1800px] mx-auto px-4 mb-2 flex items-center justify-between text-xs text-muted-text font-medium">
-                <div className="flex items-center space-x-6">
-                    <span className="flex items-center text-slate-600"><Phone className="w-3.5 h-3.5 mr-1.5 text-primary-teal" /> +1 123 456 789</span>
-                    <span className="flex items-center text-slate-600"><Clock className="w-3.5 h-3.5 mr-1.5 text-primary-teal" /> Mon - Sat: 08:00 - 20:00</span>
-                    <span className="flex items-center text-slate-600 hidden md:flex"><Mail className="w-3.5 h-3.5 mr-1.5 text-primary-teal" /> contact@dentiaclinic.com</span>
+            {/* Top Contact Bar - Fully Dynamic */}
+            {showTopBar && (
+                <div className="w-full max-w-[1800px] mx-auto px-4 mb-2 flex items-center justify-between text-xs text-muted-text font-medium">
+                    <div className="flex items-center space-x-6">
+                        <a href={cleanPhone} className="flex items-center text-slate-600 hover:text-primary-teal transition-colors">
+                            <Phone className="w-3.5 h-3.5 mr-1.5 text-primary-teal" /> {config.phone || '+1 123 456 789'}
+                        </a>
+                        <span className="flex items-center text-slate-600">
+                            <Clock className="w-3.5 h-3.5 mr-1.5 text-primary-teal" /> {config.operatingHours || 'Mon - Sat: 08:00 - 20:00'}
+                        </span>
+                        <a href={`mailto:${config.email}`} className="flex items-center text-slate-600 hover:text-primary-teal transition-colors hidden md:flex">
+                            <Mail className="w-3.5 h-3.5 mr-1.5 text-primary-teal" /> {config.email || 'contact@dentiaclinic.com'}
+                        </a>
+                    </div>
+                    <div className="flex items-center space-x-5">
+                        <span className="flex items-center text-accent-gold font-bold">
+                            ★ {config.socialProof?.googleRating || 5.0} <span className="text-slate-600 font-medium ml-1">({config.socialProof?.googleReviewCountText || '23k Google Reviews'})</span>
+                        </span>
+                        {!doctor && (
+                            <button 
+                                onClick={() => navigate('/login')}
+                                className="text-slate-600 hover:text-primary-teal font-semibold transition-colors flex items-center gap-1 cursor-pointer pl-2 border-l border-slate-300"
+                            >
+                                Clinician Portal →
+                            </button>
+                        )}
+                    </div>
                 </div>
-                <div className="flex items-center space-x-5">
-                    <span className="flex items-center text-accent-gold font-bold">★ 5.0 <span className="text-slate-600 font-medium ml-1">(23k Google Reviews)</span></span>
-                    {!doctor && (
-                        <button 
-                            onClick={() => navigate('/login')}
-                            className="text-slate-600 hover:text-primary-teal font-semibold transition-colors flex items-center gap-1 cursor-pointer pl-2 border-l border-slate-300"
-                        >
-                            Clinician Portal →
-                        </button>
-                    )}
-                </div>
-            </div>
+            )}
 
             <header className="w-full max-w-[1800px] mx-auto bg-gradient-to-r from-white/95 via-white/85 to-[#EAF0FC]/75 backdrop-blur-2xl border border-white/90 h-20 flex items-center justify-between px-6 rounded-full shadow-lg shadow-[#0A1A24]/5 transition-all duration-300">
                 <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate(doctor && doctor.isSuperAdmin ? '/admin/doctors' : '/')}>
@@ -109,6 +126,13 @@ export default function Navigation() {
                                         title="Doctor Fee Schedules & Treatment Pricing"
                                     >
                                         <DollarSign className="w-5 h-5" />
+                                    </Link>
+                                    <Link 
+                                        to="/clinic/website-studio" 
+                                        className={getLinkClass(location.pathname === '/clinic/website-studio' || location.pathname === '/admin/website')}
+                                        title="Website & Landing Page Studio (Doctor CMS)"
+                                    >
+                                        <Globe className="w-5 h-5 text-teal-600" />
                                     </Link>
                                     <Link 
                                         to="/admin/whatsapp" 

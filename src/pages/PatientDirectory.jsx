@@ -51,7 +51,8 @@ export default function PatientDirectory() {
     const [logsSearchFilter, setLogsSearchFilter] = useState('');
     const [logsTypeFilter, setLogsTypeFilter] = useState('ALL');
     const [dentitionFilter, setDentitionFilter] = useState('ALL'); // 'ALL' | 'ADULT' | 'PEDIATRIC' | 'MIXED'
-    const [whatsAppFilter, setWhatsAppFilter] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'INACTIVE'
+    const [patientVisitTab, setPatientVisitTab] = useState('ALL'); // 'TODAY' | 'ALL'
+    const [hasInitializedVisitTab, setHasInitializedVisitTab] = useState(false);
 
     // Consultation Treatment Modality Tagger States
     const [activeTreatmentTag, setActiveTreatmentTag] = useState(null); // 'braces' | 'whitening' | 'cavity' | null
@@ -747,6 +748,14 @@ export default function PatientDirectory() {
 
     const cleanSearch = useMemo(() => searchTerm.trim().toLowerCase(), [searchTerm]);
 
+    // Dynamic Time-of-Day Greeting (Morning < 12, Afternoon 12-17, Evening >= 17)
+    const getDynamicGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour < 12) return 'Good Morning';
+        if (hour < 17) return 'Good Afternoon';
+        return 'Good Evening';
+    };
+
     // Calculate age from date of birth
     const getAge = (dobString) => {
         if (!dobString) return null;
@@ -757,13 +766,91 @@ export default function PatientDirectory() {
         return Math.abs(ageDate.getUTCFullYear() - 1970);
     };
 
-    const getFilteredPatientsByTab = useCallback((tabId, searchStr = '', waFilter = whatsAppFilter) => {
+    // Helper to check if a date string matches today in local date
+    const isToday = (dateInput) => {
+        if (!dateInput) return false;
+        const d = new Date(dateInput);
+        if (isNaN(d.getTime())) return false;
+        const today = new Date();
+        return d.getFullYear() === today.getFullYear() &&
+               d.getMonth() === today.getMonth() &&
+               d.getDate() === today.getDate();
+    };
+
+    // 1. Appointments scheduled for today
+    const todayAppointments = useMemo(() => {
+        return appointments.filter(app => 
+            isToday(app.preferredDate) && 
+            app.status !== 'Cancelled' && 
+            app.status !== 'Rejected'
+        );
+    }, [appointments]);
+
+    // Set of patient IDs that have appointments scheduled today
+    const todayPatientIds = useMemo(() => {
+        const ids = new Set();
+        todayAppointments.forEach(app => {
+            if (app.patientID) ids.add(app.patientID);
+            const matched = patients.find(p => 
+                (p.phone && app.phone && p.phone === app.phone) ||
+                (`${p.firstName || ''} ${p.lastName || ''}`.trim().toLowerCase() === (app.fullName || '').trim().toLowerCase())
+            );
+            if (matched) ids.add(matched.patientID);
+        });
+        return ids;
+    }, [todayAppointments, patients]);
+
+    // 2. Today's Visited Patients
+    const todayVisitedPatients = useMemo(() => {
+        return patients.filter(p => todayPatientIds.has(p.patientID));
+    }, [patients, todayPatientIds]);
+
+    const todayVisitedCount = todayVisitedPatients.length;
+
+    // 3. Today Registered Patients (New patient intake registered today)
+    const todayRegisteredPatients = useMemo(() => {
+        return patients.filter(p => {
+            const regDate = p.createdAt || p.CreatedAt || p.createdDate || p.dateAdded;
+            return isToday(regDate);
+        });
+    }, [patients]);
+
+    const todayRegisteredCount = todayRegisteredPatients.length;
+
+    // 4. Revisited Patients (Patients visiting today who had previous visits or registered before today)
+    const revisitedPatients = useMemo(() => {
+        return todayVisitedPatients.filter(p => {
+            const regDate = p.createdAt || p.CreatedAt || p.createdDate || p.dateAdded;
+            if (regDate && !isToday(regDate)) return true;
+            const priorAppts = appointments.filter(a => 
+                (a.patientID === p.patientID || (a.phone && a.phone === p.phone)) &&
+                new Date(a.preferredDate) < new Date(new Date().setHours(0, 0, 0, 0))
+            );
+            return priorAppts.length > 0;
+        });
+    }, [todayVisitedPatients, appointments]);
+
+    const revisitedPatientCount = revisitedPatients.length;
+
+    // By default select "Today's Patients" if count > 0, else fallback to "All Patients"
+    useEffect(() => {
+        if (!hasInitializedVisitTab && (patients.length > 0 || appointments.length > 0)) {
+            if (todayVisitedCount > 0) {
+                setPatientVisitTab('TODAY');
+            } else {
+                setPatientVisitTab('ALL');
+            }
+            setHasInitializedVisitTab(true);
+        }
+    }, [todayVisitedCount, patients.length, appointments.length, hasInitializedVisitTab]);
+
+    const getFilteredPatientsByTab = useCallback((tabId, searchStr = '', visitTab = patientVisitTab) => {
         const cSearch = (searchStr || '').trim().toLowerCase();
         return patients.filter(p => {
-            // 1. WhatsApp Opt-In Filter Check
-            const isOptedIn = Boolean(p.whatsAppOptIn);
-            if (waFilter === 'ACTIVE' && !isOptedIn) return false;
-            if (waFilter === 'INACTIVE' && isOptedIn) return false;
+            // 1. Visit Scope Check (Today's Patients vs All Patients)
+            if (visitTab === 'TODAY' && !todayPatientIds.has(p.patientID)) {
+                return false;
+            }
 
             // 2. Text Search Query Matching
             const matchesQuery = !cSearch || (
@@ -792,27 +879,23 @@ export default function PatientDirectory() {
             }
             return true;
         });
-    }, [patients, whatsAppFilter]);
-
-    const whatsAppActiveCount = useMemo(() => patients.filter(p => Boolean(p.whatsAppOptIn)).length, [patients]);
-    const whatsAppInactiveCount = useMemo(() => patients.filter(p => !p.whatsAppOptIn).length, [patients]);
+    }, [patients, todayPatientIds, patientVisitTab]);
 
     const filteredPatients = useMemo(() => {
-        const result = getFilteredPatientsByTab(dentitionFilter, cleanSearch, whatsAppFilter);
-        console.log(`[PatientDirectory] Filtered ${result.length} patients (Dentition: ${dentitionFilter}, WhatsApp: ${whatsAppFilter}, Query: '${cleanSearch}')`);
+        const result = getFilteredPatientsByTab(dentitionFilter, cleanSearch, patientVisitTab);
         return result;
-    }, [getFilteredPatientsByTab, dentitionFilter, cleanSearch, whatsAppFilter]);
+    }, [getFilteredPatientsByTab, dentitionFilter, cleanSearch, patientVisitTab]);
 
-    // Automatically select the top first patient whenever dentitionFilter or whatsAppFilter tab changes
+    // Automatically select the top first patient whenever dentitionFilter or patientVisitTab changes
     useEffect(() => {
         if (!patients || patients.length === 0) return;
-        const topList = getFilteredPatientsByTab(dentitionFilter, cleanSearch, whatsAppFilter);
+        const topList = getFilteredPatientsByTab(dentitionFilter, cleanSearch, patientVisitTab);
         if (topList.length > 0) {
             setSelectedPatient(topList[0]);
         } else {
             setSelectedPatient(null);
         }
-    }, [dentitionFilter, whatsAppFilter]);
+    }, [dentitionFilter, patientVisitTab]);
 
     // Automatically select the top matching patient when search term changes
     useEffect(() => {
@@ -917,7 +1000,7 @@ export default function PatientDirectory() {
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="space-y-1">
                         <h2 className="text-2xl font-bold tracking-tight text-dark-slate flex items-center gap-1.5">
-                            Good Morning <span className="text-[#4A7CD2]">Dr. {doctor?.lastName || 'Doctor'} 👋</span>
+                            {getDynamicGreeting()} <span className="text-[#4A7CD2]">Dr. {doctor?.lastName || 'Doctor'}</span>
                         </h2>
                     </div>
                     <div className="relative w-full sm:w-80">
@@ -939,29 +1022,39 @@ export default function PatientDirectory() {
                     <div className="lg:col-span-8 space-y-6">
                         
                         {/* 1. Today's Patient Visits Stats Card (Modernized Pro Clinical Showcase) */}
-                        <div className="bg-white rounded-[2rem] border border-[#EAF0FC] p-6 shadow-sm grid grid-cols-1 md:grid-cols-12 gap-6 items-end overflow-hidden relative">
+                        <div className="bg-white rounded-[2rem] border border-[#EAF0FC] p-6 shadow-sm grid grid-cols-1 md:grid-cols-12 gap-6 items-center overflow-hidden relative">
                             {/* Left Metrics */}
-                            <div className="md:col-span-7 space-y-4">
+                            <div className="md:col-span-7 space-y-3.5">
                                 <div className="flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
                                     <span className="text-xs font-bold text-muted-text uppercase tracking-widest block">Today's Patient Visits</span>
                                 </div>
-                                <h3 className="text-5xl font-extrabold text-dark-slate tracking-tight">
-                                    {patients.length} <span className="text-xs text-muted-text font-bold">/person</span>
-                                </h3>
-                                <div className="flex flex-wrap gap-3 pt-2">
-                                    <div className="bg-[#EAF0FC] border border-light-teal/55 p-3 rounded-2xl flex-1 min-w-[120px] transition hover:shadow-xs">
-                                        <span className="text-[10px] font-bold text-[#4A7CD2] block">New Patients</span>
+                                <div className="flex items-baseline gap-2">
+                                    <h3 className="text-5xl font-extrabold text-dark-slate tracking-tight">
+                                        {todayVisitedCount}
+                                    </h3>
+                                    <span className="text-xs font-semibold text-slate-500">patients scheduled today</span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                                    <div className="bg-[#EAF0FC] border border-[#4A7CD2]/20 p-3 rounded-2xl transition hover:shadow-xs">
+                                        <span className="text-[10px] font-bold text-[#4A7CD2] block">Visited Today</span>
                                         <div className="flex justify-between items-center mt-1">
-                                            <span className="text-xl font-bold text-dark-slate">{patients.length}</span>
-                                            <span className="bg-emerald-50 text-emerald-600 text-[8px] font-bold px-1.5 py-0.5 rounded-md border border-emerald-100">51% ↗</span>
+                                            <span className="text-xl font-extrabold text-dark-slate">{todayVisitedCount}</span>
+                                            <span className="bg-blue-100 text-[#4A7CD2] text-[8px] font-bold px-1.5 py-0.5 rounded-md">Today</span>
                                         </div>
                                     </div>
-                                    <div className="bg-[#FDF2F4] border border-red-50 p-3 rounded-2xl flex-1 min-w-[120px] transition hover:shadow-xs">
-                                        <span className="text-[10px] font-bold text-pink-600 block">Returning Patients</span>
+                                    <div className="bg-emerald-50/80 border border-emerald-200/60 p-3 rounded-2xl transition hover:shadow-xs">
+                                        <span className="text-[10px] font-bold text-emerald-700 block">Today Registered</span>
                                         <div className="flex justify-between items-center mt-1">
-                                            <span className="text-xl font-bold text-dark-slate">0</span>
-                                            <span className="bg-pink-50/50 text-pink-600 text-[8px] font-bold px-1.5 py-0.5 rounded-md border border-pink-100">0% ↘</span>
+                                            <span className="text-xl font-extrabold text-emerald-950">{todayRegisteredCount}</span>
+                                            <span className="bg-emerald-100 text-emerald-700 text-[8px] font-bold px-1.5 py-0.5 rounded-md">New</span>
+                                        </div>
+                                    </div>
+                                    <div className="bg-indigo-50/80 border border-indigo-200/60 p-3 rounded-2xl transition hover:shadow-xs">
+                                        <span className="text-[10px] font-bold text-indigo-700 block">Revisited</span>
+                                        <div className="flex justify-between items-center mt-1">
+                                            <span className="text-xl font-extrabold text-indigo-950">{revisitedPatientCount}</span>
+                                            <span className="bg-indigo-100 text-indigo-700 text-[8px] font-bold px-1.5 py-0.5 rounded-md">Return</span>
                                         </div>
                                     </div>
                                 </div>
@@ -1094,19 +1187,17 @@ export default function PatientDirectory() {
                                         <span className="text-[10px] font-bold text-[#4A7CD2] bg-[#EAF0FC] px-2 py-0.5 rounded border border-light-teal">Today</span>
                                     </div>
 
-                                    {/* WhatsApp Status Filter Tabs */}
+                                    {/* Patient Visit Scope Filter Tabs (Today's Patients vs All Patients) */}
                                     <div className="flex items-center gap-1 bg-[#F1F5F9] p-1 rounded-xl border border-slate-200/80">
                                         {[
-                                            { id: 'ALL', label: `All Patients (${patients.length})`, icon: null },
-                                            { id: 'ACTIVE', label: `🟢 WhatsApp Active (${whatsAppActiveCount})`, icon: null },
-                                            { id: 'INACTIVE', label: `⚪ Inactive (${whatsAppInactiveCount})`, icon: null }
+                                            { id: 'TODAY', label: `Today's Patients (${todayVisitedCount})` },
+                                            { id: 'ALL', label: `All Patients (${patients.length})` }
                                         ].map(tab => (
                                             <button
                                                 key={tab.id}
                                                 type="button"
                                                 onClick={() => {
-                                                    console.log(`[PatientDirectory] WhatsApp filter set to: ${tab.id}`);
-                                                    setWhatsAppFilter(tab.id);
+                                                    setPatientVisitTab(tab.id);
                                                     setCurrentPage(1);
                                                     const list = getFilteredPatientsByTab(dentitionFilter, cleanSearch, tab.id);
                                                     if (list.length > 0) {
@@ -1115,13 +1206,9 @@ export default function PatientDirectory() {
                                                         setSelectedPatient(null);
                                                     }
                                                 }}
-                                                className={`flex-1 py-1 px-1 rounded-lg text-[9px] font-black transition-all cursor-pointer text-center ${
-                                                    whatsAppFilter === tab.id
-                                                        ? tab.id === 'ACTIVE'
-                                                            ? 'bg-emerald-600 text-white shadow-2xs'
-                                                            : tab.id === 'INACTIVE'
-                                                                ? 'bg-slate-700 text-white shadow-2xs'
-                                                                : 'bg-[#4A7CD2] text-white shadow-2xs'
+                                                className={`flex-1 py-1.5 px-2 rounded-lg text-[10px] font-black transition-all cursor-pointer text-center ${
+                                                    patientVisitTab === tab.id
+                                                        ? 'bg-[#4A7CD2] text-white shadow-2xs'
                                                         : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
                                                 }`}
                                             >
@@ -1166,7 +1253,22 @@ export default function PatientDirectory() {
                                 <div className="space-y-3 h-[360px] flex flex-col justify-between">
                                     <div className="space-y-3 flex-grow">
                                         {currentPatients.length === 0 ? (
-                                            <p className="text-xs text-muted-text italic text-center py-6">No patient files found.</p>
+                                            <div className="text-center py-8 space-y-2">
+                                                <p className="text-xs text-muted-text font-semibold">
+                                                    {patientVisitTab === 'TODAY' 
+                                                        ? "No patient visits scheduled for today yet." 
+                                                        : "No patient files found."}
+                                                </p>
+                                                {patientVisitTab === 'TODAY' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setPatientVisitTab('ALL')}
+                                                        className="text-[11px] font-bold text-[#4A7CD2] hover:underline cursor-pointer"
+                                                    >
+                                                        View All Patients ({patients.length}) →
+                                                    </button>
+                                                )}
+                                            </div>
                                         ) : (
                                             currentPatients.map((p) => {
                                                 const isSelected = selectedPatient?.patientID === p.patientID;

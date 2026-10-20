@@ -28,6 +28,7 @@ const DoctorTreatmentPricing = lazy(() => import('./pages/DoctorTreatmentPricing
 const DentiaAIRadiologyStudioPage = lazy(() => import('./modules/aiRadiologyStudio/pages/DentiaAIRadiologyStudioPage'));
 const NanoPixSetupGuide = lazy(() => import('./pages/NanoPixSetupGuide'));
 const WhatsAppAdminPage = lazy(() => import('./pages/WhatsAppAdminPage'));
+const ClinicWebsiteStudio = lazy(() => import('./pages/ClinicWebsiteStudio'));
 
 // 🌟 Patient Portal Lazy Loaded Modules
 const PatientPortalLayout = lazy(() => import('./modules/patientPortal/layouts/PatientPortalLayout'));
@@ -150,11 +151,11 @@ export default function App() {
             <Route path="/appointments" element={<ProtectedRoute><AppointmentsList /></ProtectedRoute>} />
             <Route path="/setup-guide" element={<ProtectedRoute><NanoPixSetupGuide /></ProtectedRoute>} />
             
-            {/* Protected Standalone Pages */}
+            {/* Online Patient Booking (Accessible to public visitors & logged-in doctors) */}
             <Route path="/book" element={
-                <ProtectedRoute>
+                <BlockSuperAdmin>
                     <BookAppointment />
-                </ProtectedRoute>
+                </BlockSuperAdmin>
             } />
             <Route path="/treatment-pricing" element={
                 <ProtectedRoute>
@@ -164,6 +165,18 @@ export default function App() {
             <Route path="/doctor/pricing" element={
                 <ProtectedRoute>
                     <DoctorTreatmentPricing />
+                </ProtectedRoute>
+            } />
+            
+            {/* 🌐 Clinic Doctor Dynamic Website Studio */}
+            <Route path="/clinic/website-studio" element={
+                <ProtectedRoute>
+                    <ClinicWebsiteStudio />
+                </ProtectedRoute>
+            } />
+            <Route path="/admin/website" element={
+                <ProtectedRoute>
+                    <ClinicWebsiteStudio />
                 </ProtectedRoute>
             } />
             

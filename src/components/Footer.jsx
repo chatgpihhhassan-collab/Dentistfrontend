@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Phone, Mail, Clock, MapPin, ShieldCheck, ExternalLink } from 'lucide-react';
+import { landingCmsService } from '../services/landingCmsService';
 
 const InstagramIcon = ({ className = 'w-4 h-4' }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -25,14 +26,30 @@ const LinkedinIcon = ({ className = 'w-4 h-4' }) => (
 );
 
 export default function Footer() {
+    const [config, setConfig] = useState(() => landingCmsService.getConfig());
+
+    useEffect(() => {
+        const unsubscribe = landingCmsService.subscribe((updated) => {
+            setConfig({ ...updated });
+        });
+        return unsubscribe;
+    }, []);
+
+    const phone = config.phone || '+1 123 456 789';
+    const email = config.email || 'contact@dentiaclinic.com';
+    const address = config.address || 'Suite 400, Grand Central Medical Plaza, Downtown Dental Arts';
+    const hours = config.operatingHours || 'Mon - Sat: 08:00 - 20:00';
+    const mapsUrl = config.googleMapsUrl || 'https://maps.google.com';
+    const clinicName = config.clinicName || 'Dentia Clinic';
+
     return (
         <footer className="bg-dark-slate text-white pt-16 pb-8 border-t border-white/10 w-full mt-auto">
             <div className="max-w-[1440px] mx-auto px-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-12">
                 {/* Col 1: Brand & Accreditation */}
                 <div className="space-y-4">
-                    <img src="/images/logo-white.webp" alt="Dentia" className="h-8 object-contain" />
+                    <img src="/images/logo-white.webp" alt={clinicName} className="h-8 object-contain" />
                     <p className="text-slate-300 leading-relaxed text-sm font-normal">
-                        Dentia provides gentle, modern dental care supported by digital diagnostics and transparent treatment plans. Dedicated to smiles that last a lifetime.
+                        {clinicName} provides gentle, modern dental care supported by digital diagnostics and transparent treatment plans. Dedicated to smiles that last a lifetime.
                     </p>
                     <div className="flex items-center gap-2 text-xs font-semibold text-primary-teal bg-white/5 py-2 px-3.5 rounded-xl border border-white/10 w-fit">
                         <ShieldCheck className="w-4 h-4 text-primary-teal" /> ADA &amp; OSHA Accredited Clinic
@@ -79,10 +96,10 @@ export default function Footer() {
                     <h4 className="font-serif font-bold text-base text-white tracking-wide">Practice Location</h4>
                     <p className="text-sm text-slate-300 flex items-start">
                         <MapPin className="w-4 h-4 mr-2 text-primary-teal flex-shrink-0 mt-1" />
-                        <span>Suite 400, Grand Central Medical Plaza, Downtown Dental Arts</span>
+                        <span>{address}</span>
                     </p>
                     <a 
-                        href="https://maps.google.com" 
+                        href={mapsUrl} 
                         target="_blank" 
                         rel="noopener noreferrer" 
                         className="text-xs text-primary-teal hover:underline flex items-center gap-1 pl-6"
@@ -91,21 +108,21 @@ export default function Footer() {
                     </a>
                     <p className="text-sm text-slate-300 flex items-center">
                         <Phone className="w-4 h-4 mr-2 text-primary-teal flex-shrink-0" />
-                        <span>+1 123 456 789</span>
+                        <a href={`tel:${phone.replace(/[^0-9+]/g, '')}`} className="hover:text-primary-teal transition-colors">{phone}</a>
                     </p>
                     <p className="text-sm text-slate-300 flex items-center">
                         <Mail className="w-4 h-4 mr-2 text-primary-teal flex-shrink-0" />
-                        <span>contact@dentiaclinic.com</span>
+                        <a href={`mailto:${email}`} className="hover:text-primary-teal transition-colors">{email}</a>
                     </p>
                     <p className="text-sm text-slate-300 flex items-center">
                         <Clock className="w-4 h-4 mr-2 text-primary-teal flex-shrink-0" />
-                        <span>Mon - Sat: 08:00 - 20:00</span>
+                        <span>{hours}</span>
                     </p>
                 </div>
             </div>
 
             <div className="max-w-[1440px] mx-auto px-6 pt-8 border-t border-white/10 text-center text-xs text-slate-400 flex flex-col md:flex-row justify-between items-center gap-4">
-                <p>Copyright © 2026 Dentia Clinic. All rights reserved.</p>
+                <p>Copyright © 2026 {clinicName}. All rights reserved.</p>
                 <div className="flex space-x-6">
                     <Link to="/terms" className="hover:text-white transition-colors">Terms &amp; Conditions</Link>
                     <Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
