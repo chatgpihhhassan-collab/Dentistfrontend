@@ -101,6 +101,28 @@ const AdminRoute = ({ children }) => {
     return children;
 };
 
+const AdminOrDoctorRoute = ({ children }) => {
+    const location = useLocation();
+    const sessionCheck = validateClinicianSession();
+    
+    if (!sessionCheck.isValid) {
+        let redirectParam = 'required=true';
+        let alertState = { authRequired: true };
+        
+        if (sessionCheck.reason === 'session_closed') {
+            redirectParam = 'session_closed=true';
+            alertState = { sessionClosed: true };
+        } else if (sessionCheck.reason === 'inactivity_timeout' || sessionCheck.reason === 'token_expired') {
+            redirectParam = 'expired=true';
+            alertState = { sessionExpired: true };
+        }
+        
+        return <Navigate to={`/login?${redirectParam}`} state={{ from: location, ...alertState }} replace />;
+    }
+    
+    return children;
+};
+
 // 📊 Google Analytics 4 (GA4) Page View Tracker for Single Page App Route Changes
 const AnalyticsPageTracker = () => {
     const location = useLocation();
@@ -197,14 +219,14 @@ export default function App() {
                 </AdminRoute>
             } />
             <Route path="/admin/whatsapp" element={
-                <ProtectedRoute>
+                <AdminOrDoctorRoute>
                     <WhatsAppAdminPage />
-                </ProtectedRoute>
+                </AdminOrDoctorRoute>
             } />
             <Route path="/whatsapp-manager" element={
-                <ProtectedRoute>
+                <AdminOrDoctorRoute>
                     <WhatsAppAdminPage />
-                </ProtectedRoute>
+                </AdminOrDoctorRoute>
             } />
             
             {/* Public Pages */}

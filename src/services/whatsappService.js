@@ -7,17 +7,39 @@ import apiFetch from '../utils/apiClient';
  */
 
 export async function getWhatsAppStatus() {
-    const response = await apiFetch('/api/whatsapp/status');
-    if (!response.ok) {
-        throw new Error(`Failed to fetch WhatsApp gateway status: ${response.statusText}`);
+    try {
+        const response = await apiFetch('/api/whatsapp/status');
+        if (!response.ok) {
+            const errBody = await response.json().catch(() => ({}));
+            if (response.status === 401) {
+                return {
+                    sessionName: 'dentia-clinic-bot',
+                    status: 'DISCONNECTED',
+                    isConnected: false,
+                    connectedPhoneNumber: null,
+                    pushName: null,
+                    pendingQueueCount: 0,
+                    sentTodayCount: 0,
+                    failedTodayCount: 0,
+                    totalLoggedMessages: 0,
+                    gatewayUrl: 'http://localhost:2785',
+                    authError: errBody.message || 'Active session required'
+                };
+            }
+            throw new Error(errBody.message || `Failed to fetch WhatsApp gateway status: ${response.statusText}`);
+        }
+        return await response.json();
+    } catch (err) {
+        throw err;
     }
-    return await response.json();
 }
 
 export async function getWhatsAppQR() {
     const response = await apiFetch('/api/whatsapp/qr');
     if (!response.ok) {
-        throw new Error(`Failed to fetch WhatsApp QR code: ${response.statusText}`);
+        if (response.status === 401) return { qr: null };
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.message || `Failed to fetch WhatsApp QR code: ${response.statusText}`);
     }
     return await response.json();
 }
@@ -27,10 +49,11 @@ export async function startWhatsAppSession() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
     });
+    const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-        throw new Error(`Failed to start WhatsApp session: ${response.statusText}`);
+        throw new Error(data.message || `Failed to start WhatsApp session: ${response.statusText}`);
     }
-    return await response.json();
+    return data;
 }
 
 export async function getWhatsAppLogs(limit = 50, status = null) {
@@ -40,7 +63,9 @@ export async function getWhatsAppLogs(limit = 50, status = null) {
     }
     const response = await apiFetch(url);
     if (!response.ok) {
-        throw new Error(`Failed to fetch WhatsApp message logs: ${response.statusText}`);
+        if (response.status === 401) return [];
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.message || `Failed to fetch WhatsApp message logs: ${response.statusText}`);
     }
     return await response.json();
 }

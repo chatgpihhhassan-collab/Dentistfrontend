@@ -166,8 +166,9 @@ export default function Auth() {
                         fromPath = location.state.from.pathname + (location.state.from.search || '') + (location.state.from.hash || '');
                     }
                     if (fromPath) {
-                        // Ensure SuperAdmin only goes to admin pages, and Doctor only goes to clinical pages
-                        if (isSuper && fromPath.startsWith('/admin')) {
+                        if (fromPath.startsWith('/admin/whatsapp') || fromPath.startsWith('/whatsapp-manager')) {
+                            targetFrom = fromPath;
+                        } else if (isSuper && fromPath.startsWith('/admin')) {
                             targetFrom = fromPath;
                         } else if (!isSuper && !fromPath.startsWith('/admin')) {
                             targetFrom = fromPath;

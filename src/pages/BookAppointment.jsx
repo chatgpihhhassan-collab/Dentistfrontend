@@ -11,7 +11,7 @@ import { downloadIcsFile, getGoogleCalendarUrl, APPOINTMENT_REASONS } from './Ap
 import { getPatientAvatarUrl } from '../utils/avatarUtils';
 import aiVoice from '../utils/aiVoiceAssistant';
 import { normalizePakistaniPhone, formatPakistaniPhone } from '../validators';
-import apiFetch from '../utils/apiClient';
+import apiFetch, { getAuthToken } from '../utils/apiClient';
 
 export default function BookAppointment() {
     const navigate = useNavigate();
@@ -139,10 +139,19 @@ export default function BookAppointment() {
             .catch(err => console.error("Failed to fetch doctors:", err));
     }, []);
 
-    // Fetch patients whenever selected doctorID changes
+    // Fetch patients whenever selected doctorID changes (Clinician session only)
     useEffect(() => {
         let isMounted = true;
         const fetchPatientsForDoctor = async () => {
+            const token = getAuthToken();
+            if (!token) {
+                if (isMounted) {
+                    setPatients([]);
+                    setLoadingPatients(false);
+                }
+                return;
+            }
+
             try {
                 setLoadingPatients(true);
                 // 1. If a specific doctor is selected, fetch their patients
