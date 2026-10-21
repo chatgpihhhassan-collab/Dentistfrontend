@@ -1269,7 +1269,10 @@ export default function AppointmentsList() {
                         <div className="flex items-center justify-end flex-shrink-0">
                             <button
                                 type="button"
-                                onClick={() => openNewAppointmentModal()}
+                                onClick={() => {
+                                    const dateIso = getLocalDateKey(selectedDate);
+                                    openNewAppointmentModal({ preferredDate: `${dateIso}T10:00` });
+                                }}
                                 className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-[#4A7CD2] hover:bg-[#3b66b2] active:scale-[0.98] text-white rounded-xl text-xs font-bold transition-all shadow-xs hover:shadow-sm cursor-pointer"
                             >
                                 <Plus className="w-4 h-4" />
@@ -1643,7 +1646,7 @@ export default function AppointmentsList() {
                                                         )}
                                                     </div>
 
-                                                    {/* Hover Quick Add Slot Button */}
+                                                    {/* Hover Quick Book Button */}
                                                     <button
                                                         type="button"
                                                         onClick={(e) => {
@@ -1653,7 +1656,7 @@ export default function AppointmentsList() {
                                                         }}
                                                         className="text-[9px] font-bold text-slate-400 hover:text-[#4A7CD2] flex items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100 transition pt-0.5 border-t border-slate-100"
                                                     >
-                                                        <Plus className="w-2.5 h-2.5" /> Slot
+                                                        <Plus className="w-2.5 h-2.5" /> Book
                                                     </button>
                                                 </div>
                                             );
@@ -1783,24 +1786,13 @@ export default function AppointmentsList() {
                                                     </p>
                                                 </div>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const dateIso = getLocalDateKey(selectedDate);
-                                                    openNewAppointmentModal({ preferredDate: `${dateIso}T10:00` });
-                                                }}
-                                                className="px-3 py-1.5 bg-[#4A7CD2] hover:bg-[#3b66b2] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
-                                            >
-                                                <Plus className="w-3.5 h-3.5" />
-                                                <span>Add Slot</span>
-                                            </button>
                                         </div>
 
                                         {selectedDateAppointments.length === 0 ? (
                                             <div className="p-8 text-center bg-slate-50/60 rounded-2xl border border-dashed border-slate-200 text-slate-400 space-y-2">
                                                 <Calendar className="w-8 h-8 mx-auto text-slate-300" />
                                                 <p className="text-xs font-bold text-slate-600">No appointments scheduled for this day</p>
-                                                <p className="text-[11px] text-slate-400">Click Add Slot to schedule an appointment for {selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                                                <p className="text-[11px] text-slate-400">Use the New Appointment button above to schedule for {selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
                                             </div>
                                         ) : (
                                             <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">
@@ -1861,21 +1853,11 @@ export default function AppointmentsList() {
                                         </h3>
                                     </div>
                                     
-                                    <button
-                                        onClick={() => {
-                                            const dateIso = getLocalDateKey(selectedDate);
-                                            openNewAppointmentModal({ 
-                                                preferredDate: `${dateIso}T10:00`,
-                                                isSlotMode: true,
-                                                slotDateStr: selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
-                                            });
-                                        }}
-                                        className="px-2.5 py-1.5 bg-blue-50 text-[#4A7CD2] hover:bg-[#4A7CD2] hover:text-white rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
-                                        title="Book slot on this date"
-                                    >
-                                        <Plus className="w-3.5 h-3.5" />
-                                        <span>Add Slot</span>
-                                    </button>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-[11px] font-bold px-2.5 py-1 rounded-xl bg-slate-100 text-slate-600 border border-slate-200/60">
+                                            {selectedDateAppointments.length} Appt{selectedDateAppointments.length === 1 ? '' : 's'}
+                                        </span>
+                                    </div>
                                 </div>
 
                                 {/* Schedule List for Selected Date - Internal Smooth Scroll */}
@@ -2954,13 +2936,11 @@ export default function AppointmentsList() {
                                 <Plus className="w-5 h-5 text-[#4A7CD2]" />
                                 <div>
                                     <h3 className="text-base font-bold text-slate-900">
-                                        {newApptForm.isSlotMode ? `Schedule Slot — ${newApptForm.slotDateStr || 'Day Focus'}` : 'Schedule New Appointment'}
+                                        Schedule New Appointment
                                     </h3>
-                                    {newApptForm.isSlotMode && (
-                                        <span className="text-[10px] font-bold text-[#4A7CD2] bg-blue-50 px-2 py-0.5 rounded-full inline-block mt-0.5">
-                                            📅 Dedicated Day Agenda Slot
-                                        </span>
-                                    )}
+                                    <span className="text-[10px] font-bold text-[#4A7CD2] bg-blue-50 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                                        📅 {new Date(newApptForm.preferredDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </span>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
