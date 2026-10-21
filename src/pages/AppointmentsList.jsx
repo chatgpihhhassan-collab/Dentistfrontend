@@ -2069,132 +2069,180 @@ export default function AppointmentsList() {
             </main>
 
             {/* ========================================================= */}
-            {/* INSPECTION / DETAIL MODAL                                 */}
             {/* ========================================================= */}
             {selectedAppointment && (
-                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-200 space-y-6 animate-scale-up">
+                <div 
+                    className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setSelectedAppointment(null);
+                    }}
+                >
+                    <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 max-w-xl w-full shadow-2xl border border-slate-200/90 space-y-3.5 animate-scale-up max-h-[92vh] overflow-y-auto">
                         
-                        <div className="flex justify-between items-start border-b border-slate-100 pb-4">
-                            <div>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Appointment Summary</span>
-                                <h3 className="text-xl font-bold text-slate-900">{selectedAppointment.fullName}</h3>
+                        {/* Header: Avatar, Name, Status Pill & Close */}
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#4A7CD2] to-[#2B5AB0] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+                                    {(selectedAppointment.fullName || 'P').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
+                                            {selectedAppointment.fullName}
+                                        </h3>
+                                        <span className="scale-90 origin-left">
+                                            {getStatusBadge(selectedAppointment.status)}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[11px] text-slate-400 font-semibold mt-0.5">
+                                        <span>Appt #{selectedAppointment.id || selectedAppointment.appointmentID || '—'}</span>
+                                        {selectedAppointment.patientID && (
+                                            <>
+                                                <span>·</span>
+                                                <button
+                                                    onClick={() => navigate(`/chart/${selectedAppointment.patientID}`)}
+                                                    className="text-[#4A7CD2] hover:underline font-bold inline-flex items-center gap-0.5 cursor-pointer"
+                                                >
+                                                    Chart #{selectedAppointment.patientID}
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                             <button
                                 onClick={() => setSelectedAppointment(null)}
-                                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                                title="Close Modal (Esc)"
                             >
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
 
-                        <div className="space-y-3 text-xs">
-                            <div className="flex justify-between py-2 border-b border-slate-100">
-                                <span className="text-slate-500">Scheduled Time</span>
-                                <span className="font-bold text-slate-800">{formatDate(selectedAppointment.preferredDate)}</span>
-                            </div>
-                            <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                                <span className="text-slate-500">Contact Phone</span>
-                                <div className="flex items-center gap-1.5">
-                                    <span className="font-bold text-slate-800">{selectedAppointment.phone || 'Not provided'}</span>
-                                    {selectedAppointment.phone && (
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const clean = (selectedAppointment.phone || '').replace(/[^\d]/g, '');
-                                                const num = clean.startsWith('0') ? '92' + clean.slice(1) : clean.startsWith('3') ? '92' + clean : clean;
-                                                window.open(`https://wa.me/${num}`, '_blank');
-                                            }}
-                                            className="p-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer shadow-2xs"
-                                            title="Chat with Patient on WhatsApp"
-                                        >
-                                            <MessageCircle className="w-3 h-3 text-emerald-600" />
-                                            <span>WhatsApp</span>
-                                        </button>
-                                    )}
+                        {/* Core Details Grid: 2 Columns for High Density & Zero Scrolling */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-50/80 p-3 rounded-2xl border border-slate-200/70">
+                            <div className="flex items-start gap-2 p-1.5">
+                                <Calendar className="w-4 h-4 text-[#4A7CD2] mt-0.5 shrink-0" />
+                                <div>
+                                    <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Scheduled Time</span>
+                                    <span className="font-extrabold text-slate-800 text-xs">
+                                        {formatDate(selectedAppointment.preferredDate)}
+                                    </span>
                                 </div>
                             </div>
-                            <div className="flex justify-between py-2 border-b border-slate-100">
-                                <span className="text-slate-500">Email</span>
-                                <span className="font-bold text-slate-800">{selectedAppointment.email || 'Not provided'}</span>
+
+                            <div className="flex items-start gap-2 p-1.5">
+                                <Stethoscope className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" />
+                                <div>
+                                    <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Clinical Reason</span>
+                                    <span className="font-extrabold text-slate-800 text-xs truncate max-w-[190px] block" title={selectedAppointment.reason || 'Consultation'}>
+                                        {selectedAppointment.reason || selectedAppointment.Reason || 'Consultation'}
+                                    </span>
+                                </div>
                             </div>
-                            <div className="flex justify-between py-2 border-b border-slate-100">
-                                <span className="text-slate-500">Current Status</span>
-                                <span>{getStatusBadge(selectedAppointment.status)}</span>
+
+                            <div className="flex items-start gap-2 p-1.5">
+                                <Phone className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                                <div>
+                                    <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Contact Phone</span>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                        <span className="font-bold font-mono text-slate-800 text-xs">
+                                            {selectedAppointment.phone || 'Not provided'}
+                                        </span>
+                                        {selectedAppointment.phone && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const clean = (selectedAppointment.phone || '').replace(/[^\d]/g, '');
+                                                    const num = clean.startsWith('0') ? '92' + clean.slice(1) : clean.startsWith('3') ? '92' + clean : clean;
+                                                    window.open(`https://wa.me/${num}`, '_blank');
+                                                }}
+                                                className="px-1.5 py-0.5 rounded-md bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                                                title="Open WhatsApp Chat"
+                                            >
+                                                <MessageCircle className="w-2.5 h-2.5" />
+                                                <span>Chat</span>
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
-                            <div className="flex justify-between py-2 border-b border-slate-100">
-                                <span className="text-slate-500">Clinical Reason</span>
-                                <span className="font-bold text-slate-800 max-w-[250px] text-right">{selectedAppointment.reason || selectedAppointment.Reason || 'Consultation'}</span>
+
+                            <div className="flex items-start gap-2 p-1.5">
+                                <Mail className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                                <div>
+                                    <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Email Address</span>
+                                    <span className="font-bold text-slate-800 text-xs truncate max-w-[190px] block" title={selectedAppointment.email || 'Not provided'}>
+                                        {selectedAppointment.email || 'Not provided'}
+                                    </span>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Synchronized Doctor/Patient Notes Callout */}
+                        {/* Synchronized Doctor/Patient Notes Callout (if any) */}
                         {(selectedAppointment.notes || selectedAppointment.Notes) && (
-                            <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200/90 space-y-1">
-                                <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-800 uppercase tracking-wider">
-                                    <span>📝</span>
-                                    <span>Patient Consultation Notes / Special Requests</span>
-                                </div>
-                                <p className="text-xs italic text-slate-700 leading-relaxed font-medium">
+                            <div className="p-2.5 rounded-xl bg-amber-50/80 border border-amber-200/80 flex items-start gap-2 text-xs">
+                                <span className="text-sm shrink-0">📝</span>
+                                <p className="italic text-slate-700 leading-snug font-medium line-clamp-2">
                                     "{selectedAppointment.notes || selectedAppointment.Notes}"
                                 </p>
                             </div>
                         )}
 
-                        {/* Selected Clinical Treatments & Fee Schedule */}
-                        <div className="space-y-2 pt-2 border-t border-slate-100">
-                            <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                    <Stethoscope className="w-3.5 h-3.5 text-[#4A7CD2]" />
-                                    Selected Treatments ({selectedAppointment.items?.length || (selectedAppointment.totalAmount ? 1 : 0)})
+                        {/* Selected Clinical Treatments & Fee Schedule (Compact) */}
+                        <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-200/70 space-y-1.5">
+                            <div className="flex items-center justify-between text-xs">
+                                <span className="font-bold text-slate-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                                    <FileText className="w-3.5 h-3.5 text-[#4A7CD2]" />
+                                    Treatments & Fees ({selectedAppointment.items?.length || (selectedAppointment.totalAmount ? 1 : 0)})
                                 </span>
                                 {selectedAppointment.totalAmount != null && (
-                                    <span className="text-xs font-mono font-bold text-[#4A7CD2]">
+                                    <span className="font-mono font-black text-[#4A7CD2] text-xs">
                                         Total: {formatPrice(selectedAppointment.totalAmount, selectedAppointment.currency || (selectedAppointment.doctorID === 2 ? 'PKR' : 'NZD'))}
                                     </span>
                                 )}
                             </div>
 
                             {selectedAppointment.items && selectedAppointment.items.length > 0 ? (
-                                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                                <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
                                     {selectedAppointment.items.map((item, idx) => (
-                                        <div key={idx} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100 text-xs">
-                                            <div className="flex items-center gap-2 overflow-hidden">
-                                                <span className="px-1.5 py-0.5 rounded bg-blue-100 text-[#4A7CD2] font-mono font-bold text-[10px] shrink-0">
+                                        <div key={idx} className="flex items-center justify-between p-1.5 rounded-lg bg-white border border-slate-100 text-xs">
+                                            <div className="flex items-center gap-1.5 overflow-hidden">
+                                                <span className="px-1 py-0.5 rounded bg-blue-50 text-[#4A7CD2] font-mono font-bold text-[9px] shrink-0">
                                                     {item.procedureCode || 'PRC'}
                                                 </span>
-                                                <span className="font-semibold text-slate-800 truncate">{item.description}</span>
+                                                <span className="font-semibold text-slate-800 truncate text-[11px]">{item.description}</span>
                                             </div>
-                                            <span className="font-mono font-bold text-slate-700 shrink-0 ml-2">
+                                            <span className="font-mono font-bold text-slate-700 shrink-0 text-[11px]">
                                                 {formatPrice(item.unitPrice, selectedAppointment.currency || (selectedAppointment.doctorID === 2 ? 'PKR' : 'NZD'))}
                                             </span>
                                         </div>
                                     ))}
                                 </div>
                             ) : (
-                                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-600 flex justify-between items-center">
-                                    <span>{selectedAppointment.reason || 'General Consultation'}</span>
+                                <div className="flex justify-between items-center text-xs text-slate-600 bg-white p-1.5 rounded-lg border border-slate-100">
+                                    <span className="text-[11px] font-medium">{selectedAppointment.reason || 'General Consultation'}</span>
                                     {selectedAppointment.totalAmount != null && (
-                                        <span className="font-mono font-bold text-slate-700">
+                                        <span className="font-mono font-bold text-slate-700 text-[11px]">
                                             {formatPrice(selectedAppointment.totalAmount, selectedAppointment.currency || (selectedAppointment.doctorID === 2 ? 'PKR' : 'NZD'))}
                                         </span>
                                     )}
                                 </div>
                             )}
 
-                            {/* Invoice Details if available */}
+                            {/* Inline Invoice Status if available */}
                             {(selectedAppointment.invoiceNumber || selectedAppointment.invoiceStatus) && (
-                                <div className="flex items-center justify-between pt-1 text-[11px] text-slate-500">
+                                <div className="flex items-center justify-between pt-1 border-t border-slate-200/50 text-[10px] text-slate-500">
                                     {selectedAppointment.invoiceNumber && (
                                         <span>Invoice: <strong className="font-mono text-slate-700">#{selectedAppointment.invoiceNumber}</strong></span>
                                     )}
                                     {selectedAppointment.invoiceStatus && (
-                                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                                        <span className={`px-1.5 py-0.5 rounded font-bold text-[9px] ${
                                             selectedAppointment.invoiceStatus === 'Paid' 
                                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
                                                 : 'bg-amber-50 text-amber-700 border border-amber-200'
                                         }`}>
-                                            Invoice: {selectedAppointment.invoiceStatus}
+                                            {selectedAppointment.invoiceStatus}
                                         </span>
                                     )}
                                     {selectedAppointment.paymentMethod && (
@@ -2204,59 +2252,34 @@ export default function AppointmentsList() {
                             )}
                         </div>
 
-                        {/* 📱 WhatsApp Notification & Delivery Status Card */}
-                        <div className={`p-4 rounded-2xl border transition-all ${
-                            (selectedAppointment.whatsAppOptIn ?? selectedAppointment.WhatsAppOptIn)
-                                ? 'bg-gradient-to-br from-emerald-50/70 to-teal-50/50 border-emerald-200/80 shadow-xs'
-                                : 'bg-slate-50 border-slate-200'
-                        }`}>
-                            <div className="flex items-center justify-between mb-2.5">
-                                <div className="flex items-center gap-2">
-                                    <div className={`w-7 h-7 rounded-xl flex items-center justify-center ${
-                                        (selectedAppointment.whatsAppOptIn ?? selectedAppointment.WhatsAppOptIn)
-                                            ? 'bg-emerald-600 text-white'
-                                            : 'bg-slate-300 text-slate-600'
-                                    }`}>
-                                        <MessageCircle className="w-4 h-4" />
-                                    </div>
-                                    <div>
-                                        <h5 className="text-xs font-black text-slate-900 leading-tight">WhatsApp Notification</h5>
-                                        <span className="text-[10px] font-bold text-slate-500">Automated Patient Messaging</span>
-                                    </div>
+                        {/* 📱 Compact Streamlined WhatsApp Bar */}
+                        <div className="p-2.5 rounded-xl bg-gradient-to-r from-emerald-50/90 via-teal-50/60 to-slate-50 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                                <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                                    (selectedAppointment.whatsAppOptIn ?? selectedAppointment.WhatsAppOptIn)
+                                        ? 'bg-emerald-600 text-white shadow-2xs'
+                                        : 'bg-slate-300 text-slate-600'
+                                }`}>
+                                    <MessageCircle className="w-3.5 h-3.5" />
                                 </div>
                                 <div>
-                                    {getWhatsAppDeliveryBadge(selectedAppointment)}
-                                </div>
-                            </div>
-
-                            <div className="space-y-1.5 text-xs text-slate-600 pt-1">
-                                <div className="flex justify-between items-center">
-                                    <span className="font-medium">Patient Recipient:</span>
-                                    <span className="font-bold font-mono text-slate-800">
-                                        {selectedAppointment.phone || <span className="text-rose-500 font-bold">No Phone Recorded</span>}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="font-medium">Opt-In Consent:</span>
-                                    <span className="font-bold">
-                                        {(selectedAppointment.whatsAppOptIn ?? selectedAppointment.WhatsAppOptIn) ? (
-                                            <span className="text-emerald-700 font-extrabold">Active (Allowed)</span>
-                                        ) : (
-                                            <span className="text-slate-500 font-bold">Inactive / Opted-out</span>
-                                        )}
-                                    </span>
-                                </div>
-                                {(selectedAppointment.whatsAppSentAt || selectedAppointment.WhatsAppSentAt) && (
-                                    <div className="flex justify-between items-center">
-                                        <span className="font-medium">Last Dispatched:</span>
-                                        <span className="font-bold text-slate-700">
-                                            {new Date(selectedAppointment.whatsAppSentAt || selectedAppointment.WhatsAppSentAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })}
-                                        </span>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-xs font-black text-slate-900 leading-none">WhatsApp Notification</span>
+                                        <div className="scale-90 origin-left">
+                                            {getWhatsAppDeliveryBadge(selectedAppointment)}
+                                        </div>
                                     </div>
-                                )}
+                                    <div className="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
+                                        <span>To: <strong className="font-mono text-slate-700">{selectedAppointment.phone || 'No phone'}</strong></span>
+                                        <span>·</span>
+                                        <span>Consent: <strong className={(selectedAppointment.whatsAppOptIn ?? selectedAppointment.WhatsAppOptIn) ? 'text-emerald-700 font-bold' : 'text-slate-500'}>
+                                            {(selectedAppointment.whatsAppOptIn ?? selectedAppointment.WhatsAppOptIn) ? 'Active' : 'Opted-Out'}
+                                        </strong></span>
+                                    </div>
+                                </div>
                             </div>
 
-                            <div className="mt-3 pt-2.5 border-t border-slate-200/70 flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
                                 {selectedAppointment.phone && (
                                     <button
                                         type="button"
@@ -2265,100 +2288,114 @@ export default function AppointmentsList() {
                                             const num = clean.startsWith('0') ? '92' + clean.slice(1) : clean.startsWith('3') ? '92' + clean : clean;
                                             window.open(`https://wa.me/${num}`, '_blank');
                                         }}
-                                        className="flex-1 py-2 px-3 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                                        className="py-1 px-2.5 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
                                         title="Open direct WhatsApp Web chat with patient"
                                     >
-                                        <MessageCircle className="w-3.5 h-3.5" />
-                                        <span>Chat on WhatsApp</span>
+                                        <MessageCircle className="w-3 h-3" />
+                                        <span>Chat</span>
                                     </button>
                                 )}
                                 <button
                                     type="button"
                                     disabled={resendingWhatsApp || !selectedAppointment.phone || !(selectedAppointment.whatsAppOptIn ?? selectedAppointment.WhatsAppOptIn)}
                                     onClick={() => handleResendWhatsApp(selectedAppointment)}
-                                    className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                                    title="Manually re-trigger WhatsApp appointment confirmation message"
+                                    className="py-1 px-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                                    title="Resend WhatsApp confirmation notification"
                                 >
                                     {resendingWhatsApp ? (
                                         <>
-                                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                            <RefreshCw className="w-3 h-3 animate-spin" />
                                             <span>Queuing...</span>
                                         </>
                                     ) : (
                                         <>
-                                            <MessageCircle className="w-3.5 h-3.5" />
-                                            <span>Resend Confirmation</span>
+                                            <RefreshCw className="w-3 h-3" />
+                                            <span>Resend</span>
                                         </>
                                     )}
                                 </button>
                             </div>
-                            {!(selectedAppointment.whatsAppOptIn ?? selectedAppointment.WhatsAppOptIn) && (
-                                <p className="text-[10px] text-amber-700 bg-amber-50/80 p-2 rounded-lg border border-amber-200 mt-2">
-                                    ⚠️ Patient has WhatsApp notifications disabled. Enable WhatsApp consent in their Patient Directory profile to send reminders.
-                                </p>
-                            )}
                         </div>
 
-                        {/* Action Buttons */}
-                        <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
-                            <button
-                                onClick={() => downloadIcsFile(selectedAppointment)}
-                                className="flex-1 py-2.5 px-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                            >
-                                <CalendarCheck className="w-4 h-4 text-[#4A7CD2]" />
-                                Download .ics
-                            </button>
-                            <button
-                                onClick={() => handlePrintAppointmentSlip(selectedAppointment)}
-                                className="flex-1 py-2.5 px-4 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl text-xs font-bold text-teal-800 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                                title="Print Patient Appointment Slip with Portal Credentials"
-                            >
-                                <Printer className="w-4 h-4 text-teal-600" />
-                                Print Slip
-                            </button>
-                            <a
-                                href={getGoogleCalendarUrl(selectedAppointment)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex-1 py-2.5 px-3 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
-                            >
-                                <ExternalLink className="w-4 h-4" />
-                                Google Cal
-                            </a>
-                            <button
-                                onClick={() => openRescheduleModal(selectedAppointment)}
-                                className="flex-1 py-2.5 px-3 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                                title="Reschedule Date & Time"
-                            >
-                                <Clock className="w-4 h-4 text-amber-600" />
-                                Reschedule
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setUpdateModalError('');
-                                    setUpdateModal({
-                                        visible: true,
-                                        appointment: selectedAppointment,
-                                        newStatus: selectedAppointment.status || 'Confirmed',
-                                        newReason: selectedAppointment.reason || '',
-                                        newNotes: selectedAppointment.notes || selectedAppointment.Notes || ''
-                                    });
-                                }}
-                                className="flex-1 py-2.5 px-3 bg-[#4A7CD2] hover:bg-[#3b66b2] text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
-                            >
-                                Change Status
-                            </button>
+                        {/* ========================================================= */}
+                        {/* ACTION TOOLBAR: 2 WELL-PROPORTIONED ROWS (NO OVERFLOW)    */}
+                        {/* ========================================================= */}
+                        <div className="space-y-2 pt-1">
+                            {/* Primary Clinical Actions */}
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                <button
+                                    onClick={() => {
+                                        setUpdateModalError('');
+                                        setUpdateModal({
+                                            visible: true,
+                                            appointment: selectedAppointment,
+                                            newStatus: selectedAppointment.status || 'Confirmed',
+                                            newReason: selectedAppointment.reason || '',
+                                            newNotes: selectedAppointment.notes || selectedAppointment.Notes || ''
+                                        });
+                                    }}
+                                    className="py-2 px-3 bg-[#4A7CD2] hover:bg-[#3b66b2] text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                                >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>Change Status</span>
+                                </button>
+
+                                <button
+                                    onClick={() => openRescheduleModal(selectedAppointment)}
+                                    className="py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold transition shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+                                    title="Reschedule Date & Time"
+                                >
+                                    <Clock className="w-3.5 h-3.5 text-amber-600" />
+                                    <span>Reschedule</span>
+                                </button>
+
+                                {selectedAppointment.patientID ? (
+                                    <button
+                                        onClick={() => navigate(`/chart/${selectedAppointment.patientID}?tab=billing`)}
+                                        className="col-span-2 sm:col-span-1 py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+                                        title="Open Patient Dossier & Invoices"
+                                    >
+                                        <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                                        <span>View Dossier</span>
+                                    </button>
+                                ) : (
+                                    <div className="hidden sm:block" />
+                                )}
+                            </div>
+
+                            {/* Utility & Calendar Export Actions */}
+                            <div className="grid grid-cols-3 gap-2">
+                                <button
+                                    onClick={() => handlePrintAppointmentSlip(selectedAppointment)}
+                                    className="py-1.5 px-2 bg-slate-50 hover:bg-teal-50 border border-slate-200 hover:border-teal-200 text-slate-700 hover:text-teal-800 rounded-lg text-[11px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer"
+                                    title="Print Patient Appointment Slip with Portal Credentials"
+                                >
+                                    <Printer className="w-3 h-3 text-teal-600" />
+                                    <span>Print Slip</span>
+                                </button>
+
+                                <a
+                                    href={getGoogleCalendarUrl(selectedAppointment)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="py-1.5 px-2 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 text-slate-700 hover:text-blue-700 rounded-lg text-[11px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer"
+                                    title="Add to Google Calendar"
+                                >
+                                    <ExternalLink className="w-3 h-3 text-blue-600" />
+                                    <span>Google Cal</span>
+                                </a>
+
+                                <button
+                                    onClick={() => downloadIcsFile(selectedAppointment)}
+                                    className="py-1.5 px-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-[11px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer"
+                                    title="Download Apple / Outlook iCal Event"
+                                >
+                                    <CalendarCheck className="w-3 h-3 text-[#4A7CD2]" />
+                                    <span>.ICS File</span>
+                                </button>
+                            </div>
                         </div>
 
-                        {selectedAppointment.patientID && (
-                            <button
-                                onClick={() => navigate(`/chart/${selectedAppointment.patientID}?tab=billing`)}
-                                className="w-full py-2.5 px-4 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                            >
-                                <FileText className="w-4 h-4 text-emerald-600" />
-                                <span>💳 View Patient Treatments & Invoices Dossier</span>
-                            </button>
-                        )}
                     </div>
                 </div>
             )}
