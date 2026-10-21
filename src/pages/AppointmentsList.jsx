@@ -329,6 +329,7 @@ export default function AppointmentsList() {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [selectedAppointment, setSelectedAppointment] = useState(null);
+    const [calendarMode, setCalendarMode] = useState('month'); // 'month' | 'week' | 'day'
 
     // Status update modal state (APT-001, APT-008)
     const [updateModal, setUpdateModal] = useState({ visible: false, appointment: null, newStatus: '', newReason: '', newNotes: '' });
@@ -956,6 +957,33 @@ export default function AppointmentsList() {
         return days;
     }, [currentDate]);
 
+    // Current Week Days (Sunday through Saturday for week view)
+    const currentWeekDays = useMemo(() => {
+        const base = new Date(currentDate);
+        const dayOfWeek = base.getDay();
+        const startOfWeek = new Date(base);
+        startOfWeek.setDate(base.getDate() - dayOfWeek);
+
+        const days = [];
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(startOfWeek);
+            d.setDate(startOfWeek.getDate() + i);
+            days.push(d);
+        }
+        return days;
+    }, [currentDate]);
+
+    // Week Range Title (e.g. Oct 25 – Oct 31, 2026)
+    const weekRangeTitle = useMemo(() => {
+        if (!currentWeekDays || currentWeekDays.length === 0) return '';
+        const start = currentWeekDays[0];
+        const end = currentWeekDays[6];
+        if (start.getMonth() === end.getMonth()) {
+            return `${start.toLocaleDateString('en-US', { month: 'short' })} ${start.getDate()} – ${end.getDate()}, ${start.getFullYear()}`;
+        }
+        return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    }, [currentWeekDays]);
+
     // Selected Date Appointments for Sidebar
     const selectedDateAppointments = useMemo(() => {
         const selectedKey = getLocalDateKey(selectedDate);
@@ -1390,145 +1418,432 @@ export default function AppointmentsList() {
                             {/* Left Calendar Stage (8 of 12 columns) */}
                             <div className="xl:col-span-8 bg-white rounded-3xl border border-slate-200/80 shadow-xs p-5 space-y-3.5">
                                 
-                                {/* Calendar Month Navigation Header (UX-001: generous click targets) */}
-                                <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pb-2 border-b border-slate-100">
-                                    <div className="flex items-center gap-3">
-                                        <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
-                                            {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                                {/* Calendar Navigation, View Switcher (Month / Week / Day) & Date-Wise Search */}
+                                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 pb-3 border-b border-slate-100">
+                                    {/* Left: Active Date Heading & Prev / Today / Next Controls */}
+                                    <div className="flex flex-wrap items-center gap-2.5">
+                                        <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight min-w-[150px]">
+                                            {calendarMode === 'month' && currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                                            {calendarMode === 'week' && weekRangeTitle}
+                                            {calendarMode === 'day' && selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
                                         </h2>
+
+                                        {/* Prev, Today, Next buttons */}
                                         <div className="flex items-center bg-slate-100 rounded-xl border border-slate-200/60 p-1 gap-1">
                                             <button
-                                                onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}
-                                                className="min-w-[36px] min-h-[36px] p-2 hover:bg-white rounded-lg transition text-slate-600 cursor-pointer flex items-center justify-center"
-                                                title="Previous Month"
+                                                type="button"
+                                                onClick={() => {
+                                                    if (calendarMode === 'month') {
+                                                        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+                                                    } else if (calendarMode === 'week') {
+                                                        const prevWeek = new Date(currentDate);
+                                                        prevWeek.setDate(prevWeek.getDate() - 7);
+                                                        setCurrentDate(prevWeek);
+                                                        setSelectedDate(prevWeek);
+                                                    } else {
+                                                        const prevDay = new Date(selectedDate);
+                                                        prevDay.setDate(prevDay.getDate() - 1);
+                                                        setCurrentDate(prevDay);
+                                                        setSelectedDate(prevDay);
+                                                    }
+                                                }}
+                                                className="min-w-[34px] min-h-[34px] p-2 hover:bg-white rounded-lg transition text-slate-600 cursor-pointer flex items-center justify-center shadow-2xs"
+                                                title={`Previous ${calendarMode === 'month' ? 'Month' : calendarMode === 'week' ? 'Week' : 'Day'}`}
                                             >
                                                 <ChevronLeft className="w-4 h-4" />
                                             </button>
                                             <button
+                                                type="button"
                                                 onClick={() => {
                                                     const now = new Date();
                                                     setCurrentDate(now);
                                                     setSelectedDate(now);
                                                 }}
-                                                className="min-h-[36px] px-3.5 py-1.5 text-xs font-bold text-[#4A7CD2] hover:bg-white rounded-lg transition cursor-pointer flex items-center justify-center shadow-2xs"
+                                                className="min-h-[34px] px-3.5 py-1 text-xs font-bold text-[#4A7CD2] hover:bg-white rounded-lg transition cursor-pointer flex items-center justify-center shadow-2xs"
+                                                title="Jump to Today's Date"
                                             >
                                                 Today
                                             </button>
                                             <button
-                                                onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}
-                                                className="min-w-[36px] min-h-[36px] p-2 hover:bg-white rounded-lg transition text-slate-600 cursor-pointer flex items-center justify-center"
-                                                title="Next Month"
+                                                type="button"
+                                                onClick={() => {
+                                                    if (calendarMode === 'month') {
+                                                        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+                                                    } else if (calendarMode === 'week') {
+                                                        const nextWeek = new Date(currentDate);
+                                                        nextWeek.setDate(nextWeek.getDate() + 7);
+                                                        setCurrentDate(nextWeek);
+                                                        setSelectedDate(nextWeek);
+                                                    } else {
+                                                        const nextDay = new Date(selectedDate);
+                                                        nextDay.setDate(nextDay.getDate() + 1);
+                                                        setCurrentDate(nextDay);
+                                                        setSelectedDate(nextDay);
+                                                    }
+                                                }}
+                                                className="min-w-[34px] min-h-[34px] p-2 hover:bg-white rounded-lg transition text-slate-600 cursor-pointer flex items-center justify-center shadow-2xs"
+                                                title={`Next ${calendarMode === 'month' ? 'Month' : calendarMode === 'week' ? 'Week' : 'Day'}`}
                                             >
                                                 <ChevronRight className="w-4 h-4" />
                                             </button>
                                         </div>
                                     </div>
 
-                                    {/* Legend Dots */}
-                                    <div className="flex items-center gap-3 text-[11px] text-slate-500 font-medium">
-                                        <span className="flex items-center gap-1.5">
-                                            <span className="w-2 h-2 rounded-full bg-blue-500 inline-block shadow-2xs"></span> Confirmed
-                                        </span>
-                                        <span className="flex items-center gap-1.5">
-                                            <span className="w-2 h-2 rounded-full bg-amber-500 inline-block shadow-2xs"></span> Pending
-                                        </span>
-                                        <span className="flex items-center gap-1.5">
-                                            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block shadow-2xs"></span> Done
-                                        </span>
+                                    {/* Right: View Switcher (Month / Week / Day), Date-wise Search & Legend */}
+                                    <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-between lg:justify-end">
+                                        {/* Date-wise Search / Direct Date Picker */}
+                                        <div className="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200/80 rounded-xl px-2.5 py-1.5 transition-all shadow-2xs">
+                                            <CalendarDays className="w-3.5 h-3.5 text-[#4A7CD2] shrink-0" />
+                                            <span className="text-[10px] uppercase font-bold text-slate-400 hidden sm:inline">Jump:</span>
+                                            <input
+                                                type="date"
+                                                value={getLocalDateKey(selectedDate)}
+                                                onChange={(e) => {
+                                                    if (e.target.value) {
+                                                        const [y, m, d] = e.target.value.split('-').map(Number);
+                                                        const target = new Date(y, m - 1, d, 12, 0, 0);
+                                                        setCurrentDate(target);
+                                                        setSelectedDate(target);
+                                                    }
+                                                }}
+                                                className="text-xs font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer"
+                                                title="Select specific date to jump to"
+                                            />
+                                        </div>
+
+                                        {/* View Switcher: Month / Week / Day Segmented Buttons */}
+                                        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/70 text-xs font-bold shadow-2xs">
+                                            <button
+                                                type="button"
+                                                onClick={() => setCalendarMode('month')}
+                                                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                                                    calendarMode === 'month' 
+                                                        ? 'bg-white text-[#4A7CD2] shadow-xs' 
+                                                        : 'text-slate-600 hover:text-slate-900'
+                                                }`}
+                                            >
+                                                <Calendar className="w-3.5 h-3.5" />
+                                                <span>Month</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setCalendarMode('week')}
+                                                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                                                    calendarMode === 'week' 
+                                                        ? 'bg-white text-[#4A7CD2] shadow-xs' 
+                                                        : 'text-slate-600 hover:text-slate-900'
+                                                }`}
+                                            >
+                                                <LayoutGrid className="w-3.5 h-3.5" />
+                                                <span>Week</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setCalendarMode('day')}
+                                                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                                                    calendarMode === 'day' 
+                                                        ? 'bg-white text-[#4A7CD2] shadow-xs' 
+                                                        : 'text-slate-600 hover:text-slate-900'
+                                                }`}
+                                            >
+                                                <Clock className="w-3.5 h-3.5" />
+                                                <span>Day</span>
+                                            </button>
+                                        </div>
+
+                                        {/* Legend Dots (Hidden on very small mobile to save space) */}
+                                        <div className="hidden sm:flex items-center gap-2.5 text-[11px] text-slate-500 font-medium pl-1">
+                                            <span className="flex items-center gap-1">
+                                                <span className="w-2 h-2 rounded-full bg-blue-500 inline-block shadow-2xs"></span> Confirmed
+                                            </span>
+                                            <span className="flex items-center gap-1">
+                                                <span className="w-2 h-2 rounded-full bg-amber-500 inline-block shadow-2xs"></span> Pending
+                                            </span>
+                                            <span className="flex items-center gap-1">
+                                                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block shadow-2xs"></span> Done
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
 
-                                {/* Calendar Weekday Header */}
-                                <div className="grid grid-cols-7 gap-px bg-slate-200/70 rounded-2xl overflow-hidden border border-slate-200/70">
-                                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => (
-                                        <div key={d} className={`py-1.5 text-center text-[10px] font-bold uppercase tracking-wider ${
-                                            i === 0 || i === 6 ? 'bg-slate-100/90 text-slate-400' : 'bg-slate-50 text-slate-600'
-                                        }`}>
-                                            {d}
-                                        </div>
-                                    ))}
+                                {/* ── A. MONTH VIEW ── */}
+                                {calendarMode === 'month' && (
+                                    <div className="grid grid-cols-7 gap-px bg-slate-200/70 rounded-2xl overflow-hidden border border-slate-200/70">
+                                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => (
+                                            <div key={d} className={`py-1.5 text-center text-[10px] font-bold uppercase tracking-wider ${
+                                                i === 0 || i === 6 ? 'bg-slate-100/90 text-slate-400' : 'bg-slate-50 text-slate-600'
+                                            }`}>
+                                                {d}
+                                            </div>
+                                        ))}
 
-                                    {/* Calendar Day Cells Grid (Compact & Ergonomic Size) */}
-                                    {calendarDays.map((cell, idx) => {
-                                        const cellKey = getLocalDateKey(cell.date);
-                                        const dayAppts = filteredAppointments.filter(a => getLocalDateKey(a.preferredDate) === cellKey);
-                                        const isToday = getLocalDateKey(new Date()) === cellKey;
-                                        const isSelected = getLocalDateKey(selectedDate) === cellKey;
+                                        {/* Calendar Day Cells Grid (Compact & Ergonomic Size) */}
+                                        {calendarDays.map((cell, idx) => {
+                                            const cellKey = getLocalDateKey(cell.date);
+                                            const dayAppts = filteredAppointments.filter(a => getLocalDateKey(a.preferredDate) === cellKey);
+                                            const isToday = getLocalDateKey(new Date()) === cellKey;
+                                            const isSelected = getLocalDateKey(selectedDate) === cellKey;
 
-                                        return (
-                                            <div
-                                                key={idx}
-                                                onClick={() => setSelectedDate(cell.date)}
-                                                className={`min-h-[72px] sm:min-h-[82px] p-1.5 transition-all flex flex-col justify-between cursor-pointer relative group ${
-                                                    cell.isCurrentMonth ? 'bg-white hover:bg-blue-50/40' : 'bg-slate-50/60 text-slate-300'
-                                                } ${isSelected ? 'ring-2 ring-inset ring-[#4A7CD2] bg-blue-50/50 z-10' : ''}`}
-                                            >
-                                                <div className="flex justify-between items-center">
-                                                    <span className={`text-[11px] font-bold w-5 h-5 flex items-center justify-center rounded-full transition-all ${
-                                                        isToday 
-                                                            ? 'bg-[#4A7CD2] text-white shadow-2xs font-extrabold' 
-                                                            : isSelected
-                                                                ? 'bg-blue-100 text-[#4A7CD2]'
-                                                                : cell.isCurrentMonth ? 'text-slate-800' : 'text-slate-400'
-                                                    }`}>
-                                                        {cell.date.getDate()}
-                                                    </span>
-                                                    
-                                                    {dayAppts.length > 0 && (
-                                                        <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-700 border border-slate-200/60">
-                                                            {dayAppts.length}
+                                            return (
+                                                <div
+                                                    key={idx}
+                                                    onClick={() => setSelectedDate(cell.date)}
+                                                    className={`min-h-[72px] sm:min-h-[82px] p-1.5 transition-all flex flex-col justify-between cursor-pointer relative group ${
+                                                        cell.isCurrentMonth ? 'bg-white hover:bg-blue-50/40' : 'bg-slate-50/60 text-slate-300'
+                                                    } ${isSelected ? 'ring-2 ring-inset ring-[#4A7CD2] bg-blue-50/50 z-10' : ''}`}
+                                                >
+                                                    <div className="flex justify-between items-center">
+                                                        <span className={`text-[11px] font-bold w-5 h-5 flex items-center justify-center rounded-full transition-all ${
+                                                            isToday 
+                                                                ? 'bg-[#4A7CD2] text-white shadow-2xs font-extrabold' 
+                                                                : isSelected
+                                                                    ? 'bg-blue-100 text-[#4A7CD2]'
+                                                                    : cell.isCurrentMonth ? 'text-slate-800' : 'text-slate-400'
+                                                        }`}>
+                                                            {cell.date.getDate()}
                                                         </span>
-                                                    )}
+                                                        
+                                                        {dayAppts.length > 0 && (
+                                                            <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-700 border border-slate-200/60">
+                                                                {dayAppts.length}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Day Appointments Stack */}
+                                                    <div className="space-y-1 my-0.5 overflow-hidden">
+                                                        {dayAppts.slice(0, 2).map((apt) => {
+                                                            const timeStr = new Date(apt.preferredDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                                                            const badgeBorder = apt.status === 'Confirmed' 
+                                                                ? 'border-l-blue-500 bg-blue-50/80 text-blue-900' 
+                                                                : apt.status === 'Done' 
+                                                                    ? 'border-l-emerald-500 bg-emerald-50/80 text-emerald-900' 
+                                                                    : 'border-l-amber-500 bg-amber-50/80 text-amber-900';
+
+                                                            return (
+                                                                <div
+                                                                    key={apt.appointmentID || apt.id}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSelectedDate(cell.date);
+                                                                        setSelectedAppointment(apt);
+                                                                    }}
+                                                                    className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold border border-slate-200/50 border-l-3 truncate flex items-center justify-between shadow-2xs transition hover:scale-[1.01] ${badgeBorder}`}
+                                                                    title={`${apt.fullName} - ${timeStr} (${apt.reason || 'Checkup'})`}
+                                                                >
+                                                                    <span className="truncate max-w-[65px] sm:max-w-[78px]">{apt.fullName}</span>
+                                                                    <span className="text-[8.5px] opacity-75 font-semibold">{timeStr}</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                        {dayAppts.length > 2 && (
+                                                            <span className="text-[8.5px] font-bold text-[#4A7CD2] block text-center bg-blue-50/80 py-0.2 rounded">
+                                                                +{dayAppts.length - 2} more
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Hover Quick Add Slot Button */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const dateIso = getLocalDateKey(cell.date);
+                                                            openNewAppointmentModal({ preferredDate: `${dateIso}T10:00` });
+                                                        }}
+                                                        className="text-[9px] font-bold text-slate-400 hover:text-[#4A7CD2] flex items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100 transition pt-0.5 border-t border-slate-100"
+                                                    >
+                                                        <Plus className="w-2.5 h-2.5" /> Slot
+                                                    </button>
                                                 </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
 
-                                                {/* Day Appointments Stack */}
-                                                <div className="space-y-1 my-0.5 overflow-hidden">
-                                                    {dayAppts.slice(0, 2).map((apt) => {
-                                                        const timeStr = new Date(apt.preferredDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                                                        const badgeBorder = apt.status === 'Confirmed' 
-                                                            ? 'border-l-blue-500 bg-blue-50/80 text-blue-900' 
-                                                            : apt.status === 'Done' 
-                                                                ? 'border-l-emerald-500 bg-emerald-50/80 text-emerald-900' 
-                                                                : 'border-l-amber-500 bg-amber-50/80 text-amber-900';
+                                {/* ── B. WEEK VIEW ── */}
+                                {calendarMode === 'week' && (
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                                        {currentWeekDays.map((dayDate, dayIdx) => {
+                                            const dayKey = getLocalDateKey(dayDate);
+                                            const dayAppts = filteredAppointments.filter(a => getLocalDateKey(a.preferredDate) === dayKey);
+                                            const isToday = getLocalDateKey(new Date()) === dayKey;
+                                            const isSelected = getLocalDateKey(selectedDate) === dayKey;
 
-                                                        return (
-                                                            <div
-                                                                key={apt.appointmentID}
+                                            return (
+                                                <div 
+                                                    key={dayIdx} 
+                                                    onClick={() => setSelectedDate(dayDate)}
+                                                    className={`rounded-2xl border p-2 flex flex-col min-h-[380px] max-h-[480px] transition-all cursor-pointer ${
+                                                        isSelected 
+                                                            ? 'border-[#4A7CD2] bg-blue-50/30 ring-2 ring-[#4A7CD2]/20' 
+                                                            : isToday 
+                                                                ? 'border-blue-200 bg-white' 
+                                                                : 'border-slate-200/80 bg-white hover:bg-slate-50/60'
+                                                    }`}
+                                                >
+                                                    {/* Day Header */}
+                                                    <div className="text-center pb-2 border-b border-slate-100 flex-shrink-0">
+                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                                                            {dayDate.toLocaleDateString('en-US', { weekday: 'short' })}
+                                                        </span>
+                                                        <div className="flex items-center justify-center gap-1 mt-0.5">
+                                                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+                                                                isToday 
+                                                                    ? 'bg-[#4A7CD2] text-white shadow-xs' 
+                                                                    : isSelected 
+                                                                        ? 'bg-blue-100 text-[#4A7CD2]' 
+                                                                        : 'text-slate-800'
+                                                            }`}>
+                                                                {dayDate.getDate()}
+                                                            </span>
+                                                            {dayAppts.length > 0 && (
+                                                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600">
+                                                                    {dayAppts.length}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Day Appointments List */}
+                                                    <div className="space-y-1.5 mt-2 flex-1 overflow-y-auto pr-0.5 scrollbar-thin">
+                                                        {dayAppts.length === 0 ? (
+                                                            <div className="h-full flex flex-col items-center justify-center text-center text-slate-300 py-6">
+                                                                <span className="text-[10px] font-medium text-slate-400">No appointments</span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        openNewAppointmentModal({ preferredDate: `${dayKey}T10:00` });
+                                                                    }}
+                                                                    className="mt-2 text-[9.5px] font-bold text-[#4A7CD2] hover:underline flex items-center gap-0.5"
+                                                                >
+                                                                    <Plus className="w-2.5 h-2.5" /> Book
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            dayAppts.map((apt) => {
+                                                                const timeStr = new Date(apt.preferredDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                                                                const badgeBorder = apt.status === 'Confirmed'
+                                                                    ? 'bg-blue-50/90 border-blue-200 text-blue-900 border-l-3 border-l-blue-600'
+                                                                    : apt.status === 'Done'
+                                                                        ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900 border-l-3 border-l-emerald-600'
+                                                                        : 'bg-amber-50/90 border-amber-200 text-amber-900 border-l-3 border-l-amber-600';
+
+                                                                return (
+                                                                    <div
+                                                                        key={apt.appointmentID || apt.id}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setSelectedDate(dayDate);
+                                                                            setSelectedAppointment(apt);
+                                                                        }}
+                                                                        className={`p-1.5 rounded-xl text-xs border transition shadow-2xs hover:scale-[1.01] cursor-pointer ${badgeBorder}`}
+                                                                        title={`${apt.fullName} - ${timeStr}`}
+                                                                    >
+                                                                        <div className="text-[9px] font-mono font-bold opacity-80">
+                                                                            {timeStr}
+                                                                        </div>
+                                                                        <div className="font-extrabold text-[10.5px] truncate mt-0.5">
+                                                                            {apt.fullName}
+                                                                        </div>
+                                                                        <div className="text-[9.5px] opacity-75 truncate">
+                                                                            {apt.reason || 'Consultation'}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
+                                {/* ── C. DAY VIEW ── */}
+                                {calendarMode === 'day' && (
+                                    <div className="space-y-3">
+                                        <div className="bg-gradient-to-r from-blue-50/80 via-indigo-50/40 to-slate-50 p-3.5 rounded-2xl border border-blue-200/70 flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-xl bg-[#4A7CD2] text-white flex flex-col items-center justify-center shadow-xs shrink-0">
+                                                    <span className="text-[9px] font-bold uppercase tracking-wider leading-none">
+                                                        {selectedDate.toLocaleDateString('en-US', { weekday: 'short' })}
+                                                    </span>
+                                                    <span className="text-base font-black leading-none mt-0.5">
+                                                        {selectedDate.getDate()}
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                                                        {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                                                    </h3>
+                                                    <p className="text-xs text-slate-500 font-medium">
+                                                        {selectedDateAppointments.length} appointment{selectedDateAppointments.length === 1 ? '' : 's'} scheduled for this day
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const dateIso = getLocalDateKey(selectedDate);
+                                                    openNewAppointmentModal({ preferredDate: `${dateIso}T10:00` });
+                                                }}
+                                                className="px-3 py-1.5 bg-[#4A7CD2] hover:bg-[#3b66b2] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                                            >
+                                                <Plus className="w-3.5 h-3.5" />
+                                                <span>Add Slot</span>
+                                            </button>
+                                        </div>
+
+                                        {selectedDateAppointments.length === 0 ? (
+                                            <div className="p-8 text-center bg-slate-50/60 rounded-2xl border border-dashed border-slate-200 text-slate-400 space-y-2">
+                                                <Calendar className="w-8 h-8 mx-auto text-slate-300" />
+                                                <p className="text-xs font-bold text-slate-600">No appointments scheduled for this day</p>
+                                                <p className="text-[11px] text-slate-400">Click Add Slot to schedule an appointment for {selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">
+                                                {selectedDateAppointments.map((apt) => {
+                                                    const timeStr = new Date(apt.preferredDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                                                    return (
+                                                        <div
+                                                            key={apt.appointmentID || apt.id}
+                                                            onClick={() => setSelectedAppointment(apt)}
+                                                            className="p-3 bg-white hover:bg-slate-50/80 border border-slate-200/80 rounded-2xl shadow-2xs hover:shadow-xs transition flex items-center justify-between gap-3 cursor-pointer"
+                                                        >
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-16 text-center font-mono font-bold text-xs text-slate-700 py-1 px-2 rounded-lg bg-slate-100 border border-slate-200/60 shrink-0">
+                                                                    {timeStr}
+                                                                </div>
+                                                                <div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <h4 className="text-xs sm:text-sm font-bold text-slate-900">{apt.fullName}</h4>
+                                                                        <span className="scale-90 origin-left">{getStatusBadge(apt.status)}</span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                                                                        <span>Reason: <strong className="text-slate-700">{apt.reason || 'Consultation'}</strong></span>
+                                                                        {apt.phone && <span>· Phone: <strong className="font-mono text-slate-700">{apt.phone}</strong></span>}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                type="button"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    setSelectedDate(cell.date);
                                                                     setSelectedAppointment(apt);
                                                                 }}
-                                                                className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold border border-slate-200/50 border-l-3 truncate flex items-center justify-between shadow-2xs transition hover:scale-[1.01] ${badgeBorder}`}
-                                                                title={`${apt.fullName} - ${timeStr} (${apt.reason || 'Checkup'})`}
+                                                                className="px-2.5 py-1 bg-[#4A7CD2]/10 hover:bg-[#4A7CD2] text-[#4A7CD2] hover:text-white rounded-lg text-xs font-bold transition cursor-pointer shrink-0"
                                                             >
-                                                                <span className="truncate max-w-[65px] sm:max-w-[78px]">{apt.fullName}</span>
-                                                                <span className="text-[8.5px] opacity-75 font-semibold">{timeStr}</span>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                    {dayAppts.length > 2 && (
-                                                        <span className="text-[8.5px] font-bold text-[#4A7CD2] block text-center bg-blue-50/80 py-0.2 rounded">
-                                                            +{dayAppts.length - 2} more
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                {/* Hover Quick Add Slot Button */}
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        const dateIso = getLocalDateKey(cell.date);
-                                                        openNewAppointmentModal({ preferredDate: `${dateIso}T10:00` });
-                                                    }}
-                                                    className="text-[9px] font-bold text-slate-400 hover:text-[#4A7CD2] flex items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100 transition pt-0.5 border-t border-slate-100"
-                                                >
-                                                    <Plus className="w-2.5 h-2.5" /> Slot
-                                                </button>
+                                                                Inspect
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
-                                        );
-                                    })}
-                                </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Right Day Focus Inspector Panel (4 of 12 columns) - Height Matched */}
