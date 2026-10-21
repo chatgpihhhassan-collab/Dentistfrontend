@@ -4,7 +4,6 @@ import {
   RotateCcw, Save, Check, Layers, Stethoscope, Eye, Edit3, X, HelpCircle, AlertCircle
 } from 'lucide-react';
 import { parseClinicalReport, serializeClinicalReport, getHumanReadableReport } from '../utils/aiRadiologyUtils';
-import AIBadgeAndActions from './AIBadgeAndActions';
 
 export default function ClinicalReportEditor({
   rawReportText,
@@ -532,19 +531,6 @@ export default function ClinicalReportEditor({
           </div>
         )}
 
-      </div>
-
-      {/* 🤖 Doctor Review Mode AI Safety Indicator */}
-      <div className="px-4 py-1 bg-slate-50 border-t border-slate-100">
-        <AIBadgeAndActions
-          promptId="radiograph-findings-helper"
-          version="1.0.0"
-          feature="radiology"
-          textToCopy={narrativeText}
-          isEditing={true}
-          onToggleEdit={onCancel}
-          showFeedback={false}
-        />
       </div>
 
       {/* 4. FOOTER CONTROLS & SAVE */}

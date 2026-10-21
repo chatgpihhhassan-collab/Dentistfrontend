@@ -56,8 +56,6 @@ export const useHardwareDeviceWatcher = () => {
 
       // Explicit dental hardware signatures
       const dentalSignatures = [
-        { key: 'nanopix', brand: 'Eighteeth Nano-Pix', type: 'rvg_sensor' },
-        { key: 'eighteeth', brand: 'Eighteeth Nano-Pix', type: 'rvg_sensor' },
         { key: 'apple dental', brand: 'Apple Dental', type: 'intraoral_camera' },
         { key: 'coxo', brand: 'Coxo', type: 'intraoral_camera' },
         { key: 'magenta', brand: 'Magenta', type: 'intraoral_camera' },
@@ -126,10 +124,11 @@ export const useHardwareDeviceWatcher = () => {
           lastSyncTime: new Date(),
         });
       } else {
+        // Only laptop's built-in webcam is present (or no camera permission granted yet with 1 device)
         const primaryDev = videoInputs[0];
-        const primaryLabel = primaryDev?.label || 'Laptop Built-in Webcam';
+        const primaryLabel = primaryDev.label || 'Laptop Built-in Webcam';
 
-        console.log(`[OPTICAL CAMERA SYNC] Standby: Built-in laptop webcam detected (${primaryLabel}). External intraoral video camera idle. (NanoPix RVG Sensor operates independently via USB Bridge).`);
+        console.log(`[HARDWARE SYNC LOG] Standby: Built-in laptop webcam detected (${primaryLabel}). No external dental USB attached.`);
 
         setDeviceState({
           isConnected: false, // NOT connected to a chairside dental device

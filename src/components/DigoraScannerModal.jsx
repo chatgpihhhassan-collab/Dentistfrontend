@@ -274,7 +274,7 @@ export default function DigoraScannerModal({
                     digoraSync?.isArmed ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-amber-400'
                   }`}></span>
                   <span className="text-sm sm:text-base font-black text-white">
-                    {digoraSync?.isArmed ? 'ARMED & READY FOR PLATE' : 'STANDBY / NOT DETECTED (CLICK PLAY TO ARM)'}
+                    {digoraSync?.isArmed ? 'ARMED & READY FOR PLATE' : 'STANDBY (CLICK PLAY TO ACTIVATE)'}
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 mt-1">

@@ -8,16 +8,47 @@ import landingCmsService from '../services/landingCmsService';
 export default function Navigation() {
     const navigate = useNavigate();
     const location = useLocation();
-    const [doctor, setDoctor] = React.useState(null);
+    const [doctor, setDoctor] = React.useState(() => {
+        try {
+            const stored = localStorage.getItem('doctor');
+            return stored ? JSON.parse(stored) : null;
+        } catch {
+            return null;
+        }
+    });
     const [config, setConfig] = React.useState(() => landingCmsService.getConfig());
 
     React.useEffect(() => {
-        const stored = localStorage.getItem('doctor');
-        if (stored) {
-            setDoctor(JSON.parse(stored));
+        if (doctor) {
+            const docId = doctor.doctorID || doctor.id;
+            if (docId && !doctor.organizationName) {
+                fetch(`/api/auth/doctor/${docId}`)
+                    .then(res => res.ok ? res.json() : null)
+                    .then(docData => {
+                        if (docData && (docData.organizationName || docData.OrganizationName)) {
+                            const resolvedOrg = docData.organizationName || docData.OrganizationName;
+                            const updated = {
+                                ...doctor,
+                                organizationID: docData.organizationID || docData.OrganizationID,
+                                organizationName: resolvedOrg,
+                                organizationLogoUrl: docData.organizationLogoUrl || docData.OrganizationLogoUrl,
+                                organizationCity: docData.organizationCity || docData.OrganizationCity
+                            };
+                            localStorage.setItem('doctor', JSON.stringify(updated));
+                            setDoctor(updated);
+                        }
+                    })
+                    .catch(() => {});
+            }
         }
         return landingCmsService.subscribe(setConfig);
-    }, []);
+    }, [doctor]);
+
+    const orgName = doctor ? (
+        doctor.organizationName || 
+        doctor.OrganizationName || 
+        (doctor.region === 'PK' ? 'Shifa International Hospitals Ltd' : 'Dentia Auckland Regional Dental Hospital')
+    ) : null;
 
     const handleLogout = () => {
         try {
@@ -56,7 +87,14 @@ export default function Navigation() {
                             <Mail className="w-3.5 h-3.5 mr-1.5 text-primary-teal" /> {config.email || 'contact@dentiaclinic.com'}
                         </a>
                     </div>
-                    <div className="flex items-center space-x-5">
+                    <div className="flex items-center space-x-4">
+                        {doctor && orgName && (
+                            <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-600 bg-white/80 px-2.5 py-0.5 rounded-full border border-light-teal/60 shadow-2xs">
+                                <Building2 className="w-3.5 h-3.5 text-[#4A7CD2] shrink-0" />
+                                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Hospital:</span>
+                                <strong className="text-slate-800 font-bold max-w-[220px] truncate" title={orgName}>{orgName}</strong>
+                            </div>
+                        )}
                         <span className="flex items-center text-accent-gold font-bold">
                             ★ {config.socialProof?.googleRating || 5.0} <span className="text-slate-600 font-medium ml-1">({config.socialProof?.googleReviewCountText || '23k Google Reviews'})</span>
                         </span>
@@ -75,6 +113,19 @@ export default function Navigation() {
             <header className="w-full max-w-[1800px] mx-auto bg-gradient-to-r from-white/95 via-white/85 to-[#EAF0FC]/75 backdrop-blur-2xl border border-white/90 h-20 flex items-center justify-between px-6 rounded-full shadow-lg shadow-[#0A1A24]/5 transition-all duration-300">
                 <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate(doctor && doctor.isSuperAdmin ? '/admin/doctors' : '/')}>
                     <img src="/images/logo-black.webp" alt="Dentia Logo" className="h-8 object-contain" />
+                    {doctor && orgName && (
+                        <div className="hidden xl:flex items-center gap-2 pl-3 border-l border-slate-200">
+                            <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-200/80 flex items-center justify-center text-indigo-600 shadow-2xs flex-shrink-0">
+                                <Building2 className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="flex flex-col text-left leading-tight">
+                                <span className="text-[8.5px] font-black uppercase tracking-wider text-slate-400">Affiliated Hospital</span>
+                                <span className="text-xs font-black text-[#10244B] max-w-[210px] truncate" title={orgName}>
+                                    {orgName}
+                                </span>
+                            </div>
+                        </div>
+                    )}
                 </div>
                 
                 <nav className="hidden lg:flex items-center space-x-1.5 bg-gradient-to-r from-[#EAF0FC]/80 via-white/80 to-[#EAF0FC]/95 p-1.5 rounded-full border border-[#4A7CD2]/20 shadow-inner">
@@ -223,25 +274,40 @@ export default function Navigation() {
                     )}
 
                     {doctor ? (
-                        <div className="flex items-center space-x-3">
-                            <div className="flex items-center space-x-2 bg-white pr-4 pl-1.5 py-1.5 rounded-full border border-light-teal shadow-sm whitespace-nowrap">
-                                <div className="w-8 h-8 rounded-full bg-light-teal/50 flex items-center justify-center overflow-hidden flex-shrink-0">
-                                    <img src={`https://ui-avatars.com/api/?name=${doctor.firstName || 'Super'}+${doctor.lastName || 'Admin'}&background=EAF0FC&color=4A7CD2`} alt="Doctor" />
+                        <div className="flex items-center space-x-2.5">
+                            <div className="flex items-center space-x-2 bg-white pr-3.5 pl-1.5 py-1.5 rounded-full border border-light-teal shadow-xs hover:border-[#4A7CD2]/40 transition-all whitespace-nowrap">
+                                <div className="w-8 h-8 rounded-full bg-light-teal/50 flex items-center justify-center overflow-hidden flex-shrink-0 border border-white shadow-2xs">
+                                    <img 
+                                        src={doctor.profileImageUrl || `https://ui-avatars.com/api/?name=${doctor.firstName || 'Super'}+${doctor.lastName || 'Admin'}&background=EAF0FC&color=4A7CD2`} 
+                                        alt="Doctor" 
+                                        className="w-full h-full object-cover"
+                                    />
                                 </div>
-                                <span className="text-sm font-bold text-dark-slate hidden sm:inline whitespace-nowrap">
-                                    {doctor.isSuperAdmin ? 'SuperAdmin' : `Dr. ${doctor.lastName}`}
-                                </span>
+                                <div className="flex flex-col text-left leading-tight hidden sm:flex">
+                                    <span className="text-xs font-black text-dark-slate whitespace-nowrap">
+                                        {doctor.isSuperAdmin ? 'SuperAdmin' : `Dr. ${doctor.lastName || doctor.firstName || 'Doctor'}`}
+                                    </span>
+                                    {orgName && (
+                                        <span 
+                                            className="text-[9.5px] font-bold text-[#4A7CD2] flex items-center gap-1 max-w-[170px] truncate" 
+                                            title={`Affiliated with ${orgName}`}
+                                        >
+                                            <Building2 className="w-2.5 h-2.5 shrink-0 text-[#4A7CD2]" />
+                                            <span className="truncate">{orgName}</span>
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                             <button 
                                 onClick={() => navigate(doctor.isSuperAdmin ? '/admin/doctors' : '/directory')}
-                                className="bg-primary-teal hover:bg-primary-hover text-white font-bold py-2.5 px-5 rounded-full text-sm transition-all shadow-md cursor-pointer"
+                                className="bg-primary-teal hover:bg-primary-hover text-white font-bold py-2.5 px-4 rounded-full text-xs transition-all shadow-md cursor-pointer whitespace-nowrap"
                             >
                                 {doctor.isSuperAdmin ? 'Admin Suite' : 'Workspace'}
                             </button>
                              <button 
                                 onClick={handleLogout} 
                                 aria-label="Log Out of Clinician Portal"
-                                className="bg-light-teal text-dark-slate hover:bg-dark-slate hover:text-white border border-light-teal-hover transition-all duration-300 py-2.5 px-4 rounded-full text-xs font-bold shadow-sm flex items-center space-x-1.5 cursor-pointer" 
+                                className="bg-light-teal text-dark-slate hover:bg-dark-slate hover:text-white border border-light-teal-hover transition-all duration-300 py-2.5 px-3.5 rounded-full text-xs font-bold shadow-sm flex items-center space-x-1.5 cursor-pointer" 
                                 title="Log Out"
                              >
                                 <LogOut className="w-4 h-4" />

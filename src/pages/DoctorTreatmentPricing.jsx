@@ -124,23 +124,96 @@ export default function DoctorTreatmentPricing() {
         description: ''
     });
 
+    const [region, setRegion] = useState(() => doctor.region || 'PK');
+
     const currencyOptions = [
-        { code: 'NZD', symbol: '$', label: 'New Zealand Dollar (NZD $)', multiplier: 1.0 },
-        { code: 'PKR', symbol: 'Rs', label: 'Pakistani Rupee (PKR Rs)', multiplier: 65.0 },
-        { code: 'USD', symbol: '$', label: 'US Dollar (USD $)', multiplier: 0.62 },
-        { code: 'GBP', symbol: '£', label: 'British Pound (GBP £)', multiplier: 0.48 },
-        { code: 'EUR', symbol: '€', label: 'Euro (EUR €)', multiplier: 0.56 },
-        { code: 'AUD', symbol: '$', label: 'Australian Dollar (AUD $)', multiplier: 0.92 }
+        { code: 'PKR', symbol: 'Rs', label: 'Pakistani Rupee (PKR Rs)', rateInPKR: 1.0 },
+        { code: 'NZD', symbol: 'NZ$', label: 'New Zealand Dollar (NZD NZ$)', rateInPKR: 165.0 },
+        { code: 'USD', symbol: 'US$', label: 'US Dollar (USD US$)', rateInPKR: 278.0 },
+        { code: 'GBP', symbol: '£', label: 'British Pound (GBP £)', rateInPKR: 355.0 },
+        { code: 'EUR', symbol: '€', label: 'Euro (EUR €)', rateInPKR: 300.0 },
+        { code: 'AUD', symbol: 'AU$', label: 'Australian Dollar (AUD AU$)', rateInPKR: 180.0 }
     ];
 
     const currentCurrencySymbol = currencyOptions.find(c => c.code === currency)?.symbol || '$';
 
     // Calculate benchmark fee for any procedure in the active currency
     const getBenchmarkFee = (proc) => {
-        if (currency === 'PKR') return proc.feePKR;
-        if (currency === 'NZD') return proc.feeNZD;
-        const mult = currencyOptions.find(c => c.code === currency)?.multiplier || 1.0;
-        return Math.round(proc.feeNZD * mult);
+        if (!proc) return 0;
+        if (currency === 'PKR') return proc.feePKR || 0;
+        if (currency === 'NZD') return proc.feeNZD || 0;
+        const rate = currencyOptions.find(c => c.code === currency)?.rateInPKR || 1.0;
+        return Math.round(((proc.feePKR || 0) / rate) * 10) / 10;
+    };
+
+    // Dynamic fee conversion when doctor changes currency
+    const handleCurrencyChange = (newCurrency) => {
+        if (newCurrency === currency) return;
+        const oldCurrency = currency;
+        const oldRate = currencyOptions.find(c => c.code === oldCurrency)?.rateInPKR || 1.0;
+        const newRate = currencyOptions.find(c => c.code === newCurrency)?.rateInPKR || 1.0;
+
+        const stdMap = new Map(STANDARD_DENTAL_PROCEDURES.map(s => [s.code, s]));
+
+        const converted = procedures.map(p => {
+            const std = stdMap.get(p.procedureCode);
+            let updatedFee = p.standardFee;
+
+            if (std) {
+                if (newCurrency === 'PKR') {
+                    if (oldCurrency === 'NZD' && std.feeNZD > 0) {
+                        const ratio = p.standardFee / std.feeNZD;
+                        updatedFee = Math.round(std.feePKR * ratio);
+                    } else if (oldRate > 0) {
+                        const feeInPkr = p.standardFee * oldRate;
+                        updatedFee = Math.round(feeInPkr);
+                    } else {
+                        updatedFee = std.feePKR;
+                    }
+                } else if (newCurrency === 'NZD') {
+                    if (oldCurrency === 'PKR' && std.feePKR > 0) {
+                        const ratio = p.standardFee / std.feePKR;
+                        updatedFee = Math.round(std.feeNZD * ratio * 10) / 10;
+                    } else {
+                        const feeInPkr = p.standardFee * oldRate;
+                        updatedFee = Math.round((feeInPkr / newRate) * 10) / 10;
+                    }
+                } else {
+                    const pkrBase = oldCurrency === 'PKR' ? p.standardFee : (p.standardFee * oldRate);
+                    updatedFee = Math.round((pkrBase / newRate) * 10) / 10;
+                }
+            } else {
+                const inPKR = oldCurrency === 'PKR' ? p.standardFee : (p.standardFee * oldRate);
+                updatedFee = newCurrency === 'PKR' ? Math.round(inPKR) : Math.round((inPKR / newRate) * 10) / 10;
+            }
+
+            return {
+                ...p,
+                currency: newCurrency,
+                standardFee: updatedFee
+            };
+        });
+
+        setCurrency(newCurrency);
+        setProcedures(converted);
+        setHasUnsavedChanges(true);
+        setFeedback({
+            type: 'info',
+            message: `Currency changed from ${oldCurrency} to ${newCurrency}. All ${converted.length} procedure prices converted dynamically!`
+        });
+    };
+
+    // Dynamic fee conversion when doctor changes region (e.g. into PKR)
+    const handleRegionChange = (newRegion) => {
+        setRegion(newRegion);
+        const targetCurrency = newRegion === 'PK' ? 'PKR' : newRegion === 'NZ' ? 'NZD' : 'USD';
+        handleCurrencyChange(targetCurrency);
+        try {
+            const stored = JSON.parse(localStorage.getItem('doctor') || '{}');
+            stored.region = newRegion;
+            localStorage.setItem('doctor', JSON.stringify(stored));
+            setDoctor(stored);
+        } catch (e) {}
     };
 
     // Fetch Fee Schedule from Backend
@@ -651,20 +724,34 @@ export default function DoctorTreatmentPricing() {
                         </p>
                     </div>
 
-                    {/* Controls: Currency Switcher & Save Button */}
+                    {/* Controls: Region Selector, Currency Switcher & Save Button */}
                     <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
                         
+                        {/* Clinic Region Selector */}
+                        <div className="flex items-center gap-2 bg-warm-cream px-3 py-2 rounded-2xl border border-light-teal">
+                            <Globe className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-bold text-muted-text uppercase">Clinic Region</span>
+                                <select 
+                                    value={region}
+                                    onChange={(e) => handleRegionChange(e.target.value)}
+                                    className="bg-transparent font-bold text-xs text-dark-slate focus:outline-none cursor-pointer pr-2"
+                                >
+                                    <option value="PK">Pakistan (PK — PKR Rs)</option>
+                                    <option value="NZ">New Zealand (NZ — NZD NZ$)</option>
+                                    <option value="US">International (US — USD US$)</option>
+                                </select>
+                            </div>
+                        </div>
+
                         {/* Currency Selector */}
                         <div className="flex items-center gap-2 bg-warm-cream px-3 py-2 rounded-2xl border border-light-teal">
-                            <Globe className="w-4 h-4 text-primary-teal shrink-0" />
+                            <DollarSign className="w-4 h-4 text-primary-teal shrink-0" />
                             <div className="flex flex-col">
                                 <span className="text-[10px] font-bold text-muted-text uppercase">Active Currency</span>
                                 <select 
                                     value={currency}
-                                    onChange={(e) => {
-                                        setCurrency(e.target.value);
-                                        setHasUnsavedChanges(true);
-                                    }}
+                                    onChange={(e) => handleCurrencyChange(e.target.value)}
                                     className="bg-transparent font-bold text-xs text-dark-slate focus:outline-none cursor-pointer pr-2"
                                 >
                                     {currencyOptions.map(c => (

@@ -17,6 +17,8 @@ import FullPageSkeletonLoader from '../components/FullPageSkeletonLoader';
 import WhatsAppOptInToggle from '../components/whatsapp/WhatsAppOptInToggle';
 import apiFetch from '../utils/apiClient';
 import { updatePatientWhatsAppOptIn } from '../services/whatsappService';
+import { formatDatePK, formatDateTimePK, parseDobForInput, formatDobForSave } from '../utils/dateUtils';
+import { normalizePakistaniPhone } from '../validators';
 
 export default function PatientDirectory() {
     const [patients, setPatients] = useState([]);
@@ -126,7 +128,7 @@ export default function PatientDirectory() {
 
     const handleOpenEditPatient = (p) => {
         if (!p) return;
-        const dobStr = p.dob ? new Date(p.dob).toISOString().slice(0, 10) : '';
+        const dobStr = parseDobForInput(p.dob);
         setEditForm({
             firstName: p.firstName || '',
             lastName: p.lastName || '',
@@ -168,7 +170,7 @@ export default function PatientDirectory() {
 
             if (res.upcomingAppointmentQueued) {
                 const dateStr = res.queuedAppointmentDate 
-                    ? new Date(res.queuedAppointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                    ? formatDatePK(res.queuedAppointmentDate)
                     : 'upcoming appointment';
                 showToast(`WhatsApp activated! Upcoming appointment reminder for ${dateStr} has been queued.`, 'success');
             } else {
@@ -193,8 +195,32 @@ export default function PatientDirectory() {
             }
         }
 
+        // Validate and normalize Pakistani phone number
+        let normalizedPhone = (editForm.phone || '').trim();
+        if (normalizedPhone) {
+            const phoneCheck = normalizePakistaniPhone(normalizedPhone);
+            if (!phoneCheck.isValid) {
+                showToast(phoneCheck.error || "Invalid Pakistani mobile number (+923XXXXXXXXX or 03XXXXXXXXX).", "error");
+                return;
+            }
+            normalizedPhone = phoneCheck.normalized;
+        }
+
+        // Validate email format if entered (never save fake placeholders)
+        let sanitizedEmail = (editForm.email || '').trim();
+        if (sanitizedEmail) {
+            const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            if (!emailRegex.test(sanitizedEmail)) {
+                showToast("Please enter a valid email address.", "error");
+                return;
+            }
+        } else {
+            sanitizedEmail = null;
+        }
+
         const sanitizedFirstName = (editForm.firstName || '').slice(0, 50).trim();
         const sanitizedLastName = (editForm.lastName || '').slice(0, 50).trim();
+        const formattedDob = formatDobForSave(editForm.dob);
 
         setSavingEdit(true);
         console.log('[PatientDirectory] Saving edited patient:', editPatientModal.patient.patientID, editForm);
@@ -207,8 +233,10 @@ export default function PatientDirectory() {
                     ...editForm,
                     firstName: sanitizedFirstName,
                     lastName: sanitizedLastName,
+                    phone: normalizedPhone,
+                    email: sanitizedEmail,
                     whatsAppOptIn: editForm.whatsAppOptIn,
-                    dob: editForm.dob ? new Date(editForm.dob).toISOString() : null
+                    dob: formattedDob
                 })
             });
             if (res.ok) {
@@ -217,8 +245,10 @@ export default function PatientDirectory() {
                     ...editForm,
                     firstName: sanitizedFirstName,
                     lastName: sanitizedLastName,
+                    phone: normalizedPhone,
+                    email: sanitizedEmail,
                     whatsAppOptIn: editForm.whatsAppOptIn,
-                    dob: editForm.dob ? new Date(editForm.dob).toISOString() : null
+                    dob: formattedDob
                 };
 
                 // If WhatsApp was just activated, trigger opt-in service to check retroactive appointment dispatch
@@ -229,7 +259,7 @@ export default function PatientDirectory() {
                             console.log('[PatientDirectory] Retroactive dispatch check completed:', waRes);
                             if (waRes.upcomingAppointmentQueued) {
                                 const dateStr = waRes.queuedAppointmentDate 
-                                    ? new Date(waRes.queuedAppointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                                    ? formatDatePK(waRes.queuedAppointmentDate)
                                     : 'upcoming appointment';
                                 showToast(`WhatsApp activated! Upcoming appointment reminder for ${dateStr} has been queued.`, 'success');
                             }
@@ -446,7 +476,7 @@ export default function PatientDirectory() {
         const pName = `${selectedPatient.firstName || ''} ${selectedPatient.lastName || ''}`.trim() || 'Patient';
         const pId = selectedPatient.patientID || 'N/A';
         const docName = `Dr. ${doctor?.firstName || doctor?.name || 'Ahmed'}`;
-        const exportDate = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        const exportDate = formatDatePK(new Date());
         const exportTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
         try {
@@ -477,7 +507,7 @@ export default function PatientDirectory() {
                 pdf.roundedRect(margin, pageHeight - 24, contentWidth, 16, 1.5, 1.5, 'FD');
 
                 const pRefNo = selectedPatient?.referenceNumber || ('DEN-2026-' + (selectedPatient?.patientID || '00000'));
-                const pDob = selectedPatient?.dob ? new Date(selectedPatient.dob).toLocaleDateString('en-GB') : 'Verified DOB on file';
+                const pDob = selectedPatient?.dob ? formatDatePK(selectedPatient.dob) : 'Verified DOB on file';
 
                 pdf.setFont('helvetica', 'bold');
                 pdf.setFontSize(7.2);
@@ -548,7 +578,7 @@ export default function PatientDirectory() {
                     const dt = log.createdAt || log.CreatedAt;
                     const d = dt ? new Date(dt) : null;
                     const timeString = d 
-                        ? `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
+                        ? formatDateTimePK(d)
                         : 'Recent';
 
                     // Section Card Background
@@ -910,13 +940,34 @@ export default function PatientDirectory() {
                 return false;
             }
 
-            // 2. Text Search Query Matching
+            // 2. Text Search Query Matching (Supports Name, ID, NHI, City, and Local 03xx / +92 Phone search)
+            const matchesPhone = () => {
+                if (!p.phone || !cSearch) return false;
+                if (p.phone.toLowerCase().includes(cSearch)) return true;
+                const searchDigits = cSearch.replace(/\D/g, '');
+                if (searchDigits.length >= 3) {
+                    const pDigits = (p.phone || '').replace(/\D/g, '');
+                    if (pDigits.includes(searchDigits)) return true;
+                    // If searching local format like 03xx, match 3xx or 923xx in pDigits
+                    if (searchDigits.startsWith('0')) {
+                        const stripped = searchDigits.slice(1);
+                        if (pDigits.includes(stripped) || pDigits.includes('92' + stripped)) return true;
+                    }
+                    // If searching international format 923xx, match 03xx or 3xx in pDigits
+                    if (searchDigits.startsWith('92')) {
+                        const local = '0' + searchDigits.slice(2);
+                        if (pDigits.includes(local) || pDigits.includes(searchDigits.slice(2))) return true;
+                    }
+                }
+                return false;
+            };
+
             const matchesQuery = !cSearch || (
                 (p.firstName && p.firstName.toLowerCase().includes(cSearch)) || 
                 (p.lastName && p.lastName.toLowerCase().includes(cSearch)) || 
                 (`${p.firstName} ${p.lastName}`.toLowerCase().includes(cSearch)) ||
                 (p.patientID && p.patientID.toString().includes(cSearch.replace('#', ''))) ||
-                (p.phone && p.phone.includes(cSearch)) ||
+                matchesPhone() ||
                 (p.nhiNumber && p.nhiNumber.toLowerCase().includes(cSearch)) ||
                 (p.currentTreatmentPlan && p.currentTreatmentPlan.toLowerCase().includes(cSearch)) ||
                 (p.city && p.city.toLowerCase().includes(cSearch))
@@ -1444,8 +1495,30 @@ export default function PatientDirectory() {
 
                                     {selectedPatient && (
                                         <div className="flex items-center gap-2 flex-shrink-0">
-                                            {/* Direct WhatsApp Web Chat Button (Clean, Single Action) */}
-                                            {selectedPatient.phone && (
+                                            {/* Modern WhatsApp Notification Toggle Switch */}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleTogglePatientWhatsApp(!Boolean(selectedPatient.whatsAppOptIn))}
+                                                className={`group px-3 py-1.5 rounded-xl border transition-all cursor-pointer shadow-2xs flex items-center gap-2 text-xs font-bold whitespace-nowrap select-none ${
+                                                    Boolean(selectedPatient.whatsAppOptIn)
+                                                        ? 'bg-emerald-50 hover:bg-emerald-100/80 text-emerald-800 border-emerald-300/80 ring-1 ring-emerald-400/20'
+                                                        : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                                                }`}
+                                                title={Boolean(selectedPatient.whatsAppOptIn) ? "WhatsApp Notifications are ON. Click to turn OFF." : "WhatsApp Notifications are OFF. Click to turn ON."}
+                                            >
+                                                <MessageCircle className={`w-3.5 h-3.5 ${Boolean(selectedPatient.whatsAppOptIn) ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                                <span className="text-[11px] font-extrabold tracking-tight">WhatsApp</span>
+                                                
+                                                {/* Sleek Mini Switch Pill */}
+                                                <div className={`w-7 h-3.5 rounded-full transition-colors flex items-center p-0.5 ${
+                                                    Boolean(selectedPatient.whatsAppOptIn) ? 'bg-emerald-500 justify-end' : 'bg-slate-300 justify-start'
+                                                }`}>
+                                                    <div className="w-2.5 h-2.5 rounded-full bg-white shadow-xs transition-transform" />
+                                                </div>
+                                            </button>
+
+                                            {/* Direct WhatsApp Web Chat Button */}
+                                            {selectedPatient.phone && Boolean(selectedPatient.whatsAppOptIn) && (
                                                 <button
                                                     type="button"
                                                     onClick={() => {
@@ -1453,11 +1526,11 @@ export default function PatientDirectory() {
                                                         const num = clean.startsWith('0') ? '92' + clean.slice(1) : clean.startsWith('3') ? '92' + clean : clean;
                                                         window.open(`https://wa.me/${num}`, "_blank");
                                                     }}
-                                                    className="px-3 py-1.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 whitespace-nowrap cursor-pointer group"
-                                                    title={`Open Direct WhatsApp Web Chat with ${selectedPatient.firstName} (${selectedPatient.phone})`}
+                                                    className="px-2.5 py-1.5 rounded-xl border border-emerald-200 bg-white hover:bg-emerald-50 text-emerald-700 hover:text-emerald-800 text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+                                                    title={`Open Direct WhatsApp Web Chat with ${selectedPatient.firstName}`}
                                                 >
-                                                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600 group-hover:text-white transition-colors" />
-                                                    <span>WhatsApp</span>
+                                                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                                    <span className="hidden sm:inline">Chat</span>
                                                 </button>
                                             )}
 
@@ -1533,19 +1606,6 @@ export default function PatientDirectory() {
                                                                 <>
                                                                     <span className="text-slate-300">•</span>
                                                                     <span className="font-mono text-slate-700 font-bold">{selectedPatient.phone}</span>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => handleTogglePatientWhatsApp(!Boolean(selectedPatient.whatsAppOptIn))}
-                                                                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border transition cursor-pointer select-none ${
-                                                                            Boolean(selectedPatient.whatsAppOptIn)
-                                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                                                                                : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
-                                                                        }`}
-                                                                        title={Boolean(selectedPatient.whatsAppOptIn) ? "WhatsApp automated reminders active. Click to disable." : "WhatsApp automated reminders disabled. Click to enable."}
-                                                                    >
-                                                                        <span className={`w-1.5 h-1.5 rounded-full ${Boolean(selectedPatient.whatsAppOptIn) ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-                                                                        <span>{Boolean(selectedPatient.whatsAppOptIn) ? 'WhatsApp Alerts ON' : 'WhatsApp Alerts OFF'}</span>
-                                                                    </button>
                                                                 </>
                                                             ) : null}
                                                         </div>
@@ -1553,10 +1613,6 @@ export default function PatientDirectory() {
                                                 </div>
 
                                                 {/* Interactive Treatment Modality Buttons */}
-                                                <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-2 mb-1 px-0.5">
-                                                    <span>Treatment Plan Presets:</span>
-                                                    <span className="text-[9px] font-medium lowercase text-slate-400">(click to assign)</span>
-                                                </div>
                                              <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-black text-muted-text py-1">
                                                  <button
                                                      type="button"
@@ -2248,7 +2304,7 @@ export default function PatientDirectory() {
                                                 </div>
                                                 <span className="bg-[#4A7CD2] text-white px-2 py-0.5 rounded-md flex items-center gap-1 font-bold text-[9px] flex-shrink-0">
                                                     <Clock className="w-2.5 h-2.5" />
-                                                    {new Date(app.preferredDate).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                    {formatDateTimePK(app.preferredDate)}
                                                 </span>
                                             </div>
                                         );
@@ -2281,7 +2337,7 @@ export default function PatientDirectory() {
                                                 </div>
                                                 <span className="bg-rose-500 text-white px-2 py-0.5 rounded-md flex items-center gap-1 font-bold text-[9px] flex-shrink-0">
                                                     <Clock className="w-2.5 h-2.5" />
-                                                    {new Date(app.preferredDate).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                    {formatDateTimePK(app.preferredDate)}
                                                 </span>
                                             </div>
                                         );
@@ -2452,7 +2508,7 @@ export default function PatientDirectory() {
                                     const dt = log.createdAt || log.CreatedAt;
                                     const d = dt ? new Date(dt) : null;
                                     const timeStr = d 
-                                        ? `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · ${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
+                                        ? formatDateTimePK(d)
                                         : 'Recent';
 
                                     const typeColor = 
@@ -2732,7 +2788,7 @@ export default function PatientDirectory() {
                 <div className="flex items-center gap-3">
                     <span>Odontogram & NanoPix: <strong className="text-[#4A7CD2]">Ready</strong></span>
                     <span className="text-slate-300">|</span>
-                    <span className="text-slate-400 font-mono">{new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                    <span className="text-slate-400 font-mono">{formatDatePK(new Date())}</span>
                 </div>
             </div>
 

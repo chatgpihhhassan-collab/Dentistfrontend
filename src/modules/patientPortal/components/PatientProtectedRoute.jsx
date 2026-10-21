@@ -11,7 +11,11 @@ export default function PatientProtectedRoute({ children }) {
         return children;
     }
 
-    // Require authenticated patient session
+    // Allow logged-in clinicians/doctors to inspect and test the patient portal
+    if (doctorStr) {
+        return children;
+    }
+
     if (!patientStr) {
         return <Navigate to="/portal/login" state={{ from: location }} replace />;
     }

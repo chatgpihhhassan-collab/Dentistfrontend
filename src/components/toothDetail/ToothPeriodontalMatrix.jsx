@@ -17,8 +17,7 @@ export default function ToothPeriodontalMatrix({
     setProbingDepths(updated);
     if (patientId && tKey) {
       try {
-        sessionStorage.setItem(`dentist_perio_depths_patient_${patientId}_tooth_${tKey}`, JSON.stringify(updated));
-        localStorage.removeItem(`dentist_perio_depths_patient_${patientId}_tooth_${tKey}`);
+        localStorage.setItem(`dentist_perio_depths_patient_${patientId}_tooth_${tKey}`, JSON.stringify(updated));
       } catch (e) {}
     }
   };
@@ -27,8 +26,7 @@ export default function ToothPeriodontalMatrix({
     setProbingDepths(presetDepths);
     if (patientId && tKey) {
       try {
-        sessionStorage.setItem(`dentist_perio_depths_patient_${patientId}_tooth_${tKey}`, JSON.stringify(presetDepths));
-        localStorage.removeItem(`dentist_perio_depths_patient_${patientId}_tooth_${tKey}`);
+        localStorage.setItem(`dentist_perio_depths_patient_${patientId}_tooth_${tKey}`, JSON.stringify(presetDepths));
       } catch (e) {}
     }
   };
@@ -137,8 +135,7 @@ export default function ToothPeriodontalMatrix({
               
               if (patientId && tKey) {
                 try {
-                  sessionStorage.setItem(`dentist_perio_depths_patient_${patientId}_tooth_${tKey}`, JSON.stringify(probingDepths));
-                  localStorage.removeItem(`dentist_perio_depths_patient_${patientId}_tooth_${tKey}`);
+                  localStorage.setItem(`dentist_perio_depths_patient_${patientId}_tooth_${tKey}`, JSON.stringify(probingDepths));
                 } catch (e) {}
               }
               handleSaveObservation(statusToSave, commentToSave, isDeep ? '#E0665A' : undefined);

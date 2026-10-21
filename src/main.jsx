@@ -5,10 +5,9 @@ import './index.css'
 import App from './App.jsx'
 import { recordDoctorActivity } from './components/IdleSessionManager'
 import { purgeClinicianSession } from './services/sessionSecurityService'
-import { API_BASE_URL } from './config/apiConfig'
 
 // Global API Configuration & Token Authorization Interceptors
-const API_HOST = API_BASE_URL || 'https://dentist-api-dev.vitonta.com';
+const API_HOST = 'https://dentist-api-dev.vitonta.com';
 const isRemoteHostNeeded = typeof window !== 'undefined' && 
   !window.location.hostname.includes('vitonta.com') && 
   window.location.hostname !== 'localhost' && 
@@ -59,11 +58,10 @@ axios.interceptors.response.use(
     if (error.response && error.response.status === 401 && !isLoginEndpoint && !isPortalRoute && !isSkipAuth) {
       const hasDoctorSession = !!localStorage.getItem('doctor');
       if (hasDoctorSession) {
-        console.warn('[AXIOS 401 ON URL]:', error.config?.url);
-        // purgeClinicianSession('unauthorized');
-        // if (currentPath !== '/login') {
-        //   window.location.href = '/login?expired=true';
-        // }
+        purgeClinicianSession('unauthorized');
+        if (currentPath !== '/login') {
+          window.location.href = '/login?expired=true';
+        }
       }
     }
     return Promise.reject(error);
@@ -125,12 +123,10 @@ if (typeof window !== 'undefined') {
         if (!isPortalRoute && !isPatientApi && !isLoginApi && !isSkipRedirect) {
           const hasDoctorSession = !!localStorage.getItem('doctor');
           if (hasDoctorSession) {
-            console.warn('[401 INTERCEPTOR CAUGHT 401 ON URL]:', url);
-            // In dev mode or clinical workspace, don't abruptly kick doctor unless it's genuinely expired
-            // purgeClinicianSession('unauthorized');
-            // if (currentPath !== '/login') {
-            //   window.location.href = '/login?expired=true';
-            // }
+            purgeClinicianSession('unauthorized');
+            if (currentPath !== '/login') {
+              window.location.href = '/login?expired=true';
+            }
           }
         }
       }

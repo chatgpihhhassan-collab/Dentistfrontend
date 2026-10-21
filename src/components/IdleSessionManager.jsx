@@ -43,14 +43,6 @@ export default function IdleSessionManager() {
     const expireSession = useCallback((reason = 'inactivity_timeout') => {
         purgeClinicianSession(reason);
         setShowWarning(false);
-        if (reason === 'manual_logout' || reason === 'logout') {
-            navigate('/login', { replace: true });
-            return;
-        }
-        if (reason === 'unauthenticated') {
-            navigate('/login?required=true', { replace: true, state: { authRequired: true } });
-            return;
-        }
         const queryParam = reason === 'session_closed' ? 'session_closed=true' : 'expired=true';
         const alertState = reason === 'session_closed' ? { sessionClosed: true } : { sessionExpired: true };
         navigate(`/login?${queryParam}`, { replace: true, state: alertState });

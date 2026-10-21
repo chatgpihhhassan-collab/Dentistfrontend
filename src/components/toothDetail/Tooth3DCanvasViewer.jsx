@@ -934,20 +934,15 @@ export default function Tooth3DCanvasViewer({
       camera.position.set(0, 0, 4.6);
       cameraRef.current = camera;
 
-      try {
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, failIfMajorPerformanceCaveat: false });
-        renderer.setSize(width, height);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.1;
-        rendererRef.current = renderer;
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.1;
+      rendererRef.current = renderer;
 
-        container.innerHTML = '';
-        container.appendChild(renderer.domElement);
-      } catch (err) {
-        console.warn('⚠️ [Tooth3DCanvasViewer] WebGL initialization failed (Windows 7 / legacy GPU):', err);
-        return;
-      }
+      container.innerHTML = '';
+      container.appendChild(renderer.domElement);
 
       // Lights
       const ambientLight = new THREE.AmbientLight(0xffffff, 1.4);

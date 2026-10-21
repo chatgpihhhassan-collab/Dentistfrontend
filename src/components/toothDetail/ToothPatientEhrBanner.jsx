@@ -1,15 +1,10 @@
 import React from 'react';
 import { OdontogramPrintIcon } from '../DentalReportIcons';
+import { formatDatePK } from '../../utils/dateUtils';
 
 export const formatDOB = (dobString) => {
   if (!dobString) return 'Not Recorded';
-  try {
-    const d = new Date(dobString);
-    if (isNaN(d.getTime())) return dobString;
-    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-  } catch (e) {
-    return dobString;
-  }
+  return formatDatePK(dobString);
 };
 
 export default function ToothPatientEhrBanner({
@@ -69,11 +64,19 @@ export default function ToothPatientEhrBanner({
             <p className="text-xs font-semibold text-muted-text mt-1 flex flex-wrap items-center gap-2 sm:gap-3">
               <span>Age: <strong className="text-dark-slate font-black">{ageDisplay}</strong> ({patient?.gender || 'Patient'})</span>
               <span>•</span>
-              <span>DOB: <strong className="text-dark-slate">{patient?.dob ? patient.dob.split('T')[0] : '1987-12-31'}</strong></span>
-              <span>•</span>
-              <span>Phone: <strong className="text-dark-slate">{patient?.phone || '021 123 4567'}</strong></span>
-              <span>•</span>
-              <span>Email: <strong className="text-dark-slate">{patient?.email || 'patient@dentiaclinic.com'}</strong></span>
+              <span>DOB: <strong className="text-dark-slate">{patient?.dob ? formatDatePK(patient.dob) : 'Not specified'}</strong></span>
+              {patient?.phone && (
+                <>
+                  <span>•</span>
+                  <span>Phone: <strong className="text-dark-slate">{patient.phone}</strong></span>
+                </>
+              )}
+              {patient?.email && (
+                <>
+                  <span>•</span>
+                  <span>Email: <strong className="text-dark-slate">{patient.email}</strong></span>
+                </>
+              )}
             </p>
           </div>
         </div>

@@ -5,7 +5,7 @@ import {
   RotateCcw, RefreshCw, AlertCircle, FileText, CheckCircle2, ChevronRight,
   HardDrive, Zap, Eye, Stethoscope, ArrowRight, User, Upload, FolderOpen,
   Clipboard, ShieldCheck, Activity, Layers, Image as ImageIcon, CheckCircle,
-  LayoutGrid, ChevronLeft, Compass, Crosshair, Radio, HelpCircle, Loader2, Terminal
+  LayoutGrid, ChevronLeft, Compass, Crosshair, Radio, HelpCircle
 } from 'lucide-react';
 import nanoPixService from '../services/nanoPixDeviceService';
 import { generateRadiographPdf } from '../utils/RadiographReportGenerator';
@@ -39,9 +39,6 @@ export const NanoPixCaptureModal = ({
       modality: 'periapical',
       file: null,
       dataUrl: null,
-      fileName: null,
-      captureTime: null,
-      fileSizeKb: null,
       isAnalyzing: false,
       findings: [],
       soapNotes: null,
@@ -58,9 +55,6 @@ export const NanoPixCaptureModal = ({
       modality: 'periapical',
       file: null,
       dataUrl: null,
-      fileName: null,
-      captureTime: null,
-      fileSizeKb: null,
       isAnalyzing: false,
       findings: [],
       soapNotes: null,
@@ -77,9 +71,6 @@ export const NanoPixCaptureModal = ({
       modality: 'periapical',
       file: null,
       dataUrl: null,
-      fileName: null,
-      captureTime: null,
-      fileSizeKb: null,
       isAnalyzing: false,
       findings: [],
       soapNotes: null,
@@ -101,26 +92,6 @@ export const NanoPixCaptureModal = ({
   const [hotFolderActive, setHotFolderActive] = useState(false);
   const [hotFolderName, setHotFolderName] = useState('');
   const hotFolderWatchRef = useRef(null);
-
-  // Diagnostic Logs & Telemetry state
-  const [eventLogs, setEventLogs] = useState(() => (nanoPixService.getLogs() || []).filter(l => l && l.message && !String(l.message).endsWith('undefined')));
-  const [showEventLog, setShowEventLog] = useState(false);
-  const [telemetry, setTelemetry] = useState(() => nanoPixService.telemetry || {
-    driver: 'FTDI D2XX Kernel DLL',
-    deviceCount: 1,
-    rxQueueBytes: 0,
-    serial: 'iRayC7DB5M40P4'
-  });
-  const [diskStatus, setDiskStatus] = useState(null);
-  const [isTestingPipeline, setIsTestingPipeline] = useState(false);
-  const [testSuccessMessage, setTestSuccessMessage] = useState(null);
-
-  const refreshDiskStatus = async () => {
-    try {
-      const st = await nanoPixService.getDiskStatus();
-      if (st) setDiskStatus(st);
-    } catch (_) {}
-  };
 
   // General state
   const [isApplying, setIsApplying] = useState(false);
@@ -164,7 +135,7 @@ export const NanoPixCaptureModal = ({
     }));
   };
 
-  // Hardware connection & Log listeners
+  // Hardware connection listeners
   useEffect(() => {
     const handleConnected = (info) => {
       setSensorStatus({ isConnected: true, deviceInfo: info });
@@ -173,60 +144,27 @@ export const NanoPixCaptureModal = ({
       setSensorStatus({ isConnected: false, deviceInfo: nanoPixService.getStatus().deviceInfo });
     };
 
-    const handleLog = (newLog) => {
-      if (!newLog || !newLog.message || String(newLog.message).endsWith('undefined')) return;
-      setEventLogs(prev => [newLog, ...prev.filter(l => l && l.message && !String(l.message).endsWith('undefined')).slice(0, 79)]);
-    };
-
-    const handleTelemetry = (tel) => {
-      if (tel) setTelemetry(tel);
-    };
-
-    const unsubC = nanoPixService.on('connected', handleConnected);
-    const unsubD = nanoPixService.on('disconnected', handleDisconnected);
-    const unsubL = nanoPixService.on('log', handleLog);
-    const unsubT = nanoPixService.on('telemetry', handleTelemetry);
-    const onCustomTel = (e) => handleTelemetry(e.detail);
-    window.addEventListener('nanopix:telemetry', onCustomTel);
-    
-    // Initial fetch of disk status
-    refreshDiskStatus();
+    nanoPixService.on('connected', handleConnected);
+    nanoPixService.on('disconnected', handleDisconnected);
 
     return () => {
-      if (typeof unsubC === 'function') unsubC();
-      if (typeof unsubD === 'function') unsubD();
-      if (typeof unsubL === 'function') unsubL();
-      if (typeof unsubT === 'function') unsubT();
-      window.removeEventListener('nanopix:telemetry', onCustomTel);
+      nanoPixService.off('connected', handleConnected);
+      nanoPixService.off('disconnected', handleDisconnected);
       if (hotFolderWatchRef.current) clearInterval(hotFolderWatchRef.current);
     };
   }, []);
 
-  // Auto-arm sensor and launch Eighteeth UI on modal open
-  useEffect(() => {
-    if (isOpen) {
-      console.log('🩺 [HARDWARE DIAGNOSTIC] NanoPixCaptureModal OPENED! Target Patient:', {
-        patientId: patient?.patientID || patient?.id,
-        patientName: `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim() || 'Patient',
-        initialToothKey,
-        currentSensorStatus: sensorStatus,
-        activeSlotKey
-      });
-      nanoPixService.launchEngine().catch(() => {});
-      handleConnectSensor();
-      refreshDiskStatus();
-    }
-  }, [isOpen]);
-
   // Connect or Pair Nano-Pix USB Sensor
   const handleConnectSensor = async () => {
-    console.log('🩺 [HARDWARE DIAGNOSTIC] Auto-arming Nano-Pix sensor for clinical acquisition...');
     try {
-      nanoPixService.launchEngine().catch(() => {});
-      await nanoPixService.requestUsbPairing();
-      console.log('🩺 [HARDWARE DIAGNOSTIC] Nano-Pix sensor armed successfully via WebUSB!');
+      if ('usb' in navigator) {
+        await nanoPixService.requestUsbPairing();
+      } else {
+        nanoPixService.simulateConnect();
+      }
     } catch (err) {
-      console.warn('🩺 [HARDWARE DIAGNOSTIC] WebUSB direct pairing note:', err.message);
+      console.log('USB pairing note:', err.message);
+      nanoPixService.simulateConnect();
     }
   };
 
@@ -241,7 +179,6 @@ export const NanoPixCaptureModal = ({
           if (items[i].type.indexOf('image') !== -1) {
             const blob = items[i].getAsFile();
             if (blob) {
-              nanoPixService.log('HOTFOLDER', `Clipboard paste event (Ctrl+V) captured (${(blob.size / 1024).toFixed(1)} KB). Ingesting for ${seriesData[activeSlotKey].label}...`);
               processImageForActiveSlot(blob, `NanoPix_${activeSlotKey}_Exposure.png`);
               e.preventDefault();
               break;
@@ -255,183 +192,35 @@ export const NanoPixCaptureModal = ({
     return () => window.removeEventListener('paste', handlePaste);
   }, [isOpen, activeSlotKey]);
 
-  // Fast, synchronous DataURL to File converter (Zero network latency)
-  const dataUrlToFile = (dataUrl, filename) => {
-    try {
-      const arr = dataUrl.split(',');
-      const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-      const bstr = atob(arr[1]);
-      let n = bstr.length;
-      const u8arr = new Uint8Array(n);
-      while (n--) {
-        u8arr[n] = bstr.charCodeAt(n);
-      }
-      return new File([u8arr], filename, { type: mime });
-    } catch (err) {
-      console.error('Error in dataUrlToFile:', err);
-      return null;
-    }
-  };
-
-  // Automatic Real-Time Hardware Bridge Auto-Acquisition
-  const handleAutoScan = async (scanData) => {
-    if (!scanData) return;
-    const imageSrc = scanData.previewBase64 || scanData.dataUrl || scanData.imageUrl;
-    if (!imageSrc) return;
-    scanData.dataUrl = imageSrc;
-
-    const fileName = scanData.filename || `NanoPix_${activeSlotKey}_Exposure.png`;
-    const captureTime = scanData.timestamp || scanData.capturedAt || new Date().toISOString();
-    const fileSizeKb = scanData.fileSizeKb || null;
-
-    console.log(
-      '%c[FRONTEND RECEIVE - NanoPixCaptureModal.jsx (handleAutoScan)] 📸 Auto-Ingesting Captured Radiograph into Inspection Slot!',
-      'background: #d97706; color: white; font-weight: bold; font-size: 12px; padding: 3px 6px; border-radius: 4px;',
-      {
-        slot: activeSlotKey,
-        fileName,
-        captureTime,
-        patientId: scanData.patientId,
-        toothKey: scanData.toothKey,
-        dataLength: imageSrc.length
-      }
-    );
-
-    nanoPixService.log('SUCCESS', `Auto-ingesting radiograph: "${fileName}" (Captured at: ${new Date(captureTime).toLocaleTimeString()})`);
-    
-    try {
-      const file = dataUrlToFile(imageSrc, fileName);
-      if (file) {
-        await processImageForActiveSlot(file, fileName, captureTime, fileSizeKb);
-      }
-    } catch (err) {
-      console.error('Failed to parse scan dataUrl:', err);
-    }
-  };
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const unsub = nanoPixService.subscribe('scan-acquired', handleAutoScan);
-    const onCustomScan = (e) => handleAutoScan(e.detail);
-    window.addEventListener('nanopix:scan-acquired', onCustomScan);
-
-    return () => {
-      if (typeof unsub === 'function') unsub();
-      window.removeEventListener('nanopix:scan-acquired', onCustomScan);
-    };
-  }, [isOpen, activeSlotKey]);
-
   if (!isOpen) return null;
-
-  // ---------------------------------------------------------------------------
-  // TRIGGER SENSOR TEST EXPOSURE (TEST PIPELINE: DEVICE -> DISK -> INGEST -> CHART)
-  // ---------------------------------------------------------------------------
-  const handleTriggerTestExposure = async () => {
-    setIsTestingPipeline(true);
-    setTestSuccessMessage(null);
-    try {
-      nanoPixService.playConnectChime();
-      const slotKey = activeSlotKey;
-      const targetTooth = seriesData[slotKey].selectedTooth;
-      const pid = patient?.patientID || patient?.id || '46';
-
-      nanoPixService.log('USB', `🧪 Starting Hardware & Disk Pipeline Test for Tooth #${targetTooth}, Patient #${pid}...`);
-
-      // 1. Primary: Run test through local bridge (Writes physical file to D:\PatientData & broadcasts via SSE)
-      const testResult = await nanoPixService.testHardwarePipeline(targetTooth, pid);
-      if (testResult && (testResult.dataUrl || testResult.scan?.dataUrl)) {
-        const scanObj = testResult.scan || testResult;
-        setTestSuccessMessage(`Saved to disk: ${scanObj.filePath || scanObj.filename}`);
-        await refreshDiskStatus();
-        await handleAutoScan(scanObj);
-        setIsTestingPipeline(false);
-        return;
-      }
-
-      // 2. Secondary: Fallback to triggerHardwareAcquire
-      const bridgeScan = await nanoPixService.triggerHardwareAcquire(targetTooth, pid);
-      if (bridgeScan && bridgeScan.dataUrl) {
-        setTestSuccessMessage(`Received from Bridge: ${bridgeScan.filename}`);
-        await refreshDiskStatus();
-        await handleAutoScan(bridgeScan);
-        setIsTestingPipeline(false);
-        return;
-      }
-
-      // 3. Procedural / sample fallback if local bridge is not running
-      let samplePath = '/images/denty_ai/card_jaw_front.png';
-      if (slotKey === 'left') samplePath = '/images/denty_ai/card_jaw_left.png';
-      else if (slotKey === 'right') samplePath = '/images/denty_ai/card_jaw_right.png';
-
-      nanoPixService.log('EXPOSURE', `Simulating physical X-Ray Exposure for ${seriesData[slotKey].label} (Tooth #${targetTooth})...`);
-
-      const res = await fetch(samplePath);
-      if (!res.ok) throw new Error(`HTTP ${res.status} loading sample`);
-      const blob = await res.blob();
-      const testFile = new File([blob], `NanoPix_${slotKey}_Tooth_${targetTooth}.png`, { type: 'image/png' });
-
-      nanoPixService.log('SUCCESS', `Radiograph exposure buffer acquired (Size: ${(blob.size / 1024).toFixed(1)} KB). Processing darkroom filters...`);
-      await processImageForActiveSlot(testFile, `NanoPix_${slotKey}_Tooth_${targetTooth}.png`, new Date().toISOString(), (blob.size / 1024).toFixed(1));
-    } catch (err) {
-      nanoPixService.log('WARN', `Test flow note: ${err.message}`);
-    } finally {
-      setIsTestingPipeline(false);
-      setTimeout(() => refreshDiskStatus(), 500);
-    }
-  };
-
-  // ---------------------------------------------------------------------------
-  // FORCE LOAD GENUINE PHYSICAL RADIOGRAPH FROM DISK
-  // ---------------------------------------------------------------------------
-  const handleLoadRealPhysicalScan = async () => {
-    try {
-      const pid = patient?.patientID || patient?.id || '46';
-      nanoPixService.log('HOTFOLDER', `Loading newest genuine physical radiograph from disk for Patient #${pid}...`);
-      const scan = await nanoPixService.loadRealPhysicalScan(pid);
-      if (scan && scan.dataUrl) {
-        await handleAutoScan(scan);
-        setTestSuccessMessage(`Loaded genuine X-ray: ${scan.filename}`);
-      }
-    } catch (err) {
-      nanoPixService.log('WARN', `Load real scan note: ${err.message}`);
-    }
-  };
 
   // ---------------------------------------------------------------------------
   // PROCESS REAL IMAGE FOR THE CURRENT ACTIVE SLOT
   // ---------------------------------------------------------------------------
-  const processImageForActiveSlot = async (file, customName = null, customTimestamp = null, customSize = null) => {
+  const processImageForActiveSlot = async (file, customName = null) => {
     if (!file) return;
 
     const slotKey = activeSlotKey;
     const targetTooth = seriesData[slotKey].selectedTooth;
     const fileName = customName || file.name || `NanoPix_${slotKey}_Tooth_${targetTooth}.png`;
-    const captureTime = customTimestamp || new Date().toISOString();
-    const fileSizeKb = customSize || (file.size ? (file.size / 1024).toFixed(1) : null);
-
-    nanoPixService.log('EXPOSURE', `Reading radiograph: "${fileName}" (Time: ${new Date(captureTime).toLocaleTimeString()}) for slot "${slotKey}", Tooth #${targetTooth}`);
 
     const reader = new FileReader();
     reader.onload = async (e) => {
       const dataUrl = e.target.result;
 
-      // Update slot with captured image and complete DICOM-style metadata
+      // Update slot with captured image
       setSeriesData(prev => ({
         ...prev,
         [slotKey]: {
           ...prev[slotKey],
           file,
           dataUrl,
-          fileName,
-          captureTime,
-          fileSizeKb,
           isAnalyzing: true
         }
       }));
 
       // Run real AI analysis on the file
-      await executeAiAnalysisForSlot(slotKey, file, fileName, targetTooth, dataUrl, captureTime);
+      await executeAiAnalysisForSlot(slotKey, file, fileName, targetTooth);
     };
     reader.readAsDataURL(file);
   };
@@ -439,65 +228,13 @@ export const NanoPixCaptureModal = ({
   // ---------------------------------------------------------------------------
   // REAL GEMINI VISION ANALYSIS FOR SPECIFIC SLOT (<= 18 KB PAYLOAD CEILING)
   // ---------------------------------------------------------------------------
-  const executeAiAnalysisForSlot = async (slotKey, file, fileName, tooth, previewDataUrl = null) => {
+  const executeAiAnalysisForSlot = async (slotKey, file, fileName, tooth) => {
     const patientId = patient.patientID || patient.id || 1;
     const storedDoc = localStorage.getItem('doctor');
     const docObj = storedDoc ? JSON.parse(storedDoc) : {};
     const doctorId = docObj.doctorID || docObj.DoctorID || 2;
 
-    nanoPixService.log('AI', `Compressing & dispatching radiograph to Gemini Vision for Tooth #${tooth}...`);
-
-    // Helper to ensure full UI & DB sync even if remote AI gateway is slow or fails
-    const applyFallbackSync = async (fallback) => {
-      const syntheticRecord = {
-        radiographID: Date.now(),
-        patientID: patientId,
-        imageUrl: previewDataUrl || `/images/denty_ai/card_jaw_${slotKey}.png`,
-        analysisSummary: fallback.rawReport,
-        capturedAt: new Date().toISOString(),
-        toothNumber: tooth,
-        modality: `Eighteeth Nano-Pix RVG (${seriesData[slotKey].label})`
-      };
-
-      setSeriesData(prev => ({
-        ...prev,
-        [slotKey]: {
-          ...prev[slotKey],
-          isAnalyzing: false,
-          radRecord: syntheticRecord,
-          findings: fallback.findings,
-          soapNotes: fallback.soapNotes,
-          rawReport: fallback.rawReport
-        }
-      }));
-
-      nanoPixService.log('SUCCESS', `Synchronized ${fallback.findings.length} findings to Patient #${patientId} Chart.`);
-
-      if (onXRaySaved) {
-        onXRaySaved(syntheticRecord);
-      }
-
-      if (onApplyAllFindings) {
-        const teethUpdates = fallback.findings.map(f => ({
-          toothNumber: parseInt(f.toothNumber, 10) || parseInt(tooth, 10),
-          conditionStatus: f.condition || 'Radiolucency',
-          condition: f.condition || 'Radiolucency',
-          color: f.color || '#EF4444',
-          comment: `[Eighteeth Nano-Pix RVG] ${f.condition} (${f.confidence || 93}% AI confidence). Procedure: ${f.procedure || 'Diagnostic eval'}.`,
-          comments: `[Eighteeth Nano-Pix RVG] ${f.condition} (${f.confidence || 93}% AI confidence). Procedure: ${f.procedure || 'Diagnostic eval'}.`,
-          cdtCode: f.procedure?.match(/D\d{4}/)?.[0] || 'D0220',
-          procedure: f.procedure || f.condition
-        }));
-
-        await onApplyAllFindings({
-          radiographRecord: syntheticRecord,
-          teethUpdates,
-          soapNotes: typeof fallback.soapNotes === 'string' ? fallback.soapNotes : fallback.soapNotes?.objective,
-          rawReport: fallback.rawReport,
-          primaryTooth: tooth
-        });
-      }
-    };
+    console.log(`[STEP 1/5: USB CAPTURE] Processing scan for slot: "${slotKey}", Target Tooth: #${tooth}, File: ${fileName}`);
 
     try {
       // Step 2: Progressive compression <= 18 KB to avoid 20KB gateway limit
@@ -506,12 +243,13 @@ export const NanoPixCaptureModal = ({
         .replace(/\.[^/.]+$/, "")
         .replace(/[^a-zA-Z0-9_-]/g, "_") + ".jpg";
 
-      nanoPixService.log('AI', `Payload compressed to ${(compressed.size / 1024).toFixed(1)} KB (within 18KB ceiling). Dispatching POST...`);
+      console.log(`[STEP 2/5: USB COMPRESS] Finished. Payload size: ${(compressed.size / 1024).toFixed(1)} KB`);
 
       const formData = new FormData();
       formData.append('file', compressed, cleanFileName);
 
       const uploadEndpoint = `/api/patients/${patientId}/radiographs?doctorId=${doctorId}`;
+      console.log(`[STEP 3/5: USB UPLOAD] Dispatching to: ${uploadEndpoint}`);
 
       let radRecord = null;
 
@@ -522,17 +260,17 @@ export const NanoPixCaptureModal = ({
         });
         if (axiosRes?.data) {
           radRecord = axiosRes.data;
-          nanoPixService.log('SUCCESS', `AI Report received! Record ID: ${radRecord.radiographID}`);
+          console.log(`[STEP 3/5: USB UPLOAD SUCCESS] Axios returned HTTP ${axiosRes.status}, Record ID:`, radRecord.radiographID);
         }
       } catch (axiosErr) {
-        nanoPixService.log('WARN', `Axios gateway fallback: ${axiosErr.message}. Trying fetch...`);
+        console.warn(`[STEP 3/5: USB FALLBACK] Axios post failed (${axiosErr.message}), falling back to fetch...`);
         const fetchRes = await fetch(uploadEndpoint, {
           method: 'POST',
           body: formData
         });
         if (fetchRes.ok) {
           radRecord = await fetchRes.json();
-          nanoPixService.log('SUCCESS', `Fetch AI Report received! Record ID: ${radRecord.radiographID}`);
+          console.log(`[STEP 3/5: USB UPLOAD SUCCESS] Fetch returned HTTP ${fetchRes.status}, Record ID:`, radRecord.radiographID);
         } else {
           const errText = await fetchRes.text().catch(() => '');
           throw new Error(`Upload returned HTTP ${fetchRes.status}: ${errText}`);
@@ -541,12 +279,11 @@ export const NanoPixCaptureModal = ({
 
       if (radRecord) {
         const summaryText = radRecord.analysisSummary || radRecord.AnalysisSummary || '';
+        console.log(`[STEP 4/5: USB AI ANALYSIS] Gemini report received (${summaryText.length} chars). Extracting findings...`);
         
         // Extract structured pathology findings
         const detectedFindings = extractAiFindingsFromReport(summaryText);
         const { soapNotes } = parseGeminiReport(summaryText, tooth, slotKey);
-
-        nanoPixService.log('SUCCESS', `Extracted ${detectedFindings.length} pathology finding(s) from Gemini Vision report.`);
 
         setSeriesData(prev => ({
           ...prev,
@@ -560,11 +297,15 @@ export const NanoPixCaptureModal = ({
           }
         }));
 
+        // Notify parent so radiograph appears in archives list immediately
         if (onXRaySaved) {
+          console.log('[STEP 4/5: ARCHIVE SYNC] Notifying parent with saved scan:', radRecord.radiographID);
           onXRaySaved(radRecord);
         }
 
+        // Auto-apply findings to patient chart
         if (detectedFindings && detectedFindings.length > 0 && onApplyAllFindings) {
+          console.log(`[STEP 5/5: USB CHART AUTO-APPLY] Applying ${detectedFindings.length} findings to Dental Chart...`);
           const teethUpdates = detectedFindings.map(f => ({
             toothNumber: parseInt(f.toothNumber, 10) || parseInt(tooth, 10),
             conditionStatus: f.condition || 'Radiolucency',
@@ -586,12 +327,30 @@ export const NanoPixCaptureModal = ({
         }
       } else {
         const fallback = generateClinicalFallback(slotKey, tooth, fileName);
-        await applyFallbackSync(fallback);
+        setSeriesData(prev => ({
+          ...prev,
+          [slotKey]: {
+            ...prev[slotKey],
+            isAnalyzing: false,
+            findings: fallback.findings,
+            soapNotes: fallback.soapNotes,
+            rawReport: fallback.rawReport
+          }
+        }));
       }
     } catch (err) {
-      nanoPixService.log('WARN', `Remote AI Vision note: ${err.message}. Applying clinical fallback.`);
+      console.error(`[STEP 3/5: USB ERROR] Error analyzing ${slotKey} radiograph with Gemini Vision:`, err);
       const fallback = generateClinicalFallback(slotKey, tooth, fileName);
-      await applyFallbackSync(fallback);
+      setSeriesData(prev => ({
+        ...prev,
+        [slotKey]: {
+          ...prev[slotKey],
+          isAnalyzing: false,
+          findings: fallback.findings,
+          soapNotes: fallback.soapNotes,
+          rawReport: fallback.rawReport
+        }
+      }));
     }
   };
 
@@ -708,7 +467,6 @@ export const NanoPixCaptureModal = ({
       const dirHandle = await window.showDirectoryPicker({ mode: 'read' });
       setHotFolderName(dirHandle.name || 'Nano-Pix Folder');
       setHotFolderActive(true);
-      nanoPixService.log('HOTFOLDER', `Hot-Folder active! Watching directory: "${dirHandle.name}". Ready for new X-Ray shots.`);
 
       let lastCheckedTime = Date.now();
 
@@ -723,7 +481,7 @@ export const NanoPixCaptureModal = ({
                 const file = await entry.getFile();
                 if (file.lastModified > lastCheckedTime) {
                   lastCheckedTime = file.lastModified;
-                  nanoPixService.log('SUCCESS', `New dental radiograph detected in hot folder: "${file.name}" (${(file.size / 1024).toFixed(1)} KB). Auto-ingesting...`);
+                  console.log('⚡ [Nano-Pix Hot Folder] New exposure detected:', file.name);
                   processImageForActiveSlot(file);
                   break;
                 }
@@ -735,7 +493,7 @@ export const NanoPixCaptureModal = ({
 
     } catch (err) {
       if (err.name !== 'AbortError') {
-        nanoPixService.log('WARN', `Hot-Folder directory picker note: ${err.message}`);
+        console.error('Error opening folder:', err);
       }
     }
   };
@@ -915,36 +673,8 @@ export const NanoPixCaptureModal = ({
               </div>
             </div>
 
-            {/* LIVE HARDWARE USB STATUS, EVENT LOG BUTTON & CLOSE BUTTON */}
-            <div className="flex items-center gap-2.5">
-              {/* Launch Eighteeth Official App on Desktop */}
-              <button
-                onClick={() => {
-                  nanoPixService.launchEngine().catch(() => {});
-                  setTimeout(handleConnectSensor, 1000);
-                }}
-                className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer bg-sky-500/30 hover:bg-sky-500/50 text-sky-100 border border-sky-400/40 shadow-2xs"
-                title="Launch Eighteeth Official Software UI on Desktop"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-sky-200" />
-                <span>Launch Eighteeth App</span>
-              </button>
-
-              {/* Event Logs & Diagnostic Console Toggle Button */}
-              <button
-                onClick={() => setShowEventLog(prev => !prev)}
-                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer border shadow-2xs ${
-                  showEventLog
-                    ? 'bg-white text-teal-900 border-white font-black'
-                    : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
-                }`}
-                title="Open Live Hardware Diagnostics & Sensor Event Console"
-              >
-                <Terminal className="w-3.5 h-3.5 text-teal-300" />
-                <span>Live Logs ({eventLogs.length})</span>
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              </button>
-
+            {/* LIVE HARDWARE USB STATUS & CLOSE BUTTON */}
+            <div className="flex items-center gap-3">
               {sensorStatus.isConnected ? (
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-200">
                   <span className="relative flex h-2.5 w-2.5">
@@ -1053,31 +783,6 @@ export const NanoPixCaptureModal = ({
 
             {/* Quick Tools & Counter */}
             <div className="flex items-center gap-2 text-xs">
-              {/* Load Original Sensor Scan Button */}
-              <button
-                onClick={handleLoadRealPhysicalScan}
-                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs border border-blue-400/40 active:scale-95"
-                title="Load the latest genuine real radiograph from D:\PatientData without test prefix"
-              >
-                <ImageIcon className="w-3.5 h-3.5 text-blue-200" />
-                <span>Load Real X-Ray</span>
-              </button>
-
-              {/* Test Sensor & Disk Pipeline Button */}
-              <button
-                onClick={handleTriggerTestExposure}
-                disabled={isTestingPipeline || currentSlot.isAnalyzing}
-                className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white rounded-xl text-[11px] font-black transition flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95 border border-emerald-400/40"
-                title="Send test pulse from USB Sensor, write authentic radiograph to D:\PatientData, verify on disk and push to Chart"
-              >
-                {isTestingPipeline ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Zap className="w-3.5 h-3.5 fill-current text-amber-300" />
-                )}
-                <span>{isTestingPipeline ? 'Testing Pipeline...' : 'Test Sensor ➔ Disk'}</span>
-              </button>
-
               <span className="font-semibold text-slate-600 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-[11px]">
                 Captured: <strong className="text-slate-900">{capturedCount} / 3 Views</strong>
               </span>
@@ -1135,68 +840,15 @@ export const NanoPixCaptureModal = ({
                       }}
                     />
 
-                    {/* Viewport Overlay Tags (View, Filename & Exact Exposure Time) */}
-                    <div className="absolute top-2.5 left-2.5 flex items-center gap-2 flex-wrap max-w-[70%]">
-                      <span className="px-2.5 py-1 rounded-md bg-black/75 backdrop-blur-md border border-slate-700 text-[10.5px] font-mono font-bold text-teal-300 shadow-sm flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
-                        <span>{currentSlot.label.toUpperCase()} • #{currentSlot.selectedTooth}</span>
+                    {/* Viewport Overlay Tag */}
+                    <div className="absolute top-2.5 left-2.5 flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-md border border-slate-700 text-[10px] font-mono font-bold text-teal-300">
+                        {currentSlot.label.toUpperCase()} • #{currentSlot.selectedTooth}
                       </span>
-
-                      {currentSlot.fileName && (
-                        <span className="px-2.5 py-1 rounded-md bg-slate-900/80 backdrop-blur-md border border-teal-500/40 text-[10.5px] font-mono font-bold text-white shadow-sm flex items-center gap-1.5">
-                          <FileText className="w-3 h-3 text-teal-400" />
-                          <span className="truncate max-w-[170px]">{currentSlot.fileName}</span>
-                        </span>
-                      )}
-
-                      {currentSlot.captureTime && (
-                        <span className="px-2 py-1 rounded-md bg-slate-900/80 backdrop-blur-md border border-slate-700 text-[10px] font-mono text-emerald-300 shadow-sm flex items-center gap-1">
-                          <Activity className="w-3 h-3 text-emerald-400" />
-                          <span>{new Date(currentSlot.captureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Viewport Bottom HUD Bar (Exact Radiograph Exposure & File Metadata) */}
-                    <div className="absolute bottom-2.5 inset-x-2.5 bg-slate-950/90 backdrop-blur-md border border-slate-800 rounded-xl px-3.5 py-2 flex items-center justify-between text-xs text-slate-200 shadow-2xl pointer-events-none select-none">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="flex items-center gap-1.5 font-mono text-[11px] text-teal-300 truncate">
-                          <FileText className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-                          <span className="text-slate-400">File:</span>
-                          <strong className="text-white truncate">{currentSlot.fileName || '20261006_175054_thumbnail.jpg'}</strong>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-300 shrink-0">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          <span className="text-slate-400">Shot Time:</span>
-                          <strong className="text-emerald-300 font-mono">
-                            {currentSlot.captureTime ? new Date(currentSlot.captureTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'medium' }) : new Date().toLocaleString()}
-                          </strong>
-                        </div>
-                        {currentSlot.fileSizeKb && (
-                          <span className="text-[10px] font-mono px-1.5 py-0.2 bg-slate-800 rounded text-slate-300 border border-slate-700 shrink-0">
-                            {currentSlot.fileSizeKb} KB
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-[10.5px] font-mono text-slate-400 shrink-0">
-                        <span className="px-2 py-0.5 bg-teal-950 text-teal-300 rounded border border-teal-500/30 font-bold">
-                          Eighteeth Nano-Pix 2 (HD CMOS)
-                        </span>
-                        <span>25 lp/mm</span>
-                      </div>
                     </div>
 
                     {/* Zoom & Reset Tools */}
                     <div className="absolute top-2.5 right-2.5 flex items-center gap-1 bg-black/70 backdrop-blur-md border border-slate-700 p-0.5 rounded-lg">
-                      <button
-                        onClick={handleTriggerTestExposure}
-                        disabled={currentSlot.isAnalyzing}
-                        className="px-2 py-1 text-[10px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded transition flex items-center gap-1 cursor-pointer mr-1 shadow-xs"
-                        title="Retake test exposure for this slot with full AI analysis"
-                      >
-                        {currentSlot.isAnalyzing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3 fill-current" />}
-                        <span>Retake Exposure</span>
-                      </button>
                       <button
                         onClick={() => setZoomLevel(prev => Math.min(prev + 0.25, 3))}
                         className="p-1 text-slate-300 hover:text-white hover:bg-slate-800 rounded transition"
@@ -1232,24 +884,7 @@ export const NanoPixCaptureModal = ({
                           </span>
                           <span className="text-xs font-bold">Eighteeth Nano-Pix Armed & Ready</span>
                         </div>
-                        <button
-                          onClick={handleTriggerTestExposure}
-                          disabled={currentSlot.isAnalyzing}
-                          className="px-3 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-lg cursor-pointer transition shadow flex items-center gap-1.5"
-                          title="Trigger exposure, upload to frontend, run AI Gemini analysis and sync Chart & Notes"
-                        >
-                          {currentSlot.isAnalyzing ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-950" />
-                              <span>Analyzing Scan...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Zap className="w-3.5 h-3.5 fill-current text-slate-950" />
-                              <span>Run Test Exposure (AI & Chart Sync)</span>
-                            </>
-                          )}
-                        </button>
+                        <span className="text-[10px] text-emerald-400 font-mono">Press X-Ray Switch</span>
                       </div>
                     ) : (
                       <div className="bg-slate-900 border border-amber-500/30 rounded-xl px-3 py-2 flex items-center justify-between text-amber-300">
@@ -1257,22 +892,12 @@ export const NanoPixCaptureModal = ({
                           <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                           <span>Sensor in Standby</span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={handleConnectSensor}
-                            className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-bold rounded cursor-pointer transition shadow-xs flex items-center gap-1"
-                            title="Connect physical USB port via WebSerial/WebUSB"
-                          >
-                            🔌 Connect USB
-                          </button>
-                          <button
-                            onClick={handleTriggerTestExposure}
-                            className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[10px] font-black rounded cursor-pointer transition shadow flex items-center gap-1"
-                            title="Directly trigger test exposure and complete sync"
-                          >
-                            ⚡ Test Exposure
-                          </button>
-                        </div>
+                        <button
+                          onClick={handleConnectSensor}
+                          className="px-2.5 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-bold rounded cursor-pointer transition shadow-xs"
+                        >
+                          🔌 Connect USB
+                        </button>
                       </div>
                     )}
 
@@ -1287,28 +912,13 @@ export const NanoPixCaptureModal = ({
                       <span className="text-slate-400 text-[11px]">
                         Drop scan file here or paste with <kbd className="px-1 py-0.2 bg-slate-800 rounded text-slate-300 font-mono text-[9.5px]">Ctrl+V</kbd>
                       </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={handleTriggerTestExposure}
-                          disabled={currentSlot.isAnalyzing}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition flex items-center gap-1.5 shadow-sm cursor-pointer"
-                          title="Trigger test exposure and run full AI analysis & chart sync"
-                        >
-                          {currentSlot.isAnalyzing ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Zap className="w-3.5 h-3.5 fill-current" />
-                          )}
-                          <span>Test Exposure</span>
-                        </button>
-                        <button
-                          onClick={() => fileInputRef.current?.click()}
-                          className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-lg transition flex items-center gap-1.5 shadow-sm cursor-pointer"
-                        >
-                          <Upload className="w-3.5 h-3.5" />
-                          <span>Select Scan</span>
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-lg transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Select Scan</span>
+                      </button>
                     </div>
 
                     <input
@@ -1327,15 +937,11 @@ export const NanoPixCaptureModal = ({
                 )}
               </div>
 
-              {/* 3-Thumbnail Strip (Clean White Cards with Image Name & Exposure Time) */}
+              {/* 3-Thumbnail Strip (Clean White Cards) */}
               <div className="grid grid-cols-3 gap-2 shrink-0">
                 {['front', 'left', 'right'].map((key) => {
                   const slot = seriesData[key];
                   const isActive = activeSlotKey === key;
-                  const formattedTime = slot.captureTime
-                    ? new Date(slot.captureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-                    : null;
-
                   return (
                     <div
                       key={key}
@@ -1346,35 +952,21 @@ export const NanoPixCaptureModal = ({
                           : 'bg-white/80 border-slate-200 hover:border-slate-300'
                       }`}
                     >
-                      <div className="w-10 h-10 rounded-lg bg-black border border-slate-800 overflow-hidden flex items-center justify-center shrink-0 relative">
+                      <div className="w-10 h-10 rounded-lg bg-black border border-slate-800 overflow-hidden flex items-center justify-center shrink-0">
                         {slot.dataUrl ? (
                           <img src={slot.dataUrl} alt={slot.label} className="w-full h-full object-cover invert" />
                         ) : (
                           <Camera className="w-3.5 h-3.5 text-slate-600" />
                         )}
-                        {slot.dataUrl && (
-                          <span className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-black" />
-                        )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-xs font-bold text-slate-800 truncate flex items-center justify-between">
-                          <span className="truncate">{slot.label}</span>
-                          <span className="text-[10px] text-teal-700 font-mono font-bold bg-teal-50 px-1 rounded">#{slot.selectedTooth}</span>
+                        <div className="text-xs font-bold text-slate-800 truncate flex items-center gap-1">
+                          <span>{slot.label}</span>
+                          {slot.dataUrl && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
                         </div>
-                        {slot.fileName ? (
-                          <div className="text-[9.5px] font-mono text-slate-700 truncate font-semibold mt-0.5" title={slot.fileName}>
-                            📄 {slot.fileName}
-                          </div>
-                        ) : (
-                          <div className="text-[10px] text-slate-400 truncate">
-                            Pending Capture
-                          </div>
-                        )}
-                        {formattedTime && (
-                          <div className="text-[9px] font-mono text-emerald-600 font-bold truncate">
-                            ⏰ {formattedTime}
-                          </div>
-                        )}
+                        <div className="text-[10px] text-slate-500 truncate">
+                          {slot.dataUrl ? `${slot.findings.length} findings` : 'Pending'}
+                        </div>
                       </div>
                     </div>
                   );
@@ -1436,23 +1028,6 @@ export const NanoPixCaptureModal = ({
                     </span>
                   )}
                 </div>
-
-                {/* Radiograph File & Exposure Timestamp Badge */}
-                {currentSlot.dataUrl && (
-                  <div className="p-2 rounded-xl bg-teal-50/70 border border-teal-200/80 flex items-center justify-between text-[10.5px]">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <FileText className="w-3.5 h-3.5 text-teal-700 shrink-0" />
-                      <span className="text-slate-500 font-medium">Scan:</span>
-                      <strong className="text-teal-950 font-mono truncate">{currentSlot.fileName || 'Radiograph_Scan'}</strong>
-                    </div>
-                    {currentSlot.captureTime && (
-                      <div className="flex items-center gap-1 font-mono text-teal-800 font-bold shrink-0 ml-2">
-                        <span>⏰</span>
-                        <span>{new Date(currentSlot.captureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 {currentSlot.isAnalyzing ? (
                   <div className="p-6 text-center text-slate-500 space-y-2">
@@ -1540,198 +1115,6 @@ export const NanoPixCaptureModal = ({
             </div>
 
           </div>
-
-          {/* 🌟 SLIDE-UP REAL-TIME HARDWARE DIAGNOSTICS & EVENT LOG CONSOLE */}
-          {showEventLog && (
-            <div className="absolute inset-x-0 bottom-0 top-[110px] bg-slate-950/95 backdrop-blur-md z-40 border-t border-slate-700 flex flex-col p-4 animate-in slide-in-from-bottom duration-200 text-white shadow-2xl">
-              {/* Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-teal-500/20 text-teal-300 border border-teal-500/30 flex items-center justify-center">
-                    <Terminal className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <span>NanoPix Hardware Diagnostics & Real-Time Event Console</span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
-                        Live Stream ({eventLogs.length} events)
-                      </span>
-                    </h3>
-                    <p className="text-[11px] text-slate-400">Real-time USB bus polling, hot-folder watch, exposure buffer & AI gateway telemetry</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleTriggerTestExposure}
-                    disabled={isTestingPipeline || currentSlot.isAnalyzing}
-                    className="px-3 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs border border-emerald-400/30"
-                  >
-                    {isTestingPipeline ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Zap className="w-3.5 h-3.5 fill-current text-amber-300" />
-                    )}
-                    <span>{isTestingPipeline ? 'Testing...' : 'Test Sensor ➔ Disk'}</span>
-                  </button>
-                  <button
-                    onClick={() => setEventLogs([])}
-                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition cursor-pointer"
-                  >
-                    Clear Logs
-                  </button>
-                  <button
-                    onClick={() => setShowEventLog(false)}
-                    className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Hardware Status Strip with Live Telemetry */}
-              <div className="grid grid-cols-4 gap-3 py-3 shrink-0">
-                <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">USB Device & Driver</span>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                    <span className="text-xs font-bold text-slate-200 truncate">{telemetry.serial || 'iRayC7DB5M40P4'}</span>
-                  </div>
-                  <span className="text-[9.5px] font-mono text-slate-500 block truncate">FTDI FT232H (0x0403:0x6014) • D2XX DLL</span>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">USB RX Buffer / Telemetry</span>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <span className={`w-2 h-2 rounded-full ${telemetry.rxQueueBytes > 0 ? 'bg-purple-400 animate-ping' : 'bg-emerald-400'}`} />
-                    <span className="text-xs font-bold text-slate-200">{telemetry.rxQueueBytes || 0} Bytes in Queue</span>
-                  </div>
-                  <span className="text-[9.5px] font-mono text-slate-500 block">
-                    {telemetry.rxQueueBytes > 0 ? '⚡ Photon Charge Received!' : 'Listening for Ionization Pulse'}
-                  </span>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Hot-Folder Ingestion</span>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <span className={`w-2 h-2 rounded-full ${hotFolderActive ? 'bg-emerald-400' : 'bg-emerald-500'}`} />
-                    <span className="text-xs font-bold text-slate-200">{hotFolderActive ? hotFolderName : 'Active (nanopix_scans)'}</span>
-                  </div>
-                  <span className="text-[9.5px] font-mono text-slate-500 block truncate">D:\PatientData & local</span>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">AI Vision Gateway</span>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                    <span className="text-xs font-bold text-slate-200">Gemini Vision (Dentia)</span>
-                  </div>
-                  <span className="text-[9.5px] font-mono text-slate-500 block">25 lp/mm (4.4 Mpx HD)</span>
-                </div>
-              </div>
-
-              {/* Physical Disk & Hot-Folder Verification Strip */}
-              <div className="mb-2.5 p-3 rounded-xl bg-slate-900/95 border border-teal-500/30 text-xs flex items-center justify-between gap-3 shrink-0 shadow-inner">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-teal-500/20 text-teal-300 border border-teal-500/30 flex items-center justify-center shrink-0">
-                    <FolderOpen className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-teal-200">Physical Disk Storage Status:</span>
-                      <span className="px-2 py-0.2 bg-teal-400/20 text-teal-300 rounded font-mono text-[10px] font-bold">
-                        {diskStatus?.totalFilesOnDisk ?? 4} Scans on Disk
-                      </span>
-                      {testSuccessMessage && (
-                        <span className="px-2 py-0.2 bg-emerald-500/30 text-emerald-200 rounded text-[10px] font-bold border border-emerald-400/40 animate-pulse truncate">
-                          ✅ {testSuccessMessage}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[11px] text-slate-300 font-mono truncate mt-0.5">
-                      📁 Folder: <span className="text-white font-bold">{diskStatus?.latestFile?.folder || 'D:\\PatientData\\20261006_174825'}</span>
-                      {diskStatus?.latestFile && (
-                        <span className="text-slate-400 ml-2">| 📄 Latest: <strong className="text-emerald-300">{diskStatus.latestFile.filename}</strong> ({diskStatus.latestFile.sizeKb} KB)</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={handleLoadRealPhysicalScan}
-                    className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[11px] font-bold transition cursor-pointer flex items-center gap-1 border border-blue-400/40 shadow-xs active:scale-95"
-                    title="Load original unaltered X-ray scan from sensor without test prefix"
-                  >
-                    <ImageIcon className="w-3.5 h-3.5 text-blue-200" />
-                    <span>Load Real X-Ray</span>
-                  </button>
-                  <button
-                    onClick={refreshDiskStatus}
-                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-semibold transition cursor-pointer flex items-center gap-1 border border-slate-700"
-                    title="Refresh folder scan on disk"
-                  >
-                    <RefreshCw className="w-3 h-3 text-teal-400" />
-                    <span>Scan Disk</span>
-                  </button>
-                  <button
-                    onClick={handleTriggerTestExposure}
-                    disabled={isTestingPipeline || currentSlot.isAnalyzing}
-                    className="px-3 py-1 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white rounded-lg text-[11px] font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 border border-emerald-400/40"
-                    title="Write test radiograph file to D:\PatientData, verify on disk and push to Chart"
-                  >
-                    {isTestingPipeline ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <Zap className="w-3 h-3 fill-current text-amber-300" />
-                    )}
-                    <span>⚡ Run Test Pipeline</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Diagnostic Guidance Note */}
-              <div className="mb-2 p-2.5 rounded-xl bg-teal-950/60 border border-teal-600/40 text-teal-200 text-xs flex items-start gap-2 shrink-0">
-                <Activity className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
-                <div className="text-[11.5px] leading-relaxed">
-                  <strong>Why no scan without radiation?</strong> Nano-Pix is a digital RVG X-ray sensor that only outputs digital pixel data when struck by X-ray photons from a dental tube (or when an image is saved by your manufacturer software into the <strong>Hot-Folder</strong>, dropped, pasted with <kbd className="px-1 py-0.2 bg-teal-900 text-teal-300 font-mono text-[10px] rounded">Ctrl+V</kbd>, or triggered with <strong>Test Exposure</strong>).
-                </div>
-              </div>
-
-              {/* Log Event Stream */}
-              <div className="flex-1 min-h-0 overflow-y-auto bg-black/60 rounded-xl p-3 border border-slate-800/80 font-mono text-xs space-y-1.5 select-text">
-                {eventLogs.length > 0 ? (
-                  eventLogs.map((log) => {
-                    const badgeColors = {
-                      INIT: 'bg-sky-500/20 text-sky-400 border-sky-500/30',
-                      USB: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-                      HOTFOLDER: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-                      EXPOSURE: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-                      AI: 'bg-teal-500/20 text-teal-400 border-teal-500/30',
-                      WARN: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-                      SUCCESS: 'bg-green-500/20 text-green-400 border-green-500/30'
-                    };
-                    const badgeClass = badgeColors[log.type] || 'bg-slate-700 text-slate-300 border-slate-600';
-
-                    return (
-                      <div key={log.id} className="flex items-start gap-2.5 py-1 px-1.5 rounded hover:bg-slate-900/60 transition text-[11.5px]">
-                        <span className="text-slate-500 shrink-0 text-[10.5px]">{log.time}</span>
-                        <span className={`px-1.5 py-0.2 rounded border text-[9.5px] font-bold uppercase shrink-0 ${badgeClass}`}>
-                          {log.type}
-                        </span>
-                        <span className="text-slate-200 flex-1 leading-snug">{log.message}</span>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="p-8 text-center text-slate-500">
-                    <Terminal className="w-6 h-6 mx-auto mb-1 text-slate-600" />
-                    <p>No events logged yet. Plug in hardware, trigger an exposure, or select a hot-folder.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
         </div>
       </div>

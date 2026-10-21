@@ -168,41 +168,14 @@ export function validateClinicianSession() {
   return { isValid: true, reason: 'valid', doctor };
 }
 
-import { clinicalStorage } from './clinicalStorageService.js';
-
 /**
- * Completely purges clinician session, invalidates token on backend, and notifies other open windows/tabs
+ * Completely purges clinician session and notifies other open windows/tabs
  */
 export function purgeClinicianSession(reason = 'logout') {
   try {
-    const doctorStr = localStorage.getItem('doctor');
-    let token = null;
-    if (doctorStr) {
-      try {
-        const doc = JSON.parse(doctorStr);
-        token = doc?.token;
-      } catch {}
-    }
-
     localStorage.removeItem('doctor');
     localStorage.removeItem(STORAGE_LAST_ACTIVE_KEY);
     clearSessionCookie();
-
-    // SEC-VULN-05: Purge all cached PHI / clinical records from browser memory & session
-    clinicalStorage.purgeAllClinicalData();
-
-    // SEC-VULN-06: Invalidate token on server
-    if (token && typeof fetch !== 'undefined') {
-      try {
-        fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }).catch(() => {});
-      } catch {}
-    }
-
     if (typeof BroadcastChannel !== 'undefined') {
       const channel = new BroadcastChannel(SESSION_CHANNEL_NAME);
       channel.postMessage({ type: 'SESSION_EXPIRED', reason });

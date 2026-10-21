@@ -2239,9 +2239,7 @@ export default function PatientBookAppointment() {
                                 <div>
                                     <span className="text-muted-text font-bold uppercase tracking-wider block text-[10px]">Consultation Fee</span>
                                     <span className="font-serif font-bold text-dark-slate text-sm mt-0.5 block">
-                                        {previewDoctor.region === 'PK' || previewDoctor.id === 2 || previewDoctor.doctorId === 2
-                                            ? `Rs ${Number(previewDoctor.consultationFee || 1500).toLocaleString('en-PK')}`
-                                            : `$${Number(previewDoctor.consultationFee || 150).toLocaleString()}`}
+                                        ${previewDoctor.consultationFee || 150}
                                     </span>
                                 </div>
                             </div>

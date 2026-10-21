@@ -92,9 +92,7 @@ export default function PatientDashboard() {
                         const appts = await apptRes.json();
                         setAppointmentsList(Array.isArray(appts) ? appts : []);
                     }
-                } catch (e) {
-                    console.warn('Failed to load patient appointments telemetry:', e);
-                }
+                } catch {}
 
                 // 3. Odontogram Teeth Telemetry
                 try {
@@ -108,9 +106,7 @@ export default function PatientDashboard() {
                         const tData = await teethRes.json();
                         setTeethState(Array.isArray(tData) ? tData : []);
                     }
-                } catch (e) {
-                    console.warn('Failed to load patient odontogram telemetry:', e);
-                }
+                } catch {}
 
                 // 4. Invoices Telemetry
                 try {
@@ -124,9 +120,7 @@ export default function PatientDashboard() {
                         const invData = await invRes.json();
                         setInvoicesList(Array.isArray(invData) ? invData : []);
                     }
-                } catch (e) {
-                    console.warn('Failed to load patient invoices telemetry:', e);
-                }
+                } catch {}
 
                 // 5. Doctors Directory for Specialist Attribution
                 try {
@@ -143,9 +137,7 @@ export default function PatientDashboard() {
                         const docData = await docRes.json();
                         setDoctorsList(Array.isArray(docData) ? docData : []);
                     }
-                } catch (e) {
-                    console.warn('Failed to load doctors directory telemetry:', e);
-                }
+                } catch {}
 
             } catch (err) {
                 console.error('Failed to load patient dashboard:', err);
@@ -329,9 +321,8 @@ export default function PatientDashboard() {
     };
 
     // Dynamic oral indices based on live anatomy
-    const hasClinicalExamData = teethState && teethState.length > 0;
-    const periodontalScore = hasClinicalExamData ? Math.min(100, Math.max(75, Math.round((healthyCount / 32) * 20 + 78))) : 0;
-    const oralHealthIndex = hasClinicalExamData ? Math.min(100, Math.max(70, Math.round(96 - (plannedCount * 4)))) : 0;
+    const periodontalScore = Math.min(100, Math.max(75, Math.round((healthyCount / 32) * 20 + 78)));
+    const oralHealthIndex = Math.min(100, Math.max(70, Math.round(96 - (plannedCount * 4))));
 
     // Next appointment
     const upcomingAppts = appointmentsList.filter(a => new Date(a.preferredDate) >= new Date().setHours(0,0,0,0) && a.status !== 'Cancelled');
@@ -375,7 +366,7 @@ export default function PatientDashboard() {
                             {patientName}
                         </h2>
                         <p className="text-xs font-mono font-extrabold text-primary-teal mb-6">
-                            {patient.referenceNumber || (patient.patientID ? `DEN-2026-${String(patient.patientID).padStart(5, '0')}` : 'Unregistered')}
+                            {patient.referenceNumber || 'DEN-2026-00001'}
                         </p>
 
                         {/* 2x2 Real Dental Metrics Grid */}
@@ -837,13 +828,11 @@ export default function PatientDashboard() {
                                     <div className="flex items-center justify-between mb-1.5">
                                         <span className="text-xs font-bold text-dark-slate">Periodontal Health</span>
                                         <span className="text-xs font-extrabold text-primary-hover">
-                                            {hasClinicalExamData 
-                                                ? `${periodontalScore}% (${periodontalScore >= 90 ? 'Class I Normal' : 'Class II Monitored'})`
-                                                : 'Pending Exam'}
+                                            {periodontalScore}% ({periodontalScore >= 90 ? 'Class I Normal' : 'Class II Monitored'})
                                         </span>
                                     </div>
                                     <div className="w-full h-2 bg-warm-cream rounded-full overflow-hidden border border-light-teal">
-                                        <div className="h-full bg-primary-teal rounded-full transition-all duration-700" style={{ width: `${periodontalScore}%` }} />
+                                        <div className="h-full bg-primary-teal rounded-full" style={{ width: `${periodontalScore}%` }} />
                                     </div>
                                 </div>
                             </div>
@@ -857,13 +846,11 @@ export default function PatientDashboard() {
                                     <div className="flex items-center justify-between mb-1.5">
                                         <span className="text-xs font-bold text-dark-slate">Hygiene & Plaque Index</span>
                                         <span className="text-xs font-extrabold text-primary-hover">
-                                            {hasClinicalExamData 
-                                                ? `${oralHealthIndex}% (Optimal)`
-                                                : 'Pending Exam'}
+                                            {oralHealthIndex}% (Optimal)
                                         </span>
                                     </div>
                                     <div className="w-full h-2 bg-warm-cream rounded-full overflow-hidden border border-light-teal">
-                                        <div className="h-full bg-primary-teal rounded-full transition-all duration-700" style={{ width: `${oralHealthIndex}%` }} />
+                                        <div className="h-full bg-primary-teal rounded-full" style={{ width: `${oralHealthIndex}%` }} />
                                     </div>
                                 </div>
                             </div>
@@ -883,71 +870,61 @@ export default function PatientDashboard() {
                                 <h3 className="text-base font-serif font-black text-dark-slate tracking-tight">Dental Health Index</h3>
                                 <p className="text-[11px] text-muted-text font-medium">6-Month Oral Wellness Progress</p>
                             </div>
-                            <span className={`px-2.5 py-1 rounded-xl font-bold text-xs ${hasClinicalExamData ? 'bg-light-teal text-primary-hover' : 'bg-slate-100 text-slate-500'}`}>
-                                {hasClinicalExamData ? `${oralHealthIndex}% Index` : 'Pending Exam'}
+                            <span className="px-2.5 py-1 rounded-xl bg-light-teal text-primary-hover font-bold text-xs">
+                                {oralHealthIndex}% Index
                             </span>
                         </div>
 
-                        {hasClinicalExamData ? (
-                            /* Pixel-Perfect SVG Bezier Curved Wave with Indicator Pill in Dentia Blue */
-                            <div className="relative pt-6 pb-2">
-                                {/* Y-Axis Labels */}
-                                <div className="absolute left-0 top-6 bottom-8 flex flex-col justify-between text-[11px] font-bold text-muted-text">
-                                    <span>100</span>
-                                    <span>75</span>
-                                    <span>50</span>
-                                    <span>25</span>
-                                </div>
+                        {/* Pixel-Perfect SVG Bezier Curved Wave with 94% Indicator Pill in Dentia Blue */}
+                        <div className="relative pt-6 pb-2">
+                            {/* Y-Axis Labels */}
+                            <div className="absolute left-0 top-6 bottom-8 flex flex-col justify-between text-[11px] font-bold text-muted-text">
+                                <span>100</span>
+                                <span>75</span>
+                                <span>50</span>
+                                <span>25</span>
+                            </div>
 
-                                {/* SVG Curve Container */}
-                                <div className="ml-8 relative h-36">
-                                    <svg className="w-full h-full overflow-visible" viewBox="0 0 320 140" fill="none">
-                                        {/* Horizontal Reference Lines */}
-                                        <line x1="0" y1="20" x2="320" y2="20" stroke="#EAF0FC" strokeWidth="1" strokeDasharray="3 3" />
-                                        <line x1="0" y1="60" x2="320" y2="60" stroke="#EAF0FC" strokeWidth="1" strokeDasharray="3 3" />
-                                        <line x1="0" y1="100" x2="320" y2="100" stroke="#EAF0FC" strokeWidth="1" strokeDasharray="3 3" />
-                                        <line x1="0" y1="135" x2="320" y2="135" stroke="#EAF0FC" strokeWidth="1" />
+                            {/* SVG Curve Container */}
+                            <div className="ml-8 relative h-36">
+                                <svg className="w-full h-full overflow-visible" viewBox="0 0 320 140" fill="none">
+                                    {/* Horizontal Reference Lines */}
+                                    <line x1="0" y1="20" x2="320" y2="20" stroke="#EAF0FC" strokeWidth="1" strokeDasharray="3 3" />
+                                    <line x1="0" y1="60" x2="320" y2="60" stroke="#EAF0FC" strokeWidth="1" strokeDasharray="3 3" />
+                                    <line x1="0" y1="100" x2="320" y2="100" stroke="#EAF0FC" strokeWidth="1" strokeDasharray="3 3" />
+                                    <line x1="0" y1="135" x2="320" y2="135" stroke="#EAF0FC" strokeWidth="1" />
 
-                                        {/* Smooth Dentia Blue Curve */}
-                                        <path 
-                                            d="M 10,85 C 35,95 55,80 75,55 C 95,25 115,80 140,75 C 165,70 185,25 210,18 C 235,14 255,45 275,35 C 295,28 310,32 320,30" 
-                                            fill="none" 
-                                            stroke="#4A7CD2" 
-                                            strokeWidth="3.5" 
-                                            strokeLinecap="round"
-                                        />
+                                    {/* Smooth Dentia Blue Curve */}
+                                    <path 
+                                        d="M 10,85 C 35,95 55,80 75,55 C 95,25 115,80 140,75 C 165,70 185,25 210,18 C 235,14 255,45 275,35 C 295,28 310,32 320,30" 
+                                        fill="none" 
+                                        stroke="#4A7CD2" 
+                                        strokeWidth="3.5" 
+                                        strokeLinecap="round"
+                                    />
 
-                                        {/* Highlight Point on Peak */}
-                                        <circle cx="210" cy="18" r="4.5" fill="white" stroke="#4A7CD2" strokeWidth="3" />
-                                    </svg>
+                                    {/* Highlight Point on Peak */}
+                                    <circle cx="210" cy="18" r="4.5" fill="white" stroke="#4A7CD2" strokeWidth="3" />
+                                </svg>
 
-                                    {/* Active Value Pill */}
-                                    <div 
-                                        className="absolute -top-3 left-[63%] -translate-x-1/2 px-2.5 py-0.5 bg-primary-teal text-white font-bold text-[10px] rounded-full shadow-sm"
-                                    >
-                                        {oralHealthIndex}%
-                                    </div>
-                                </div>
-
-                                {/* X-Axis Month Labels */}
-                                <div className="ml-8 grid grid-cols-6 text-center text-[10px] font-bold text-muted-text mt-2 uppercase tracking-wider">
-                                    <span>APR</span>
-                                    <span>MAY</span>
-                                    <span>JUN</span>
-                                    <span>JUL</span>
-                                    <span>AUG</span>
-                                    <span>SEP</span>
+                                {/* Active Value Pill */}
+                                <div 
+                                    className="absolute -top-3 left-[63%] -translate-x-1/2 px-2.5 py-0.5 bg-primary-teal text-white font-bold text-[10px] rounded-full shadow-sm"
+                                >
+                                    {oralHealthIndex}%
                                 </div>
                             </div>
-                        ) : (
-                            <div className="py-8 px-4 text-center rounded-2xl bg-warm-cream/50 border border-light-teal/50 flex flex-col items-center justify-center my-2">
-                                <Activity className="w-8 h-8 text-slate-300 mb-2" />
-                                <p className="text-xs font-bold text-dark-slate">No Clinical Exam Recorded Yet</p>
-                                <p className="text-[11px] text-muted-text max-w-xs mt-1 leading-relaxed">
-                                    Oral wellness progress and periodontal scores will display here once your dentist records clinical examination findings.
-                                </p>
+
+                            {/* X-Axis Month Labels */}
+                            <div className="ml-8 grid grid-cols-6 text-center text-[10px] font-bold text-muted-text mt-2 uppercase tracking-wider">
+                                <span>APR</span>
+                                <span>MAY</span>
+                                <span>JUN</span>
+                                <span>JUL</span>
+                                <span>AUG</span>
+                                <span>SEP</span>
                             </div>
-                        )}
+                        </div>
                     </div>
 
                     {/* Account Billing & Invoices Card (Live Financial Summary) */}
