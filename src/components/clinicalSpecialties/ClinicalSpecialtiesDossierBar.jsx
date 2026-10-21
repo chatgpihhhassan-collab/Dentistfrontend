@@ -16,23 +16,46 @@ export default function ClinicalSpecialtiesDossierBar({
   const [orthoAssessment, setOrthoAssessment] = useState(null);
   const [collapsed, setCollapsed] = useState(false);
 
+  const loadLocalSpecialties = () => {
+    if (!patientId) return;
+    try {
+      const cachedImplants = sessionStorage.getItem(`dentia_implant_plans_${patientId}`) || localStorage.getItem(`dentia_implant_plans_${patientId}`);
+      if (cachedImplants) {
+        const parsed = JSON.parse(cachedImplants);
+        if (Array.isArray(parsed) && parsed.length > 0) setImplantPlans(parsed);
+      }
+
+      const cachedBiopsies = sessionStorage.getItem(`dentia_biopsy_records_${patientId}`) || localStorage.getItem(`dentia_biopsy_records_${patientId}`);
+      if (cachedBiopsies) {
+        const parsed = JSON.parse(cachedBiopsies);
+        if (Array.isArray(parsed) && parsed.length > 0) setBiopsyRecords(parsed);
+      }
+
+      const cachedAligners = sessionStorage.getItem(`dentia_aligner_plans_${patientId}`) || localStorage.getItem(`dentia_aligner_plans_${patientId}`);
+      if (cachedAligners) {
+        const parsed = JSON.parse(cachedAligners);
+        if (Array.isArray(parsed) && parsed.length > 0) setAlignerPlans(parsed);
+      }
+
+      const cachedOrtho = sessionStorage.getItem(`dentia_ortho_tmj_${patientId}`) || localStorage.getItem(`dentia_ortho_tmj_${patientId}`);
+      if (cachedOrtho) {
+        const parsed = JSON.parse(cachedOrtho);
+        if (parsed) setOrthoAssessment(parsed);
+      }
+    } catch (e) {}
+  };
+
   useEffect(() => {
     if (!patientId) return;
 
-    // Load from local cache first for instant zero-latency render
-    try {
-      const cachedImplants = localStorage.getItem(`dentia_implant_plans_${patientId}`);
-      if (cachedImplants) setImplantPlans(JSON.parse(cachedImplants));
+    // Load from local storage immediately with ZERO latency
+    loadLocalSpecialties();
 
-      const cachedBiopsies = localStorage.getItem(`dentia_biopsy_records_${patientId}`);
-      if (cachedBiopsies) setBiopsyRecords(JSON.parse(cachedBiopsies));
-
-      const cachedAligners = localStorage.getItem(`dentia_aligner_plans_${patientId}`);
-      if (cachedAligners) setAlignerPlans(JSON.parse(cachedAligners));
-
-      const cachedOrtho = localStorage.getItem(`dentia_ortho_tmj_${patientId}`);
-      if (cachedOrtho) setOrthoAssessment(JSON.parse(cachedOrtho));
-    } catch (e) {}
+    // Listen for cross-component instant updates
+    const handleSpecialtyUpdated = () => {
+      loadLocalSpecialties();
+    };
+    window.addEventListener('dentia-specialty-updated', handleSpecialtyUpdated);
 
     // Load remote DB records asynchronously
     const fetchSpecialties = async () => {
@@ -49,7 +72,7 @@ export default function ClinicalSpecialtiesDossierBar({
             setImplantPlans(data);
             try {
               sessionStorage.setItem(`dentia_implant_plans_${patientId}`, JSON.stringify(data));
-              localStorage.removeItem(`dentia_implant_plans_${patientId}`);
+              localStorage.setItem(`dentia_implant_plans_${patientId}`, JSON.stringify(data));
             } catch (e) {}
           }
         }
@@ -60,7 +83,7 @@ export default function ClinicalSpecialtiesDossierBar({
             setBiopsyRecords(data);
             try {
               sessionStorage.setItem(`dentia_biopsy_records_${patientId}`, JSON.stringify(data));
-              localStorage.removeItem(`dentia_biopsy_records_${patientId}`);
+              localStorage.setItem(`dentia_biopsy_records_${patientId}`, JSON.stringify(data));
             } catch (e) {}
           }
         }
@@ -71,7 +94,7 @@ export default function ClinicalSpecialtiesDossierBar({
             setAlignerPlans(data);
             try {
               sessionStorage.setItem(`dentia_aligner_plans_${patientId}`, JSON.stringify(data));
-              localStorage.removeItem(`dentia_aligner_plans_${patientId}`);
+              localStorage.setItem(`dentia_aligner_plans_${patientId}`, JSON.stringify(data));
             } catch (e) {}
           }
         }
@@ -81,6 +104,10 @@ export default function ClinicalSpecialtiesDossierBar({
     };
 
     fetchSpecialties();
+
+    return () => {
+      window.removeEventListener('dentia-specialty-updated', handleSpecialtyUpdated);
+    };
   }, [patientId, refreshTrigger]);
 
   const hasAnyRecords = implantPlans.length > 0 || biopsyRecords.length > 0 || alignerPlans.length > 0 || Boolean(orthoAssessment);

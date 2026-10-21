@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, Check, AlertCircle, Calendar, Layers, ShieldCheck, 
-  RotateCcw, Trash2, Clock, CheckCircle2, ChevronRight, Activity, Plus
+  RotateCcw, Trash2, Clock, CheckCircle2, ChevronRight, Activity, Plus,
+  Sliders, ArrowRight, Gauge, FileText, CheckCircle
 } from 'lucide-react';
 import { API_BASE_URL } from '../../config/apiConfig';
 
@@ -38,18 +39,13 @@ export default function ClearAlignerOrthoTab({
   // Form State
   const [formData, setFormData] = useState({
     orthoAlignerId: null,
-    // 1. Aligner system/brand
     alignerBrand: 'Invisalign (Align Technology)',
-    // 2. Number of aligner stages/trays
     totalStages: 24,
     currentStage: 1,
-    // 3. Attachments required (Y/N + notes)
     attachmentsRequired: true,
     attachmentNotes: '#6, #11 gingival bevelled; #12, #21 rectangular horizontal attachments',
-    // 4. IPR (Interproximal Reduction) required (Y/N)
     iprRequired: true,
     iprDetails: 'Stage 4: 0.2mm between 22-23; Stage 6: 0.3mm between 23-24, 0.2mm between 24-25',
-    // 5. Wear schedule / refinement scan tracking
     wearSchedule: '10 Days / Tray (Standard Recommended)',
     refinementScanTracking: 'Initial digital intraoral scan completed. Refinement evaluation scheduled at Tray 18.',
     refinementCount: 0,
@@ -85,7 +81,7 @@ export default function ClearAlignerOrthoTab({
           setPlansList(data);
           try {
             sessionStorage.setItem(`dentia_aligner_plans_${patientId}`, JSON.stringify(data));
-            localStorage.removeItem(`dentia_aligner_plans_${patientId}`);
+            localStorage.setItem(`dentia_aligner_plans_${patientId}`, JSON.stringify(data));
           } catch (e) {}
           if (!activePlanId) handleSelectPlan(data[0]);
           return;
@@ -98,7 +94,7 @@ export default function ClearAlignerOrthoTab({
     }
 
     try {
-      const cached = localStorage.getItem(`dentia_aligner_plans_${patientId}`);
+      const cached = sessionStorage.getItem(`dentia_aligner_plans_${patientId}`) || localStorage.getItem(`dentia_aligner_plans_${patientId}`);
       if (cached) {
         const data = JSON.parse(cached);
         setPlansList(data);
@@ -117,8 +113,8 @@ export default function ClearAlignerOrthoTab({
     if (isNaN(tot) || tot < 1 || tot > 200) {
       errs.totalStages = 'Total stages must be between 1 and 200.';
     }
-    if (isNaN(cur) || cur < 0 || cur > tot) {
-      errs.currentStage = `Current stage must be between 0 and total stages (${tot}).`;
+    if (isNaN(cur) || cur < 0 || cur > (isNaN(tot) ? 200 : tot)) {
+      errs.currentStage = `Current active stage must be between 0 and total stages (${tot || 1}).`;
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -154,7 +150,30 @@ export default function ClearAlignerOrthoTab({
         clinicalNotes: formData.clinicalNotes?.trim() || null
       };
 
-      let savedRecord = null;
+      const localRecord = {
+        ...payload,
+        orthoAlignerID: payload.orthoAlignerID || Date.now(),
+        updatedAt: new Date().toISOString()
+      };
+
+      // Dual cache sync (sessionStorage + localStorage)
+      try {
+        const currentCached = JSON.parse(sessionStorage.getItem(`dentia_aligner_plans_${patientId}`) || localStorage.getItem(`dentia_aligner_plans_${patientId}`) || '[]');
+        const filtered = currentCached.filter(p => p.orthoAlignerID !== localRecord.orthoAlignerID);
+        filtered.unshift(localRecord);
+        sessionStorage.setItem(`dentia_aligner_plans_${patientId}`, JSON.stringify(filtered));
+        localStorage.setItem(`dentia_aligner_plans_${patientId}`, JSON.stringify(filtered));
+        setPlansList(filtered);
+        setActivePlanId(localRecord.orthoAlignerID);
+      } catch (e) {}
+
+      // Dispatch event for 0ms reactivity across Chart & Dossier bar
+      window.dispatchEvent(new CustomEvent('dentia-specialty-updated', {
+        detail: { type: 'aligner', patientId, plan: localRecord }
+      }));
+
+      // Remote POST
+      let savedServerRecord = null;
       try {
         const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/ortho-aligners`, {
           method: 'POST',
@@ -164,34 +183,16 @@ export default function ClearAlignerOrthoTab({
 
         if (res.ok) {
           const result = await res.json();
-          savedRecord = result.treatment || payload;
+          savedServerRecord = result.treatment || payload;
         }
       } catch (networkErr) {
-        console.warn('API error saving aligner plan, storing locally:', networkErr);
+        console.warn('API error saving aligner plan, kept local record:', networkErr);
       }
 
-      if (!savedRecord) {
-        savedRecord = {
-          ...payload,
-          orthoAlignerID: payload.orthoAlignerID || Date.now(),
-          updatedAt: new Date().toISOString()
-        };
-      }
-
-      // Update session storage mirror
-      try {
-        const currentCached = JSON.parse(sessionStorage.getItem(`dentia_aligner_plans_${patientId}`) || localStorage.getItem(`dentia_aligner_plans_${patientId}`) || '[]');
-        const filtered = currentCached.filter(p => p.orthoAlignerID !== savedRecord.orthoAlignerID);
-        filtered.unshift(savedRecord);
-        sessionStorage.setItem(`dentia_aligner_plans_${patientId}`, JSON.stringify(filtered));
-        localStorage.removeItem(`dentia_aligner_plans_${patientId}`);
-        setPlansList(filtered);
-        setActivePlanId(savedRecord.orthoAlignerID);
-      } catch (e) {}
-
-      setToast({ show: true, message: 'Clear Aligner Treatment Plan saved & applied to chart.', type: 'success' });
-      if (onPlanSaved) onPlanSaved(savedRecord);
-      setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+      const finalRecord = savedServerRecord || localRecord;
+      setToast({ show: true, message: 'Clear Aligner Treatment Plan saved and applied to chart.', type: 'success' });
+      if (onPlanSaved) onPlanSaved(finalRecord);
+      setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 2500);
     } catch (err) {
       console.error('Save error:', err);
       setToast({ show: true, message: err.message || 'Error saving aligner plan', type: 'error' });
@@ -203,15 +204,19 @@ export default function ClearAlignerOrthoTab({
   const handleDelete = async (alignerId) => {
     if (!window.confirm('Delete this clear aligner treatment record?')) return;
     try {
+      const updated = plansList.filter(p => p.orthoAlignerID !== alignerId);
+      setPlansList(updated);
+      sessionStorage.setItem(`dentia_aligner_plans_${patientId}`, JSON.stringify(updated));
+      localStorage.setItem(`dentia_aligner_plans_${patientId}`, JSON.stringify(updated));
+
       const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/ortho-aligners/${alignerId}`, {
         method: 'DELETE'
       });
       if (res.ok) {
         setToast({ show: true, message: 'Aligner plan deleted.', type: 'success' });
-        loadAlignerPlans();
-        if (formData.orthoAlignerId === alignerId) {
-          handleResetForm();
-        }
+      }
+      if (formData.orthoAlignerId === alignerId) {
+        handleResetForm();
       }
     } catch (err) {
       console.error('Delete error:', err);
@@ -264,21 +269,21 @@ export default function ClearAlignerOrthoTab({
     setErrors({});
   };
 
-  // Progress percentage calculation
-  const progressPercent = Math.min(
-    100,
-    Math.round(((formData.currentStage || 1) / Math.max(1, formData.totalStages || 1)) * 100)
-  );
+  // Safe Progress calculation
+  const totalStagesNum = Math.max(1, parseInt(formData.totalStages, 10) || 1);
+  const currentStageNum = Math.min(totalStagesNum, Math.max(0, parseInt(formData.currentStage, 10) || 0));
+  const progressPercent = Math.min(100, Math.round((currentStageNum / totalStagesNum) * 100));
+  const stagesRemaining = Math.max(0, totalStagesNum - currentStageNum);
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 animate-fade-in">
       {/* Toast Alert */}
       {toast.show && (
         <div className={`px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center justify-between ${
           toast.type === 'error' ? 'bg-rose-50 text-rose-800 border border-rose-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
         }`}>
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4" />
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             <span>{toast.message}</span>
           </div>
           <button onClick={() => setToast({ show: false, message: '', type: 'success' })} className="hover:opacity-75">
@@ -287,54 +292,59 @@ export default function ClearAlignerOrthoTab({
         </div>
       )}
 
-      {/* Main Aligner Dashboard Card */}
-      <div className="bg-gradient-to-br from-[#F8FAFC] via-white to-[#F0FDF4] rounded-3xl border border-light-teal/40 p-5 sm:p-6 shadow-sm space-y-6">
+      {/* Main Aligner Card */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-4">
         
-        {/* Banner with Progress Bar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-light-teal/20 pb-4">
+        {/* Banner with Real-Time Progress Bar */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5 bg-gradient-to-r from-teal-50/70 via-emerald-50/50 to-slate-50 p-4 rounded-2xl border border-teal-100/80">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white flex items-center justify-center text-xl shadow-md shrink-0">
-              ✨
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-teal-600 to-emerald-700 text-white flex items-center justify-center text-lg shadow-sm shrink-0">
+              <Sparkles className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base sm:text-lg font-black text-[#10244B]">
+                <h3 className="text-sm sm:text-base font-black text-slate-900">
                   Orthodontics — Clear Aligner Treatment
                 </h3>
                 <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
                   {formData.status}
                 </span>
               </div>
-              <p className="text-xs font-semibold text-muted-text mt-0.5">
-                Aligner brand, stages tracking, attachments template, interproximal reduction (IPR) & refinement scans.
+              <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                Staging progression, composite attachment templates, IPR reduction & refinement scans.
               </p>
             </div>
           </div>
 
-          {/* Tray Progress Badge */}
-          <div className="bg-white border border-emerald-200 px-4 py-2 rounded-2xl shadow-xs flex items-center gap-4">
-            <div>
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
-                Tray Progression
-              </span>
-              <p className="text-sm font-black text-emerald-700">
-                Tray {formData.currentStage} of {formData.totalStages} ({progressPercent}%)
+          {/* Tray Progress Visualization Card */}
+          <div className="bg-white border border-teal-200/80 px-4 py-2.5 rounded-2xl shadow-2xs flex items-center gap-4 w-full sm:w-auto">
+            <div className="shrink-0">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider">
+                  Tray Progression
+                </span>
+                <span className="text-[9.5px] font-bold text-teal-700">
+                  {stagesRemaining} left
+                </span>
+              </div>
+              <p className="text-sm font-black text-teal-800">
+                Tray {currentStageNum} of {totalStagesNum} <span className="text-xs text-slate-500 font-bold">({progressPercent}%)</span>
               </p>
             </div>
-            <div className="w-24 bg-slate-100 h-2.5 rounded-full overflow-hidden border border-slate-200">
+            <div className="w-28 bg-slate-100 h-2.5 rounded-full overflow-hidden border border-slate-200/80 shrink-0">
               <div 
-                className="bg-gradient-to-r from-emerald-500 to-teal-600 h-full rounded-full transition-all duration-500"
+                className="bg-gradient-to-r from-teal-500 to-emerald-600 h-full rounded-full transition-all duration-300"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
           </div>
         </div>
 
-        {/* Existing Plans Selector (If patient has multiple series/refinements) */}
+        {/* Saved Aligner Plans Tabs (if multiple exist) */}
         {plansList.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <span className="text-xs font-black text-slate-500 uppercase tracking-wider">
-              Saved Aligner Plans:
+          <div className="flex flex-wrap items-center gap-2 pt-1 border-b border-slate-100 pb-2.5">
+            <span className="text-[10.5px] font-black text-slate-500 uppercase tracking-wider">
+              Saved Plans:
             </span>
             {plansList.map(plan => {
               const isSelected = activePlanId === plan.orthoAlignerID;
@@ -345,13 +355,13 @@ export default function ClearAlignerOrthoTab({
                   onClick={() => handleSelectPlan(plan)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer border ${
                     isSelected
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                      : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200'
+                      ? 'bg-teal-700 text-white border-teal-700 shadow-2xs'
+                      : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200'
                   }`}
                 >
                   <span>{plan.alignerBrand?.split('(')[0] || 'Aligners'}</span>
                   <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${
-                    isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                    isSelected ? 'bg-white/20 text-white' : 'bg-slate-200/70 text-slate-700'
                   }`}>
                     {plan.currentStage}/{plan.totalStages} Trays
                   </span>
@@ -361,282 +371,334 @@ export default function ClearAlignerOrthoTab({
             <button
               type="button"
               onClick={handleResetForm}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold text-emerald-700 hover:bg-emerald-50 border border-dashed border-emerald-300 transition-colors flex items-center gap-1 cursor-pointer"
+              className="px-3 py-1.5 rounded-xl text-xs font-bold text-teal-700 hover:bg-teal-50 border border-dashed border-teal-300 transition-colors flex items-center gap-1 cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5" /> New Plan / Refinement
+              <Plus className="w-3.5 h-3.5" /> New Plan / Series
             </button>
           </div>
         )}
 
-        {/* The Main Ortho Form */}
+        {/* Ortho Form */}
         <form onSubmit={handleSave} className="space-y-4">
           
-          {/* Zero-Scroll Step Navigator */}
-          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
+          {/* Subtab Navigator */}
+          <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200">
             <button
               type="button"
               onClick={() => setActiveSubTab('staging')}
-              className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-2 ${
                 activeSubTab === 'staging'
-                  ? 'bg-white text-emerald-700 shadow-xs border border-slate-200'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-white text-teal-800 shadow-xs border border-slate-200'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
+              <Sliders className="w-3.5 h-3.5 text-teal-600" />
               <span>1. System & Staging</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveSubTab('attachments')}
-              className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-2 ${
                 activeSubTab === 'attachments'
-                  ? 'bg-white text-emerald-700 shadow-xs border border-slate-200'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-white text-teal-800 shadow-xs border border-slate-200'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
+              <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
               <span>2. Attachments & IPR</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveSubTab('refinements')}
-              className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-2 ${
                 activeSubTab === 'refinements'
-                  ? 'bg-white text-emerald-700 shadow-xs border border-slate-200'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-white text-teal-800 shadow-xs border border-slate-200'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
+              <Clock className="w-3.5 h-3.5 text-teal-600" />
               <span>3. Refinements & Status</span>
             </button>
           </div>
 
-          {/* Subtab 1: System/Brand & Stage Trays & Wear Schedule */}
+          {/* Subtab 1: System & Staging */}
           {activeSubTab === 'staging' && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
-                {/* 1. Aligner Brand */}
-                <div>
-                  <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">
-                    Aligner System / Brand *
-                  </label>
-                  <select
-                    value={formData.alignerBrand}
-                    onChange={(e) => setFormData({ ...formData, alignerBrand: e.target.value })}
-                    className="w-full px-3 py-2 text-xs font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  >
-                    {ALIGNER_BRANDS.map(brand => (
-                      <option key={brand} value={brand}>{brand}</option>
-                    ))}
-                  </select>
-                  {errors.alignerBrand && (
-                    <p className="text-[10px] font-bold text-rose-600 mt-1">{errors.alignerBrand}</p>
-                  )}
+            <div className="space-y-3.5">
+              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3.5">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+                  
+                  {/* Aligner System / Brand */}
+                  <div className="md:col-span-4">
+                    <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
+                      Aligner System / Brand *
+                    </label>
+                    <select
+                      value={formData.alignerBrand}
+                      onChange={(e) => setFormData({ ...formData, alignerBrand: e.target.value })}
+                      className="w-full px-3.5 py-2 text-xs font-bold text-slate-900 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 focus:outline-none transition-colors"
+                    >
+                      {ALIGNER_BRANDS.map(brand => (
+                        <option key={brand} value={brand}>{brand}</option>
+                      ))}
+                    </select>
+                    {errors.alignerBrand && (
+                      <p className="text-[10px] font-bold text-rose-600 mt-1">{errors.alignerBrand}</p>
+                    )}
+                  </div>
+
+                  {/* Field A: Total Stages (Trays) */}
+                  <div className="md:col-span-2">
+                    <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
+                      Total Stages *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="1"
+                        max="200"
+                        value={formData.totalStages}
+                        onChange={(e) => setFormData({ ...formData, totalStages: e.target.value })}
+                        className="w-full pl-3 pr-11 py-2 text-xs font-black text-slate-900 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 focus:outline-none transition-colors"
+                        placeholder="24"
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-teal-800 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
+                        Trays
+                      </span>
+                    </div>
+                    {errors.totalStages && (
+                      <p className="text-[10px] font-bold text-rose-600 mt-1">{errors.totalStages}</p>
+                    )}
+                  </div>
+
+                  {/* Field B: Current Active Stage */}
+                  <div className="md:col-span-2">
+                    <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
+                      Current Stage *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        max={formData.totalStages || 200}
+                        value={formData.currentStage}
+                        onChange={(e) => setFormData({ ...formData, currentStage: e.target.value })}
+                        className="w-full pl-3 pr-12 py-2 text-xs font-black text-slate-900 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 focus:outline-none transition-colors"
+                        placeholder="1"
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                        Tray #
+                      </span>
+                    </div>
+                    {errors.currentStage && (
+                      <p className="text-[10px] font-bold text-rose-600 mt-1">{errors.currentStage}</p>
+                    )}
+                  </div>
+
+                  {/* Wear Schedule */}
+                  <div className="md:col-span-4">
+                    <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
+                      Wear Schedule *
+                    </label>
+                    <select
+                      value={formData.wearSchedule}
+                      onChange={(e) => setFormData({ ...formData, wearSchedule: e.target.value })}
+                      className="w-full px-3.5 py-2 text-xs font-bold text-slate-900 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 focus:outline-none transition-colors"
+                    >
+                      {WEAR_SCHEDULES.map(sched => (
+                        <option key={sched} value={sched}>{sched}</option>
+                      ))}
+                    </select>
+                  </div>
+
                 </div>
 
-                {/* 2. Number of Aligner Stages / Trays */}
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="text-[11px] font-black text-slate-600 uppercase tracking-wider">
-                      Total Stages (Trays) *
-                    </label>
-                    <span className="text-[10px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      {formData.totalStages} Stages
+                {/* Live Staging Milestone Strip */}
+                <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200/70 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <Gauge className="w-4 h-4 text-teal-600" />
+                    <span className="font-bold text-slate-700">Treatment Velocity:</span>
+                    <span className="font-black text-teal-800">
+                      {progressPercent}% Complete
+                    </span>
+                    <span className="text-slate-400">|</span>
+                    <span className="font-semibold text-slate-600">
+                      {stagesRemaining} Trays Remaining to Final Alignment
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="number"
-                      min="1"
-                      max="150"
-                      value={formData.totalStages}
-                      onChange={(e) => setFormData({ ...formData, totalStages: e.target.value })}
-                      className="w-full px-3 py-2 text-xs font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                      placeholder="Total"
-                    />
-                    <input
-                      type="number"
-                      min="0"
-                      max={formData.totalStages || 150}
-                      value={formData.currentStage}
-                      onChange={(e) => setFormData({ ...formData, currentStage: e.target.value })}
-                      className="w-full px-3 py-2 text-xs font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                      placeholder="Current"
-                    />
+                  <div className="text-[11px] font-bold text-slate-500">
+                    Recommended Change: Every {formData.wearSchedule.includes('7') ? '7 Days' : formData.wearSchedule.includes('14') ? '14 Days' : '10 Days'}
                   </div>
-                  {errors.totalStages && (
-                    <p className="text-[10px] font-bold text-rose-600 mt-1">{errors.totalStages}</p>
-                  )}
                 </div>
 
-                {/* Wear Schedule */}
-                <div>
-                  <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">
-                    Wear Schedule *
-                  </label>
-                  <select
-                    value={formData.wearSchedule}
-                    onChange={(e) => setFormData({ ...formData, wearSchedule: e.target.value })}
-                    className="w-full px-3 py-2 text-xs font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  >
-                    {WEAR_SCHEDULES.map(sched => (
-                      <option key={sched} value={sched}>{sched}</option>
-                    ))}
-                  </select>
-                </div>
               </div>
 
               <div className="flex justify-end pt-1">
                 <button
                   type="button"
                   onClick={() => setActiveSubTab('attachments')}
-                  className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-black text-xs rounded-xl border border-emerald-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="px-4 py-2.5 bg-teal-50 hover:bg-teal-100/80 text-teal-800 font-black text-xs rounded-xl border border-teal-200 transition-colors flex items-center gap-2 cursor-pointer"
                 >
                   <span>Next: Attachments & IPR</span>
-                  <span>➔</span>
+                  <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
           )}
 
-          {/* Subtab 2: Attachments Required & IPR */}
+          {/* Subtab 2: Attachments & IPR */}
           {activeSubTab === 'attachments' && (
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                {/* 3. Attachments Card */}
-                <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2.5">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
-                    <div className="flex items-center gap-1.5">
+                
+                {/* Composite Attachments Card */}
+                <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <div className="flex items-center gap-2">
                       <span className="text-base">🧲</span>
-                      <h4 className="text-xs font-black text-[#10244B] uppercase tracking-wider">
-                        2. Attachments Required (Y/N)
+                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                        2. Composite Attachments
                       </h4>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, attachmentsRequired: !formData.attachmentsRequired })}
-                      className={`px-2.5 py-0.5 rounded-lg text-xs font-black transition-all flex items-center gap-1 cursor-pointer border ${
-                        formData.attachmentsRequired
-                          ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                          : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-                      }`}
-                    >
-                      {formData.attachmentsRequired ? (
-                        <>
-                          <Check className="w-3 h-3" /> Attachments YES
-                        </>
-                      ) : (
-                        'Attachments NO'
-                      )}
-                    </button>
+                    {/* Segmented Button for Attachments */}
+                    <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, attachmentsRequired: false })}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                          !formData.attachmentsRequired
+                            ? 'bg-white text-slate-800 shadow-2xs'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        None
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, attachmentsRequired: true })}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                          formData.attachmentsRequired
+                            ? 'bg-teal-700 text-white shadow-2xs'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        Required
+                      </button>
+                    </div>
                   </div>
 
                   <div>
-                    <label className="block text-[10.5px] font-black text-slate-600 uppercase tracking-wider mb-1">
-                      Attachment Placement Notes (Teeth & Shapes)
+                    <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
+                      Attachment Template Notes (Teeth # & Geometry)
                     </label>
                     <textarea
                       rows="2"
                       value={formData.attachmentNotes || ''}
                       onChange={(e) => setFormData({ ...formData, attachmentNotes: e.target.value })}
                       disabled={!formData.attachmentsRequired}
-                      className="w-full px-3 py-1.5 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-50 disabled:bg-slate-100"
-                      placeholder="e.g. Tooth #6 & #11: 3.5mm bevelled vertical. Tooth #12, #21: rectangular."
+                      className="w-full px-3.5 py-2 text-xs font-medium text-slate-900 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 focus:outline-none disabled:opacity-50 disabled:bg-slate-100 transition-colors"
+                      placeholder="e.g. Tooth #6 & #11: 3.5mm gingival bevelled vertical. Tooth #12, #21: rectangular horizontal."
                     />
                   </div>
                 </div>
 
-                {/* 4. IPR Card */}
-                <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2.5">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
-                    <div className="flex items-center gap-1.5">
+                {/* IPR Card */}
+                <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <div className="flex items-center gap-2">
                       <span className="text-base">📏</span>
-                      <h4 className="text-xs font-black text-[#10244B] uppercase tracking-wider">
-                        3. IPR (Interproximal Reduction)
+                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                        3. Interproximal Reduction (IPR)
                       </h4>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, iprRequired: !formData.iprRequired })}
-                      className={`px-2.5 py-0.5 rounded-lg text-xs font-black transition-all flex items-center gap-1 cursor-pointer border ${
-                        formData.iprRequired
-                          ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
-                          : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-                      }`}
-                    >
-                      {formData.iprRequired ? (
-                        <>
-                          <Check className="w-3 h-3" /> IPR Required (YES)
-                        </>
-                      ) : (
-                        'IPR Not Required'
-                      )}
-                    </button>
+                    {/* Segmented Button for IPR */}
+                    <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, iprRequired: false })}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                          !formData.iprRequired
+                            ? 'bg-white text-slate-800 shadow-2xs'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        None
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, iprRequired: true })}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                          formData.iprRequired
+                            ? 'bg-teal-700 text-white shadow-2xs'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        Scheduled
+                      </button>
+                    </div>
                   </div>
 
                   <div>
-                    <label className="block text-[10.5px] font-black text-slate-600 uppercase tracking-wider mb-1">
-                      IPR Details (Locations, Stage & Reduction in mm)
+                    <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
+                      IPR Reduction Protocol (Contact, Stage & mm)
                     </label>
                     <textarea
                       rows="2"
                       value={formData.iprDetails || ''}
                       onChange={(e) => setFormData({ ...formData, iprDetails: e.target.value })}
                       disabled={!formData.iprRequired}
-                      className="w-full px-3 py-1.5 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none disabled:opacity-50 disabled:bg-slate-100"
+                      className="w-full px-3.5 py-2 text-xs font-medium text-slate-900 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 focus:outline-none disabled:opacity-50 disabled:bg-slate-100 transition-colors"
                       placeholder="e.g. Stage 3: 0.2mm between 22-23; Stage 5: 0.3mm between 23-24."
                     />
                   </div>
                 </div>
+
               </div>
 
               <div className="flex justify-between items-center pt-1">
                 <button
                   type="button"
                   onClick={() => setActiveSubTab('staging')}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-xl border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-xl border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <span>⬅ Back: System & Staging</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveSubTab('refinements')}
-                  className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-black text-xs rounded-xl border border-emerald-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="px-4 py-2.5 bg-teal-50 hover:bg-teal-100/80 text-teal-800 font-black text-xs rounded-xl border border-teal-200 transition-colors flex items-center gap-2 cursor-pointer"
                 >
                   <span>Next: Refinements & Status</span>
-                  <span>➔</span>
+                  <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
           )}
 
-          {/* Subtab 3: 5. Refinement Scan Tracking & Additional Clinical Dates */}
+          {/* Subtab 3: Refinements & Status */}
           {activeSubTab === 'refinements' && (
-            <div className="space-y-3">
-              <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+            <div className="space-y-3.5">
+              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3.5">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                   <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-emerald-600" />
-                    <h4 className="text-xs font-black text-[#10244B] uppercase tracking-wider">
-                      4. Refinement Scan Tracking & Treatment Milestones
+                    <Clock className="w-4 h-4 text-teal-600" />
+                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                      4. Refinement Scans & Treatment Lifecycle
                     </h4>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black text-slate-500 uppercase">
-                      Refinements:
-                    </span>
-                    <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 font-black text-xs border border-emerald-200">
-                      Series #{formData.refinementCount}
-                    </span>
-                  </div>
+                  <span className="px-2.5 py-0.5 rounded-lg bg-teal-50 text-teal-800 font-black text-xs border border-teal-200">
+                    Series #{formData.refinementCount}
+                  </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-[10.5px] font-black text-slate-600 uppercase tracking-wider mb-1">
+                    <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
                       Treated Arch
                     </label>
                     <select
                       value={formData.arch}
                       onChange={(e) => setFormData({ ...formData, arch: e.target.value })}
-                      className="w-full px-3 py-1.5 text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      className="w-full px-3.5 py-2 text-xs font-bold text-slate-900 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 focus:outline-none transition-colors"
                     >
                       <option value="Dual">Dual Arch (Upper & Lower)</option>
                       <option value="Upper">Upper Arch Only</option>
@@ -645,13 +707,13 @@ export default function ClearAlignerOrthoTab({
                   </div>
 
                   <div>
-                    <label className="block text-[10.5px] font-black text-slate-600 uppercase tracking-wider mb-1">
+                    <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
                       Treatment Status
                     </label>
                     <select
                       value={formData.status}
                       onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                      className="w-full px-3 py-1.5 text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      className="w-full px-3.5 py-2 text-xs font-bold text-slate-900 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 focus:outline-none transition-colors"
                     >
                       <option value="Planned">Planned</option>
                       <option value="Active">Active Treatment</option>
@@ -663,20 +725,20 @@ export default function ClearAlignerOrthoTab({
                   </div>
 
                   <div>
-                    <label className="block text-[10.5px] font-black text-slate-600 uppercase tracking-wider mb-1">
+                    <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
                       Start Date
                     </label>
                     <input
                       type="date"
                       value={formData.startDate}
                       onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                      className="w-full px-3 py-1.5 text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      className="w-full px-3.5 py-2 text-xs font-bold text-slate-900 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 focus:outline-none transition-colors"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10.5px] font-black text-slate-600 uppercase tracking-wider mb-1">
-                      Refinement Count
+                    <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
+                      Refinement Series #
                     </label>
                     <input
                       type="number"
@@ -684,21 +746,21 @@ export default function ClearAlignerOrthoTab({
                       max="10"
                       value={formData.refinementCount}
                       onChange={(e) => setFormData({ ...formData, refinementCount: parseInt(e.target.value, 10) || 0 })}
-                      className="w-full px-3 py-1.5 text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      className="w-full px-3.5 py-2 text-xs font-bold text-slate-900 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 focus:outline-none transition-colors"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[10.5px] font-black text-slate-600 uppercase tracking-wider mb-1">
-                    Refinement Scan Tracking Log (Rescan Dates, ClinCheck approvals, Additional Aligner Delivery)
+                  <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
+                    Refinement Scan Tracking Log (Rescan Dates, ClinCheck Approvals, Tray Delivery)
                   </label>
                   <textarea
                     rows="2"
                     value={formData.refinementScanTracking || ''}
                     onChange={(e) => setFormData({ ...formData, refinementScanTracking: e.target.value })}
-                    className="w-full px-3 py-1.5 text-xs font-medium text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    placeholder="e.g. Itero digital rescan completed on 2026-09-15. ClinCheck approval #2 received for 12 refinement trays. Delivered trays 1-4 on 2026-09-22."
+                    className="w-full px-3.5 py-2 text-xs font-medium text-slate-900 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 focus:outline-none transition-colors"
+                    placeholder="e.g. Itero digital rescan completed. ClinCheck approval #2 received for 12 refinement trays. Delivered trays 1-4."
                   />
                 </div>
               </div>
@@ -707,7 +769,7 @@ export default function ClearAlignerOrthoTab({
                 <button
                   type="button"
                   onClick={() => setActiveSubTab('attachments')}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-xl border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-xl border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <span>⬅ Back: Attachments & IPR</span>
                 </button>
@@ -715,14 +777,14 @@ export default function ClearAlignerOrthoTab({
             </div>
           )}
 
-          {/* Form Actions */}
-          <div className="flex items-center justify-between pt-2">
+          {/* Form Actions Footer */}
+          <div className="flex items-center justify-between pt-2 border-t border-slate-100">
             <div>
               {formData.orthoAlignerId && (
                 <button
                   type="button"
                   onClick={() => handleDelete(formData.orthoAlignerId)}
-                  className="px-3 py-2 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
+                  className="px-3.5 py-2 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
                 >
                   <Trash2 className="w-3.5 h-3.5" /> Delete Plan
                 </button>
@@ -733,7 +795,7 @@ export default function ClearAlignerOrthoTab({
               <button
                 type="submit"
                 disabled={saving}
-                className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+                className="px-6 py-2.5 bg-gradient-to-r from-teal-700 to-emerald-800 hover:from-teal-800 hover:to-emerald-900 text-white rounded-xl text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
               >
                 <Check className="w-4 h-4" />
                 {saving ? 'Saving...' : formData.orthoAlignerId ? 'Update & Apply to Chart' : 'Save & Apply to Chart'}

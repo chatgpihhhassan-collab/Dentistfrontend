@@ -213,9 +213,11 @@ export default function ImplantPlanningModal({
       try {
         const prev = JSON.parse(sessionStorage.getItem(`dentia_implant_plans_${patientId}`) || localStorage.getItem(`dentia_implant_plans_${patientId}`) || '[]');
         const updated = [localPlan, ...prev.filter(p => (p.implantPlanID !== localPlan.implantPlanID && String(p.toothNumber) !== String(localPlan.toothNumber)))];
-        sessionStorage.setItem(`dentia_implant_plans_${patientId}`, JSON.stringify(updated));
-        localStorage.removeItem(`dentia_implant_plans_${patientId}`);
+        const updatedJson = JSON.stringify(updated);
+        sessionStorage.setItem(`dentia_implant_plans_${patientId}`, updatedJson);
+        localStorage.setItem(`dentia_implant_plans_${patientId}`, updatedJson);
         setPlansList(updated);
+        window.dispatchEvent(new CustomEvent('dentia-specialty-updated', { detail: { type: 'implant', plan: localPlan, patientId } }));
       } catch (e) {}
 
       const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/implant-plans`, {
@@ -327,8 +329,8 @@ export default function ImplantPlanningModal({
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-5 overflow-y-auto bg-slate-950/75 backdrop-blur-md animate-fade-in">
       <div className="relative w-full max-w-5xl max-h-[92vh] flex flex-col bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
         
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-[#0F294A] via-[#1E3A8A] to-[#2563EB] text-white shrink-0">
+        {/* Header - Precision Surgical Titanium / Teal Palette */}
+        <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-[#0B1528] via-[#112347] to-[#0F766E] text-white shrink-0 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-2xl border border-white/20 shadow-inner">
               🔩
@@ -336,11 +338,11 @@ export default function ImplantPlanningModal({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-black tracking-tight">Implant Planning & 3D Surgical Guide</h3>
-                <span className="text-[10px] font-black uppercase tracking-wider bg-white/20 px-2.5 py-0.5 rounded-full border border-white/25">
+                <span className="text-[10.5px] font-black uppercase tracking-wider bg-teal-500/30 text-teal-200 px-2.5 py-0.5 rounded-full border border-teal-400/40">
                   Tooth #{formData.toothKey}
                 </span>
               </div>
-              <p className="text-xs font-semibold text-blue-100">
+              <p className="text-xs font-semibold text-slate-300">
                 End-to-end prosthetic-driven planning: Dimensions, Lekholm & Zarb bone classification, grafting & 3D CBCT guided surgery.
               </p>
             </div>
@@ -356,10 +358,10 @@ export default function ImplantPlanningModal({
         {/* Toast Alert */}
         {toast.show && (
           <div className={`px-6 py-2.5 text-xs font-bold flex items-center justify-between ${
-            toast.type === 'error' ? 'bg-rose-50 text-rose-800 border-b border-rose-200' : 'bg-emerald-50 text-emerald-800 border-b border-emerald-200'
+            toast.type === 'error' ? 'bg-rose-50 text-rose-800 border-b border-rose-200' : 'bg-teal-50 text-teal-800 border-b border-teal-200'
           }`}>
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4" />
+              <CheckCircle2 className="w-4 h-4 text-teal-600" />
               <span>{toast.message}</span>
             </div>
             <button onClick={() => setToast({ show: false, message: '', type: 'success' })} className="hover:opacity-75">
@@ -375,30 +377,30 @@ export default function ImplantPlanningModal({
             {/* Left 8 Cols: Form Fields */}
             <form id="implantPlanForm" onSubmit={handleSave} className="lg:col-span-8 space-y-3">
               
-              {/* Zero-Scroll Step Navigator */}
-              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
+              {/* Modern Step Navigator */}
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200 shadow-2xs">
                 <button
                   type="button"
                   onClick={() => setActiveSubTab('dimensions')}
-                  className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                     activeSubTab === 'dimensions'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 bg-white/70 hover:bg-white'
+                      ? 'bg-white text-teal-800 shadow-xs border border-slate-200/80 ring-1 ring-teal-500/20'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                   }`}
                 >
-                  <Ruler className="w-3.5 h-3.5" />
+                  <Ruler className="w-3.5 h-3.5 text-teal-600" />
                   <span>1. Fixture Dimensions & Bone Quality</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveSubTab('guided')}
-                  className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                     activeSubTab === 'guided'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 bg-white/70 hover:bg-white'
+                      ? 'bg-white text-teal-800 shadow-xs border border-slate-200/80 ring-1 ring-teal-500/20'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                   }`}
                 >
-                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
                   <span>2. Grafting, Sinus Lift & 3D Guide</span>
                 </button>
               </div>
@@ -648,7 +650,7 @@ export default function ImplantPlanningModal({
               {activeSubTab === 'guided' && (
                 <div className="space-y-3">
                   {/* Row 4: 4. Bone Quantity & Sinus Lift & Grafting */}
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
+              <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-3.5">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                   <div className="flex items-center gap-2">
                     <Activity className="w-4 h-4 text-teal-600" />
@@ -658,37 +660,43 @@ export default function ImplantPlanningModal({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5">
                   <div>
                     <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">
                       Bone Height (mm)
                     </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="35"
-                      value={formData.boneHeightAvailable ?? ''}
-                      onChange={(e) => setFormData({ ...formData, boneHeightAvailable: e.target.value })}
-                      className="w-full px-3 py-2 text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      placeholder="e.g. 12.5"
-                    />
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="35"
+                        value={formData.boneHeightAvailable ?? ''}
+                        onChange={(e) => setFormData({ ...formData, boneHeightAvailable: e.target.value })}
+                        className="w-full px-3 py-2 pr-9 text-xs font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                        placeholder="12.5"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-extrabold text-slate-400 pointer-events-none">mm</span>
+                    </div>
                   </div>
 
                   <div>
                     <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">
                       Bone Width (mm)
                     </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="25"
-                      value={formData.boneWidthAvailable ?? ''}
-                      onChange={(e) => setFormData({ ...formData, boneWidthAvailable: e.target.value })}
-                      className="w-full px-3 py-2 text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      placeholder="e.g. 7.0"
-                    />
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="25"
+                        value={formData.boneWidthAvailable ?? ''}
+                        onChange={(e) => setFormData({ ...formData, boneWidthAvailable: e.target.value })}
+                        className="w-full px-3 py-2 pr-9 text-xs font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                        placeholder="7.0"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-extrabold text-slate-400 pointer-events-none">mm</span>
+                    </div>
                   </div>
 
                   <div>
@@ -698,7 +706,7 @@ export default function ImplantPlanningModal({
                     <select
                       value={formData.sinusLiftStatus}
                       onChange={(e) => setFormData({ ...formData, sinusLiftStatus: e.target.value })}
-                      className="w-full px-2.5 py-2 text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      className="w-full px-2.5 py-2 text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
                     >
                       <option value="None">None Required</option>
                       <option value="Required">Sinus Lift Required</option>
@@ -708,49 +716,61 @@ export default function ImplantPlanningModal({
                     </select>
                   </div>
 
+                  {/* Doctor-Friendly Segmented Bone Grafting Selector (Image 1 Fix) */}
                   <div>
                     <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider mb-1">
-                      Bone Grafting Required?
+                      Bone Grafting?
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, graftingRequired: !formData.graftingRequired })}
-                      className={`w-full py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
-                        formData.graftingRequired
-                          ? 'bg-rose-500 text-white border-rose-600 shadow-xs'
-                          : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-                      }`}
-                    >
-                      {formData.graftingRequired ? (
-                        <>
-                          <Check className="w-4 h-4" /> Grafting Required (YES)
-                        </>
-                      ) : (
-                        'Grafting Not Required (NO)'
-                      )}
-                    </button>
+                    <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, graftingRequired: false })}
+                        className={`py-1.5 px-2 rounded-lg text-xs font-black transition-all cursor-pointer text-center ${
+                          !formData.graftingRequired 
+                            ? 'bg-white text-emerald-700 shadow-2xs border border-emerald-200' 
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        None (No)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, graftingRequired: true })}
+                        className={`py-1.5 px-2 rounded-lg text-xs font-black transition-all cursor-pointer text-center ${
+                          formData.graftingRequired 
+                            ? 'bg-amber-500 text-white shadow-2xs' 
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        Required
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Row 5: 5. 3D Planning (CBCT Link, Notes, Guided Surgery Flag) */}
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
+              <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-3.5">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                   <div className="flex items-center gap-2">
-                    <Compass className="w-4 h-4 text-purple-600" />
+                    <Compass className="w-4 h-4 text-teal-600" />
                     <h4 className="text-xs font-black text-[#10244B] uppercase tracking-wider">
                       4. 3D Planning & Guided Surgery
                     </h4>
                   </div>
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={formData.guidedSurgeryFlag}
                       onChange={(e) => setFormData({ ...formData, guidedSurgeryFlag: e.target.checked })}
-                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 cursor-pointer accent-teal-600"
                     />
-                    <span className="text-xs font-black text-purple-900 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
-                      Guided Surgery Flag (3D Printed Guide)
+                    <span className={`text-xs font-black px-2.5 py-0.5 rounded-full border transition-all ${
+                      formData.guidedSurgeryFlag 
+                        ? 'bg-teal-50 text-teal-800 border-teal-300' 
+                        : 'bg-slate-100 text-slate-500 border-slate-200'
+                    }`}>
+                      3D Printed Surgical Guide Planned
                     </span>
                   </label>
                 </div>
@@ -833,10 +853,12 @@ export default function ImplantPlanningModal({
                 {loading ? (
                   <p className="text-xs text-slate-500 font-semibold py-4 text-center">Loading plans...</p>
                 ) : plansList.length === 0 ? (
-                  <div className="text-center py-8 space-y-2">
-                    <span className="text-3xl">🦷</span>
-                    <p className="text-xs font-bold text-slate-600">No implant plans recorded yet.</p>
-                    <p className="text-[11px] text-slate-400">Fill in the clinical dimensions and click save.</p>
+                  <div className="text-center py-10 px-4 bg-slate-50/70 rounded-2xl border border-dashed border-slate-200 space-y-2">
+                    <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center mx-auto border border-teal-200/60 shadow-2xs">
+                      <Ruler className="w-5 h-5 text-teal-600" />
+                    </div>
+                    <p className="text-xs font-extrabold text-slate-700">No Implant Plans on File</p>
+                    <p className="text-[11px] text-slate-400">Configure dimensions, bone quality & 3D guide, then click Save to apply directly to the dental chart.</p>
                   </div>
                 ) : (
                   <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
@@ -931,7 +953,7 @@ export default function ImplantPlanningModal({
               type="submit"
               form="implantPlanForm"
               disabled={saving}
-              className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-xl text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+              className="px-6 py-2.5 bg-gradient-to-r from-teal-600 to-[#0F766E] hover:from-teal-700 hover:to-[#0d635c] text-white rounded-xl text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
             >
               <Check className="w-4 h-4" />
               {saving ? 'Saving Plan...' : formData.implantPlanId ? 'Update & Apply to Chart' : 'Save & Apply to Chart'}

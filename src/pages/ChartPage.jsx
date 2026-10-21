@@ -4280,6 +4280,28 @@ export default function ChartPage() {
 
   const handleSaveSingleToothObservation = async (toothNum, updatedStatus, updatedComment, updatedColor) => {
     setSavingToothData(true);
+
+    // 1. Immediate optimistic UI update so chart renders updated tooth observation with ZERO latency
+    setTeethState(prev => {
+      const tKeyStr = String(toothNum).toUpperCase();
+      const idx = prev.findIndex(x => String(x.toothNumber ?? x.ToothNumber).toUpperCase() === tKeyStr);
+      const newObj = {
+        toothNumber: toothNum,
+        status: updatedStatus,
+        conditionStatus: updatedStatus,
+        color: updatedColor || getHexColor(updatedStatus),
+        comments: updatedComment,
+        comment: updatedComment,
+        rotationDeg: idx >= 0 ? (prev[idx]?.rotationDeg || 0) : 0
+      };
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = { ...copy[idx], ...newObj };
+        return copy;
+      }
+      return [...prev, newObj];
+    });
+
     try {
       const pid = parseInt(patientId) || (patient?.patientID ? parseInt(patient.patientID) : 5);
       const isPed = dentitionMode === 'pediatric' || /^[A-T]$/i.test(String(toothNum));
@@ -4297,7 +4319,7 @@ export default function ChartPage() {
         comments: updatedComment
       }];
 
-      const res = await fetch('/api/patients/teeth/update-bulk', {
+      const res = await fetch(`${API_BASE_URL}/api/patients/teeth/update-bulk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -4306,41 +4328,21 @@ export default function ChartPage() {
         })
       });
 
-      if (res.ok) {
-        setTeethState(prev => {
-          const idx = prev.findIndex(x => String(x.toothNumber ?? x.ToothNumber).toUpperCase() === String(toothNum).toUpperCase());
-          const newObj = {
-            toothNumber: toothNum,
-            status: updatedStatus,
-            conditionStatus: updatedStatus,
-            color: updatedColor || getHexColor(updatedStatus),
-            comments: updatedComment,
-            comment: updatedComment,
-            rotationDeg: prev[idx]?.rotationDeg || 0
-          };
-          if (idx >= 0) {
-            const copy = [...prev];
-            copy[idx] = { ...copy[idx], ...newObj };
-            return copy;
-          }
-          return [...prev, newObj];
-        });
+      // Add doctor clinical log entry
+      const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
+      const docLogId = doctorData.doctorID || doctorData.DoctorID || 2;
+      await fetch(`${API_BASE_URL}/api/patients/${pid}/clinical-logs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          doctorID: docLogId,
+          action: `Updated observation for Tooth #${toothNum}: ${updatedStatus}`
+        })
+      }).catch(() => {});
 
-        // Add doctor clinical log entry
-        const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
-        const docId = doctorData.doctorID || doctorData.DoctorID || 2;
-        await fetch(`/api/patients/${pid}/clinical-logs`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            doctorID: docId,
-            action: `Updated observation for Tooth #${toothNum}: ${updatedStatus}`
-          })}).catch(() => {});
-
-        setEditingToothData(null);
-      }
+      setEditingToothData(null);
     } catch (err) {
-      console.error("Save single tooth observation failed:", err);
+      console.error("Save single tooth observation network warning:", err);
     } finally {
       setSavingToothData(false);
     }
@@ -9925,8 +9927,36 @@ export default function ChartPage() {
                     onPlanSaved={async (plan) => {
                       const tKey = plan?.toothKey || (plan?.toothNumber ? String(plan.toothNumber) : (detailedTooth ? String(detailedTooth) : '19'));
                       const implantDesc = `Implant Plan: ${plan?.implantBrand || 'Straumann'} ${plan?.implantLength || 10}mm x ${plan?.implantDiameter || 4.3}mm, Bone ${plan?.boneQuality || 'D2'}${plan?.guidedSurgeryFlag ? ', 3D Guided' : ''}`;
+                      
+                      // 1. Optimistic immediate tooth update in teethState so chart turns color instantly
+                      setTeethState(prev => {
+                        const tKeyStr = String(tKey).toUpperCase();
+                        const idx = prev.findIndex(x => String(x.toothNumber ?? x.ToothNumber).toUpperCase() === tKeyStr);
+                        const updatedTooth = {
+                          toothNumber: tKey,
+                          status: 'Dental Implant',
+                          conditionStatus: 'Dental Implant',
+                          color: '#0E8A80',
+                          comments: implantDesc,
+                          comment: implantDesc
+                        };
+                        if (idx >= 0) {
+                          const copy = [...prev];
+                          copy[idx] = { ...copy[idx], ...updatedTooth };
+                          return copy;
+                        }
+                        return [...prev, updatedTooth];
+                      });
+
+                      // 2. Persist to API
                       await handleSaveSingleToothObservation(tKey, 'Dental Implant', implantDesc, '#0E8A80');
+
+                      // 3. Trigger immediate refresh of specialties dossier & fetch fresh chart
                       setSpecialtyRefreshTrigger(prev => prev + 1);
+                      if (typeof fetchTeethChart === 'function') {
+                        fetchTeethChart();
+                      }
+                      window.dispatchEvent(new CustomEvent('dentia-specialty-updated', { detail: { type: 'implant', plan, patientId } }));
                       setToast({ visible: true, message: `Tooth #${tKey} updated on Dental Chart with Implant Plan.` });
                       setTimeout(() => setToast({ visible: false, message: '' }), 3500);
                     }}
@@ -9943,6 +9973,24 @@ export default function ChartPage() {
                       const tKey = biopsy?.toothKey || (biopsy?.toothNumber ? String(biopsy.toothNumber) : (detailedTooth ? String(detailedTooth) : null));
                       const biopsyDesc = `Biopsy Requisition: ${biopsy?.biopsyType || 'Incisional'} - ${biopsy?.siteOfBiopsy || 'Specimen'} (${biopsy?.clinicalImpression || 'Oral Pathology'})`;
                       if (tKey) {
+                        setTeethState(prev => {
+                          const tKeyStr = String(tKey).toUpperCase();
+                          const idx = prev.findIndex(x => String(x.toothNumber ?? x.ToothNumber).toUpperCase() === tKeyStr);
+                          const updatedTooth = {
+                            toothNumber: tKey,
+                            status: 'Biopsy / Oral Pathology',
+                            conditionStatus: 'Biopsy / Oral Pathology',
+                            color: '#8B5CF6',
+                            comments: biopsyDesc,
+                            comment: biopsyDesc
+                          };
+                          if (idx >= 0) {
+                            const copy = [...prev];
+                            copy[idx] = { ...copy[idx], ...updatedTooth };
+                            return copy;
+                          }
+                          return [...prev, updatedTooth];
+                        });
                         await handleSaveSingleToothObservation(tKey, 'Biopsy / Oral Pathology', biopsyDesc, '#8B5CF6');
                         setToast({ visible: true, message: `Tooth #${tKey} marked on Chart with Biopsy Requisition.` });
                       } else {
@@ -9959,6 +10007,10 @@ export default function ChartPage() {
                         setToast({ visible: true, message: `Biopsy Requisition saved: ${biopsy?.biopsyType} (${biopsy?.siteOfBiopsy || 'Soft tissue'})` });
                       }
                       setSpecialtyRefreshTrigger(prev => prev + 1);
+                      if (typeof fetchTeethChart === 'function') {
+                        fetchTeethChart();
+                      }
+                      window.dispatchEvent(new CustomEvent('dentia-specialty-updated', { detail: { type: 'biopsy', biopsy, patientId } }));
                       setTimeout(() => setToast({ visible: false, message: '' }), 3500);
                     }}
                   />
@@ -9986,6 +10038,10 @@ export default function ChartPage() {
                         }));
                       } catch (e) {}
                       setSpecialtyRefreshTrigger(prev => prev + 1);
+                      if (typeof fetchTeethChart === 'function') {
+                        fetchTeethChart();
+                      }
+                      window.dispatchEvent(new CustomEvent('dentia-specialty-updated', { detail: { type: 'aligner', plan, patientId } }));
                       setToast({ visible: true, message: `Clear Aligner treatment applied: ${plan?.alignerBrand || 'Active'}` });
                       setTimeout(() => setToast({ visible: false, message: '' }), 3500);
                     }}
