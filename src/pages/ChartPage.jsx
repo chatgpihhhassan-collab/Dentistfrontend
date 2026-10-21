@@ -7775,7 +7775,7 @@ export default function ChartPage() {
                       </span>
                     ) : (
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-slate-100 text-slate-500">
-                        USB
+                        Standby
                       </span>
                     )}
                   </button>
@@ -7805,7 +7805,7 @@ export default function ChartPage() {
                       </span>
                     ) : (
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-slate-100 text-slate-500">
-                        LAN
+                        Standby
                       </span>
                     )}
                   </button>

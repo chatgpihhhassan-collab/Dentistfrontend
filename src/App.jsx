@@ -6,6 +6,7 @@ import PatientDirectory from './pages/PatientDirectory';
 import ErrorBoundary from './components/ErrorBoundary';
 import IdleSessionManager from './components/IdleSessionManager';
 import GlobalNanoPixHardwareSyncManager from './components/GlobalNanoPixHardwareSyncManager';
+import { ShieldAlert } from 'lucide-react';
 
 // 🌟 Route-level Lazy Loading: Isolates heavy 3D, PDF, and clinical modules
 const Doctor3DAssistantWidget = lazy(() => import('./components/aiDoctor/Doctor3DAssistantWidget'));
@@ -90,14 +91,51 @@ const BlockSuperAdmin = ({ children }) => {
     return children;
 };
 
+const AdminAccessDenied = () => (
+    <div className="min-h-screen bg-[#F4F6FA] flex flex-col items-center justify-center p-6 text-center font-sans">
+        <div className="w-full max-w-md bg-white rounded-3xl p-8 border border-rose-200 shadow-xl space-y-4">
+            <div className="w-16 h-16 bg-rose-50 text-rose-600 border border-rose-200 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+                <ShieldAlert className="w-8 h-8" />
+            </div>
+            <span className="inline-block px-3 py-1 rounded-full text-xs font-black bg-rose-100 text-rose-800 uppercase tracking-wider">
+                403 Access Denied
+            </span>
+            <h2 className="text-xl font-serif font-extrabold text-slate-900">
+                SuperAdmin Privileges Required
+            </h2>
+            <p className="text-xs text-slate-600 leading-relaxed">
+                This administrative section is restricted strictly to Dentia SuperAdmin accounts. Your clinician credentials do not have permission to modify hospital organizations or doctor records.
+            </p>
+            <div className="pt-2 flex flex-col sm:flex-row gap-2 justify-center">
+                <a
+                    href="/directory"
+                    className="px-5 py-2.5 bg-[#0E6F84] hover:bg-[#0A5768] text-white rounded-xl text-xs font-bold transition shadow-sm"
+                >
+                    Return to Directory
+                </a>
+                <a
+                    href="/dashboard"
+                    className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
+                >
+                    Clinic Home
+                </a>
+            </div>
+        </div>
+    </div>
+);
+
 const AdminRoute = ({ children }) => {
     const doctor = JSON.parse(localStorage.getItem('doctor') || '{}');
     
-    // Regular doctor does NOT have access to SuperAdmin pages:
-    // "when doctor login dont load superadmin pages"
-    if (!doctor || !doctor.token || !doctor.isSuperAdmin) {
-        return <Navigate to="/dashboard" replace />;
+    // Regular doctor does NOT have access to SuperAdmin pages (NAV-008: Explicit 403 message instead of silent redirect)
+    if (!doctor || !doctor.token) {
+        return <Navigate to="/login?required=true" replace />;
     }
+
+    if (!doctor.isSuperAdmin) {
+        return <AdminAccessDenied />;
+    }
+
     return children;
 };
 

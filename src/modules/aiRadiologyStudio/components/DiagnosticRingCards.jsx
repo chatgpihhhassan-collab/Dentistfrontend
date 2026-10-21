@@ -71,14 +71,14 @@ export default function DiagnosticRingCards({ findings = [], activeTooth, onSele
       }))
     : [
         {
-          id: 'healthy-all',
-          toothNo: 'All',
-          position: 'Full Arch',
-          pct: 100,
-          ringColor: '#10B981',
-          headline: 'Full Dentition Survey Completed',
-          actionHighlight: 'All Sound',
-          badgeColor: 'text-emerald-600'
+          id: 'awaiting-scan',
+          toothNo: '—',
+          position: 'Arch Survey',
+          pct: 0,
+          ringColor: '#94A3B8',
+          headline: 'No Active Pathologies Charted',
+          actionHighlight: 'Awaiting Diagnostic Scan',
+          badgeColor: 'text-slate-500'
         }
       ];
 

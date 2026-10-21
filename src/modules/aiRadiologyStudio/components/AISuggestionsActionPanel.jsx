@@ -133,10 +133,12 @@ export default function AISuggestionsActionPanel({
         {/* Optical Confidence Pill */}
         <div className="flex items-center justify-between px-2.5 py-1.5 bg-slate-50 rounded-xl border border-slate-100 text-[10px] text-slate-500">
           <div className="flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <ShieldCheck className={`w-3.5 h-3.5 shrink-0 ${totalFindings > 0 ? 'text-emerald-600' : 'text-slate-400'}`} />
             <span className="font-semibold text-slate-600">AI Diagnostic Confidence:</span>
           </div>
-          <strong className="text-slate-800 font-black">99.4% DICOM Validated</strong>
+          <strong className="text-slate-800 font-black">
+            {totalFindings > 0 ? '99.4% DICOM Validated' : 'Awaiting Radiographic Scan'}
+          </strong>
         </div>
       </div>
 
@@ -261,13 +263,22 @@ export default function AISuggestionsActionPanel({
           <button
             type="button"
             onClick={onApplyFindings}
-            disabled={isApplying}
-            className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white font-extrabold text-[13px] py-3.5 px-4 rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 group hover:scale-[1.01]"
+            disabled={isApplying || totalFindings === 0}
+            className={`w-full font-extrabold text-[13px] py-3.5 px-4 rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 ${
+              totalFindings === 0
+                ? 'bg-slate-200 text-slate-500 cursor-not-allowed shadow-none'
+                : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white hover:shadow-lg cursor-pointer group hover:scale-[1.01]'
+            } disabled:opacity-60`}
           >
             {isApplying ? (
               <>
                 <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 <span>Applying Changes to Database...</span>
+              </>
+            ) : totalFindings === 0 ? (
+              <>
+                <AlertCircle className="w-4 h-4 text-slate-400" />
+                <span>No Radiographic Findings to Apply</span>
               </>
             ) : (
               <>

@@ -1562,6 +1562,10 @@ export default function PatientDirectory() {
                                                 </div>
 
                                                 {/* Interactive Treatment Modality Buttons */}
+                                                <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-2 mb-1 px-0.5">
+                                                    <span>Treatment Plan Presets:</span>
+                                                    <span className="text-[9px] font-medium lowercase text-slate-400">(click to assign)</span>
+                                                </div>
                                              <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-black text-muted-text py-1">
                                                  <button
                                                      type="button"

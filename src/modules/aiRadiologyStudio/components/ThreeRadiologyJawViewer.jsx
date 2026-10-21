@@ -488,11 +488,15 @@ export default function ThreeRadiologyJawViewer({
                 <div className="grid grid-cols-2 gap-2 mt-0.5 pt-1.5 border-t border-slate-200/50 text-[9.5px]">
                   <div>
                     <span className="text-slate-400 block font-semibold">Probing Depth:</span>
-                    <strong className="text-slate-700 font-bold">3.2 mm (Normal)</strong>
+                    <strong className="text-slate-700 font-bold">
+                      {activeFinding.probingDepth || (findings.length > 0 ? 'Within Normal Limits' : 'Not Recorded')}
+                    </strong>
                   </div>
                   <div>
                     <span className="text-slate-400 block font-semibold">Mobility Score:</span>
-                    <strong className="text-slate-700 font-bold">Class 0 (Firm)</strong>
+                    <strong className="text-slate-700 font-bold">
+                      {activeFinding.mobilityScore || (findings.length > 0 ? 'Physiologic' : 'Not Recorded')}
+                    </strong>
                   </div>
                 </div>
 

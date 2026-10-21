@@ -171,8 +171,9 @@ export default function PatientPortalLayout() {
                         <ShieldCheck className="w-4 h-4" />
                     </div>
                     <div className="overflow-hidden">
-                        <p className="text-[10px] uppercase font-bold text-muted-text tracking-wider">Patient Ref #</p>
-                        <p className="text-xs font-extrabold text-primary-hover font-mono truncate">{patient.referenceNumber || 'DEN-2026-00001'}</p>
+                        <p className="text-xs font-extrabold text-primary-hover font-mono truncate">
+                            {patient.referenceNumber || (patient.patientID ? `DEN-2026-${String(patient.patientID).padStart(5, '0')}` : 'Unregistered')}
+                        </p>
                     </div>
                 </div>
             </aside>
@@ -282,7 +283,9 @@ export default function PatientPortalLayout() {
                                                 <Clock className="w-4 h-4 text-primary-teal shrink-0 mt-0.5" />
                                                 <div>
                                                     <p className="text-xs font-bold text-dark-slate">Patient Portal Active</p>
-                                                    <p className="text-[11px] text-muted-text mt-0.5">Ref #{patient.referenceNumber || 'DEN-2026-00001'} verified with clinic database.</p>
+                                                    <p className="text-[11px] text-muted-text mt-0.5">
+                                                        Ref #{patient.referenceNumber || (patient.patientID ? `DEN-2026-${String(patient.patientID).padStart(5, '0')}` : 'Unregistered')} verified with clinic database.
+                                                    </p>
                                                 </div>
                                             </div>
                                         </div>

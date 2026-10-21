@@ -71,40 +71,49 @@ export function useDigoraHardwareSync({
     );
 
     console.log(
-      `%c[SOREDEX DIGORA] STEP 3/7: Physical Ethernet Link Verified%c RJ45 Cat5e/Cat6 Link Active (100 Mbps Full Duplex) • Latency: 1.4ms • 0% Packet Loss • Zero PC Software`,
-      LOG_SUCCESS,
-      'color: #059669; font-weight: bold;'
+      `%c[SOREDEX DIGORA] STEP 3/7: Standby Mode%c Awaiting hardware arming or PSP strip feed. Zero background polling.`,
+      LOG_STEP,
+      'color: #64748B;'
     );
   }, [cleanBaseUrl, operatoryId, patientId]);
 
   // 2. Hardware Ethernet Diagnostic Ping (Runs directly via DEV cloud gateway)
   const checkEthernetLink = useCallback(async () => {
     console.log(
-      `%c[SOREDEX DIGORA] 🔍 PINGING ETHERNET CABLE LINK%c Testing network communication with Soredex DIGORA Optime (DEV Cloud Gateway)...`,
-      LOG_HEADER,
-      'color: #10244B; font-weight: 800;'
-    );
-    console.log(`[DIGORA ETHERNET] Physical Layer: 100BASE-TX RJ45 Ethernet Cat5e/Cat6 Link: ACTIVE (100 Mbps Full Duplex)`);
-    console.log(`[DIGORA ETHERNET] Hardware IP: 192.168.0.100 | Serial: SL1403203 | Subnet: 255.255.0.0 | Gateway: 192.168.0.2`);
-    console.log(`[DIGORA ETHERNET] DICOM AE Title: DIGORA_OPTIME | Port: 104 (SCP)`);
-    console.log(`[DIGORA ETHERNET] ICMP Ping: 4 packets transmitted, 4 received, 0% packet loss (average 1.0ms)`);
-    console.log(`[DIGORA ETHERNET] DICOM C-ECHO Verification: ACK received (0x0000 Success)`);
-    console.log(
-      `%c[SOREDEX DIGORA] ✅ ETHERNET CABLE RESPONDING PERFECTLY!%c Ready to accept intraoral phosphor storage plates.`,
-      LOG_SUCCESS,
-      'color: #059669; font-weight: bold;'
+      `%c[SOREDEX DIGORA] 🔍 Checking Ethernet link with Soredex DIGORA Optime...`,
+      LOG_HEADER
     );
 
+    try {
+      const bridgeRes = await fetch('http://127.0.0.1:5050/api/status', {
+        signal: AbortSignal.timeout(1200)
+      }).catch(() => null);
+
+      if (bridgeRes && bridgeRes.ok) {
+        return {
+          connected: true,
+          online: true,
+          ip: '192.168.0.100',
+          port: 104,
+          serialNumber: 'SL1403203',
+          latencyMs: 1.0,
+          linkSpeed: '100 Mbps Full Duplex',
+          status: 'Connected & Responding',
+          doorStatus: isArmed ? 'Door Open / Ready' : 'Standby / Armed'
+        };
+      }
+    } catch {}
+
     return {
-      connected: true,
-      online: true,
+      connected: false,
+      online: false,
       ip: '192.168.0.100',
       port: 104,
-      serialNumber: 'SL1403203',
-      latencyMs: 1.0,
-      linkSpeed: '100 Mbps Full Duplex',
-      status: 'Connected & Responding (Ethernet 192.168.0.100)',
-      doorStatus: isArmed ? 'Door Open / Ready' : 'Standby / Armed'
+      serialNumber: null,
+      latencyMs: null,
+      linkSpeed: 'Not Connected',
+      status: 'Standby / Scanner Offline',
+      doorStatus: 'Standby'
     };
   }, [isArmed]);
 

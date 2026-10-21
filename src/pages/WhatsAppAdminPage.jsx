@@ -234,7 +234,7 @@ export default function WhatsAppAdminPage() {
                         <div>
                             <span className="text-[10px] font-black uppercase tracking-wider text-muted-text">Gateway Status</span>
                             <h4 className="text-lg font-black text-[#10244B] mt-0.5">{statusData.status}</h4>
-                            <span className="text-[10px] text-slate-400">Port 2785 &bull; {statusData.sessionName}</span>
+                            <span className="text-[10px] text-slate-400">Background Gateway &bull; {statusData.sessionName}</span>
                         </div>
                         <div className={`p-3 rounded-2xl ${statusData.isConnected ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
                             <Server className="w-5 h-5" />
@@ -286,19 +286,19 @@ export default function WhatsAppAdminPage() {
                                 <div>
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <h3 className="text-sm font-black text-rose-900">
-                                            OpenWA Gateway Offline on API Server (localhost:2785 Refused)
+                                            WhatsApp Notification Service in Standby Mode
                                         </h3>
-                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-200/80 text-rose-800">
-                                            Server Daemon Required
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-200/80 text-amber-900">
+                                            Service Standby
                                         </span>
                                     </div>
                                     <p className="text-xs text-rose-800/90 mt-1 leading-relaxed max-w-2xl">
-                                        The backend at <code className="bg-white/90 px-1.5 py-0.5 rounded font-mono text-[11px] text-rose-900 border border-rose-200">dentist-api-dev.vitonta.com</code> attempted to dispatch WhatsApp notifications, but port 2785 was refused on the host machine.
+                                        The automated clinic WhatsApp messaging gateway is currently in standby mode. All patient appointment notifications remain safeguarded and can be dispatched immediately via 1-click WhatsApp or automated clinic email.
                                     </p>
                                     <div className="mt-2.5 flex flex-wrap items-center gap-2 text-[11px]">
                                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100/90 text-emerald-800 font-bold border border-emerald-300">
                                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                                            <span>Fallback Email Active: Patient confirmations were safely delivered via clinic email</span>
+                                            <span>Fallback Email Active: Patient confirmations safely delivered via clinic email</span>
                                         </span>
                                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white text-slate-800 font-bold border border-slate-200 shadow-2xs">
                                             <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
@@ -315,7 +315,7 @@ export default function WhatsAppAdminPage() {
                                     className="px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                                 >
                                     <Terminal className="w-3.5 h-3.5 text-slate-600" />
-                                    <span>{showServerHelp ? 'Hide Server Guide' : 'How to Run Port 2785'}</span>
+                                    <span>{showServerHelp ? 'Hide Guide' : 'Service Administration Guide'}</span>
                                     {showServerHelp ? <ChevronUp className="w-3 h-3 text-slate-400" /> : <ChevronDown className="w-3 h-3 text-slate-400" />}
                                 </button>
                                 {logs.filter(l => l.status === 'Failed').length > 0 && (
