@@ -36,7 +36,8 @@ export default function PatientDirectory() {
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
-    const patientsPerPage = 6;
+    const [pageSize, setPageSize] = useState(6);
+    const [sortBy, setSortBy] = useState('NEWEST');
 
     const [upcomingPage, setUpcomingPage] = useState(1);
     const upcomingPerPage = 6;
@@ -182,6 +183,19 @@ export default function PatientDirectory() {
     const handleSavePatientEdit = async (e) => {
         e.preventDefault();
         if (!editPatientModal.patient) return;
+
+        // Prevent future DOB submission
+        if (editForm.dob) {
+            const birthDate = new Date(editForm.dob);
+            if (birthDate > new Date()) {
+                showToast("Date of Birth cannot be in the future.", "error");
+                return;
+            }
+        }
+
+        const sanitizedFirstName = (editForm.firstName || '').slice(0, 50).trim();
+        const sanitizedLastName = (editForm.lastName || '').slice(0, 50).trim();
+
         setSavingEdit(true);
         console.log('[PatientDirectory] Saving edited patient:', editPatientModal.patient.patientID, editForm);
         try {
@@ -191,6 +205,8 @@ export default function PatientDirectory() {
                 body: JSON.stringify({
                     ...editPatientModal.patient,
                     ...editForm,
+                    firstName: sanitizedFirstName,
+                    lastName: sanitizedLastName,
                     whatsAppOptIn: editForm.whatsAppOptIn,
                     dob: editForm.dob ? new Date(editForm.dob).toISOString() : null
                 })
@@ -199,6 +215,8 @@ export default function PatientDirectory() {
                 const updated = {
                     ...editPatientModal.patient,
                     ...editForm,
+                    firstName: sanitizedFirstName,
+                    lastName: sanitizedLastName,
                     whatsAppOptIn: editForm.whatsAppOptIn,
                     dob: editForm.dob ? new Date(editForm.dob).toISOString() : null
                 };
@@ -229,7 +247,8 @@ export default function PatientDirectory() {
                 setEditPatientModal({ visible: false, patient: null });
                 showToast('Patient information updated successfully!');
             } else {
-                const errMsg = await res.text().catch(() => "");
+                const errData = await res.json().catch(() => null);
+                const errMsg = errData?.message || await res.text().catch(() => "");
                 showToast(errMsg || 'Failed to update patient info', 'error');
             }
         } catch (err) {
@@ -690,7 +709,7 @@ export default function PatientDirectory() {
                 setIsSlowConnection(true);
                 setIsPageLoading(false);
             }
-        }, 3500);
+        }, 2000);
 
         const fetchPatients = apiFetch(`/api/patients/doctor/${docInfo.doctorID}`)
             .then(res => res.ok ? res.json() : [])
@@ -777,14 +796,32 @@ export default function PatientDirectory() {
         return 'Good Evening';
     };
 
-    // Calculate age from date of birth
+    // Format patient name to Title Case & clean symbols (PAT-001)
+    const formatPatientName = (firstName, lastName) => {
+        const full = `${firstName || ''} ${lastName || ''}`.trim();
+        if (!full) return 'Unnamed Patient';
+        const cleaned = full.replace(/[^a-zA-Z\s.'-]/g, '').replace(/\s+/g, ' ').trim();
+        return cleaned
+            .split(' ')
+            .map(w => w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : '')
+            .join(' ');
+    };
+
+    // Calculate age from date of birth (PAT-003)
     const getAge = (dobString) => {
         if (!dobString) return null;
         const birthDate = new Date(dobString);
         if (isNaN(birthDate.getTime())) return null;
-        const difference = Date.now() - birthDate.getTime();
-        const ageDate = new Date(difference); 
-        return Math.abs(ageDate.getUTCFullYear() - 1970);
+        const year = birthDate.getFullYear();
+        if (year <= 1900 || year > new Date().getFullYear()) return null;
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+        return age >= 0 && age <= 130 ? age : null;
+        // clean
+        // clean2 
+        // clean3
     };
 
     // Helper to check if a date string matches today in local date
@@ -934,12 +971,32 @@ export default function PatientDirectory() {
     }, [cleanSearch]);
 
     // Pagination Logic
-    const indexOfLastPatient = currentPage * patientsPerPage;
-    const indexOfFirstPatient = indexOfLastPatient - patientsPerPage;
+    // Sorting & Pagination Logic (PAT-002)
+    const sortedFilteredPatients = useMemo(() => {
+        const list = [...filteredPatients];
+        switch (sortBy) {
+            case 'NAME_ASC':
+                return list.sort((a, b) => `${a.firstName || ''} ${a.lastName || ''}`.localeCompare(`${b.firstName || ''} ${b.lastName || ''}`));
+            case 'NAME_DESC':
+                return list.sort((a, b) => `${b.firstName || ''} ${b.lastName || ''}`.localeCompare(`${a.firstName || ''} ${a.lastName || ''}`));
+            case 'AGE_ASC':
+                return list.sort((a, b) => (getAge(a.dob) ?? 999) - (getAge(b.dob) ?? 999));
+            case 'AGE_DESC':
+                return list.sort((a, b) => (getAge(b.dob) ?? -1) - (getAge(a.dob) ?? -1));
+            case 'OLDEST':
+                return list.sort((a, b) => (a.patientID || 0) - (b.patientID || 0));
+            case 'NEWEST':
+            default:
+                return list.sort((a, b) => (b.patientID || 0) - (a.patientID || 0));
+        }
+    }, [filteredPatients, sortBy]);
+
+    const indexOfLastPatient = currentPage * pageSize;
+    const indexOfFirstPatient = indexOfLastPatient - pageSize;
     const currentPatients = useMemo(() => {
-        return filteredPatients.slice(indexOfFirstPatient, indexOfLastPatient);
-    }, [filteredPatients, indexOfFirstPatient, indexOfLastPatient]);
-    const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
+        return sortedFilteredPatients.slice(indexOfFirstPatient, indexOfLastPatient);
+    }, [sortedFilteredPatients, indexOfFirstPatient, indexOfLastPatient]);
+    const totalPages = Math.ceil(sortedFilteredPatients.length / pageSize);
 
     // Helper: Search match across appointment properties
     const matchesSearchAppt = useCallback((app) => {
@@ -1184,6 +1241,45 @@ export default function PatientDirectory() {
                                     </button>
                                 ))}
                             </div>
+
+                            {/* Sort & Page Size Controls (PAT-002) */}
+                            <div className="flex items-center justify-between gap-2 pt-1 text-[10px] text-slate-500 font-bold border-t border-slate-100 mt-1">
+                                <div className="flex items-center gap-1">
+                                    <span>Sort:</span>
+                                    <select
+                                        aria-label="Sort patients"
+                                        value={sortBy}
+                                        onChange={(e) => {
+                                            setSortBy(e.target.value);
+                                            setCurrentPage(1);
+                                        }}
+                                        className="bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#4A7CD2]"
+                                    >
+                                        <option value="NEWEST">Newest First</option>
+                                        <option value="OLDEST">Oldest First</option>
+                                        <option value="NAME_ASC">Name (A-Z)</option>
+                                        <option value="NAME_DESC">Name (Z-A)</option>
+                                        <option value="AGE_ASC">Age (Youngest)</option>
+                                        <option value="AGE_DESC">Age (Oldest)</option>
+                                    </select>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <span>Per Page:</span>
+                                    <select
+                                        aria-label="Patients per page"
+                                        value={pageSize}
+                                        onChange={(e) => {
+                                            setPageSize(Number(e.target.value));
+                                            setCurrentPage(1);
+                                        }}
+                                        className="bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#4A7CD2]"
+                                    >
+                                        <option value={6}>6</option>
+                                        <option value={12}>12</option>
+                                        <option value={24}>24</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Scrollable Patient List Container */}
@@ -1238,7 +1334,7 @@ export default function PatientDirectory() {
                                                             </div>
                                                             <div>
                                                                 <h5 className="text-sm font-extrabold text-[#10244B] flex items-center gap-1.5 flex-wrap">
-                                                                    <span>{p.firstName} {p.lastName}</span>
+                                                                    <span>{formatPatientName(p.firstName, p.lastName)}</span>
                                                                     {isPed ? (
                                                                         <span className="text-[8.5px] font-black text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
                                                                             👶 Pediatric {pAge !== null ? `(${pAge}y)` : ''}
@@ -1247,11 +1343,11 @@ export default function PatientDirectory() {
                                                                         <span className="text-[8.5px] font-black text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
                                                                             🔀 Mixed {pAge !== null ? `(${pAge}y)` : ''}
                                                                         </span>
-                                                                    ) : pAge !== null ? (
+                                                                    ) : (
                                                                         <span className="text-[8.5px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                                                                            Age: {pAge}
+                                                                            {pAge !== null ? `Age: ${pAge} Yrs` : 'DOB not set'}
                                                                         </span>
-                                                                    ) : null}
+                                                                    )}
                                                                     {/* WhatsApp Active / Inactive Badge Pill */}
                                                                     {Boolean(p.whatsAppOptIn) ? (
                                                                         p.phone ? (
@@ -1445,14 +1541,14 @@ export default function PatientDirectory() {
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                             <h4 className="text-base font-extrabold text-[#10244B] tracking-tight">
-                                                                {selectedPatient.firstName} {selectedPatient.lastName}
+                                                                {formatPatientName(selectedPatient.firstName, selectedPatient.lastName)}
                                                             </h4>
                                                             <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-[#EAF0FC] text-[#4A7CD2] border border-[#BFDBFE]">
                                                                 ID #{selectedPatient.patientID}
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center gap-2 text-xs text-slate-500 font-medium mt-1 flex-wrap">
-                                                            <span className="font-bold text-slate-700">Age: {getAge(selectedPatient.dob)}</span>
+                                                            <span className="font-bold text-slate-700">{getAge(selectedPatient.dob) !== null ? `Age: ${getAge(selectedPatient.dob)} Yrs` : "DOB not set"}</span>
                                                             <span className="text-slate-300">•</span>
                                                             <span className="capitalize">{selectedPatient.gender || 'Male'}</span>
                                                             {selectedPatient.phone ? (
@@ -1921,6 +2017,16 @@ export default function PatientDirectory() {
                                              {/* Percentage Detail (Infographic 2-Column Grid for Ultra-Compact Heights) */}
                                                 <div className="pt-2 border-t border-[#EAF0FC] space-y-1.5">
                                                     <span className="text-[9.5px] font-black text-muted-text uppercase tracking-widest block">Health Overview</span>
+                                                    {teethList.length === 0 ? (
+                                                        <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl text-center space-y-1">
+                                                            <span className="text-xs font-bold text-amber-800 flex items-center justify-center gap-1.5">
+                                                                <Clock className="w-3.5 h-3.5 text-amber-600" /> Pending Initial Clinical Exam
+                                                            </span>
+                                                            <p className="text-[10px] text-amber-700/80 font-medium">
+                                                                No tooth findings or diagnostic records have been logged yet for this patient.
+                                                            </p>
+                                                        </div>
+                                                    ) : (
                                                     <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
                                                         {/* 1. Health */}
                                                         <div className="space-y-0.5">
@@ -1983,6 +2089,7 @@ export default function PatientDirectory() {
                                                             </div>
                                                         </div>
                                                     </div>
+                                                    )}
                                                 </div>
 
                                                 {/* Diagnostic Details list */}
@@ -2474,6 +2581,7 @@ export default function PatientDirectory() {
                                     <input
                                         type="text"
                                         required
+                                        maxLength={50}
                                         value={editForm.firstName}
                                         onChange={(e) => setEditForm(prev => ({ ...prev, firstName: e.target.value }))}
                                         className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/20"
@@ -2484,6 +2592,7 @@ export default function PatientDirectory() {
                                     <input
                                         type="text"
                                         required
+                                        maxLength={50}
                                         value={editForm.lastName}
                                         onChange={(e) => setEditForm(prev => ({ ...prev, lastName: e.target.value }))}
                                         className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/20"
@@ -2496,6 +2605,7 @@ export default function PatientDirectory() {
                                     <label className="block text-xs font-bold text-slate-600 mb-1">Date of Birth</label>
                                     <input
                                         type="date"
+                                        max={new Date().toISOString().split('T')[0]}
                                         value={editForm.dob}
                                         onChange={(e) => setEditForm(prev => ({ ...prev, dob: e.target.value }))}
                                         className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none"

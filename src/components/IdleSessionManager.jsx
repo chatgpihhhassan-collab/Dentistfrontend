@@ -71,19 +71,23 @@ export default function IdleSessionManager() {
                 } else if (data.type === 'SESSION_EXPIRED') {
                     setShowWarning(false);
                     const reason = data.reason || 'inactivity_timeout';
-                    const queryParam = reason === 'session_closed' ? 'session_closed=true' : 'expired=true';
-                    navigate(`/login?${queryParam}`, { replace: true, state: { sessionExpired: true } });
+                    if (reason === 'manual_logout' || reason === 'logout') {
+                        navigate('/login', { replace: true });
+                    } else {
+                        const queryParam = reason === 'session_closed' ? 'session_closed=true' : 'expired=true';
+                        navigate(`/login?${queryParam}`, { replace: true, state: { sessionExpired: true } });
+                    }
                 }
             };
         }
 
-        // Multi-tab storage sync
+        // Multi-tab storage sync (NAV-006: Clean logout redirect)
         const handleStorageChange = (e) => {
             if (e.key === STORAGE_LAST_ACTIVE_KEY && e.newValue) {
                 setShowWarning(false);
             } else if (e.key === 'doctor' && !e.newValue) {
-                // Doctor logged out in another tab
-                navigate('/login?expired=true', { replace: true, state: { sessionExpired: true } });
+                // Doctor logged out in another tab - redirect cleanly without false expired alert
+                navigate('/login', { replace: true });
             }
         };
         window.addEventListener('storage', handleStorageChange);

@@ -171,6 +171,37 @@ export default function LandingDashboard() {
   const [config, setConfig] = useState(() => landingCmsService.getConfig());
   const [toastMessage, setToastMessage] = useState(location.state?.message || '');
   const [openFaq, setOpenFaq] = useState(null);
+  const [clinicDoctors, setClinicDoctors] = useState([]);
+
+  // WEB-001: Dynamic Loading of Real Clinic Doctors from /api/auth/doctors
+  useEffect(() => {
+    let isMounted = true;
+    const fetchDoctors = async () => {
+      try {
+        const res = await fetch('/api/auth/doctors');
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && Array.isArray(data) && data.length > 0) {
+            const activeDocs = data
+              .filter(d => !d.isSuperAdmin && (d.firstName || d.lastName))
+              .map((d, i) => ({
+                img: d.avatarUrl || `/images/team/${(i % 4) + 1}.webp`,
+                name: `Dr. ${(d.firstName || '') + ' ' + (d.lastName || '')}`.trim() || d.username,
+                role: d.specialization || 'Clinical Dental Specialist',
+                creds: d.qualifications || 'BDS, RDS • Experienced Clinician'
+              }));
+            if (activeDocs.length > 0) {
+              setClinicDoctors(activeDocs);
+            }
+          }
+        }
+      } catch (err) {
+        // Fallback gracefully
+      }
+    };
+    fetchDoctors();
+    return () => { isMounted = false; };
+  }, []);
 
   // Subscribe to live doctor configuration updates from Studio
   useEffect(() => {
@@ -506,12 +537,12 @@ export default function LandingDashboard() {
               </ScrollReveal>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                {[
+                {(clinicDoctors.length > 0 ? clinicDoctors : [
                   { img: "/images/team/1.webp", name: "Dr. Sarah Bennett", role: "Lead Dental Surgeon", creds: "DDS, FACP • 14+ Yrs Exp" },
                   { img: "/images/team/2.webp", name: "Dr. Maya Lin", role: "Cosmetic Specialist", creds: "DMD, AACD • 10+ Yrs Exp" },
                   { img: "/images/team/3.webp", name: "Dr. Michael Reyes", role: "Pediatric Dentist", creds: "DDS, Board Cert. • 12+ Yrs Exp" },
                   { img: "/images/team/4.webp", name: "Dr. James Carter", role: "Oral Health & Hygiene", creds: "BDS, RDH • 8+ Yrs Exp" }
-                ].map((member, i) => (
+                ]).map((member, i) => (
                   <ScrollReveal key={i} delay={i * 60} transform="translateY(15px)">
                     <div className="group rounded-3xl overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 bg-white border border-slate-200/80 relative h-full flex flex-col justify-between">
                       <div className="h-68 overflow-hidden relative bg-slate-100">

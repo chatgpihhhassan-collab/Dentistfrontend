@@ -54,15 +54,15 @@ export default function Footer() {
                     <div className="flex items-center gap-2 text-xs font-semibold text-primary-teal bg-white/5 py-2 px-3.5 rounded-xl border border-white/10 w-fit">
                         <ShieldCheck className="w-4 h-4 text-primary-teal" /> ADA &amp; OSHA Accredited Clinic
                     </div>
-                    {/* Social Media Channels */}
+                    {/* Social Media Channels (NAV-004) */}
                     <div className="pt-2 flex items-center space-x-3 text-slate-400">
-                        <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 hover:bg-primary-teal hover:text-white flex items-center justify-center transition-all" aria-label="Instagram">
+                        <a href={config.socialLinks?.instagram || "https://instagram.com/dentiaclinic"} target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 hover:bg-primary-teal hover:text-white flex items-center justify-center transition-all" aria-label="Instagram">
                             <InstagramIcon className="w-4 h-4" />
                         </a>
-                        <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 hover:bg-primary-teal hover:text-white flex items-center justify-center transition-all" aria-label="Facebook">
+                        <a href={config.socialLinks?.facebook || "https://facebook.com/dentiaclinic"} target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 hover:bg-primary-teal hover:text-white flex items-center justify-center transition-all" aria-label="Facebook">
                             <FacebookIcon className="w-4 h-4" />
                         </a>
-                        <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 hover:bg-primary-teal hover:text-white flex items-center justify-center transition-all" aria-label="LinkedIn">
+                        <a href={config.socialLinks?.linkedin || "https://linkedin.com/company/dentiaclinic"} target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 hover:bg-primary-teal hover:text-white flex items-center justify-center transition-all" aria-label="LinkedIn">
                             <LinkedinIcon className="w-4 h-4" />
                         </a>
                     </div>
@@ -72,11 +72,11 @@ export default function Footer() {
                 <div className="space-y-4">
                     <h4 className="font-serif font-bold text-base text-white tracking-wide">Dental Specialties</h4>
                     <ul className="space-y-2.5 text-sm text-slate-300">
-                        <li><Link to="/treatment" className="hover:text-primary-teal transition-colors">General &amp; Preventive Care</Link></li>
-                        <li><Link to="/treatment" className="hover:text-primary-teal transition-colors">Cosmetic Dentistry &amp; Veneers</Link></li>
-                        <li><Link to="/treatment" className="hover:text-primary-teal transition-colors">Pediatric Dental Health</Link></li>
-                        <li><Link to="/treatment" className="hover:text-primary-teal transition-colors">Dental Implants &amp; Restorations</Link></li>
-                        <li><Link to="/treatment" className="hover:text-primary-teal transition-colors">Laser Teeth Whitening</Link></li>
+                        <li><Link to="/treatment?specialty=preventive" className="hover:text-primary-teal transition-colors">General &amp; Preventive Care</Link></li>
+                        <li><Link to="/treatment?specialty=cosmetic" className="hover:text-primary-teal transition-colors">Cosmetic Dentistry &amp; Veneers</Link></li>
+                        <li><Link to="/treatment?specialty=pediatric" className="hover:text-primary-teal transition-colors">Pediatric Dental Health</Link></li>
+                        <li><Link to="/treatment?specialty=implants" className="hover:text-primary-teal transition-colors">Dental Implants &amp; Restorations</Link></li>
+                        <li><Link to="/treatment?specialty=whitening" className="hover:text-primary-teal transition-colors">Laser Teeth Whitening</Link></li>
                     </ul>
                 </div>
 
@@ -122,7 +122,7 @@ export default function Footer() {
             </div>
 
             <div className="max-w-[1440px] mx-auto px-6 pt-8 border-t border-white/10 text-center text-xs text-slate-400 flex flex-col md:flex-row justify-between items-center gap-4">
-                <p>Copyright © 2026 {clinicName}. All rights reserved.</p>
+                <p>Copyright © {new Date().getFullYear()} {clinicName}. All rights reserved.</p>
                 <div className="flex space-x-6">
                     <Link to="/terms" className="hover:text-white transition-colors">Terms &amp; Conditions</Link>
                     <Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>

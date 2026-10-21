@@ -15,7 +15,10 @@ import {
   Calendar,
   FileText,
   UserCheck,
-  AlertTriangle
+  AlertTriangle,
+  Minimize2,
+  Maximize2,
+  ArrowLeftRight
 } from 'lucide-react';
 import aiVoice from '../../utils/aiVoiceAssistant';
 import { queryJarvis, executeJarvisAction } from '../../services/dentiaJarvisService';
@@ -55,6 +58,40 @@ export default function Doctor3DAssistantWidget() {
       return false;
     }
   });
+
+  // UX-003: Minimize and Reposition State (Does not cover bottom action buttons)
+  const [isMinimized, setIsMinimized] = useState(() => {
+    try {
+      return localStorage.getItem('dentia_jarvis_minimized') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [positionSide, setPositionSide] = useState(() => {
+    try {
+      return localStorage.getItem('dentia_jarvis_side') || 'right';
+    } catch {
+      return 'right';
+    }
+  });
+
+  const toggleMinimized = (e) => {
+    e?.stopPropagation();
+    setIsMinimized(prev => {
+      const next = !prev;
+      try { localStorage.setItem('dentia_jarvis_minimized', String(next)); } catch {}
+      return next;
+    });
+  };
+
+  const toggleSide = (e) => {
+    e?.stopPropagation();
+    setPositionSide(prev => {
+      const next = prev === 'right' ? 'left' : 'right';
+      try { localStorage.setItem('dentia_jarvis_side', next); } catch {}
+      return next;
+    });
+  };
 
   // UI Telemetry States
   const [isListening, setIsListening] = useState(false);
@@ -1377,105 +1414,176 @@ export default function Doctor3DAssistantWidget() {
         </div>
       )}
 
-      {/* MASTER CHAIRSIDE CONTROLLER HUD CAPSULE */}
+      {/* MASTER CHAIRSIDE CONTROLLER HUD CAPSULE (UX-003: Collapsible & Positionable) */}
       <aside 
         aria-label="Jarvis Chairside Voice Assistant" 
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 select-none pointer-events-auto"
+        className={`fixed bottom-6 ${positionSide === 'left' ? 'left-6' : 'right-6'} z-50 flex items-center gap-2 select-none pointer-events-auto transition-all`}
       >
-        {/* DORMANT / OFF STATE CAPSULE */}
-        {!running ? (
-          <div 
-            onClick={jarvisOn}
-            className="group flex items-center gap-3 px-4 py-2.5 bg-[#10244B]/95 hover:bg-[#152e5d] text-white rounded-full shadow-[0_10px_30px_rgba(16,36,75,0.35)] border border-[#EAA638]/60 backdrop-blur-xl transition-all duration-300 hover:scale-105 cursor-pointer ring-1 ring-white/10"
-            title="Click or press Spacebar / Foot-pedal to activate Jarvis"
-          >
-            <div className="w-7 h-7 rounded-full bg-[#EAA638]/20 flex items-center justify-center text-[#EAA638] group-hover:scale-110 transition-transform">
-              <Power className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-white tracking-wider">JARVIS COPILOT</span>
-                <span className="text-[9px] font-bold px-1.5 py-0.2 bg-amber-500/20 text-[#EAA638] rounded-md border border-[#EAA638]/40">
-                  OFF
-                </span>
-              </div>
-              <p className="text-[10px] text-slate-300 font-medium mt-0.5">
-                Press <span className="text-[#EAA638] font-bold">[Space]</span> or Foot-Pedal to Wake
-              </p>
-            </div>
+        {isMinimized ? (
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={toggleMinimized}
+              aria-label="Expand Jarvis Copilot HUD"
+              className={`p-2.5 rounded-full shadow-[0_8px_25px_rgba(16,36,75,0.4)] border backdrop-blur-xl transition-all hover:scale-110 cursor-pointer flex items-center justify-center ${
+                running 
+                  ? 'bg-[#10244B] border-cyan-400 text-cyan-300 ring-2 ring-cyan-500/40 animate-pulse' 
+                  : 'bg-[#10244B]/95 border-[#EAA638]/70 text-[#EAA638]'
+              }`}
+              title="Expand Jarvis Copilot HUD (Never covers action buttons)"
+            >
+              <Sparkles className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={toggleSide}
+              aria-label="Move Jarvis widget position"
+              className="p-1.5 rounded-full bg-slate-900/80 text-slate-300 hover:text-white border border-slate-700 hover:scale-105 transition cursor-pointer"
+              title={`Move to ${positionSide === 'right' ? 'Left' : 'Right'}`}
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         ) : (
-          /* ACTIVE / LISTENING CHAIRSIDE HUD (Runs until doctor turns OFF) */
-          <div className="flex items-center gap-2 bg-[#10244B]/95 backdrop-blur-xl border border-cyan-400/50 rounded-full px-4 py-2 shadow-[0_12px_35px_rgba(0,168,150,0.3)] ring-2 ring-cyan-500/20 transition-all duration-300">
-            
-            {/* Holographic Glowing Voice Equalizer */}
-            <div className="flex items-center gap-1 h-5 px-1">
-              {[0.4, 0.9, 0.6, 1.0, 0.5].map((scale, i) => (
-                <span 
-                  key={i} 
-                  className={`w-1 bg-gradient-to-t from-teal-400 to-cyan-300 rounded-full transition-all duration-150 ${
-                    isSpeaking 
-                      ? 'animate-bounce' 
-                      : isListening 
-                        ? 'animate-pulse' 
-                        : 'opacity-40 h-2'
-                  }`}
-                  style={{
-                    height: isSpeaking ? `${scale * 18}px` : isListening ? `${scale * 12}px` : '6px',
-                    animationDelay: `${i * 120}ms`
-                  }}
-                />
-              ))}
-            </div>
-
-            {/* Status Information */}
-            <div className="pl-1 pr-2">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                <span className="text-xs font-extrabold text-white tracking-wide">JARVIS LISTENING</span>
+          <>
+            {/* DORMANT / OFF STATE CAPSULE */}
+            {!running ? (
+              <div 
+                onClick={jarvisOn}
+                className="group flex items-center gap-3 px-4 py-2.5 bg-[#10244B]/95 hover:bg-[#152e5d] text-white rounded-full shadow-[0_10px_30px_rgba(16,36,75,0.35)] border border-[#EAA638]/60 backdrop-blur-xl transition-all duration-300 hover:scale-105 cursor-pointer ring-1 ring-white/10"
+                title="Click or press Spacebar / Foot-pedal to activate Jarvis"
+              >
+                <div className="w-7 h-7 rounded-full bg-[#EAA638]/20 flex items-center justify-center text-[#EAA638] group-hover:scale-110 transition-transform">
+                  <Power className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-white tracking-wider">JARVIS COPILOT</span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.2 bg-amber-500/20 text-[#EAA638] rounded-md border border-[#EAA638]/40">
+                      OFF
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-300 font-medium mt-0.5">
+                    Press <span className="text-[#EAA638] font-bold">[Space]</span> or Foot-Pedal to Wake
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 border-l border-white/15 pl-2 ml-1" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    onClick={toggleMinimized}
+                    aria-label="Minimize Jarvis widget"
+                    className="p-1 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition"
+                    title="Minimize Jarvis widget"
+                  >
+                    <Minimize2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleSide}
+                    aria-label="Reposition Jarvis widget"
+                    className="p-1 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition"
+                    title={`Move to ${positionSide === 'right' ? 'Left' : 'Right'}`}
+                  >
+                    <ArrowLeftRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
-              <p className="text-[10px] text-cyan-200/90 font-medium leading-none mt-0.5">
-                Say <span className="text-white font-bold">"Jarvis, ..."</span> • Stays Active
-              </p>
-            </div>
+            ) : (
+              /* ACTIVE / LISTENING CHAIRSIDE HUD (Runs until doctor turns OFF) */
+              <div className="flex items-center gap-2 bg-[#10244B]/95 backdrop-blur-xl border border-cyan-400/50 rounded-full px-4 py-2 shadow-[0_12px_35px_rgba(0,168,150,0.3)] ring-2 ring-cyan-500/20 transition-all duration-300">
+                
+                {/* Holographic Glowing Voice Equalizer */}
+                <div className="flex items-center gap-1 h-5 px-1">
+                  {[0.4, 0.9, 0.6, 1.0, 0.5].map((scale, i) => (
+                    <span 
+                      key={i} 
+                      className={`w-1 bg-gradient-to-t from-teal-400 to-cyan-300 rounded-full transition-all duration-150 ${
+                        isSpeaking 
+                          ? 'animate-bounce' 
+                          : isListening 
+                            ? 'animate-pulse' 
+                            : 'opacity-40 h-2'
+                      }`}
+                      style={{
+                        height: isSpeaking ? `${scale * 18}px` : isListening ? `${scale * 12}px` : '6px',
+                        animationDelay: `${i * 120}ms`
+                      }}
+                    />
+                  ))}
+                </div>
 
-            {/* Quick Controls */}
-            <div className="flex items-center gap-1 border-l border-white/15 pl-2">
-              {/* Audio Mute Toggle */}
-              <button
-                type="button"
-                onClick={() => setIsAudioMuted(!isAudioMuted)}
-                className={`p-1.5 rounded-full transition cursor-pointer ${
-                  isAudioMuted ? 'text-amber-400 bg-amber-400/10' : 'text-slate-300 hover:text-white hover:bg-white/10'
-                }`}
-                title={isAudioMuted ? "Unmute Lady Voice" : "Mute Lady Voice"}
-              >
-                {isAudioMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-              </button>
+                {/* Status Information */}
+                <div className="pl-1 pr-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                    <span className="text-xs font-extrabold text-white tracking-wide">JARVIS LISTENING</span>
+                  </div>
+                  <p className="text-[10px] text-cyan-200/90 font-medium leading-none mt-0.5">
+                    Say <span className="text-white font-bold">"Jarvis, ..."</span> • Stays Active
+                  </p>
+                </div>
 
-              {/* Command Cheat-Sheet Info Button */}
-              <button
-                type="button"
-                onClick={() => setShowGuide(!showGuide)}
-                className={`p-1.5 rounded-full transition cursor-pointer ${
-                  showGuide ? 'text-cyan-300 bg-cyan-500/20' : 'text-slate-300 hover:text-white hover:bg-white/10'
-                }`}
-                title="Voice Command Guide"
-              >
-                <HelpCircle className="w-4 h-4" />
-              </button>
+                {/* Quick Controls */}
+                <div className="flex items-center gap-1 border-l border-white/15 pl-2">
+                  {/* Audio Mute Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => setIsAudioMuted(!isAudioMuted)}
+                    className={`p-1.5 rounded-full transition cursor-pointer ${
+                      isAudioMuted ? 'text-amber-400 bg-amber-400/10' : 'text-slate-300 hover:text-white hover:bg-white/10'
+                    }`}
+                    title={isAudioMuted ? "Unmute Lady Voice" : "Mute Lady Voice"}
+                  >
+                    {isAudioMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                  </button>
 
-              {/* Explicit Turn OFF Button */}
-              <button
-                type="button"
-                onClick={jarvisOff}
-                className="p-1.5 rounded-full text-rose-300 hover:text-rose-100 hover:bg-rose-500/20 transition cursor-pointer ml-0.5"
-                title="Turn Off Jarvis (or say 'Jarvis off')"
-              >
-                <Power className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+                  {/* Command Cheat-Sheet Info Button */}
+                  <button
+                    type="button"
+                    onClick={() => setShowGuide(!showGuide)}
+                    className={`p-1.5 rounded-full transition cursor-pointer ${
+                      showGuide ? 'text-cyan-300 bg-cyan-500/20' : 'text-slate-300 hover:text-white hover:bg-white/10'
+                    }`}
+                    title="Voice Command Guide"
+                  >
+                    <HelpCircle className="w-4 h-4" />
+                  </button>
+
+                  {/* Minimize Button */}
+                  <button
+                    type="button"
+                    onClick={toggleMinimized}
+                    aria-label="Minimize Jarvis widget"
+                    className="p-1.5 rounded-full text-slate-300 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                    title="Minimize Widget (Avoid covering action buttons)"
+                  >
+                    <Minimize2 className="w-4 h-4" />
+                  </button>
+
+                  {/* Reposition Toggle */}
+                  <button
+                    type="button"
+                    onClick={toggleSide}
+                    aria-label="Reposition Jarvis widget"
+                    className="p-1.5 rounded-full text-slate-300 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                    title={`Move to ${positionSide === 'right' ? 'Left' : 'Right'}`}
+                  >
+                    <ArrowLeftRight className="w-4 h-4" />
+                  </button>
+
+                  {/* Explicit Turn OFF Button */}
+                  <button
+                    type="button"
+                    onClick={jarvisOff}
+                    className="p-1.5 rounded-full text-rose-300 hover:text-rose-100 hover:bg-rose-500/20 transition cursor-pointer ml-0.5"
+                    title="Turn Off Jarvis (or say 'Jarvis off')"
+                  >
+                    <Power className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </aside>
 

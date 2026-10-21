@@ -20,6 +20,7 @@ import ClinicalActionChips from '../components/chat/ClinicalActionChips';
 import { parseDoctorConversationalIntent, normalizeClinicalSpeech, DENTAL_VOCABULARY } from '../utils/dentalNlpEngine';
 import { preloadJawImages, preloadPatientJawTemplates } from '../utils/jawImagePreloader';
 import { fetchWithCache, invalidateCache, setCachedData } from '../utils/apiCache';
+import apiFetch from '../utils/apiClient';
 import FullPageSkeletonLoader from '../components/FullPageSkeletonLoader';
 import nanoPixService from '../services/nanoPixDeviceService';
 import NanoPixCaptureModal from '../components/NanoPixCaptureModal';
@@ -4384,8 +4385,8 @@ export default function ChartPage() {
         };
       });
 
-      const pid = parseInt(patientId) || (patient?.patientID ? parseInt(patient.patientID) : 5);
-      const res = await fetch('/api/patients/teeth/update-bulk', {
+      const pid = parseInt(patientId) || (patient?.patientID ? parseInt(patient.patientID) : 1);
+      const res = await apiFetch('/api/patients/teeth/update-bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -4398,8 +4399,8 @@ export default function ChartPage() {
         invalidateCache(`patient_${pid}_chart`);
         // Post save log
         const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
-        const docId = doctorData.doctorID || doctorData.DoctorID || 2;
-        await fetch(`/api/patients/${patientId}/clinical-logs`, {
+        const docId = doctorData.doctorID || doctorData.DoctorID || 1;
+        await apiFetch(`/api/patients/${pid}/clinical-logs`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -4411,11 +4412,12 @@ export default function ChartPage() {
         setToast({ visible: true, message: "Patient Chart and Odontogram saved successfully!" });
         setTimeout(() => setToast({ visible: false, message: '' }), 3000);
       } else {
-        alert("Error saving patient chart details.");
+        const errData = await res.json().catch(() => ({}));
+        alert(`Error saving patient chart details: ${errData.message || res.statusText || 'Server error'}`);
       }
     } catch (err) {
       console.error(err);
-      alert("Error saving patient chart details.");
+      alert(`Error saving patient chart details: ${err.message || 'Network connection failure'}`);
     }
   };
 

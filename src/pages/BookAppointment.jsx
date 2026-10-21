@@ -139,6 +139,29 @@ export default function BookAppointment() {
             .catch(err => console.error("Failed to fetch doctors:", err));
     }, []);
 
+    const dedupedDoctors = React.useMemo(() => {
+        if (!Array.isArray(doctors)) return [];
+        const seen = new Set();
+        return doctors
+            .filter(d => {
+                const name = `${d.firstName || ''} ${d.lastName || ''}`.trim().toLowerCase();
+                if (name.includes('test') || name.includes('demo') || !d.doctorID) return false;
+                if (seen.has(name)) return false;
+                seen.add(name);
+                return true;
+            })
+            .map(d => ({
+                ...d,
+                cleanName: `${(d.firstName || '').replace(/^Dr\.?\s*/i, '').trim()} ${d.lastName || ''}`.trim()
+            }));
+    }, [doctors]);
+
+    const minDatetime = React.useMemo(() => {
+        const d = new Date();
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        return d.toISOString().slice(0, 16);
+    }, []);
+
     // Fetch patients whenever selected doctorID changes (Clinician session only)
     useEffect(() => {
         let isMounted = true;
@@ -293,18 +316,6 @@ export default function BookAppointment() {
             if (response.ok) {
                 const data = await response.json().catch(() => ({}));
                 const newId = data?.appointment?.appointmentID || data?.appointment?.AppointmentID || data?.appointmentId || data?.id;
-
-                // Double guarantee: ensure Reason is directly saved to SQL database even on older deployed backend DLLs
-                if (newId && payload.reason) {
-                    await apiFetch(`/api/appointments/${newId}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            status: payload.status || 'Confirmed',
-                            reason: payload.reason
-                        })
-                    }).catch(err => console.warn("PUT backup reason update failed:", err));
-                }
 
                 setSubmitted(true);
                 setLastBookedAppointment({ ...formData, appointmentID: newId || Date.now(), status: 'Confirmed' });
@@ -552,7 +563,7 @@ export default function BookAppointment() {
                                     {/* 1. Select Doctor field */}
                                     <div className="space-y-1.5">
                                         <div className="flex justify-between items-center">
-                                            <label className="text-xs font-bold text-slate-700 block">Attending Specialist *</label>
+                                            <label htmlFor="appt-doctorID" className="text-xs font-bold text-slate-700 block">Attending Specialist *</label>
                                             {patients.length > 0 && (
                                                 <span className="text-[11px] font-bold text-[#4A7CD2] bg-blue-50 px-2 py-0.5 rounded-md">
                                                     {patients.length} registered patients
@@ -562,6 +573,7 @@ export default function BookAppointment() {
                                         <div className="relative">
                                             <Stethoscope className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                             <select
+                                                id="appt-doctorID"
                                                 name="doctorID"
                                                 value={formData.doctorID}
                                                 onBlur={() => handleFieldBlur('doctorID')}
@@ -576,9 +588,9 @@ export default function BookAppointment() {
                                                 }`}
                                             >
                                                 <option value="" disabled>Choose a Doctor...</option>
-                                                {doctors.map(doc => (
+                                                {dedupedDoctors.map(doc => (
                                                     <option key={doc.doctorID} value={doc.doctorID}>
-                                                        Dr. {doc.firstName} {doc.lastName} ({doc.speciality || 'General Dentistry'})
+                                                        Dr. {doc.cleanName} ({doc.speciality || 'General Dentistry'})
                                                     </option>
                                                 ))}
                                             </select>
@@ -593,7 +605,7 @@ export default function BookAppointment() {
 
                                     {/* 2. Full Name field with Loaded Patient List Dropdown */}
                                     <div className="space-y-1.5 relative" ref={dropdownRef}>
-                                        <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                                        <label htmlFor="appt-fullName" className="text-xs font-bold text-slate-700 flex items-center justify-between">
                                             <span>Full Name *</span>
                                             <span className="text-[10px] text-slate-400 font-normal">Select from doctor's list or type new</span>
                                         </label>
@@ -601,6 +613,7 @@ export default function BookAppointment() {
                                         <div className="relative">
                                             <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                             <input 
+                                                id="appt-fullName"
                                                 name="fullName"
                                                 type="text" 
                                                 value={formData.fullName}
@@ -688,10 +701,11 @@ export default function BookAppointment() {
                                     {/* 3. Contact Details Grid */}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-1.5">
-                                            <label className="text-xs font-bold text-slate-700 block">Phone Number *</label>
+                                            <label htmlFor="appt-phone" className="text-xs font-bold text-slate-700 block">Phone Number *</label>
                                             <div className="relative">
                                                 <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                                 <input 
+                                                    id="appt-phone"
                                                     name="phone"
                                                     type="tel" 
                                                     value={formData.phone}
@@ -716,10 +730,11 @@ export default function BookAppointment() {
                                             )}
                                         </div>
                                         <div className="space-y-1.5">
-                                            <label className="text-xs font-bold text-slate-700 block">Email Address</label>
+                                            <label htmlFor="appt-email" className="text-xs font-bold text-slate-700 block">Email Address</label>
                                             <div className="relative">
                                                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                                 <input 
+                                                    id="appt-email"
                                                     name="email"
                                                     type="email" 
                                                     value={formData.email}
@@ -747,12 +762,14 @@ export default function BookAppointment() {
 
                                     {/* 4. Preferred Date Field */}
                                     <div className="space-y-1.5">
-                                        <label className="text-xs font-bold text-slate-700 block">Preferred Date & Time *</label>
+                                        <label htmlFor="appt-preferredDate" className="text-xs font-bold text-slate-700 block">Preferred Date & Time *</label>
                                         <div className="relative">
                                             <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                             <input 
+                                                id="appt-preferredDate"
                                                 name="preferredDate"
                                                 type="datetime-local" 
+                                                min={minDatetime}
                                                 value={formData.preferredDate}
                                                 onBlur={() => handleFieldBlur('preferredDate')}
                                                 onChange={(e) => {
@@ -776,8 +793,10 @@ export default function BookAppointment() {
 
                                     {/* 5. Reason for Visit */}
                                     <div className="space-y-2">
-                                        <label className="text-xs font-bold text-slate-700 block">Reason for Visit</label>
+                                        <label htmlFor="appt-reason" className="text-xs font-bold text-slate-700 block">Reason for Visit</label>
                                         <select 
+                                            id="appt-reason"
+                                            name="reason"
                                             value={formData.reason}
                                             onChange={(e) => setFormData({...formData, reason: e.target.value})}
                                             className="w-full px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#4A7CD2] cursor-pointer"

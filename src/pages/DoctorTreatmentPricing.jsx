@@ -155,9 +155,9 @@ export default function DoctorTreatmentPricing() {
 
             let res;
             try {
-                res = await fetch(`${API_BASE_URL}/api/treatment-pricing/doctor/${doctorId}`, { headers });
-            } catch {
                 res = await fetch(`/api/treatment-pricing/doctor/${doctorId}`, { headers });
+            } catch {
+                res = await fetch(`${API_BASE_URL}/api/treatment-pricing/doctor/${doctorId}`, { headers });
             }
 
             if (res.ok) {
@@ -280,13 +280,13 @@ export default function DoctorTreatmentPricing() {
 
             let res;
             try {
-                res = await fetch(`${API_BASE_URL}/api/treatment-pricing/doctor/${doctorId}`, {
+                res = await fetch(`/api/treatment-pricing/doctor/${doctorId}`, {
                     method: 'PUT',
                     headers,
                     body: JSON.stringify(payload)
                 });
             } catch {
-                res = await fetch(`/api/treatment-pricing/doctor/${doctorId}`, {
+                res = await fetch(`${API_BASE_URL}/api/treatment-pricing/doctor/${doctorId}`, {
                     method: 'PUT',
                     headers,
                     body: JSON.stringify(payload)

@@ -5,7 +5,7 @@ import {
     Loader2, CheckCircle2, Zap, Check, AlertCircle, Search,
     User, Calendar, Phone, MapPin, Globe, Mail, FileText, Send, RefreshCw, Bot, UserCheck,
     Camera, UploadCloud, Trash2, Image as ImageIcon, HeartPulse, Stethoscope, Activity, BadgeCheck,
-    Volume2, VolumeX, ChevronDown, Sliders
+    Volume2, VolumeX, ChevronDown, Sliders, RotateCcw
 } from 'lucide-react';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
@@ -79,7 +79,7 @@ export default function NewPatientPage() {
     const [lastAiFillSnapshot, setLastAiFillSnapshot] = useState(null);
     const [askedClinicalDetails, setAskedClinicalDetails] = useState(false);
     const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
-    const [isExtendedOpen, setIsExtendedOpen] = useState(false);
+    const [isExtendedOpen, setIsExtendedOpen] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Auto-open extended drawer if AI or preset fills any optional field
@@ -632,7 +632,16 @@ export default function NewPatientPage() {
                 updated.lastName = data.lastName; 
                 syncedMap.lastName = true; 
             }
-            if (data.dob) { updated.dob = data.dob; syncedMap.dob = true; }
+            if (data.dob) { 
+                updated.dob = data.dob; 
+                syncedMap.dob = true; 
+                const age = calculateAge(data.dob);
+                if (age !== null) {
+                    if (age < 6) updated.dentitionType = 'Pediatric';
+                    else if (age <= 12) updated.dentitionType = 'Mixed';
+                    else updated.dentitionType = 'Adult';
+                }
+            }
             if (data.phone) { updated.phone = data.phone; syncedMap.phone = true; }
             if (data.email) { updated.email = data.email; syncedMap.email = true; }
             if (data.gender) { updated.gender = data.gender; syncedMap.gender = true; }
@@ -823,7 +832,7 @@ export default function NewPatientPage() {
                 address: fullAddress, 
                 doctorID: docId,
                 whatsAppOptIn: Boolean(newPatient.whatsAppOptIn),
-                email: newPatient.email || `${newPatient.firstName.toLowerCase()}.${newPatient.lastName.toLowerCase()}@dentiaclinic.com`,
+                email: newPatient.email ? newPatient.email.trim() : null,
                 profileImageDataUrl: newPatient.profileImageDataUrl,
                 profileImageMimeType: newPatient.profileImageMimeType,
                 currentTreatmentPlan: newPatient.currentTreatmentPlan || 'General Consultation'
@@ -837,11 +846,12 @@ export default function NewPatientPage() {
             console.log('[NewPatientPage] POST /api/patients response status:', res.status);
             if (res.ok) {
                 const created = await res.json();
+                const patientId = created?.patientID || created?.patientId || created?.id || created?.PatientID;
 
                 // Save intake note to clinical logs if provided
-                if (combinedNotes && created.patientID) {
+                if (combinedNotes && patientId) {
                     try {
-                        await apiFetch(`/api/patients/${created.patientID}/clinical-logs`, {
+                        await apiFetch(`/api/patients/${patientId}/clinical-logs`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -855,11 +865,13 @@ export default function NewPatientPage() {
                     }
                 }
 
-                showToast(`Patient ${created.firstName} registered successfully!`, "success");
-                aiVoice.speak(`Doctor, patient ${created.firstName} ${created.lastName} has been registered successfully.`);
+                showToast(`Patient ${created.firstName || 'Record'} registered successfully!`, "success");
+                try {
+                    aiVoice.speak(`Doctor, patient ${created.firstName || ''} ${created.lastName || ''} has been registered successfully.`);
+                } catch (e) {}
                 setTimeout(() => {
-                    navigate(`/chart/${created.patientID}`);
-                }, 1000);
+                    navigate(patientId ? `/chart/${patientId}` : '/directory');
+                }, 800);
             } else if (res.status === 409) {
                 const errData = await res.json();
                 showToast(`⚠️ ${errData.message}`, "error");
@@ -891,6 +903,37 @@ export default function NewPatientPage() {
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const handleResetForm = () => {
+        setNewPatient({ 
+            firstName: '', 
+            lastName: '', 
+            dob: '', 
+            phone: '', 
+            email: '',
+            address: '', 
+            city: '', 
+            postcode: '', 
+            gender: '', 
+            region: 'PK',
+            nhiNumber: '',
+            dentitionType: 'Adult',
+            guardianName: '',
+            guardianRelationship: '',
+            currentTreatmentPlan: 'General Consultation',
+            selectedAllergies: [],
+            medicalNotes: '',
+            profileImageDataUrl: null,
+            profileImageMimeType: null,
+            whatsAppOptIn: false
+        });
+        setErrors({});
+        setTouched({});
+        setChatInput('');
+        setLastAiFillSnapshot(null);
+        setRecentlySyncedField({});
+        showToast("Registration form cleared.", "info");
     };
 
     // Calculate Essential & Optional filled counts
@@ -1041,13 +1084,16 @@ export default function NewPatientPage() {
 
                             <div>
                                 <div className="flex items-center gap-2">
-                                    <h3 className="text-sm font-sans font-black text-[#10244B] capitalize leading-tight">
+                                    <h3 
+                                        className="text-sm font-sans font-black text-[#10244B] capitalize leading-tight truncate max-w-[200px] sm:max-w-xs md:max-w-md"
+                                        title={newPatient.firstName ? `${newPatient.firstName} ${newPatient.lastName}` : 'New Patient Profile'}
+                                    >
                                         {newPatient.firstName ? `${newPatient.firstName} ${newPatient.lastName}` : 'New Patient Profile'}
                                     </h3>
                                     <button 
                                         type="button"
                                         onClick={() => fileInputRef.current?.click()}
-                                        className="text-[9.5px] font-extrabold text-[#4A7CD2] bg-white/80 hover:bg-white px-2 py-0.5 rounded-md border border-[#4A7CD2]/30 transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                                        className="text-[9.5px] font-extrabold text-[#4A7CD2] bg-white/80 hover:bg-white px-2 py-0.5 rounded-md border border-[#4A7CD2]/30 transition-all cursor-pointer flex items-center gap-1 shadow-2xs shrink-0"
                                     >
                                         <UploadCloud className="w-2.5 h-2.5" />
                                         {newPatient.profileImageDataUrl ? 'Change Photo' : 'Upload Photo'}
@@ -1144,7 +1190,7 @@ export default function NewPatientPage() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <div className="flex justify-between items-center mb-0.5 ml-1">
-                                        <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">First Name *</label>
+                                        <label htmlFor="pat-firstName" className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">First Name *</label>
                                         {recentlySyncedField.firstName && (
                                             <span className="text-[8.5px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-0.5 animate-pulse">
                                                 <Check className="w-2.5 h-2.5" /> Synced
@@ -1152,8 +1198,11 @@ export default function NewPatientPage() {
                                         )}
                                     </div>
                                     <input 
+                                        id="pat-firstName"
                                         name="firstName"
                                         type="text" 
+                                        maxLength={50}
+                                        aria-invalid={Boolean(errors.firstName && touched.firstName)}
                                         value={newPatient.firstName} 
                                         onBlur={() => handleFieldBlur('firstName')}
                                         onChange={e => {
@@ -1178,7 +1227,7 @@ export default function NewPatientPage() {
                                 </div>
                                 <div>
                                     <div className="flex justify-between items-center mb-0.5 ml-1">
-                                        <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">Last Name *</label>
+                                        <label htmlFor="pat-lastName" className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">Last Name *</label>
                                         {recentlySyncedField.lastName && (
                                             <span className="text-[8.5px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-0.5 animate-pulse">
                                                 <Check className="w-2.5 h-2.5" /> Synced
@@ -1186,8 +1235,11 @@ export default function NewPatientPage() {
                                         )}
                                     </div>
                                     <input 
+                                        id="pat-lastName"
                                         name="lastName"
                                         type="text" 
+                                        maxLength={50}
+                                        aria-invalid={Boolean(errors.lastName && touched.lastName)}
                                         value={newPatient.lastName} 
                                         onBlur={() => handleFieldBlur('lastName')}
                                         onChange={e => {
@@ -1216,7 +1268,7 @@ export default function NewPatientPage() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <div className="flex justify-between items-center mb-0.5 ml-1">
-                                        <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">Date of Birth *</label>
+                                        <label htmlFor="pat-dob" className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">Date of Birth *</label>
                                         {recentlySyncedField.dob && (
                                             <span className="text-[8.5px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-0.5 animate-pulse">
                                                 <Check className="w-2.5 h-2.5" /> Synced
@@ -1224,8 +1276,10 @@ export default function NewPatientPage() {
                                         )}
                                     </div>
                                     <input 
+                                        id="pat-dob"
                                         name="dob"
                                         type="date" 
+                                        aria-invalid={Boolean(errors.dob && touched.dob)}
                                         value={newPatient.dob} 
                                         onBlur={() => handleFieldBlur('dob')}
                                         onChange={e => {
@@ -1249,7 +1303,7 @@ export default function NewPatientPage() {
                                 </div>
                                 <div>
                                     <div className="flex justify-between items-center mb-0.5 ml-1">
-                                        <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">Gender *</label>
+                                        <label htmlFor="pat-gender" className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider">Gender *</label>
                                         {recentlySyncedField.gender && (
                                             <span className="text-[8.5px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-0.5 animate-pulse">
                                                 <Check className="w-2.5 h-2.5" /> Synced
@@ -1258,7 +1312,9 @@ export default function NewPatientPage() {
                                     </div>
                                     <div className="relative">
                                         <select 
+                                            id="pat-gender"
                                             name="gender"
+                                            aria-invalid={Boolean(errors.gender && touched.gender)}
                                             value={newPatient.gender} 
                                             onBlur={() => handleFieldBlur('gender')}
                                             onChange={e => {
@@ -1462,31 +1518,35 @@ export default function NewPatientPage() {
                                 }`}
                             >
                                 {/* Phone Number (Conditional Requirement) */}
-                                <div>
-                                    <div className="flex justify-between items-center mb-0.5 ml-1">
-                                        <label className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider flex items-center gap-1.5">
-                                            <Phone className="w-3 h-3 text-slate-400" /> 
-                                            <span>Phone Number</span>
-                                            {newPatient.whatsAppOptIn ? (
-                                                <span className="text-red-500 font-black text-xs" title="Mandatory for WhatsApp Notifications">*</span>
-                                            ) : (
-                                                <span className="text-[9.5px] text-slate-400 font-normal lowercase">(optional)</span>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <div className="flex justify-between items-center mb-0.5 ml-1">
+                                            <label htmlFor="pat-phone" className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider flex items-center gap-1.5">
+                                                <Phone className="w-3 h-3 text-slate-400" /> 
+                                                <span>Phone Number</span>
+                                                {newPatient.whatsAppOptIn ? (
+                                                    <span className="text-red-500 font-black text-xs" title="Mandatory for WhatsApp Notifications">*</span>
+                                                ) : (
+                                                    <span className="text-[9.5px] text-slate-400 font-normal lowercase">(optional)</span>
+                                                )}
+                                            </label>
+                                            {newPatient.whatsAppOptIn && (
+                                                <span className="text-[8.5px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                                    Required for WhatsApp
+                                                </span>
                                             )}
-                                        </label>
-                                        {newPatient.whatsAppOptIn && (
-                                            <span className="text-[8.5px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                                Required for WhatsApp
-                                            </span>
-                                        )}
-                                        {recentlySyncedField.phone && (
-                                            <span className="text-[8.5px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-0.5 animate-pulse">
-                                                <Check className="w-2.5 h-2.5" /> Synced
-                                            </span>
-                                        )}
-                                    </div>
+                                            {recentlySyncedField.phone && (
+                                                <span className="text-[8.5px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-0.5 animate-pulse">
+                                                    <Check className="w-2.5 h-2.5" /> Synced
+                                                </span>
+                                            )}
+                                        </div>
                                     <input 
+                                        id="pat-phone"
                                         name="phone"
                                         type="tel" 
+                                        maxLength={20}
+                                        aria-invalid={Boolean(errors.phone && touched.phone)}
                                         value={newPatient.phone} 
                                         onBlur={() => handleFieldBlur('phone')}
                                         onChange={e => {
@@ -1513,6 +1573,50 @@ export default function NewPatientPage() {
                                             <span>{errors.phone}</span>
                                         </p>
                                     )}
+                                </div>
+
+                                <div>
+                                    <div className="flex justify-between items-center mb-0.5 ml-1">
+                                        <label htmlFor="pat-email" className="text-[10.5px] font-black text-dark-slate uppercase tracking-wider flex items-center gap-1.5">
+                                            <Mail className="w-3 h-3 text-slate-400" />
+                                            <span>Email Address</span>
+                                            <span className="text-[9.5px] text-slate-400 font-normal lowercase">(optional)</span>
+                                        </label>
+                                        {recentlySyncedField.email && (
+                                            <span className="text-[8.5px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-0.5 animate-pulse">
+                                                <Check className="w-2.5 h-2.5" /> Synced
+                                            </span>
+                                        )}
+                                    </div>
+                                    <input 
+                                        id="pat-email"
+                                        name="email"
+                                        type="email" 
+                                        maxLength={100}
+                                        aria-invalid={Boolean(errors.email && touched.email)}
+                                        value={newPatient.email || ''} 
+                                        onBlur={() => handleFieldBlur('email')}
+                                        onChange={e => {
+                                            setNewPatient({...newPatient, email: e.target.value});
+                                            if (errors.email) setErrors(prev => ({ ...prev, email: '' }));
+                                        }} 
+                                        className={`w-full border rounded-xl px-3 py-2 text-xs text-dark-slate focus:outline-none focus:ring-2 font-bold transition-all ${
+                                            errors.email && touched.email
+                                                ? 'bg-red-50/50 border-red-500 focus:ring-red-400/30 text-red-900 ring-2 ring-red-400/20'
+                                                : recentlySyncedField.email 
+                                                ? 'bg-emerald-50/70 border-emerald-400 ring-2 ring-emerald-400/20' 
+                                                : 'bg-[#F8FAFC] border-light-teal/50 focus:border-[#4A7CD2] focus:ring-[#4A7CD2]/25'
+                                        }`} 
+                                        placeholder="patient@gmail.com (Optional)" 
+                                    />
+                                    {errors.email && touched.email && (
+                                        <p className="text-[10px] font-bold text-red-600 flex items-center gap-1 mt-1 animate-fade-in">
+                                            <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                                            <span>{errors.email}</span>
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
 
                                     {/* WhatsApp Consent Toggle */}
                                     <div className="mt-2.5">
@@ -1544,7 +1648,6 @@ export default function NewPatientPage() {
                                             phone={newPatient.phone}
                                         />
                                     </div>
-                                </div>
 
                                 {/* Street Address Lookup & Autocomplete */}
                                 <div className="relative" ref={addressDropdownRef}>
@@ -1815,24 +1918,36 @@ export default function NewPatientPage() {
                             <span className="text-[11px]">HIPAA & GDPR Encrypted Registry</span>
                         </div>
 
-                        <button 
-                            type="button" 
-                            disabled={isSubmitting}
-                            onClick={handleCreatePatient}
-                            className={`px-5 py-2.5 bg-[#4A7CD2] hover:bg-[#3665B7] text-white font-black rounded-xl shadow-md hover:shadow-lg transition-all text-xs cursor-pointer flex items-center gap-1.5 transform hover:scale-[1.02] active:scale-[0.98] ${isSubmitting ? 'opacity-60 cursor-not-allowed' : ''}`}
-                        >
-                            {isSubmitting ? (
-                                <>
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                    <span>Saving Profile...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <UserPlus className="w-3.5 h-3.5" />
-                                    <span>Create Patient Profile</span>
-                                </>
-                            )}
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={handleResetForm}
+                                className="px-3.5 py-2.5 border border-slate-300 hover:border-slate-400 text-slate-600 hover:text-slate-800 font-bold rounded-xl bg-slate-50 hover:bg-slate-100 transition-all text-xs cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                                title="Clear all input fields"
+                            >
+                                <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                                <span>Clear Form</span>
+                            </button>
+
+                            <button 
+                                type="button" 
+                                disabled={isSubmitting}
+                                onClick={handleCreatePatient}
+                                className={`px-5 py-2.5 bg-[#4A7CD2] hover:bg-[#3665B7] text-white font-black rounded-xl shadow-md hover:shadow-lg transition-all text-xs cursor-pointer flex items-center gap-1.5 transform hover:scale-[1.02] active:scale-[0.98] ${isSubmitting ? 'opacity-60 cursor-not-allowed' : ''}`}
+                            >
+                                {isSubmitting ? (
+                                    <>
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        <span>Saving Profile...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <UserPlus className="w-3.5 h-3.5" />
+                                        <span>Create Patient Profile</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
 
                 </div>

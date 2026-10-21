@@ -94,8 +94,12 @@ export default function Auth() {
     const [patientError, setPatientError] = useState('');
     const [patientNeedsActivation, setPatientNeedsActivation] = useState(null);
 
+    const isManualLogout = typeof window !== 'undefined' && sessionStorage.getItem('dentia_manual_logout') === 'true';
+    if (isManualLogout && typeof window !== 'undefined') {
+        try { sessionStorage.removeItem('dentia_manual_logout'); } catch {}
+    }
     const searchParams = new URLSearchParams(location.search);
-    const isSessionExpired = searchParams.get('expired') === 'true' || Boolean(location.state?.sessionExpired);
+    const isSessionExpired = !isManualLogout && (searchParams.get('expired') === 'true' || Boolean(location.state?.sessionExpired));
     const isSessionClosed = searchParams.get('session_closed') === 'true' || Boolean(location.state?.sessionClosed);
     const isAuthRequired = searchParams.get('required') === 'true' || Boolean(location.state?.authRequired);
 
@@ -114,8 +118,8 @@ export default function Auth() {
             setIsLogin(true);
             setClinicianData(prev => ({
                 ...prev,
-                username: username || 'ahmedjh',
-                password: password || 'Ahmed@123'
+                username: username || '',
+                password: password || ''
             }));
             setClinicianLoading(true);
         };
@@ -362,15 +366,10 @@ export default function Auth() {
                             </span>
                             <span className="tracking-wide text-emerald-300 uppercase text-[11px] font-bold">Live Clinical Telemetry</span>
                         </div>
-                        <a 
-                            href="https://dentistfrontend.vercel.app/"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[10px] font-mono text-white/80 hover:text-white bg-white/15 px-2 py-0.5 rounded-full border border-white/20 transition-colors flex items-center gap-1"
-                        >
+                        <span className="text-[10px] font-mono text-white/85 bg-white/15 px-2.5 py-0.5 rounded-full border border-white/20 flex items-center gap-1">
                             <Globe className="w-3 h-3 text-light-teal" />
-                            <span>dentistfrontend.vercel.app</span>
-                        </a>
+                            <span>dentia-portal.live</span>
+                        </span>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                         <div className="bg-white/10 rounded-xl px-2.5 py-1.5 border border-white/15 flex items-center justify-between">
@@ -413,15 +412,10 @@ export default function Auth() {
                                 </span>
                                 <span className="text-[11px] font-extrabold text-teal-900">Live Practice Telemetry</span>
                             </div>
-                            <a 
-                                href="https://dentistfrontend.vercel.app/" 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-[10px] font-mono text-teal-700 hover:text-teal-900 font-semibold transition-colors"
-                            >
+                            <span className="flex items-center gap-1 text-[10px] font-mono text-teal-700 font-semibold bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
                                 <Globe className="w-3 h-3 text-primary-teal" />
-                                <span>dentistfrontend.vercel.app</span>
-                            </a>
+                                <span>dentia-portal.live</span>
+                            </span>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 pt-1.5">
@@ -581,7 +575,7 @@ export default function Auth() {
                                         </label>
                                         {isLogin && (
                                             <span className="text-[11px] text-muted-text font-medium">
-                                                e.g. <strong className="text-primary-teal font-bold">ahmedjh</strong>
+                                                e.g. <strong className="text-primary-teal font-bold">dr.smith</strong>
                                             </span>
                                         )}
                                     </div>
@@ -599,7 +593,7 @@ export default function Auth() {
                                             value={clinicianData.username}
                                             onChange={(e) => setClinicianData({...clinicianData, username: e.target.value})}
                                             className="w-full pl-10 pr-4 py-3 bg-white border border-light-teal rounded-xl text-xs font-medium text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 transition-all"
-                                            placeholder="Enter username (e.g. ahmedjh)"
+                                            placeholder="Enter clinician username (e.g. dr.smith)"
                                             required
                                         />
                                     </div>

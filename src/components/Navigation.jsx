@@ -20,9 +20,14 @@ export default function Navigation() {
     }, []);
 
     const handleLogout = () => {
+        try {
+            if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.setItem('dentia_manual_logout', 'true');
+            }
+        } catch {}
         purgeClinicianSession('manual_logout');
         setDoctor(null);
-        navigate('/login');
+        navigate('/login', { replace: true });
     };
 
     const getLinkClass = (isActive) => {
@@ -78,6 +83,8 @@ export default function Navigation() {
                         <>
                             <Link 
                                 to="/admin/organizations" 
+                                aria-current={(location.pathname === '/admin/organizations' || location.pathname === '/admin/hospitals') ? "page" : undefined}
+                                aria-label="Hospital & Organization Management"
                                 className={getLinkClass(location.pathname === '/admin/organizations' || location.pathname === '/admin/hospitals')}
                                 title="Hospital & Organization Management (SuperAdmin)"
                             >
@@ -86,6 +93,8 @@ export default function Navigation() {
                             </Link>
                             <Link 
                                 to="/admin/doctors" 
+                                aria-current={location.pathname === '/admin/doctors' ? "page" : undefined}
+                                aria-label="Doctor Directory & Profiles"
                                 className={getLinkClass(location.pathname === '/admin/doctors')}
                                 title="Doctor Directory & Profiles (SuperAdmin)"
                             >
@@ -98,6 +107,8 @@ export default function Navigation() {
                         <>
                             <Link 
                                 to="/" 
+                                aria-current={(location.pathname === '/' || location.pathname === '/dashboard') ? "page" : undefined}
+                                aria-label="Home"
                                 className={getLinkClass(location.pathname === '/' || location.pathname === '/dashboard')}
                                 title="Home"
                             >
@@ -108,6 +119,8 @@ export default function Navigation() {
                                 <>
                                     <Link 
                                         to="/directory" 
+                                        aria-current={(location.pathname === '/directory' || location.pathname.startsWith('/chart')) ? "page" : undefined}
+                                        aria-label="Patient Directory"
                                         className={getLinkClass(location.pathname === '/directory' || location.pathname.startsWith('/chart'))}
                                         title="Patient Directory"
                                     >
@@ -115,6 +128,8 @@ export default function Navigation() {
                                     </Link>
                                     <Link 
                                         to="/appointments" 
+                                        aria-current={location.pathname === '/appointments' ? "page" : undefined}
+                                        aria-label="Appointments Hub"
                                         className={getLinkClass(location.pathname === '/appointments')}
                                         title="Appointments Hub"
                                     >
@@ -122,6 +137,8 @@ export default function Navigation() {
                                     </Link>
                                     <Link 
                                         to="/doctor/pricing" 
+                                        aria-current={(location.pathname === '/doctor/pricing' || location.pathname === '/treatment-pricing') ? "page" : undefined}
+                                        aria-label="Doctor Fee Schedules & Treatment Pricing"
                                         className={getLinkClass(location.pathname === '/doctor/pricing' || location.pathname === '/treatment-pricing')}
                                         title="Doctor Fee Schedules & Treatment Pricing"
                                     >
@@ -129,6 +146,8 @@ export default function Navigation() {
                                     </Link>
                                     <Link 
                                         to="/clinic/website-studio" 
+                                        aria-current={(location.pathname === '/clinic/website-studio' || location.pathname === '/admin/website') ? "page" : undefined}
+                                        aria-label="Website & Landing Page Studio"
                                         className={getLinkClass(location.pathname === '/clinic/website-studio' || location.pathname === '/admin/website')}
                                         title="Website & Landing Page Studio (Doctor CMS)"
                                     >
@@ -136,6 +155,8 @@ export default function Navigation() {
                                     </Link>
                                     <Link 
                                         to="/admin/whatsapp" 
+                                        aria-current={(location.pathname === '/admin/whatsapp' || location.pathname === '/whatsapp-manager') ? "page" : undefined}
+                                        aria-label="WhatsApp Gateway & Messaging Hub"
                                         className={getLinkClass(location.pathname === '/admin/whatsapp' || location.pathname === '/whatsapp-manager')}
                                         title="WhatsApp Gateway & Messaging Hub"
                                     >
@@ -146,6 +167,8 @@ export default function Navigation() {
                             
                             <Link 
                                 to="/treatment" 
+                                aria-current={location.pathname === '/treatment' ? "page" : undefined}
+                                aria-label="Treatments"
                                 className={getLinkClass(location.pathname === '/treatment')}
                                 title="Treatments"
                             >
@@ -153,6 +176,7 @@ export default function Navigation() {
                             </Link>
                             <a 
                                 href="/#about" 
+                                aria-label="About Us"
                                 className={getLinkClass(location.hash === '#about')}
                                 title="About Us"
                             >
@@ -160,6 +184,7 @@ export default function Navigation() {
                             </a>
                             <a 
                                 href="/#team" 
+                                aria-label="Our Doctors"
                                 className={getLinkClass(location.hash === '#team')}
                                 title="Our Doctors"
                             >
@@ -167,6 +192,7 @@ export default function Navigation() {
                             </a>
                             <a 
                                 href="/#reviews" 
+                                aria-label="Patient Reviews"
                                 className={getLinkClass(location.hash === '#reviews')}
                                 title="Patient Reviews"
                             >
@@ -214,6 +240,7 @@ export default function Navigation() {
                             </button>
                              <button 
                                 onClick={handleLogout} 
+                                aria-label="Log Out of Clinician Portal"
                                 className="bg-light-teal text-dark-slate hover:bg-dark-slate hover:text-white border border-light-teal-hover transition-all duration-300 py-2.5 px-4 rounded-full text-xs font-bold shadow-sm flex items-center space-x-1.5 cursor-pointer" 
                                 title="Log Out"
                              >

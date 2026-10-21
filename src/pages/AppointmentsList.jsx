@@ -254,6 +254,19 @@ export const handlePrintAppointmentSlip = (appt) => {
     }
 };
 
+// Helper: Get local YYYY-MM-DDTHH:mm string for datetime-local inputs (APT-006)
+export const getLocalDatetimeString = (dateInput = new Date()) => {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    const y = d.getFullYear();
+    const m = pad(d.getMonth() + 1);
+    const day = pad(d.getDate());
+    const hh = pad(d.getHours());
+    const mm = pad(d.getMinutes());
+    return `${y}-${m}-${d}T${hh}:${mm}`;
+};
+
 // Helper: Get robust YYYY-MM-DD local key for date matching regardless of client timezone
 export const getLocalDateKey = (dateInput) => {
     if (!dateInput) return '';
@@ -317,24 +330,72 @@ export default function AppointmentsList() {
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [selectedAppointment, setSelectedAppointment] = useState(null);
 
-    // Status update modal state
+    // Status update modal state (APT-001, APT-008)
     const [updateModal, setUpdateModal] = useState({ visible: false, appointment: null, newStatus: '', newReason: '', newNotes: '' });
+    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+    const [updateModalError, setUpdateModalError] = useState('');
     const [resendingWhatsApp, setResendingWhatsApp] = useState(false);
+
+    // Reschedule appointment modal state (APT-003)
+    const [rescheduleModal, setRescheduleModal] = useState({
+        visible: false,
+        appointment: null,
+        preferredDate: '',
+        doctorID: '',
+        reason: 'Patient requested reschedule',
+        loading: false,
+        error: ''
+    });
+
+    // Cleaned & deduplicated doctors list (APT-004, UX-002)
+    const dedupedDoctors = useMemo(() => {
+        const seen = new Map();
+        for (const d of doctors) {
+            if (!d) continue;
+            const id = d.doctorID || d.DoctorID;
+            let first = (d.firstName || d.FirstName || '').trim();
+            let last = (d.lastName || d.LastName || '').trim();
+            let full = `${first} ${last}`.trim();
+            if (!full) full = (d.fullName || d.FullName || 'Specialist').trim();
+
+            if (/test|demo|placeholder/i.test(full)) continue;
+
+            full = full.replace(/^dr\.?\s+/i, '').replace(/^dr\.?\s+/i, '').trim();
+            const cleanTitle = full.split(' ')
+                .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                .join(' ');
+            const canonicalName = `Dr. ${cleanTitle}`;
+
+            if (!seen.has(canonicalName) && id) {
+                seen.set(canonicalName, {
+                    ...d,
+                    doctorID: id,
+                    displayName: canonicalName,
+                    shortInitial: cleanTitle.charAt(0) || 'D'
+                });
+            }
+        }
+        return Array.from(seen.values());
+    }, [doctors]);
     
     // Quick New Appointment Modal
     const [showNewModal, setShowNewModal] = useState(false);
     const [modalPatients, setModalPatients] = useState([]);
     const [loadingModalPatients, setLoadingModalPatients] = useState(false);
     const [showModalPatientDropdown, setShowModalPatientDropdown] = useState(false);
+    const [allPatientsScope, setAllPatientsScope] = useState(false);
+    const [isDoctorScoped, setIsDoctorScoped] = useState(false);
     const [newApptForm, setNewApptForm] = useState(() => {
         const doc = JSON.parse(localStorage.getItem('doctor') || '{}');
         return {
             fullName: '',
             phone: '',
             email: '',
-            preferredDate: new Date().toISOString().slice(0, 16),
+            preferredDate: getLocalDatetimeString(new Date()),
             doctorID: doc.doctorID || doc.DoctorID || '',
-            reason: 'Consultation'
+            reason: 'Consultation',
+            isSlotMode: false,
+            slotDateStr: ''
         };
     });
     const [submittingNew, setSubmittingNew] = useState(false);
@@ -427,6 +488,8 @@ export default function AppointmentsList() {
         setNewApptForm(prev => ({
             ...prev,
             doctorID: prev.doctorID || defaultDocId || '',
+            isSlotMode: false,
+            slotDateStr: '',
             ...customFields
         }));
         setModalErrors({});
@@ -445,25 +508,31 @@ export default function AppointmentsList() {
                 const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
                 const loggedInDocId = doctorData.doctorID || doctorData.DoctorID;
 
-                // 1. If a specific doctor is selected, fetch their patients
-                if (newApptForm.doctorID) {
+                // 1. If a specific doctor is selected and user hasn't explicitly toggled all clinic patients
+                if (newApptForm.doctorID && !allPatientsScope) {
                     const res = await apiFetch(`/api/patients/doctor/${newApptForm.doctorID}`);
                     if (res.ok) {
                         const data = await res.json();
-                        if (isMounted) setModalPatients(Array.isArray(data) ? data : []);
-                        return;
+                        if (Array.isArray(data) && data.length > 0) {
+                            if (isMounted) {
+                                setModalPatients(data);
+                                setIsDoctorScoped(true);
+                            }
+                            return;
+                        }
                     }
                 }
 
-                // 2. If "Any Specialist" is selected or doctorID is empty,
-                // fetch patients across all doctors in the clinic
+                // 2. Fallback: If doctor has 0 patients or "All Clinic Patients" is selected,
+                // fetch across all doctors and clinic registry
+                if (isMounted) setIsDoctorScoped(false);
                 let targetDoctorIds = [];
                 if (doctors && doctors.length > 0) {
                     targetDoctorIds = doctors.map(d => d.doctorID);
                 } else if (loggedInDocId) {
                     targetDoctorIds = [loggedInDocId];
                 } else {
-                    targetDoctorIds = [2];
+                    targetDoctorIds = [1, 2, 3];
                 }
 
                 const responses = await Promise.all(
@@ -482,7 +551,14 @@ export default function AppointmentsList() {
                     }
                 }
 
-                const result = Array.from(uniqueMap.values());
+                let result = Array.from(uniqueMap.values());
+                if (result.length === 0) {
+                    const directRes = await apiFetch('/api/patients').then(r => r.ok ? r.json() : []).catch(() => []);
+                    if (Array.isArray(directRes) && directRes.length > 0) {
+                        result = directRes;
+                    }
+                }
+
                 if (isMounted) {
                     setModalPatients(result);
                 }
@@ -499,7 +575,7 @@ export default function AppointmentsList() {
         return () => {
             isMounted = false;
         };
-    }, [newApptForm.doctorID, showNewModal, doctors]);
+    }, [newApptForm.doctorID, showNewModal, doctors, allPatientsScope]);
 
     const validateModalField = (field, value) => {
         const val = typeof value === 'string' ? value.trim() : value;
@@ -553,43 +629,115 @@ export default function AppointmentsList() {
         return newErrors;
     };
 
-    // Status Update Handler
+    // Status Update Handler (APT-001)
     const handleUpdateStatus = async () => {
         if (!updateModal.appointment) return;
+        setIsUpdatingStatus(true);
+        setUpdateModalError('');
         try {
-            setError('');
+            // Normalize status: map Rejected / Cancelled to Cancelled
+            const targetStatus = (updateModal.newStatus === 'Rejected' || updateModal.newStatus === 'Rejected / Cancelled')
+                ? 'Cancelled'
+                : (updateModal.newStatus === 'Done' ? 'Completed' : updateModal.newStatus);
+
             const res = await apiFetch(`/api/appointments/${updateModal.appointment.appointmentID}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    status: updateModal.newStatus, 
+                    status: targetStatus, 
                     reason: updateModal.newReason,
                     notes: updateModal.newNotes
                 })
             });
             if (res.ok) {
                 setUpdateModal({ visible: false, appointment: null, newStatus: '', newReason: '', newNotes: '' });
-                setToastMessage(`Appointment marked as ${updateModal.newStatus}!`);
+                setToastMessage(`Appointment successfully updated to ${targetStatus}!`);
                 fetchAppointments();
                 if (selectedAppointment && selectedAppointment.appointmentID === updateModal.appointment.appointmentID) {
                     setSelectedAppointment(prev => prev ? { 
                         ...prev, 
-                        status: updateModal.newStatus, 
+                        status: targetStatus, 
                         reason: updateModal.newReason,
                         notes: updateModal.newNotes
                     } : null);
                 }
             } else {
                 const errData = await res.json().catch(() => ({}));
-                setError(errData.message || 'Failed to update status.');
+                setUpdateModalError(errData.message || 'Failed to update status. Please try again.');
             }
         } catch (err) {
             console.error(err);
-            setError('Server connection error.');
+            setUpdateModalError('Network error connecting to clinic server.');
+        } finally {
+            setIsUpdatingStatus(false);
         }
     };
 
-    // Quick Book Appointment Handler
+    // Reschedule Appointment Handlers (APT-003)
+    const openRescheduleModal = (appt) => {
+        if (!appt) return;
+        const initialDate = appt.preferredDate ? getLocalDatetimeString(appt.preferredDate) : getLocalDatetimeString(new Date());
+        setRescheduleModal({
+            visible: true,
+            appointment: appt,
+            preferredDate: initialDate,
+            doctorID: appt.doctorID ? String(appt.doctorID) : '',
+            reason: 'Patient requested reschedule',
+            loading: false,
+            error: ''
+        });
+    };
+
+    const handleConfirmReschedule = async () => {
+        if (!rescheduleModal.appointment || !rescheduleModal.preferredDate) {
+            setRescheduleModal(prev => ({ ...prev, error: 'Please choose a valid new date and time.' }));
+            return;
+        }
+        const selectedTime = new Date(rescheduleModal.preferredDate).getTime();
+        if (selectedTime < Date.now() - 60000) {
+            setRescheduleModal(prev => ({ ...prev, error: 'Appointment date and time cannot be in the past.' }));
+            return;
+        }
+
+        setRescheduleModal(prev => ({ ...prev, loading: true, error: '' }));
+        try {
+            const res = await apiFetch(`/api/appointments/${rescheduleModal.appointment.appointmentID}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    preferredDate: rescheduleModal.preferredDate,
+                    doctorID: rescheduleModal.doctorID ? parseInt(rescheduleModal.doctorID, 10) : null,
+                    reason: rescheduleModal.reason || 'Rescheduled by clinic staff',
+                    status: 'Confirmed'
+                })
+            });
+
+            if (res.ok) {
+                setToastMessage(`Appointment successfully rescheduled for ${new Date(rescheduleModal.preferredDate).toLocaleString()}!`);
+                setRescheduleModal({ visible: false, appointment: null, preferredDate: '', doctorID: '', reason: '', loading: false, error: '' });
+                fetchAppointments();
+                if (selectedAppointment && selectedAppointment.appointmentID === rescheduleModal.appointment.appointmentID) {
+                    setSelectedAppointment(prev => prev ? {
+                        ...prev,
+                        preferredDate: rescheduleModal.preferredDate,
+                        doctorID: rescheduleModal.doctorID ? parseInt(rescheduleModal.doctorID, 10) : prev.doctorID,
+                        status: 'Confirmed',
+                        reason: rescheduleModal.reason
+                    } : null);
+                }
+            } else {
+                const errData = await res.json().catch(() => ({}));
+                setRescheduleModal(prev => ({ ...prev, error: errData.message || 'Slot conflict or error rescheduling appointment.' }));
+            }
+        } catch (err) {
+            console.error("Reschedule failed:", err);
+            setRescheduleModal(prev => ({ ...prev, error: 'Network connection error while rescheduling.' }));
+        } finally {
+            setRescheduleModal(prev => ({ ...prev, loading: false }));
+        }
+    };
+
+    // Quick Book Appointment Handler (APT-002: no redundant secondary PUT)
     const handleCreateAppointment = async (e) => {
         e.preventDefault();
         setError('');
@@ -629,22 +777,6 @@ export default function AppointmentsList() {
             });
 
             if (res.ok) {
-                const data = await res.json().catch(() => ({}));
-                const newId = data?.appointment?.appointmentID || data?.appointment?.AppointmentID || data?.appointmentId || data?.id;
-
-                // Double guarantee: if remote API server has an older build where POST omitted Reason column,
-                // immediate PUT ensures Reason is directly saved to SQL database
-                if (newId && payload.reason) {
-                    await apiFetch(`/api/appointments/${newId}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            status: payload.status || 'Confirmed',
-                            reason: payload.reason
-                        })
-                    }).catch(err => console.warn("PUT backup reason update failed:", err));
-                }
-
                 setShowNewModal(false);
                 setToastMessage('New Appointment Scheduled & Confirmed!');
                 try {
@@ -653,12 +785,12 @@ export default function AppointmentsList() {
                     console.warn("Voice success notification notice:", vErr);
                 }
                 const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
-                const defaultDocId = doctorData.doctorID || doctorData.DoctorID || (doctors.length > 0 ? doctors[0].doctorID : '');
+                const defaultDocId = doctorData.doctorID || doctorData.DoctorID || (dedupedDoctors.length > 0 ? dedupedDoctors[0].doctorID : '');
                 setNewApptForm({
                     fullName: '',
                     phone: '',
                     email: '',
-                    preferredDate: new Date().toISOString().slice(0, 16),
+                    preferredDate: getLocalDatetimeString(new Date()),
                     doctorID: defaultDocId,
                     reason: 'Consultation'
                 });
@@ -898,11 +1030,11 @@ export default function AppointmentsList() {
             );
         }
 
-        if (optIn === false) {
+        if (optIn !== true) {
             return (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200" title="Patient opted out / WhatsApp disabled">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200" title="Patient has not opted in for WhatsApp notifications">
                     <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                    <span>Skipped (Inactive)</span>
+                    <span>WhatsApp Inactive ⚪</span>
                 </span>
             );
         }
@@ -919,17 +1051,25 @@ export default function AppointmentsList() {
                 );
             case 'QUEUED':
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs" title="Reminder queued for dispatch">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs" title="WhatsApp reminder queued for dispatch">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                        <span>Queued ⏳</span>
+                        <span>WhatsApp: Queued ⏳</span>
                     </span>
                 );
             case 'FAILED':
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs" title="WhatsApp dispatch failed">
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleResendWhatsApp(apt);
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs transition-all cursor-pointer"
+                        title="WhatsApp reminder delivery failed. Click to retry dispatching notification."
+                    >
                         <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                        <span>Failed 🔴</span>
-                    </span>
+                        <span>WhatsApp: Failed (Retry ↺)</span>
+                    </button>
                 );
             case 'SKIPPED':
                 return (
@@ -939,7 +1079,7 @@ export default function AppointmentsList() {
                     </span>
                 );
             default:
-                if (optIn) {
+                if (optIn === true && phone) {
                     return (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200" title="WhatsApp Active for Patient">
                             <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
@@ -990,22 +1130,38 @@ export default function AppointmentsList() {
                         </p>
                     </div>
 
-                    {/* Quick Stats Pills */}
+                    {/* Quick Stats Pills (APT-007: Skeleton loading state) */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div className="bg-slate-50 border border-slate-200/70 p-3.5 rounded-2xl text-center flex flex-col justify-center min-w-[110px]">
-                            <span className="text-xl font-bold text-slate-900 block">{stats.total}</span>
+                            {loading ? (
+                                <span className="inline-block w-8 h-6 bg-slate-200 animate-pulse rounded mx-auto mb-1"></span>
+                            ) : (
+                                <span className="text-xl font-bold text-slate-900 block">{stats.total}</span>
+                            )}
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total Booked</span>
                         </div>
                         <div className="bg-blue-50/60 border border-blue-200/60 p-3.5 rounded-2xl text-center flex flex-col justify-center min-w-[110px]">
-                            <span className="text-xl font-bold text-[#4A7CD2] block">{stats.today}</span>
+                            {loading ? (
+                                <span className="inline-block w-8 h-6 bg-blue-200 animate-pulse rounded mx-auto mb-1"></span>
+                            ) : (
+                                <span className="text-xl font-bold text-[#4A7CD2] block">{stats.today}</span>
+                            )}
                             <span className="text-[10px] font-bold text-[#4A7CD2]/80 uppercase tracking-wider mt-0.5">Today's Visits</span>
                         </div>
                         <div className="bg-emerald-50/60 border border-emerald-200/60 p-3.5 rounded-2xl text-center flex flex-col justify-center min-w-[110px]">
-                            <span className="text-xl font-bold text-emerald-600 block">{stats.confirmed}</span>
+                            {loading ? (
+                                <span className="inline-block w-8 h-6 bg-emerald-200 animate-pulse rounded mx-auto mb-1"></span>
+                            ) : (
+                                <span className="text-xl font-bold text-emerald-600 block">{stats.confirmed}</span>
+                            )}
                             <span className="text-[10px] font-bold text-emerald-700/80 uppercase tracking-wider mt-0.5">Confirmed</span>
                         </div>
                         <div className="bg-amber-50/60 border border-amber-200/60 p-3.5 rounded-2xl text-center flex flex-col justify-center min-w-[110px]">
-                            <span className="text-xl font-bold text-amber-600 block">{stats.pending}</span>
+                            {loading ? (
+                                <span className="inline-block w-8 h-6 bg-amber-200 animate-pulse rounded mx-auto mb-1"></span>
+                            ) : (
+                                <span className="text-xl font-bold text-amber-600 block">{stats.pending}</span>
+                            )}
                             <span className="text-[10px] font-bold text-amber-700/80 uppercase tracking-wider mt-0.5">Pending</span>
                         </div>
                     </div>
@@ -1122,7 +1278,7 @@ export default function AppointmentsList() {
                         {/* Filter & Export Cluster */}
                         <div className="flex flex-wrap items-center gap-2 justify-end">
                             
-                            {/* Specialist Filter */}
+                            {/* Specialist Filter (APT-004, UX-002: deduped clean doctors) */}
                             <div className="relative">
                                 <select
                                     value={doctorFilter}
@@ -1130,9 +1286,9 @@ export default function AppointmentsList() {
                                     className="appearance-none pl-3 pr-7 py-2 bg-slate-50 hover:bg-slate-100/80 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/15 cursor-pointer transition-all"
                                 >
                                     <option value="All">All Specialists</option>
-                                    {doctors.map(d => (
+                                    {dedupedDoctors.map(d => (
                                         <option key={d.doctorID} value={d.doctorID}>
-                                            Dr. {d.firstName} {d.lastName}
+                                            {d.displayName}
                                         </option>
                                     ))}
                                 </select>
@@ -1175,7 +1331,7 @@ export default function AppointmentsList() {
                 {activeView === 'calendar' && (
                     <div className="space-y-4">
                         
-                        {/* Doctor Specialist Filter Strip (Quick 1-Click Doctor Switching) */}
+                        {/* Doctor Specialist Filter Strip (Quick 1-Click Doctor Switching - APT-004, UX-002) */}
                         <div className="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-2xs flex items-center gap-2 overflow-x-auto scrollbar-hide">
                             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider pl-2 pr-3 border-r border-slate-200 flex-shrink-0">
                                 <Stethoscope className="w-3.5 h-3.5 text-[#4A7CD2]" />
@@ -1198,7 +1354,7 @@ export default function AppointmentsList() {
                                 </span>
                             </button>
 
-                            {doctors.map(d => {
+                            {dedupedDoctors.map(d => {
                                 const docCount = appointments.filter(a => a.doctorID && a.doctorID.toString() === d.doctorID.toString()).length;
                                 const isSelected = doctorFilter === d.doctorID.toString();
 
@@ -1215,13 +1371,13 @@ export default function AppointmentsList() {
                                         <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
                                             isSelected ? 'bg-white text-[#4A7CD2]' : 'bg-[#4A7CD2]/20 text-[#4A7CD2]'
                                         }`}>
-                                            {d.firstName?.charAt(0) || 'D'}
+                                            {d.shortInitial || 'D'}
                                         </div>
-                                        <span>Dr. {d.firstName} {d.lastName}</span>
+                                        <span>{d.displayName}</span>
                                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
                                             isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
                                         }`}>
-                                            {docCount} Appts
+                                            {docCount} Appt{docCount === 1 ? '' : 's'}
                                         </span>
                                     </button>
                                 );
@@ -1234,16 +1390,16 @@ export default function AppointmentsList() {
                             {/* Left Calendar Stage (8 of 12 columns) */}
                             <div className="xl:col-span-8 bg-white rounded-3xl border border-slate-200/80 shadow-xs p-5 space-y-3.5">
                                 
-                                {/* Calendar Month Navigation Header */}
+                                {/* Calendar Month Navigation Header (UX-001: generous click targets) */}
                                 <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pb-2 border-b border-slate-100">
                                     <div className="flex items-center gap-3">
                                         <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
                                             {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                                         </h2>
-                                        <div className="flex items-center bg-slate-100 rounded-xl border border-slate-200/60 p-0.5">
+                                        <div className="flex items-center bg-slate-100 rounded-xl border border-slate-200/60 p-1 gap-1">
                                             <button
                                                 onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}
-                                                className="p-1 hover:bg-white rounded-lg transition text-slate-600 cursor-pointer"
+                                                className="min-w-[36px] min-h-[36px] p-2 hover:bg-white rounded-lg transition text-slate-600 cursor-pointer flex items-center justify-center"
                                                 title="Previous Month"
                                             >
                                                 <ChevronLeft className="w-4 h-4" />
@@ -1254,13 +1410,13 @@ export default function AppointmentsList() {
                                                     setCurrentDate(now);
                                                     setSelectedDate(now);
                                                 }}
-                                                className="px-2.5 py-0.5 text-xs font-bold text-[#4A7CD2] hover:bg-white rounded-lg transition cursor-pointer"
+                                                className="min-h-[36px] px-3.5 py-1.5 text-xs font-bold text-[#4A7CD2] hover:bg-white rounded-lg transition cursor-pointer flex items-center justify-center shadow-2xs"
                                             >
                                                 Today
                                             </button>
                                             <button
                                                 onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}
-                                                className="p-1 hover:bg-white rounded-lg transition text-slate-600 cursor-pointer"
+                                                className="min-w-[36px] min-h-[36px] p-2 hover:bg-white rounded-lg transition text-slate-600 cursor-pointer flex items-center justify-center"
                                                 title="Next Month"
                                             >
                                                 <ChevronRight className="w-4 h-4" />
@@ -1376,7 +1532,7 @@ export default function AppointmentsList() {
                             </div>
 
                             {/* Right Day Focus Inspector Panel (4 of 12 columns) - Height Matched */}
-                            <div className="xl:col-span-4 bg-white rounded-3xl border border-slate-200/80 shadow-xs p-5 space-y-4 max-h-[560px] flex flex-col">
+                            <div className="xl:col-span-4 bg-white rounded-3xl border border-slate-200/80 shadow-xs p-5 space-y-4 max-h-[600px] flex flex-col">
                                 
                                 {/* Panel Header with Active Date */}
                                 <div className="flex items-center justify-between border-b border-slate-100 pb-3 flex-shrink-0">
@@ -1393,10 +1549,14 @@ export default function AppointmentsList() {
                                     <button
                                         onClick={() => {
                                             const dateIso = getLocalDateKey(selectedDate);
-                                            openNewAppointmentModal({ preferredDate: `${dateIso}T10:00` });
+                                            openNewAppointmentModal({ 
+                                                preferredDate: `${dateIso}T10:00`,
+                                                isSlotMode: true,
+                                                slotDateStr: selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+                                            });
                                         }}
                                         className="px-2.5 py-1.5 bg-blue-50 text-[#4A7CD2] hover:bg-[#4A7CD2] hover:text-white rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
-                                        title="Book on this date"
+                                        title="Book slot on this date"
                                     >
                                         <Plus className="w-3.5 h-3.5" />
                                         <span>Add Slot</span>
@@ -1404,7 +1564,7 @@ export default function AppointmentsList() {
                                 </div>
 
                                 {/* Schedule List for Selected Date - Internal Smooth Scroll */}
-                                <div className="space-y-3 overflow-y-auto pr-1 flex-grow scrollbar-hide">
+                                <div className="space-y-3 overflow-y-auto pr-1 flex-grow custom-scrollbar pb-16">
                                     {selectedDateAppointments.length === 0 ? (
                                         <div className="text-center py-10 px-4 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200 space-y-3">
                                             <div className="w-10 h-10 bg-white rounded-2xl shadow-2xs flex items-center justify-center mx-auto text-slate-400">
@@ -2160,13 +2320,22 @@ export default function AppointmentsList() {
                                 href={getGoogleCalendarUrl(selectedAppointment)}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="flex-1 py-2.5 px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                                className="flex-1 py-2.5 px-3 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
                             >
                                 <ExternalLink className="w-4 h-4" />
                                 Google Cal
                             </a>
                             <button
+                                onClick={() => openRescheduleModal(selectedAppointment)}
+                                className="flex-1 py-2.5 px-3 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                                title="Reschedule Date & Time"
+                            >
+                                <Clock className="w-4 h-4 text-amber-600" />
+                                Reschedule
+                            </button>
+                            <button
                                 onClick={() => {
+                                    setUpdateModalError('');
                                     setUpdateModal({
                                         visible: true,
                                         appointment: selectedAppointment,
@@ -2175,7 +2344,7 @@ export default function AppointmentsList() {
                                         newNotes: selectedAppointment.notes || selectedAppointment.Notes || ''
                                     });
                                 }}
-                                className="flex-1 py-2.5 px-4 bg-[#4A7CD2] hover:bg-[#3b66b2] text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+                                className="flex-1 py-2.5 px-3 bg-[#4A7CD2] hover:bg-[#3b66b2] text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
                             >
                                 Change Status
                             </button>
@@ -2195,15 +2364,20 @@ export default function AppointmentsList() {
             )}
 
             {/* ========================================================= */}
-            {/* STATUS UPDATE MODAL                                       */}
+            {/* STATUS UPDATE MODAL (APT-001, APT-008)                    */}
             {/* ========================================================= */}
             {updateModal.visible && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-200 space-y-4 animate-scale-up">
                         <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                            <h3 className="text-base font-bold text-slate-900">Update Appointment Status</h3>
+                            <div>
+                                <h3 className="text-base font-bold text-slate-900">Update Appointment Status</h3>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    Patient: <strong className="text-slate-800">{updateModal.appointment?.fullName}</strong>
+                                </p>
+                            </div>
                             <button
-                                onClick={() => setUpdateModal({ visible: false, appointment: null, newStatus: '', newReason: '' })}
+                                onClick={() => setUpdateModal({ visible: false, appointment: null, newStatus: '', newReason: '', newNotes: '' })}
                                 className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
                             >
                                 <X className="w-4 h-4" />
@@ -2220,11 +2394,43 @@ export default function AppointmentsList() {
                                 >
                                     <option value="Confirmed">Confirmed</option>
                                     <option value="Pending">Pending</option>
-                                    <option value="Done">Done / Completed</option>
-                                    <option value="Rejected">Rejected / Cancelled</option>
+                                    <option value="Completed">Completed / Done</option>
+                                    <option value="Cancelled">Rejected / Cancelled</option>
+                                    <option value="No-Show">No-Show</option>
                                     <option value="Re-scheduled">Re-scheduled</option>
                                 </select>
                             </div>
+
+                            {/* APT-001: Cancellation Confirmation Prompt */}
+                            {(updateModal.newStatus === 'Cancelled' || updateModal.newStatus === 'Rejected' || updateModal.newStatus === 'Rejected / Cancelled') && (
+                                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 space-y-1 animate-fade-in">
+                                    <div className="font-bold flex items-center gap-1.5 text-rose-700">
+                                        <AlertCircle className="w-4 h-4 shrink-0" />
+                                        <span>Confirm Cancellation</span>
+                                    </div>
+                                    <p className="text-[11px] text-rose-600">
+                                        Cancelling will release this slot and update the patient's record to Cancelled. Click 'Save Changes' to confirm.
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* APT-003: Reschedule Option Quick Switch */}
+                            {updateModal.newStatus === 'Re-scheduled' && (
+                                <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800 flex items-center justify-between animate-fade-in">
+                                    <span>Need to select a new date or specialist?</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const target = updateModal.appointment;
+                                            setUpdateModal({ visible: false, appointment: null, newStatus: '', newReason: '', newNotes: '' });
+                                            openRescheduleModal(target);
+                                        }}
+                                        className="px-2.5 py-1 bg-[#4A7CD2] text-white rounded-lg text-xs font-bold hover:bg-[#3b66b2] cursor-pointer"
+                                    >
+                                        Open Rescheduler →
+                                    </button>
+                                </div>
+                            )}
 
                             <div>
                                 <label className="block text-xs font-bold text-slate-600 mb-1.5">Clinical Note / Reason</label>
@@ -2249,24 +2455,136 @@ export default function AppointmentsList() {
                             </div>
                         </div>
 
-                        {error && (
-                            <div className="p-3 bg-red-50 rounded-xl text-xs text-red-600 font-bold">
-                                {error}
+                        {updateModalError && (
+                            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-bold flex items-center gap-1.5">
+                                <AlertCircle className="w-4 h-4 shrink-0" />
+                                <span>{updateModalError}</span>
+                            </div>
+                        )}
+
+                        <div className="flex gap-2.5 pt-2">
+                            {/* APT-008: Renamed from Cancel to Close Dialog to avoid ambiguity */}
+                            <button
+                                type="button"
+                                onClick={() => setUpdateModal({ visible: false, appointment: null, newStatus: '', newReason: '', newNotes: '' })}
+                                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                            >
+                                Close
+                            </button>
+                            {/* APT-001: Spinner and disabled state during update */}
+                            <button
+                                type="button"
+                                disabled={isUpdatingStatus}
+                                onClick={handleUpdateStatus}
+                                className="flex-1 py-2.5 bg-[#4A7CD2] hover:bg-[#3b66b2] text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+                            >
+                                {isUpdatingStatus && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                                <span>{isUpdatingStatus ? 'Saving Changes...' : 'Save Changes'}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ========================================================= */}
+            {/* 🔄 RESCHEDULE APPOINTMENT MODAL (APT-003)                  */}
+            {/* ========================================================= */}
+            {rescheduleModal.visible && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-200 space-y-4 animate-scale-up">
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                            <div>
+                                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                                    <Clock className="w-4 h-4 text-[#4A7CD2]" />
+                                    <span>Reschedule Appointment</span>
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    Patient: <strong className="text-slate-800">{rescheduleModal.appointment?.fullName}</strong>
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setRescheduleModal({ visible: false, appointment: null, preferredDate: '', doctorID: '', reason: '', loading: false, error: '' })}
+                                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {rescheduleModal.appointment && (
+                            <div className="p-3 bg-slate-50 border border-slate-200/70 rounded-xl text-xs space-y-1">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Current Schedule:</span>
+                                <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                                    <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                    <span>{new Date(rescheduleModal.appointment.preferredDate).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' })}</span>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="space-y-3.5">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-1">New Date & Time *</label>
+                                <input
+                                    type="datetime-local"
+                                    required
+                                    min={getLocalDatetimeString(new Date())}
+                                    value={rescheduleModal.preferredDate}
+                                    onChange={(e) => setRescheduleModal(prev => ({ ...prev, preferredDate: e.target.value, error: '' }))}
+                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/20"
+                                />
+                                <span className="text-[10px] text-slate-400 mt-0.5 block">Operating hours: 08:00 AM – 08:00 PM</span>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-1">Attending Specialist</label>
+                                <select
+                                    value={rescheduleModal.doctorID}
+                                    onChange={(e) => setRescheduleModal(prev => ({ ...prev, doctorID: e.target.value }))}
+                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/20 cursor-pointer"
+                                >
+                                    <option value="">Keep Current Specialist</option>
+                                    {dedupedDoctors.map(d => (
+                                        <option key={d.doctorID} value={d.doctorID}>
+                                            {d.displayName} ({d.speciality || 'General Dentistry'})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-1">Reason for Rescheduling</label>
+                                <input
+                                    type="text"
+                                    value={rescheduleModal.reason}
+                                    onChange={(e) => setRescheduleModal(prev => ({ ...prev, reason: e.target.value }))}
+                                    placeholder="e.g. Patient requested morning slot, Doctor schedule changed..."
+                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/20"
+                                />
+                            </div>
+                        </div>
+
+                        {rescheduleModal.error && (
+                            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-bold flex items-center gap-1.5">
+                                <AlertCircle className="w-4 h-4 shrink-0" />
+                                <span>{rescheduleModal.error}</span>
                             </div>
                         )}
 
                         <div className="flex gap-2.5 pt-2">
                             <button
-                                onClick={() => setUpdateModal({ visible: false, appointment: null, newStatus: '', newReason: '' })}
+                                type="button"
+                                onClick={() => setRescheduleModal({ visible: false, appointment: null, preferredDate: '', doctorID: '', reason: '', loading: false, error: '' })}
                                 className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
                             >
-                                Cancel
+                                Close
                             </button>
                             <button
-                                onClick={handleUpdateStatus}
-                                className="flex-1 py-2.5 bg-[#4A7CD2] hover:bg-[#3b66b2] text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+                                type="button"
+                                disabled={rescheduleModal.loading}
+                                onClick={handleConfirmReschedule}
+                                className="flex-1 py-2.5 bg-[#4A7CD2] hover:bg-[#3b66b2] text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
                             >
-                                Save Changes
+                                {rescheduleModal.loading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                                <span>{rescheduleModal.loading ? 'Rescheduling...' : 'Confirm Reschedule'}</span>
                             </button>
                         </div>
                     </div>
@@ -2282,7 +2600,16 @@ export default function AppointmentsList() {
                         <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                             <div className="flex items-center gap-2">
                                 <Plus className="w-5 h-5 text-[#4A7CD2]" />
-                                <h3 className="text-base font-bold text-slate-900">Schedule New Appointment</h3>
+                                <div>
+                                    <h3 className="text-base font-bold text-slate-900">
+                                        {newApptForm.isSlotMode ? `Schedule Slot — ${newApptForm.slotDateStr || 'Day Focus'}` : 'Schedule New Appointment'}
+                                    </h3>
+                                    {newApptForm.isSlotMode && (
+                                        <span className="text-[10px] font-bold text-[#4A7CD2] bg-blue-50 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                                            📅 Dedicated Day Agenda Slot
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                             <div className="flex items-center gap-2">
                                 <button
@@ -2331,7 +2658,7 @@ export default function AppointmentsList() {
                             {/* 1. Attending Doctor */}
                             <div>
                                 <div className="flex justify-between items-center mb-1">
-                                    <label className="block text-xs font-bold text-slate-600">Attending Specialist *</label>
+                                    <label htmlFor="newAppt-doctorID" className="block text-xs font-bold text-slate-600">Attending Specialist *</label>
                                     {modalPatients.length > 0 && (
                                         <span className="text-[10px] font-bold text-[#4A7CD2] bg-blue-50 px-2 py-0.5 rounded-md">
                                             {modalPatients.length} registered patients available
@@ -2339,6 +2666,8 @@ export default function AppointmentsList() {
                                     )}
                                 </div>
                                 <select
+                                    id="newAppt-doctorID"
+                                    name="doctorID"
                                     value={newApptForm.doctorID}
                                     onChange={(e) => {
                                         const docId = e.target.value;
@@ -2361,9 +2690,9 @@ export default function AppointmentsList() {
                                     }`}
                                 >
                                     <option value="">Any Specialist (All Clinic Patients)</option>
-                                    {doctors.map(d => (
+                                    {dedupedDoctors.map(d => (
                                         <option key={d.doctorID} value={d.doctorID}>
-                                            Dr. {d.firstName} {d.lastName} ({d.speciality || 'General Dentistry'})
+                                            Dr. {d.name} ({d.speciality || 'General Dentistry'})
                                         </option>
                                     ))}
                                 </select>
@@ -2377,11 +2706,13 @@ export default function AppointmentsList() {
 
                             {/* 2. Full Name with registered patient dropdown */}
                             <div className="relative">
-                                <label className="block text-xs font-bold text-slate-600 mb-1">
+                                <label htmlFor="newAppt-fullName" className="block text-xs font-bold text-slate-600 mb-1">
                                     Patient Full Name * <span className="text-[10px] text-slate-400 font-normal">(pick from clinic list or type new)</span>
                                 </label>
                                 <div className="relative">
                                     <input
+                                        id="newAppt-fullName"
+                                        name="fullName"
                                         type="text"
                                         required
                                         value={newApptForm.fullName}
@@ -2431,7 +2762,19 @@ export default function AppointmentsList() {
                                 {showModalPatientDropdown && (
                                     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto divide-y divide-slate-100">
                                         <div className="p-2 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between sticky top-0 z-10 border-b border-slate-100">
-                                            <span>{newApptForm.doctorID ? "Doctor's Patients" : "All Clinic Patients"} ({modalPatients.length})</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <span>{isDoctorScoped && !allPatientsScope ? "Doctor's Patients" : "All Clinic Patients"} ({modalPatients.length})</span>
+                                                <button 
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setAllPatientsScope(prev => !prev);
+                                                    }}
+                                                    className="text-[9px] text-[#4A7CD2] hover:underline cursor-pointer lowercase"
+                                                >
+                                                    ({allPatientsScope ? "show doctor's only" : "show all clinic patients"})
+                                                </button>
+                                            </div>
                                             <button 
                                                 type="button"
                                                 onClick={() => setShowModalPatientDropdown(false)}
@@ -2504,8 +2847,10 @@ export default function AppointmentsList() {
                             {/* 3. Phone & Email */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-600 mb-1">Phone Number *</label>
+                                    <label htmlFor="newAppt-phone" className="block text-xs font-bold text-slate-600 mb-1">Phone Number *</label>
                                     <input
+                                        id="newAppt-phone"
+                                        name="phone"
                                         type="tel"
                                         required
                                         value={newApptForm.phone}
@@ -2538,8 +2883,10 @@ export default function AppointmentsList() {
                                     )}
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-600 mb-1">Email Address (Optional)</label>
+                                    <label htmlFor="newAppt-email" className="block text-xs font-bold text-slate-600 mb-1">Email Address (Optional)</label>
                                     <input
+                                        id="newAppt-email"
+                                        name="email"
                                         type="email"
                                         value={newApptForm.email}
                                         onChange={(e) => {
@@ -2574,9 +2921,12 @@ export default function AppointmentsList() {
 
                             {/* 4. Preferred Date & Time */}
                             <div>
-                                <label className="block text-xs font-bold text-slate-600 mb-1">Preferred Date & Time *</label>
+                                <label htmlFor="newAppt-preferredDate" className="block text-xs font-bold text-slate-600 mb-1">Preferred Date & Time *</label>
                                 <input
+                                    id="newAppt-preferredDate"
+                                    name="preferredDate"
                                     type="datetime-local"
+                                    min={getLocalDatetimeString(new Date())}
                                     required
                                     value={newApptForm.preferredDate}
                                     onChange={(e) => {
@@ -2608,9 +2958,11 @@ export default function AppointmentsList() {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-slate-600 mb-1">Reason for Visit</label>
+                                <label htmlFor="newAppt-reason" className="block text-xs font-bold text-slate-600 mb-1">Reason for Visit</label>
                                 <div className="relative">
                                     <select
+                                        id="newAppt-reason"
+                                        name="reason"
                                         value={newApptForm.reason}
                                         onChange={(e) => setNewApptForm(prev => ({ ...prev, reason: e.target.value }))}
                                         className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#4A7CD2] cursor-pointer appearance-none transition pr-10"
