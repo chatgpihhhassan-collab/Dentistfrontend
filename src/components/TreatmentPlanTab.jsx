@@ -3,7 +3,7 @@ import {
     Clock, CheckCircle2, Play, Check, AlertCircle,
     Sparkles, Plus, X, Trash2, RefreshCw, Banknote,
     Mic, Lock, Stethoscope, Zap, TrendingUp,
-    Activity, DollarSign, Target
+    Activity, DollarSign, Target, ChevronDown, ChevronUp
 } from 'lucide-react';
 import API_BASE_URL from '../config/apiConfig';
 import { TOOTH_NAMES } from './PatientTreatmentInvoiceTab';
@@ -197,7 +197,7 @@ export default function TreatmentPlanTab({
     const [cancelModalItem, setCancelModalItem] = useState(null);
     const [cancelReason, setCancelReason] = useState('');
     const [savingItem, setSavingItem] = useState(false);
-    const [showFindings, setShowFindings] = useState(false);
+    const [findingsCollapsed, setFindingsCollapsed] = useState(false);
     // Catalog form
     const [selectedCatalogId, setSelectedCatalogId] = useState('');
     const [catalogTooth, setCatalogTooth] = useState('0');
@@ -330,11 +330,39 @@ export default function TreatmentPlanTab({
                 body: JSON.stringify({ patientId, doctorId, name: finding.suggestedProcedureName, category: 'restorative', procedureCode: finding.suggestedProcedureCode, toothNo: finding.toothNumber, source: 'chart_save', sourceRef: `Finding: ${finding.conditionStatus}`, estimatedPrice: finding.estimatedPrice, finalPrice: finding.estimatedPrice, plannedVisits: 1, status: 'proposed', priceNote: finding.comments || `From chart: ${finding.conditionStatus}` }),
             });
             if (res.ok) {
-                showToast('success', `Added Tooth #${finding.toothNumber} to plan.`);
-                setShowFindings(false); await fetchPlanData(); if (onTreatmentStatusChange) onTreatmentStatusChange();
+                showToast('success', `Added Tooth #${finding.toothNumber} to treatment plan.`);
+                await fetchPlanData(); if (onTreatmentStatusChange) onTreatmentStatusChange();
             } else { const e = await res.json().catch(() => ({})); showToast('error', e.message || 'Failed.'); }
         } catch { showToast('error', 'Network error.'); }
         finally { setActionLoading(p => ({ ...p, [`f_${finding.toothNumber}`]: false })); }
+    };
+
+    const handleAddAllFindings = async () => {
+        if (!unplannedFindings.length) return;
+        setActionLoading(p => ({ ...p, addAllFindings: true }));
+        try {
+            let addedCount = 0;
+            for (const f of unplannedFindings) {
+                const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/treatment-items`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        patientId, doctorId, name: f.suggestedProcedureName, category: 'restorative',
+                        procedureCode: f.suggestedProcedureCode, toothNo: f.toothNumber, source: 'chart_save',
+                        sourceRef: `Finding: ${f.conditionStatus}`, estimatedPrice: f.estimatedPrice,
+                        finalPrice: f.estimatedPrice, plannedVisits: 1, status: 'proposed',
+                        priceNote: f.comments || `From chart: ${f.conditionStatus}`
+                    }),
+                });
+                if (res.ok) addedCount++;
+            }
+            showToast('success', `Added ${addedCount} finding(s) to treatment plan.`);
+            await fetchPlanData();
+            if (onTreatmentStatusChange) onTreatmentStatusChange();
+        } catch {
+            showToast('error', 'Failed to add all findings.');
+        } finally {
+            setActionLoading(p => ({ ...p, addAllFindings: false }));
+        }
     };
 
     const handleRecordAdvance = async (e) => {
@@ -431,10 +459,22 @@ export default function TreatmentPlanTab({
                 {/* Action buttons */}
                 <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
                     {unplannedFindings.length > 0 && (
-                        <button onClick={() => setShowFindings(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 9, background: '#FFF7ED', border: '1px solid #FED7AA', color: '#EA580C', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                            <Stethoscope size={12} />
+                        <button
+                            onClick={() => setFindingsCollapsed(prev => !prev)}
+                            title={findingsCollapsed ? "Show unplanned findings" : "Hide unplanned findings"}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px',
+                                borderRadius: 9,
+                                background: findingsCollapsed ? '#FFF7ED' : '#FEF3C7',
+                                border: `1px solid ${findingsCollapsed ? '#FED7AA' : '#F59E0B'}`,
+                                color: '#92400E', fontSize: 11, fontWeight: 800, cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                            }}
+                        >
+                            <Stethoscope size={12} color="#D97706" />
                             Findings
-                            <span style={{ background: '#EA580C', color: '#fff', borderRadius: 999, fontSize: 8.5, fontWeight: 800, padding: '1px 5px' }}>{unplannedFindings.length}</span>
+                            <span style={{ background: '#D97706', color: '#fff', borderRadius: 999, fontSize: 8.5, fontWeight: 800, padding: '1px 5px' }}>{unplannedFindings.length}</span>
+                            {findingsCollapsed ? <ChevronDown size={11} color="#92400E" /> : <ChevronUp size={11} color="#92400E" />}
                         </button>
                     )}
                     <button onClick={() => setShowCatalogModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 9, background: 'linear-gradient(135deg,#3B82F6,#6366F1)', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', border: 'none', boxShadow: '0 2px 8px rgba(99,102,241,0.3)' }}>
@@ -458,6 +498,142 @@ export default function TreatmentPlanTab({
                     </button>
                 </div>
             </div>
+
+            {/* ── Unplanned Clinical Findings In-Page Section (Doctor-friendly, No Popup) ── */}
+            {unplannedFindings.length > 0 && !findingsCollapsed && (
+                <div style={{
+                    margin: '8px 18px 4px 18px',
+                    padding: '8px 12px',
+                    background: 'linear-gradient(135deg, #FFFDF5 0%, #FEFCE8 60%, #FFFBEB 100%)',
+                    borderRadius: 12,
+                    border: '1px solid #FDE68A',
+                    borderLeft: '4px solid #F59E0B',
+                    boxShadow: '0 1px 3px rgba(245, 158, 11, 0.08)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                    flexShrink: 0
+                }}>
+                    {/* Sub-header inside the banner */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ width: 22, height: 22, borderRadius: 6, background: '#FEF3C7', border: '1px solid #FDE68A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Stethoscope size={12} color="#D97706" />
+                            </div>
+                            <span style={{ fontSize: 11.5, fontWeight: 800, color: '#78350F', letterSpacing: '-0.01em' }}>
+                                Unplanned Clinical Findings
+                            </span>
+                            <span style={{ background: '#F59E0B', color: '#fff', borderRadius: 999, fontSize: 8.5, fontWeight: 800, padding: '1px 5px' }}>
+                                {unplannedFindings.length}
+                            </span>
+                            <span style={{ fontSize: 10, color: '#92400E', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                · Chart-detected conditions ready to add to treatment plan
+                            </span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {unplannedFindings.length > 1 && (
+                                <button
+                                    onClick={handleAddAllFindings}
+                                    disabled={actionLoading.addAllFindings}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 4,
+                                        padding: '4px 10px', borderRadius: 7,
+                                        background: '#F59E0B', color: '#fff',
+                                        fontSize: 10.5, fontWeight: 800, border: 'none',
+                                        cursor: 'pointer', boxShadow: '0 1px 3px rgba(245,158,11,0.2)'
+                                    }}
+                                >
+                                    {actionLoading.addAllFindings ? 'Adding…' : `+ Add All (${unplannedFindings.length})`}
+                                </button>
+                            )}
+                            <button
+                                onClick={() => setFindingsCollapsed(true)}
+                                title="Collapse findings"
+                                style={{
+                                    padding: '3px 6px', borderRadius: 6,
+                                    background: 'transparent', border: 'none',
+                                    color: '#92400E', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                }}
+                            >
+                                <X size={13} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Inline Findings Grid */}
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: unplannedFindings.length > 1 ? 'repeat(auto-fit, minmax(290px, 1fr))' : '1fr',
+                        gap: 6
+                    }}>
+                        {unplannedFindings.map((f, idx) => {
+                            const toothNum = f.toothKey || f.toothNumber;
+                            const toothName = TOOTH_NAMES?.[f.toothNumber] || `Tooth #${toothNum}`;
+                            const isAdding = !!actionLoading[`f_${f.toothNumber}`];
+
+                            return (
+                                <div
+                                    key={idx}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: 10,
+                                        background: '#FFFFFF',
+                                        borderRadius: 9,
+                                        padding: '6px 11px',
+                                        border: '1px solid #FDE68A',
+                                        boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+                                        <span style={{
+                                            fontSize: 9.5, fontWeight: 800,
+                                            padding: '2px 6px', borderRadius: 5,
+                                            background: '#FEE2E2', color: '#991B1B',
+                                            border: '1px solid #FECACA', flexShrink: 0
+                                        }} title={toothName}>
+                                            T#{toothNum}
+                                        </span>
+                                        <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                                            <div style={{ fontSize: 11.5, fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {f.conditionStatus}
+                                            </div>
+                                            <div style={{ fontSize: 10, color: '#92400E', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                Suggest: {f.suggestedProcedureName} · <strong style={{ color: '#78350F' }}>{fmtMoney(f.estimatedPrice)}</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={() => handleAddFindingToPlan(f)}
+                                        disabled={isAdding}
+                                        style={{
+                                            padding: '5px 12px',
+                                            borderRadius: 7,
+                                            background: 'linear-gradient(135deg, #F59E0B, #D97706)',
+                                            color: '#fff',
+                                            fontSize: 10.5,
+                                            fontWeight: 800,
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            flexShrink: 0,
+                                            boxShadow: '0 1px 3px rgba(217,119,6,0.3)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 4
+                                        }}
+                                    >
+                                        {isAdding ? '…' : '+ Add'}
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* ── Category Tabs ────────────────────────────────────────────────── */}
             <div style={{ display: 'flex', gap: 3, padding: '7px 18px', background: '#FAFBFC', borderBottom: '1px solid #EEF2F7', flexShrink: 0, overflowX: 'auto' }}>
@@ -607,31 +783,6 @@ export default function TreatmentPlanTab({
             </div>
 
             {/* ─────────────────── MODALS ─────────────────────────────────────── */}
-
-            {/* Clinical Findings */}
-            {showFindings && (
-                <ModalOverlay onClose={() => setShowFindings(false)}>
-                    <div style={{ maxWidth: 520 }}>
-                        <ModalHeader icon={Stethoscope} title="Unplanned Clinical Findings" subtitle="Add chart-detected conditions to the treatment plan" onClose={() => setShowFindings(false)} />
-                        <div style={{ overflowY: 'auto', maxHeight: 360, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 7 }}>
-                            {unplannedFindings.map((f, idx) => (
-                                <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: '#FFFBEB', borderRadius: 11, padding: '9px 13px', border: '1px solid #FDE68A' }}>
-                                    <div style={{ minWidth: 0 }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
-                                            <span style={{ fontSize: 9.5, fontWeight: 800, padding: '2px 6px', borderRadius: 5, background: '#FEE2E2', color: '#991B1B', border: '1px solid #FECACA' }}>T#{f.toothKey || f.toothNumber}</span>
-                                            <span style={{ fontSize: 12, fontWeight: 700, color: '#0F172A' }}>{f.conditionStatus}</span>
-                                        </div>
-                                        <div style={{ fontSize: 10.5, color: '#92400E' }}>Suggest: {f.suggestedProcedureName} · {fmtMoney(f.estimatedPrice)}</div>
-                                    </div>
-                                    <button onClick={() => handleAddFindingToPlan(f)} disabled={actionLoading[`f_${f.toothNumber}`]} style={{ padding: '6px 13px', borderRadius: 8, background: '#F59E0B', color: '#fff', fontSize: 11, fontWeight: 800, border: 'none', cursor: 'pointer', flexShrink: 0 }}>
-                                        {actionLoading[`f_${f.toothNumber}`] ? '…' : '+ Add'}
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </ModalOverlay>
-            )}
 
             {/* Catalog Modal */}
             {showCatalogModal && (
