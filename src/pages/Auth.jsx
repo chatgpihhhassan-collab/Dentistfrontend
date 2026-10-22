@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import API_BASE_URL from '../config/apiConfig';
 import { establishDoctorSession } from '../services/sessionSecurityService';
+import DoctorForgotPasswordModal from '../components/DoctorForgotPasswordModal';
 
 export default function Auth() {
     const navigate = useNavigate();
@@ -84,6 +85,16 @@ export default function Auth() {
     });
     const [clinicianLoading, setClinicianLoading] = useState(false);
     const [clinicianError, setClinicianError] = useState('');
+    const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
+
+    const handlePasswordResetSuccess = (newPassword, resetUsername) => {
+        setClinicianData(prev => ({
+            ...prev,
+            username: resetUsername || prev.username,
+            password: newPassword || ''
+        }));
+        setClinicianError('');
+    };
 
     // Patient Form State
     const [patientLoginType, setPatientLoginType] = useState('reference'); // 'reference' | 'email'
@@ -600,7 +611,18 @@ export default function Auth() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-bold text-dark-slate/80 mb-1.5">Password</label>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="block text-xs font-bold text-dark-slate/80">Password</label>
+                                        {isLogin && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsForgotPasswordOpen(true)}
+                                                className="text-[11px] font-bold text-primary-teal hover:text-primary-hover hover:underline cursor-pointer transition-colors"
+                                            >
+                                                Forgot Password?
+                                            </button>
+                                        )}
+                                    </div>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted-text">
                                             <Lock className="h-4 w-4" />
@@ -632,9 +654,20 @@ export default function Auth() {
                                 )}
 
                                 {clinicianError && (
-                                    <div className="p-3.5 bg-rose-50 text-rose-700 rounded-xl text-xs font-bold border border-rose-200 flex items-start gap-2 shadow-xs">
-                                        <AlertCircle className="w-4 h-4 text-rose-600 mt-0.5 shrink-0" />
-                                        <span className="leading-relaxed">{clinicianError}</span>
+                                    <div className="p-3.5 bg-rose-50 text-rose-700 rounded-xl text-xs font-bold border border-rose-200 flex flex-col gap-1.5 shadow-xs">
+                                        <div className="flex items-start gap-2">
+                                            <AlertCircle className="w-4 h-4 text-rose-600 mt-0.5 shrink-0" />
+                                            <span className="leading-relaxed">{clinicianError}</span>
+                                        </div>
+                                        {isLogin && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsForgotPasswordOpen(true)}
+                                                className="text-left text-[11px] font-bold text-teal-700 hover:text-teal-900 underline ml-6 cursor-pointer"
+                                            >
+                                                Forgot your password? Recover your account here →
+                                            </button>
+                                        )}
                                     </div>
                                 )}
 
@@ -860,6 +893,14 @@ export default function Auth() {
 
                 </div>
             </div>
+
+            {/* Clinician & Staff Password Recovery Modal */}
+            <DoctorForgotPasswordModal
+                isOpen={isForgotPasswordOpen}
+                onClose={() => setIsForgotPasswordOpen(false)}
+                initialUsername={clinicianData.username}
+                onPasswordResetSuccess={handlePasswordResetSuccess}
+            />
         </div>
     );
 }
