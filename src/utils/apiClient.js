@@ -4,6 +4,8 @@
  * Prevents 401 Unauthorized rejections across all clinical & practice management pages.
  */
 
+import { API_BASE_URL } from '../config/apiConfig';
+
 export function getAuthToken() {
     try {
         const doc = JSON.parse(localStorage.getItem('doctor') || '{}');
@@ -31,10 +33,28 @@ export async function apiFetch(url, options = {}) {
         headers.set('Content-Type', 'application/json');
     }
 
-    return fetch(url, {
-        ...options,
-        headers
-    });
+    let targetUrl = url;
+    if (typeof url === 'string' && url.startsWith('/api') && API_BASE_URL) {
+        targetUrl = `${API_BASE_URL.replace(/\/+$/, '')}${url}`;
+    }
+
+    try {
+        const response = await fetch(targetUrl, {
+            ...options,
+            headers
+        });
+        return response;
+    } catch (networkError) {
+        // Fallback to relative URL if direct call fails (e.g. proxy or local tunnel)
+        if (targetUrl !== url) {
+            console.warn(`[apiClient] Direct call to ${targetUrl} failed, falling back to ${url}:`, networkError);
+            return fetch(url, {
+                ...options,
+                headers
+            });
+        }
+        throw networkError;
+    }
 }
 
 export default apiFetch;

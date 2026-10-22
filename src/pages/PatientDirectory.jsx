@@ -330,7 +330,7 @@ export default function PatientDirectory() {
         try {
             const docId = doctor?.doctorID || 1;
             // 1. Reset treatment plan in Patients table to empty / NULL
-            await apiFetch(`/api/patients/${selectedPatient.patientID}/treatment-plan`, {
+            const resPlan = await apiFetch(`/api/patients/${selectedPatient.patientID}/treatment-plan`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -339,34 +339,48 @@ export default function PatientDirectory() {
                     targetShade: ''
                 })
             });
+            if (!resPlan.ok) {
+                const errText = await resPlan.text().catch(() => '');
+                throw new Error(`Failed to reset plan: ${resPlan.status} ${errText}`);
+            }
 
             // 2. Insert clinical log entry documenting the revert
-            await apiFetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    doctorID: docId,
-                    message: `Active treatment plan reverted and cleared to standard consultation.`,
-                    logType: 'Administrative'
-                })
-            });
+            try {
+                await apiFetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        doctorID: docId,
+                        message: `Active treatment plan reverted and cleared to standard consultation.`,
+                        logType: 'Administrative'
+                    })
+                });
+            } catch (logErr) {
+                console.warn('Clinical log error:', logErr);
+            }
+
+            // Invalidate chart cache
+            delete patientChartsCacheRef.current[selectedPatient.patientID];
 
             // 3. Update React states immediately
-            setSelectedPatient(prev => ({
-                ...prev,
+            const updatedPatient = {
+                ...selectedPatient,
                 currentTreatmentPlan: null,
                 treatmentStage: null,
                 targetShade: null
-            }));
-            setPatients(prev => prev.map(p => p.patientID === selectedPatient.patientID ? {
-                ...p,
-                currentTreatmentPlan: null,
-                treatmentStage: null,
-                targetShade: null
-            } : p));
+            };
+            setSelectedPatient(updatedPatient);
+            setPatients(prev => {
+                const updatedList = prev.map(p => p.patientID === selectedPatient.patientID ? updatedPatient : p);
+                try {
+                    sessionStorage.setItem('clinic_patients_cache', JSON.stringify(updatedList));
+                } catch (e) {}
+                return updatedList;
+            });
 
             invalidateCache('doctor_' + (doctor?.doctorID || '') + '_patients');
             invalidateCache(`patient_${selectedPatient.patientID}`);
+            setCachedData(`patient_${selectedPatient.patientID}`, updatedPatient);
 
             setActiveTreatmentTag(null);
             setIsTreatmentDrawerOpen(false);
@@ -374,7 +388,7 @@ export default function PatientDirectory() {
             showToast('Treatment plan reverted & reset in database!');
         } catch (err) {
             console.error(err);
-            showToast('Failed to revert treatment plan', 'error');
+            showToast('Failed to revert treatment plan: ' + (err.message || 'Error'), 'error');
         } finally {
             setSavingTreatment(false);
         }
@@ -385,36 +399,85 @@ export default function PatientDirectory() {
         setSavingTreatment(true);
         try {
             const docId = doctor?.doctorID || 1;
+            const toothNumInt = parseInt(toothNum, 10);
+
             // Revert tooth state to Healthy in DB
-            await apiFetch('/api/patients/teeth/update-bulk', {
+            const resTeeth = await apiFetch('/api/patients/teeth/update-bulk', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     patientId: selectedPatient.patientID,
                     updates: [{
-                        toothNumber: parseInt(toothNum),
+                        toothNumber: toothNumInt,
+                        toothKey: String(toothNumInt),
+                        dentitionCategory: selectedPatient.dentitionType || 'Adult',
                         color: '#FFFFFF',
                         status: 'Healthy',
-                        comment: 'Restored / Cavity cleared by doctor'
+                        conditionStatus: 'Healthy',
+                        comment: 'Restored / Cavity cleared by doctor',
+                        doctorId: docId
                     }]
                 })
             });
+            if (!resTeeth.ok) {
+                const errText = await resTeeth.text().catch(() => '');
+                throw new Error(`Failed to revert tooth: ${resTeeth.status} ${errText}`);
+            }
 
-            await apiFetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    doctorID: docId,
-                    message: `Tooth #${toothNum} cavity mark reverted to healthy.`,
-                    logType: 'Restorative'
-                })
-            });
+            try {
+                await apiFetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        doctorID: docId,
+                        message: `Tooth #${toothNum} cavity mark reverted to healthy.`,
+                        logType: 'Restorative'
+                    })
+                });
+            } catch (logErr) {
+                console.warn('Clinical log error:', logErr);
+            }
 
-            fetchPatientChart(selectedPatient.patientID);
+            // Invalidate chart cache and force re-fetch
+            delete patientChartsCacheRef.current[selectedPatient.patientID];
+            fetchPatientChart(selectedPatient.patientID, true);
+
+            // If this patient was on Cavity Restorative for this specific tooth, reset treatment plan
+            if (selectedPatient.currentTreatmentPlan === 'Cavity Restorative' && selectedPatient.treatmentStage?.includes(`#${toothNum}`)) {
+                try {
+                    await apiFetch(`/api/patients/${selectedPatient.patientID}/treatment-plan`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            treatmentPlan: '',
+                            treatmentStage: '',
+                            targetShade: ''
+                        })
+                    });
+                    const updatedPatient = {
+                        ...selectedPatient,
+                        currentTreatmentPlan: null,
+                        treatmentStage: null,
+                        targetShade: null
+                    };
+                    setSelectedPatient(updatedPatient);
+                    setPatients(prev => {
+                        const updatedList = prev.map(p => p.patientID === selectedPatient.patientID ? updatedPatient : p);
+                        try {
+                            sessionStorage.setItem('clinic_patients_cache', JSON.stringify(updatedList));
+                        } catch (e) {}
+                        return updatedList;
+                    });
+                    invalidateCache('doctor_' + (doctor?.doctorID || '') + '_patients');
+                    invalidateCache(`patient_${selectedPatient.patientID}`);
+                    setCachedData(`patient_${selectedPatient.patientID}`, updatedPatient);
+                } catch (e) {}
+            }
+
             showToast(`Tooth #${toothNum} cavity removed & chart reverted!`);
         } catch (err) {
             console.error(err);
-            showToast('Failed to revert tooth cavity', 'error');
+            showToast('Failed to revert tooth cavity: ' + (err.message || 'Error'), 'error');
         } finally {
             setSavingTreatment(false);
         }
@@ -437,9 +500,9 @@ export default function PatientDirectory() {
     }, []);
 
     const patientChartsCacheRef = useRef({});
-    const fetchPatientChart = (pId) => {
+    const fetchPatientChart = (pId, force = false) => {
         if (!pId) return;
-        if (patientChartsCacheRef.current[pId]) {
+        if (!force && patientChartsCacheRef.current[pId]) {
             setSelectedTeethState(patientChartsCacheRef.current[pId]);
             return;
         }
@@ -696,6 +759,12 @@ export default function PatientDirectory() {
             }
         } else if (plan.includes('cavit')) {
             setActiveTreatmentTag('cavity');
+            if (stage) {
+                const match = stage.match(/#?(\d+)/);
+                if (match && match[1]) setCavityTooth(match[1]);
+                if (stage.includes('Glass Ionomer') || stage.includes('GIC')) setCavityMaterial('Glass Ionomer (GIC)');
+                else if (stage.includes('Composite')) setCavityMaterial('Composite Resin');
+            }
         } else {
             setActiveTreatmentTag(null);
         }
@@ -1793,7 +1862,7 @@ export default function PatientDirectory() {
                                                              try {
                                                                  const docId = doctor?.doctorID || 1;
                                                                  // 1. Update treatment plan in Patients table
-                                                                 await apiFetch(`/api/patients/${selectedPatient.patientID}/treatment-plan`, {
+                                                                 const resPlan = await apiFetch(`/api/patients/${selectedPatient.patientID}/treatment-plan`, {
                                                                      method: 'POST',
                                                                      headers: { 'Content-Type': 'application/json' },
                                                                      body: JSON.stringify({
@@ -1802,30 +1871,48 @@ export default function PatientDirectory() {
                                                                          targetShade: bracesWire
                                                                      })
                                                                  });
+                                                                 if (!resPlan.ok) {
+                                                                     const errText = await resPlan.text().catch(() => '');
+                                                                     throw new Error(`Failed to save treatment plan: ${resPlan.status} ${errText}`);
+                                                                 }
+
                                                                  // 2. Insert clinical log entry
-                                                                 await apiFetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
-                                                                     method: 'POST',
-                                                                     headers: { 'Content-Type': 'application/json' },
-                                                                     body: JSON.stringify({
-                                                                         doctorID: docId,
-                                                                         message: `Orthodontic Adjustment: ${bracesStage}. Archwire engaged: ${bracesWire}. Elastics adjusted.`,
-                                                                         logType: 'Orthodontics'
-                                                                     })
-                                                                 });
+                                                                 try {
+                                                                     await apiFetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
+                                                                         method: 'POST',
+                                                                         headers: { 'Content-Type': 'application/json' },
+                                                                         body: JSON.stringify({
+                                                                             doctorID: docId,
+                                                                             message: `Orthodontic Adjustment: ${bracesStage}. Archwire engaged: ${bracesWire}. Elastics adjusted.`,
+                                                                             logType: 'Orthodontics'
+                                                                         })
+                                                                     });
+                                                                 } catch (logErr) {
+                                                                     console.warn('Clinical log error:', logErr);
+                                                                 }
                                                                  
-                                                                 // 3. Update React state so Stage appears immediately!
-                                                                 setSelectedPatient(prev => ({
-                                                                     ...prev,
+                                                                 // 3. Invalidate charts cache
+                                                                 delete patientChartsCacheRef.current[selectedPatient.patientID];
+
+                                                                 // 4. Update React state so Stage appears immediately!
+                                                                 const updatedPatient = {
+                                                                     ...selectedPatient,
                                                                      currentTreatmentPlan: 'Braces (Orthodontics)',
                                                                      treatmentStage: bracesStage,
                                                                      targetShade: bracesWire
-                                                                 }));
-                                                                 setPatients(prev => prev.map(p => p.patientID === selectedPatient.patientID ? {
-                                                                     ...p,
-                                                                     currentTreatmentPlan: 'Braces (Orthodontics)',
-                                                                     treatmentStage: bracesStage,
-                                                                     targetShade: bracesWire
-                                                                 } : p));
+                                                                 };
+                                                                 setSelectedPatient(updatedPatient);
+                                                                 setPatients(prev => {
+                                                                     const updatedList = prev.map(p => p.patientID === selectedPatient.patientID ? updatedPatient : p);
+                                                                     try {
+                                                                         sessionStorage.setItem('clinic_patients_cache', JSON.stringify(updatedList));
+                                                                     } catch (e) {}
+                                                                     return updatedList;
+                                                                 });
+
+                                                                 invalidateCache('doctor_' + (doctor?.doctorID || '') + '_patients');
+                                                                 invalidateCache(`patient_${selectedPatient.patientID}`);
+                                                                 setCachedData(`patient_${selectedPatient.patientID}`, updatedPatient);
 
                                                                  showToast(`Orthodontic plan updated: ${bracesStage}`);
                                                                  // Automatically hide drawer on save
@@ -1833,7 +1920,7 @@ export default function PatientDirectory() {
                                                                  if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
                                                              } catch (err) {
                                                                  console.error(err);
-                                                                 showToast('Failed to save treatment note', 'error');
+                                                                 showToast('Failed to save treatment note: ' + (err.message || 'Error'), 'error');
                                                              } finally {
                                                                  setSavingTreatment(false);
                                                              }
@@ -1913,40 +2000,60 @@ export default function PatientDirectory() {
                                                              setSavingTreatment(true);
                                                              try {
                                                                  const docId = doctor?.doctorID || 1;
+                                                                 const targetShadeStr = `Initial: ${whiteningPreShade} ➔ Target: ${whiteningTargetShade}`;
+
                                                                  // 1. Update treatment plan in Patients table
-                                                                 await apiFetch(`/api/patients/${selectedPatient.patientID}/treatment-plan`, {
+                                                                 const resPlan = await apiFetch(`/api/patients/${selectedPatient.patientID}/treatment-plan`, {
                                                                      method: 'POST',
                                                                      headers: { 'Content-Type': 'application/json' },
                                                                      body: JSON.stringify({
                                                                          treatmentPlan: 'Teeth Whitening',
                                                                          treatmentStage: whiteningSession,
-                                                                         targetShade: `Initial: ${whiteningPreShade} ➔ Target: ${whiteningTargetShade}`
+                                                                         targetShade: targetShadeStr
                                                                      })
                                                                  });
+                                                                 if (!resPlan.ok) {
+                                                                     const errText = await resPlan.text().catch(() => '');
+                                                                     throw new Error(`Failed to save whitening plan: ${resPlan.status} ${errText}`);
+                                                                 }
+
                                                                  // 2. Insert clinical log entry
-                                                                 await apiFetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
-                                                                     method: 'POST',
-                                                                     headers: { 'Content-Type': 'application/json' },
-                                                                     body: JSON.stringify({
-                                                                         doctorID: docId,
-                                                                         message: `Cosmetic Whitening (${whiteningSession}): Shade improved from ${whiteningPreShade} towards ${whiteningTargetShade}. 35% HP protocol completed.`,
-                                                                         logType: 'Cosmetic'
-                                                                     })
+                                                                 try {
+                                                                     await apiFetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
+                                                                         method: 'POST',
+                                                                         headers: { 'Content-Type': 'application/json' },
+                                                                         body: JSON.stringify({
+                                                                             doctorID: docId,
+                                                                             message: `Cosmetic Whitening (${whiteningSession}): Shade improved from ${whiteningPreShade} towards ${whiteningTargetShade}. 35% HP protocol completed.`,
+                                                                             logType: 'Cosmetic'
+                                                                         })
+                                                                     });
+                                                                 } catch (logErr) {
+                                                                     console.warn('Clinical log error:', logErr);
+                                                                 }
+
+                                                                 // 3. Invalidate charts cache
+                                                                 delete patientChartsCacheRef.current[selectedPatient.patientID];
+
+                                                                 // 4. Update React state immediately!
+                                                                 const updatedPatient = {
+                                                                     ...selectedPatient,
+                                                                     currentTreatmentPlan: 'Teeth Whitening',
+                                                                     treatmentStage: whiteningSession,
+                                                                     targetShade: targetShadeStr
+                                                                 };
+                                                                 setSelectedPatient(updatedPatient);
+                                                                 setPatients(prev => {
+                                                                     const updatedList = prev.map(p => p.patientID === selectedPatient.patientID ? updatedPatient : p);
+                                                                     try {
+                                                                         sessionStorage.setItem('clinic_patients_cache', JSON.stringify(updatedList));
+                                                                     } catch (e) {}
+                                                                     return updatedList;
                                                                  });
 
-                                                                 // 3. Update React state immediately!
-                                                                 setSelectedPatient(prev => ({
-                                                                     ...prev,
-                                                                     currentTreatmentPlan: 'Teeth Whitening',
-                                                                     treatmentStage: whiteningSession,
-                                                                     targetShade: `Initial: ${whiteningPreShade} ➔ Target: ${whiteningTargetShade}`
-                                                                 }));
-                                                                 setPatients(prev => prev.map(p => p.patientID === selectedPatient.patientID ? {
-                                                                     ...p,
-                                                                     currentTreatmentPlan: 'Teeth Whitening',
-                                                                     treatmentStage: whiteningSession,
-                                                                     targetShade: `Initial: ${whiteningPreShade} ➔ Target: ${whiteningTargetShade}`
-                                                                 } : p));
+                                                                 invalidateCache('doctor_' + (doctor?.doctorID || '') + '_patients');
+                                                                 invalidateCache(`patient_${selectedPatient.patientID}`);
+                                                                 setCachedData(`patient_${selectedPatient.patientID}`, updatedPatient);
 
                                                                  showToast(`Whitening progress updated: ${whiteningSession}`);
                                                                  // Automatically hide drawer on save
@@ -1954,7 +2061,7 @@ export default function PatientDirectory() {
                                                                  if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
                                                              } catch (err) {
                                                                  console.error(err);
-                                                                 showToast('Failed to save whitening note', 'error');
+                                                                 showToast('Failed to save whitening note: ' + (err.message || 'Error'), 'error');
                                                              } finally {
                                                                  setSavingTreatment(false);
                                                              }
@@ -2032,46 +2139,85 @@ export default function PatientDirectory() {
                                                                  setSavingTreatment(true);
                                                                  try {
                                                                      const docId = doctor?.doctorID || 1;
+                                                                     const toothNumInt = parseInt(cavityTooth, 10);
+                                                                     const treatmentStageStr = `Tooth #${cavityTooth} (${cavityMaterial})`;
+
                                                                      // 1. Mark tooth as Damaged / Decay in TeethState (bulk update endpoint)
-                                                                     await apiFetch('/api/patients/teeth/update-bulk', {
+                                                                     const resTeeth = await apiFetch('/api/patients/teeth/update-bulk', {
                                                                          method: 'POST',
                                                                          headers: { 'Content-Type': 'application/json' },
                                                                          body: JSON.stringify({
                                                                              patientId: selectedPatient.patientID,
                                                                              updates: [{
-                                                                                 toothNumber: parseInt(cavityTooth),
+                                                                                 toothNumber: toothNumInt,
+                                                                                 toothKey: String(toothNumInt),
+                                                                                 dentitionCategory: selectedPatient.dentitionType || 'Adult',
                                                                                  color: '#EF4444',
                                                                                  status: 'Damaged / Decay',
-                                                                                 comment: `${cavityMaterial} restoration planned for caries`
+                                                                                 conditionStatus: 'Damaged / Decay',
+                                                                                 comment: `${cavityMaterial} restoration planned for caries`,
+                                                                                 doctorId: docId
                                                                              }]
                                                                          })
                                                                      });
-                                                                     // 2. Insert clinical log entry
-                                                                     await apiFetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
+                                                                     if (!resTeeth.ok) {
+                                                                         const errText = await resTeeth.text().catch(() => '');
+                                                                         throw new Error(`Failed to update teeth chart: ${resTeeth.status} ${errText}`);
+                                                                     }
+
+                                                                     // 2. CRITICAL: Save treatment plan to Patients table!
+                                                                     const resPlan = await apiFetch(`/api/patients/${selectedPatient.patientID}/treatment-plan`, {
                                                                          method: 'POST',
                                                                          headers: { 'Content-Type': 'application/json' },
                                                                          body: JSON.stringify({
-                                                                             doctorID: docId,
-                                                                             message: `Caries identified on Tooth #${cavityTooth}. Marked for ${cavityMaterial} restoration.`,
-                                                                             logType: 'Restorative'
+                                                                             treatmentPlan: 'Cavity Restorative',
+                                                                             treatmentStage: treatmentStageStr,
+                                                                             targetShade: ''
                                                                          })
                                                                      });
-                                                                     // 3. Re-fetch chart so Health Overview bars update live!
-                                                                     fetchPatientChart(selectedPatient.patientID);
+                                                                     if (!resPlan.ok) {
+                                                                         const errText = await resPlan.text().catch(() => '');
+                                                                         console.warn(`Treatment plan update warning: ${resPlan.status} ${errText}`);
+                                                                     }
 
-                                                                     // 4. Update React state immediately!
-                                                                     setSelectedPatient(prev => ({
-                                                                         ...prev,
+                                                                     // 3. Insert clinical log entry
+                                                                     try {
+                                                                         await apiFetch(`/api/patients/${selectedPatient.patientID}/clinical-logs`, {
+                                                                             method: 'POST',
+                                                                             headers: { 'Content-Type': 'application/json' },
+                                                                             body: JSON.stringify({
+                                                                                 doctorID: docId,
+                                                                                 message: `Caries identified on Tooth #${cavityTooth}. Marked for ${cavityMaterial} restoration.`,
+                                                                                 logType: 'Restorative'
+                                                                             })
+                                                                         });
+                                                                     } catch (logErr) {
+                                                                         console.warn('Clinical log error:', logErr);
+                                                                     }
+
+                                                                     // 4. Invalidate chart cache so fetchPatientChart forces a live re-fetch from SQL!
+                                                                     delete patientChartsCacheRef.current[selectedPatient.patientID];
+                                                                     fetchPatientChart(selectedPatient.patientID, true);
+
+                                                                     // 5. Update React state immediately!
+                                                                     const updatedPatient = {
+                                                                         ...selectedPatient,
                                                                          currentTreatmentPlan: 'Cavity Restorative',
-                                                                         treatmentStage: `Tooth #${cavityTooth} (${cavityMaterial})`,
+                                                                         treatmentStage: treatmentStageStr,
                                                                          targetShade: ''
-                                                                     }));
-                                                                     setPatients(prev => prev.map(p => p.patientID === selectedPatient.patientID ? {
-                                                                         ...p,
-                                                                         currentTreatmentPlan: 'Cavity Restorative',
-                                                                         treatmentStage: `Tooth #${cavityTooth} (${cavityMaterial})`,
-                                                                         targetShade: ''
-                                                                     } : p));
+                                                                     };
+                                                                     setSelectedPatient(updatedPatient);
+                                                                     setPatients(prev => {
+                                                                         const updatedList = prev.map(p => p.patientID === selectedPatient.patientID ? updatedPatient : p);
+                                                                         try {
+                                                                             sessionStorage.setItem('clinic_patients_cache', JSON.stringify(updatedList));
+                                                                         } catch (e) {}
+                                                                         return updatedList;
+                                                                     });
+
+                                                                     invalidateCache('doctor_' + (doctor?.doctorID || '') + '_patients');
+                                                                     invalidateCache(`patient_${selectedPatient.patientID}`);
+                                                                     setCachedData(`patient_${selectedPatient.patientID}`, updatedPatient);
 
                                                                      showToast(`Tooth #${cavityTooth} caries logged & chart updated!`);
                                                                      // Automatically hide drawer on save
@@ -2079,7 +2225,7 @@ export default function PatientDirectory() {
                                                                      if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
                                                                  } catch (err) {
                                                                      console.error(err);
-                                                                     showToast('Failed to mark tooth cavity', 'error');
+                                                                     showToast('Failed to mark tooth cavity: ' + (err.message || 'Error'), 'error');
                                                                  } finally {
                                                                      setSavingTreatment(false);
                                                                  }
