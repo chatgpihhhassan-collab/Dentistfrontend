@@ -85,7 +85,20 @@ export default function TreatmentPlanTab({
 
             if (itemsRes.ok) {
                 const data = await itemsRes.json();
-                setTreatmentItems(Array.isArray(data) ? data : []);
+                const normalized = (Array.isArray(data) ? data : []).map(i => ({
+                    ...i,
+                    id: i.id || i.treatmentItemID || i.treatmentItemId,
+                    treatmentItemID: i.treatmentItemID || i.id || i.treatmentItemId,
+                    name: i.name || i.procedureName || 'Treatment',
+                    procedureName: i.procedureName || i.name || 'Treatment',
+                    toothNo: i.toothNo !== undefined ? i.toothNo : (i.toothNumber || 0),
+                    toothNumber: i.toothNumber !== undefined ? i.toothNumber : (i.toothNo || 0),
+                    finalPrice: i.finalPrice || i.estimatedPrice || 0,
+                    estimatedPrice: i.estimatedPrice || i.finalPrice || 0,
+                    paid: i.paid || 0,
+                    balance: i.balance !== undefined ? i.balance : Math.max(0, (i.finalPrice || i.estimatedPrice || 0) - (i.paid || 0)),
+                }));
+                setTreatmentItems(normalized);
             }
             if (findingsRes.ok) {
                 const data = await findingsRes.json();
@@ -122,7 +135,7 @@ export default function TreatmentPlanTab({
         if (selectedCategory === 'ALL') return treatmentItems;
         return treatmentItems.filter(item => 
             (item.category || '').toUpperCase() === selectedCategory ||
-            (item.name || '').toUpperCase().includes(selectedCategory)
+            (item.name || item.procedureName || '').toUpperCase().includes(selectedCategory)
         );
     }, [treatmentItems, selectedCategory]);
 
@@ -153,15 +166,24 @@ export default function TreatmentPlanTab({
     };
 
     // Status Transitions
-    const handleStatusTransition = async (itemId, newStatus, reason = null) => {
+    const handleStatusTransition = async (rawItemId, newStatus, reason = null) => {
+        const itemId = typeof rawItemId === 'object' && rawItemId !== null
+            ? (rawItemId.id || rawItemId.treatmentItemID || rawItemId.treatmentItemId)
+            : rawItemId;
+
+        if (!itemId) {
+            showToast('error', 'Cannot update status: Invalid procedure identifier.');
+            return;
+        }
+
         setActionLoading(prev => ({ ...prev, [itemId]: true }));
         try {
             const res = await fetch(`${API_BASE_URL}/api/treatment-items/${itemId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    userId: doctorId,
-                    userRole: userRole,
+                    userId: doctorId || 1,
+                    userRole: userRole || 'Doctor',
                     status: newStatus,
                     closedReason: reason
                 })
@@ -174,7 +196,8 @@ export default function TreatmentPlanTab({
                 if (onTreatmentStatusChange) onTreatmentStatusChange();
             } else {
                 const err = await res.json().catch(() => ({}));
-                showToast('error', err.message || `Failed to update status to ${newStatus}.`);
+                const errMsg = err.message || (err.errors ? Object.values(err.errors).flat().join(', ') : '') || err.title || `Failed to update status to ${newStatus}.`;
+                showToast('error', errMsg);
             }
         } catch (err) {
             showToast('error', 'Network error updating treatment status.');
@@ -329,6 +352,12 @@ export default function TreatmentPlanTab({
             return;
         }
 
+        const targetId = paymentModalItem.id || paymentModalItem.treatmentItemID || paymentModalItem.treatmentItemId;
+        if (!targetId) {
+            showToast('error', 'Cannot record payment: Invalid procedure reference.');
+            return;
+        }
+
         setSavingItem(true);
         try {
             const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/payments`, {
@@ -338,11 +367,11 @@ export default function TreatmentPlanTab({
                     patientId,
                     amount: amt,
                     method: paymentMethod,
-                    receivedBy: doctorId,
-                    note: paymentNotes || `Advance for ${paymentModalItem.name}`,
+                    receivedBy: doctorId || 1,
+                    note: paymentNotes || `Advance for ${paymentModalItem.name || paymentModalItem.procedureName || 'treatment'}`,
                     allocations: [
                         {
-                            treatmentItemId: paymentModalItem.id,
+                            treatmentItemId: targetId,
                             amount: Math.min(amt, paymentModalItem.balance || paymentModalItem.finalPrice)
                         }
                     ]
@@ -359,7 +388,8 @@ export default function TreatmentPlanTab({
                 if (onTreatmentStatusChange) onTreatmentStatusChange();
             } else {
                 const err = await res.json().catch(() => ({}));
-                showToast('error', err.message || 'Failed to record advance payment.');
+                const errMsg = err.message || (err.errors ? Object.values(err.errors).flat().join(', ') : '') || err.title || 'Failed to record advance payment.';
+                showToast('error', errMsg);
             }
         } catch (err) {
             showToast('error', 'Network error recording payment.');
@@ -635,15 +665,18 @@ export default function TreatmentPlanTab({
 
                     <div className="flex flex-col gap-3">
                         {filteredItems.map(item => {
-                            const isBusy = actionLoading[item.id];
-                            const toothLabel = item.toothNo > 0 ? (TOOTH_NAMES[item.toothNo] || `Tooth #${item.toothNo}`) : 'Full Arch / General';
+                            const itemId = item.id || item.treatmentItemID || item.treatmentItemId;
+                            const isBusy = actionLoading[itemId];
+                            const toothNo = item.toothNo !== undefined ? item.toothNo : (item.toothNumber || 0);
+                            const toothLabel = toothNo > 0 ? (TOOTH_NAMES[toothNo] || `Tooth #${toothNo}`) : 'Full Arch / General';
+                            const itemName = item.name || item.procedureName || 'Treatment';
                             const price = item.finalPrice || item.estimatedPrice || 0;
                             const paid = item.paid || 0;
                             const balance = item.balance !== undefined ? item.balance : Math.max(0, price - paid);
 
                             return (
                                 <div 
-                                    key={item.id} 
+                                    key={itemId} 
                                     className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
                                         item.status === 'in_progress'
                                             ? 'bg-blue-50/40 border-blue-200/80 shadow-xs'
@@ -664,16 +697,16 @@ export default function TreatmentPlanTab({
                                                 : 'bg-amber-500 text-white'
                                         }`}>
                                             <span className="text-[9px] tracking-widest uppercase opacity-80 leading-none">
-                                                {item.toothNo > 0 ? 'TOOTH' : 'ARCH'}
+                                                {toothNo > 0 ? 'TOOTH' : 'ARCH'}
                                             </span>
                                             <span className="text-base font-extrabold leading-tight">
-                                                {item.toothNo > 0 ? item.toothNo : 'ALL'}
+                                                {toothNo > 0 ? toothNo : 'ALL'}
                                             </span>
                                         </div>
 
                                         <div className="space-y-0.5">
                                             <div className="flex items-center gap-2 flex-wrap">
-                                                <h4 className="text-sm font-bold text-dark-slate">{item.name}</h4>
+                                                <h4 className="text-sm font-bold text-dark-slate">{itemName}</h4>
                                                 {item.category && (
                                                     <span className="font-mono text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 uppercase">
                                                         {item.category}
@@ -734,7 +767,7 @@ export default function TreatmentPlanTab({
                                                 {isDoctorOrAdmin ? (
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleStatusTransition(item.id, 'proposed')}
+                                                        onClick={() => handleStatusTransition(itemId, 'proposed')}
                                                         disabled={isBusy}
                                                         className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition-colors cursor-pointer"
                                                         title="Confirm AI Voice Draft into Clinical Treatment Plan"
@@ -749,7 +782,7 @@ export default function TreatmentPlanTab({
                                                 )}
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleStatusTransition(item.id, 'declined', 'Declined draft')}
+                                                    onClick={() => handleStatusTransition(itemId, 'declined', 'Declined draft')}
                                                     disabled={isBusy}
                                                     className="px-2.5 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                                                 >
@@ -763,7 +796,7 @@ export default function TreatmentPlanTab({
                                             <>
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleStatusTransition(item.id, 'accepted')}
+                                                    onClick={() => handleStatusTransition(itemId, 'accepted')}
                                                     disabled={isBusy}
                                                     className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 shadow-2xs transition-colors cursor-pointer"
                                                     title="Mark patient agreement"
@@ -787,7 +820,7 @@ export default function TreatmentPlanTab({
 
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleStatusTransition(item.id, 'declined', 'Patient declined')}
+                                                    onClick={() => handleStatusTransition(itemId, 'declined', 'Patient declined')}
                                                     disabled={isBusy}
                                                     className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                                                     title="Patient declined this proposal"
@@ -802,7 +835,7 @@ export default function TreatmentPlanTab({
                                             <>
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleStatusTransition(item.id, 'in_progress')}
+                                                    onClick={() => handleStatusTransition(itemId, 'in_progress')}
                                                     disabled={isBusy}
                                                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#4A7CD2] hover:bg-[#3665B7] text-white shadow-xs transition-colors cursor-pointer"
                                                     title="Begin chairside clinical intervention"
@@ -858,7 +891,7 @@ export default function TreatmentPlanTab({
                                                 {isDoctorOrAdmin ? (
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleStatusTransition(item.id, 'completed')}
+                                                        onClick={() => handleStatusTransition(itemId, 'completed')}
                                                         disabled={isBusy}
                                                         className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer"
                                                         title="Complete procedure — moves to Invoices tab"
@@ -1258,7 +1291,7 @@ export default function TreatmentPlanTab({
                             </div>
                             <div>
                                 <h3 className="text-sm font-extrabold text-dark-slate">Cancel Treatment</h3>
-                                <p className="text-[11px] text-muted-text">{cancelModalItem.name}</p>
+                                <p className="text-[11px] text-muted-text">{cancelModalItem.name || cancelModalItem.procedureName || 'Treatment'}</p>
                             </div>
                         </div>
 
@@ -1284,7 +1317,8 @@ export default function TreatmentPlanTab({
                             <button
                                 type="button"
                                 onClick={() => {
-                                    handleStatusTransition(cancelModalItem.id, 'cancelled', cancelReason);
+                                    const cancelId = cancelModalItem.id || cancelModalItem.treatmentItemID || cancelModalItem.treatmentItemId;
+                                    handleStatusTransition(cancelId, 'cancelled', cancelReason);
                                     setCancelModalItem(null);
                                 }}
                                 className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-xs transition-colors cursor-pointer"

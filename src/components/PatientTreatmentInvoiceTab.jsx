@@ -131,7 +131,20 @@ export default function PatientTreatmentInvoiceTab({
 
             if (itemsRes.ok) {
                 const items = await itemsRes.json();
-                setInvoiceItems(Array.isArray(items) ? items : []);
+                const normalized = (Array.isArray(items) ? items : []).map(i => ({
+                    ...i,
+                    id: i.id || i.treatmentItemID || i.treatmentItemId,
+                    treatmentItemID: i.treatmentItemID || i.id || i.treatmentItemId,
+                    name: i.name || i.procedureName || 'Treatment',
+                    procedureName: i.procedureName || i.name || 'Treatment',
+                    toothNo: i.toothNo !== undefined ? i.toothNo : (i.toothNumber || 0),
+                    toothNumber: i.toothNumber !== undefined ? i.toothNumber : (i.toothNo || 0),
+                    finalPrice: i.finalPrice || i.estimatedPrice || 0,
+                    estimatedPrice: i.estimatedPrice || i.finalPrice || 0,
+                    paid: i.paid || 0,
+                    balance: i.balance !== undefined ? i.balance : Math.max(0, (i.finalPrice || i.estimatedPrice || 0) - (i.paid || 0)),
+                }));
+                setInvoiceItems(normalized);
             }
             if (summaryRes.ok) {
                 const summary = await summaryRes.json();
@@ -159,8 +172,9 @@ export default function PatientTreatmentInvoiceTab({
         const suggested = {};
 
         if (preselectedItem && (preselectedItem.balance || 0) > 0) {
+            const pId = preselectedItem.id || preselectedItem.treatmentItemID || preselectedItem.treatmentItemId;
             setPaymentAmount(String(preselectedItem.balance));
-            suggested[preselectedItem.id] = preselectedItem.balance;
+            suggested[pId] = preselectedItem.balance;
         } else {
             // Suggest first open item's balance
             const totalDue = openItems.reduce((acc, curr) => acc + (curr.balance || 0), 0);
@@ -169,7 +183,8 @@ export default function PatientTreatmentInvoiceTab({
             openItems.forEach(i => {
                 if (rem > 0) {
                     const take = Math.min(rem, i.balance);
-                    suggested[i.id] = take;
+                    const iId = i.id || i.treatmentItemID || i.treatmentItemId;
+                    suggested[iId] = take;
                     rem -= take;
                 }
             });
@@ -186,12 +201,13 @@ export default function PatientTreatmentInvoiceTab({
         const openItems = invoiceItems.filter(i => (i.balance || 0) > 0);
 
         openItems.forEach(i => {
+            const iId = i.id || i.treatmentItemID || i.treatmentItemId;
             if (rem > 0) {
                 const take = Math.min(rem, i.balance);
-                newAlloc[i.id] = take;
+                newAlloc[iId] = take;
                 rem -= take;
             } else {
-                newAlloc[i.id] = 0;
+                newAlloc[iId] = 0;
             }
         });
         setPaymentAllocations(newAlloc);
@@ -219,7 +235,7 @@ export default function PatientTreatmentInvoiceTab({
                     patientId,
                     amount: amt,
                     method: paymentMethod,
-                    receivedBy: userId,
+                    receivedBy: userId || 1,
                     note: paymentNotes,
                     allocations: allocList
                 })
@@ -233,7 +249,8 @@ export default function PatientTreatmentInvoiceTab({
                 if (onPaymentChange) onPaymentChange();
             } else {
                 const err = await res.json().catch(() => ({}));
-                showToast('error', err.message || 'Failed to record payment.');
+                const errMsg = err.message || (err.errors ? Object.values(err.errors).flat().join(', ') : '') || err.title || 'Failed to record payment.';
+                showToast('error', errMsg);
             }
         } catch (err) {
             showToast('error', 'Network error recording payment.');
@@ -346,14 +363,20 @@ export default function PatientTreatmentInvoiceTab({
             return;
         }
 
+        const targetId = priceEditItem?.id || priceEditItem?.treatmentItemID || priceEditItem?.treatmentItemId;
+        if (!targetId) {
+            showToast('error', 'Invalid treatment item reference.');
+            return;
+        }
+
         setSavingPrice(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/api/treatment-items/${priceEditItem.id}`, {
+            const res = await fetch(`${API_BASE_URL}/api/treatment-items/${targetId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    userId,
-                    userRole,
+                    userId: userId || 1,
+                    userRole: userRole || 'Doctor',
                     finalPrice: p,
                     priceNote: priceChangeReason.trim()
                 })
@@ -369,7 +392,8 @@ export default function PatientTreatmentInvoiceTab({
                 if (onPaymentChange) onPaymentChange();
             } else {
                 const err = await res.json().catch(() => ({}));
-                showToast('error', err.message || 'Failed to update price.');
+                const errMsg = err.message || (err.errors ? Object.values(err.errors).flat().join(', ') : '') || err.title || 'Failed to update price.';
+                showToast('error', errMsg);
             }
         } catch (err) {
             showToast('error', 'Network error updating price.');
@@ -707,24 +731,27 @@ export default function PatientTreatmentInvoiceTab({
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {filteredItems.map(item => {
-                                    const isExpanded = expandedItemId === item.id;
-                                    const toothLabel = item.toothNo > 0 ? (TOOTH_NAMES[item.toothNo] || `Tooth #${item.toothNo}`) : 'Full Arch / General';
+                                    const itemId = item.id || item.treatmentItemID || item.treatmentItemId;
+                                    const isExpanded = expandedItemId === itemId;
+                                    const toothNo = item.toothNo !== undefined ? item.toothNo : (item.toothNumber || 0);
+                                    const toothLabel = toothNo > 0 ? (TOOTH_NAMES[toothNo] || `Tooth #${toothNo}`) : 'Full Arch / General';
+                                    const itemName = item.name || item.procedureName || 'Treatment';
                                     const price = item.finalPrice || 0;
                                     const paid = item.paid || 0;
                                     const balance = item.balance || 0;
                                     const hasAllocations = item.allocations && item.allocations.length > 0;
 
                                     return (
-                                        <React.Fragment key={item.id}>
+                                        <React.Fragment key={itemId}>
                                             <tr className={`hover:bg-slate-50/70 transition-colors ${isExpanded ? 'bg-blue-50/20' : ''}`}>
                                                 {/* Tooth */}
                                                 <td className="py-3.5 px-4 whitespace-nowrap">
                                                     <div className="flex items-center gap-2">
                                                         <span className="w-8 h-8 rounded-xl bg-slate-100 text-dark-slate font-black flex items-center justify-center text-xs border border-slate-200">
-                                                            {item.toothNo > 0 ? `#${item.toothNo}` : 'ALL'}
+                                                            {toothNo > 0 ? `#${toothNo}` : 'ALL'}
                                                         </span>
                                                         <span className="text-[11px] text-muted-text font-bold">
-                                                            {item.toothNo > 0 ? `Tooth ${item.toothNo}` : 'General'}
+                                                            {toothNo > 0 ? `Tooth ${toothNo}` : 'General'}
                                                         </span>
                                                     </div>
                                                 </td>
@@ -732,7 +759,7 @@ export default function PatientTreatmentInvoiceTab({
                                                 {/* Procedure */}
                                                 <td className="py-3.5 px-4">
                                                     <div>
-                                                        <p className="font-extrabold text-dark-slate">{item.name}</p>
+                                                        <p className="font-extrabold text-dark-slate">{itemName}</p>
                                                         <p className="text-[10px] text-muted-text font-medium flex items-center gap-1.5 mt-0.5">
                                                             <span className="uppercase">{item.category}</span>
                                                             {item.procedureCode && <span>• CDT {item.procedureCode}</span>}
@@ -825,7 +852,7 @@ export default function PatientTreatmentInvoiceTab({
 
                                                         <button
                                                             type="button"
-                                                            onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
+                                                            onClick={() => setExpandedItemId(isExpanded ? null : itemId)}
                                                             className={`p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-all cursor-pointer ${isExpanded ? 'bg-blue-100 text-[#4A7CD2]' : ''}`}
                                                             title="Toggle Payment Allocation History"
                                                         >
