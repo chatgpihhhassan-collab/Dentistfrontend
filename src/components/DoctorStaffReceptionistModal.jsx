@@ -23,7 +23,9 @@ import {
     Calendar,
     FileText,
     Settings,
-    ShieldAlert
+    ShieldAlert,
+    Eye,
+    EyeOff
 } from 'lucide-react';
 import { 
     DEFAULT_RECEPTIONIST_PERMISSIONS, 
@@ -48,6 +50,9 @@ export default function DoctorStaffReceptionistModal({ isOpen, onClose, doctor }
     // Reset Password Modal State
     const [resetPwStaff, setResetPwStaff] = useState(null);
     const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [resettingPw, setResettingPw] = useState(false);
 
     // New Receptionist Form State
@@ -227,11 +232,33 @@ export default function DoctorStaffReceptionistModal({ isOpen, onClose, doctor }
         setSelectedStaffForPerms(null);
     };
 
+    // Password Policy Check
+    const staffPasswordPolicy = {
+        minLength: newPassword.length >= 8,
+        hasUpper: /[A-Z]/.test(newPassword),
+        hasLower: /[a-z]/.test(newPassword),
+        hasNumber: /[0-9]/.test(newPassword),
+        hasSpecial: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(newPassword),
+        matches: Boolean(newPassword && confirmPassword && newPassword === confirmPassword)
+    };
+
+    const isStaffPasswordValid = 
+        staffPasswordPolicy.minLength && 
+        staffPasswordPolicy.hasUpper && 
+        staffPasswordPolicy.hasLower && 
+        staffPasswordPolicy.hasNumber && 
+        staffPasswordPolicy.hasSpecial && 
+        staffPasswordPolicy.matches;
+
     // Handle Password Reset
     const handleResetPassword = async (e) => {
         if (e) e.preventDefault();
-        if (!newPassword || newPassword.length < 6) {
-            showNotification('Password must be at least 6 characters.', 'error');
+        if (!newPassword) {
+            showNotification('Password cannot be empty.', 'error');
+            return;
+        }
+        if (!isStaffPasswordValid) {
+            showNotification('Password must be at least 8 chars with uppercase, lowercase, number, special char and matching confirmation.', 'error');
             return;
         }
 
@@ -250,6 +277,7 @@ export default function DoctorStaffReceptionistModal({ isOpen, onClose, doctor }
         setResettingPw(false);
         setResetPwStaff(null);
         setNewPassword('');
+        setConfirmPassword('');
     };
 
     // Handle Create New Receptionist
@@ -857,51 +885,126 @@ export default function DoctorStaffReceptionistModal({ isOpen, onClose, doctor }
                     {/* MODAL: RESET PASSWORD DIALOG */}
                     {resetPwStaff && (
                         <div className="absolute inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-                            <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl border border-slate-100 space-y-3.5">
+                            <div className="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl border border-slate-100 space-y-3.5">
                                 <div className="flex items-center justify-between">
                                     <h4 className="text-sm font-extrabold text-dark-slate flex items-center gap-1.5">
                                         <Key className="w-4 h-4 text-amber-600" />
                                         <span>Reset Staff Password</span>
                                     </h4>
-                                    <button onClick={() => setResetPwStaff(null)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
+                                    <button onClick={() => { setResetPwStaff(null); setNewPassword(''); setConfirmPassword(''); }} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
                                         <X className="w-4 h-4" />
                                     </button>
                                 </div>
                                 <p className="text-xs text-slate-500">
-                                    Set a new password for <strong>{resetPwStaff.firstName} {resetPwStaff.lastName}</strong> (@{resetPwStaff.username}).
+                                    Set a new secure password for <strong>{resetPwStaff.firstName} {resetPwStaff.lastName}</strong> (@{resetPwStaff.username}).
                                 </p>
 
                                 <form onSubmit={handleResetPassword} className="space-y-3">
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            value={newPassword}
-                                            onChange={(e) => setNewPassword(e.target.value)}
-                                            placeholder="New Password (min 6 chars)"
-                                            required
-                                            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setNewPassword('Dental@' + Math.floor(1000 + Math.random() * 9000))}
-                                            className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-amber-700 hover:underline cursor-pointer"
-                                        >
-                                            Generate
-                                        </button>
+                                    {/* New Password */}
+                                    <div className="space-y-1">
+                                        <div className="flex justify-between items-center text-[10px] font-bold text-slate-600 uppercase">
+                                            <span>New Password</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const uppercase = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+                                                    const lowercase = 'abcdefghijkmnopqrstuvwxyz';
+                                                    const numbers = '23456789';
+                                                    const symbols = '!@#$%&*';
+                                                    const rand = (chars) => chars[Math.floor(Math.random() * chars.length)];
+                                                    const pass = `Dental#${rand(uppercase)}${rand(numbers)}${rand(symbols)}${rand(numbers)}${rand(lowercase)}`;
+                                                    setNewPassword(pass);
+                                                    setConfirmPassword(pass);
+                                                }}
+                                                className="text-amber-700 hover:underline cursor-pointer flex items-center gap-0.5"
+                                            >
+                                                <Sparkles className="w-2.5 h-2.5" />
+                                                <span>Generate Strong</span>
+                                            </button>
+                                        </div>
+                                        <div className="relative">
+                                            <input
+                                                type={showNewPassword ? "text" : "password"}
+                                                value={newPassword}
+                                                onChange={(e) => setNewPassword(e.target.value)}
+                                                placeholder="Min 8 chars with upper, lower, number, symbol"
+                                                required
+                                                className="w-full pl-3 pr-9 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowNewPassword(!showNewPassword)}
+                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                                            >
+                                                {showNewPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Confirm Password */}
+                                    <div className="space-y-1">
+                                        <div className="flex justify-between items-center text-[10px] font-bold text-slate-600 uppercase">
+                                            <span>Confirm Password</span>
+                                            {confirmPassword.length > 0 && (
+                                                <span className={staffPasswordPolicy.matches ? 'text-emerald-600' : 'text-rose-600'}>
+                                                    {staffPasswordPolicy.matches ? '✓ Match' : '✕ No Match'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="relative">
+                                            <input
+                                                type={showConfirmPassword ? "text" : "password"}
+                                                value={confirmPassword}
+                                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                                placeholder="Re-enter to confirm"
+                                                required
+                                                className="w-full pl-3 pr-9 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                                            >
+                                                {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Policy Checklist */}
+                                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-[10px] grid grid-cols-2 gap-1 font-semibold">
+                                        <span className={staffPasswordPolicy.minLength ? 'text-emerald-700' : 'text-slate-400'}>
+                                            {staffPasswordPolicy.minLength ? '✓' : '•'} 8+ characters
+                                        </span>
+                                        <span className={staffPasswordPolicy.hasUpper ? 'text-emerald-700' : 'text-slate-400'}>
+                                            {staffPasswordPolicy.hasUpper ? '✓' : '•'} Uppercase (A-Z)
+                                        </span>
+                                        <span className={staffPasswordPolicy.hasLower ? 'text-emerald-700' : 'text-slate-400'}>
+                                            {staffPasswordPolicy.hasLower ? '✓' : '•'} Lowercase (a-z)
+                                        </span>
+                                        <span className={staffPasswordPolicy.hasNumber ? 'text-emerald-700' : 'text-slate-400'}>
+                                            {staffPasswordPolicy.hasNumber ? '✓' : '•'} Number (0-9)
+                                        </span>
+                                        <span className={`col-span-2 ${staffPasswordPolicy.hasSpecial ? 'text-emerald-700' : 'text-slate-400'}`}>
+                                            {staffPasswordPolicy.hasSpecial ? '✓' : '•'} Special char (!@#$%...)
+                                        </span>
                                     </div>
 
                                     <div className="flex items-center justify-end gap-2 pt-1">
                                         <button
                                             type="button"
-                                            onClick={() => setResetPwStaff(null)}
+                                            onClick={() => { setResetPwStaff(null); setNewPassword(''); setConfirmPassword(''); }}
                                             className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
                                         >
                                             Cancel
                                         </button>
                                         <button
                                             type="submit"
-                                            disabled={resettingPw}
-                                            className="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+                                            disabled={!isStaffPasswordValid || resettingPw}
+                                            className={`px-4 py-1.5 rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer ${
+                                                isStaffPasswordValid && !resettingPw 
+                                                    ? 'bg-amber-600 hover:bg-amber-700 text-white' 
+                                                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                            }`}
                                         >
                                             {resettingPw ? 'Saving...' : 'Update Password'}
                                         </button>

@@ -259,14 +259,26 @@ class NanoPixDeviceService {
     // Connect to C# Dental Bridge WebSocket (ws://127.0.0.1:5050/ws)
     let ws5050 = null;
     let wsReconnectTimer = null;
+    let wsFailCount = 0;
 
     const connectWs5050 = () => {
       if (typeof WebSocket === 'undefined') return;
+
+      // Do not connect hardware WebSocket if user is SuperAdmin or unauthenticated
+      try {
+        const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('doctor') : null;
+        if (stored) {
+          const doc = JSON.parse(stored);
+          if (doc?.isSuperAdmin) return;
+        }
+      } catch (_) {}
+
       try {
         ws5050 = new WebSocket('ws://127.0.0.1:5050/ws');
 
         ws5050.onopen = () => {
           this._bridge5050Connected = true;
+          wsFailCount = 0;
           this.log('SUCCESS', 'Connected to C# Dental Bridge on ws://127.0.0.1:5050');
           this.fetchRemoteBridgeLogs();
         };
@@ -318,11 +330,14 @@ class NanoPixDeviceService {
 
         ws5050.onclose = () => {
           this._bridge5050Connected = false;
+          wsFailCount++;
+          // Exponential backoff to avoid browser console spam if sensor bridge is offline
+          const delay = Math.min(60000, wsFailCount > 2 ? 30000 : wsFailCount * 5000);
           if (!wsReconnectTimer) {
             wsReconnectTimer = setTimeout(() => {
               wsReconnectTimer = null;
               connectWs5050();
-            }, 3000);
+            }, delay);
           }
         };
 
@@ -330,11 +345,13 @@ class NanoPixDeviceService {
           try { ws5050.close(); } catch (_) {}
         };
       } catch (_) {
+        wsFailCount++;
+        const delay = Math.min(60000, wsFailCount > 2 ? 30000 : wsFailCount * 5000);
         if (!wsReconnectTimer) {
           wsReconnectTimer = setTimeout(() => {
             wsReconnectTimer = null;
             connectWs5050();
-          }, 4000);
+          }, delay);
         }
       }
     };

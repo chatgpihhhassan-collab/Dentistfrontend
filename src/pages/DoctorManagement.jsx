@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import { 
@@ -27,8 +28,14 @@ import {
     ToggleRight,
     Sparkles,
     Eye,
-    ArrowRight
+    EyeOff,
+    Lock,
+    Check,
+    Loader2,
+    ArrowRight,
+    ShieldAlert
 } from 'lucide-react';
+import API_BASE_URL from '../config/apiConfig';
 
 export default function DoctorManagement() {
     const navigate = useNavigate();
@@ -39,7 +46,14 @@ export default function DoctorManagement() {
     const [editingDoctor, setEditingDoctor] = useState(null);
     const [isAddDoctorOpen, setIsAddDoctorOpen] = useState(false);
     const [passwordModalDoctor, setPasswordModalDoctor] = useState(null);
+    const [oldPassword, setOldPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [showOldPassword, setShowOldPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [isSavingPassword, setIsSavingPassword] = useState(false);
+    const [passwordModalError, setPasswordModalError] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
     const [orgFilter, setOrgFilter] = useState('All');
@@ -334,28 +348,124 @@ export default function DoctorManagement() {
         }
     };
 
-    // Password Update
+    // Password Modal Open Handler
+    const handleOpenPasswordModal = (doc) => {
+        setPasswordModalDoctor(doc);
+        setOldPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setShowOldPassword(false);
+        setShowNewPassword(false);
+        setShowConfirmPassword(false);
+        setPasswordModalError('');
+    };
+
+    // Quick Generator: Compliant Strong Password
+    const handleGenerateStrongPassword = () => {
+        const uppercase = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        const lowercase = 'abcdefghijkmnopqrstuvwxyz';
+        const numbers = '23456789';
+        const symbols = '!@#$%&*';
+        
+        const rand = (chars) => chars[Math.floor(Math.random() * chars.length)];
+        const generated = `Dental#${rand(uppercase)}${rand(numbers)}${rand(symbols)}${rand(numbers)}${rand(lowercase)}`;
+        setNewPassword(generated);
+        setConfirmPassword(generated);
+        setPasswordModalError('');
+    };
+
+    // Live Password Policy Validation Engine
+    const passwordPolicy = {
+        minLength: newPassword.length >= 8,
+        hasUpper: /[A-Z]/.test(newPassword),
+        hasLower: /[a-z]/.test(newPassword),
+        hasNumber: /[0-9]/.test(newPassword),
+        hasSpecial: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(newPassword),
+        matches: Boolean(newPassword && confirmPassword && newPassword === confirmPassword)
+    };
+
+    const isPasswordValid = 
+        passwordPolicy.minLength && 
+        passwordPolicy.hasUpper && 
+        passwordPolicy.hasLower && 
+        passwordPolicy.hasNumber && 
+        passwordPolicy.hasSpecial && 
+        passwordPolicy.matches;
+
+    const getStrengthScore = () => {
+        let score = 0;
+        if (passwordPolicy.minLength) score++;
+        if (passwordPolicy.hasUpper) score++;
+        if (passwordPolicy.hasLower) score++;
+        if (passwordPolicy.hasNumber) score++;
+        if (passwordPolicy.hasSpecial) score++;
+        return score; // 0 to 5
+    };
+
+    // Password Update with Old Password Verification & Strong Policy
     const handleSavePassword = async (e) => {
-        e.preventDefault();
+        if (e) e.preventDefault();
+        setPasswordModalError('');
+
         if (!newPassword.trim()) {
-            setError('Password cannot be empty.');
+            setPasswordModalError('New password cannot be empty.');
             return;
         }
+
+        if (!passwordPolicy.minLength) {
+            setPasswordModalError('Password must be at least 8 characters long.');
+            return;
+        }
+        if (!passwordPolicy.hasUpper || !passwordPolicy.hasLower) {
+            setPasswordModalError('Password must contain both uppercase (A-Z) and lowercase (a-z) letters.');
+            return;
+        }
+        if (!passwordPolicy.hasNumber) {
+            setPasswordModalError('Password must contain at least one numeric digit (0-9).');
+            return;
+        }
+        if (!passwordPolicy.hasSpecial) {
+            setPasswordModalError('Password must contain at least one special character (!@#$%...).');
+            return;
+        }
+        if (!passwordPolicy.matches) {
+            setPasswordModalError('New password and confirmation password do not match.');
+            return;
+        }
+
+        setIsSavingPassword(true);
+
         try {
-            const res = await fetch(`/api/auth/doctors/${passwordModalDoctor.doctorID}/password`, {
+            const endpoint = `${API_BASE_URL || ''}/api/auth/doctors/${passwordModalDoctor.doctorID}/password`;
+            const payload = {
+                password: newPassword.trim()
+            };
+            if (oldPassword && oldPassword.trim()) {
+                payload.oldPassword = oldPassword.trim();
+            }
+
+            const res = await fetch(endpoint, {
                 method: 'PUT',
                 headers: getAuthHeaders(),
-                body: JSON.stringify({ password: newPassword.trim() })
+                body: JSON.stringify(payload)
             });
+
+            const data = await res.json().catch(() => ({}));
+
             if (res.ok) {
-                setSuccess(`Password for Dr. ${passwordModalDoctor.firstName} updated successfully!`);
+                setSuccess(`Password for Dr. ${passwordModalDoctor.firstName} ${passwordModalDoctor.lastName || ''} updated successfully!`);
                 setPasswordModalDoctor(null);
+                setOldPassword('');
                 setNewPassword('');
+                setConfirmPassword('');
+                setPasswordModalError('');
             } else {
-                setError('Failed to update password.');
+                setPasswordModalError(data.message || 'Failed to update password. Current password may be incorrect.');
             }
         } catch (err) {
-            setError('Server connection error.');
+            setPasswordModalError('Server connection error. Please verify network connectivity.');
+        } finally {
+            setIsSavingPassword(false);
         }
     };
 
@@ -632,7 +742,7 @@ export default function DoctorManagement() {
                                                         <span>Edit</span>
                                                     </button>
                                                     <button
-                                                        onClick={() => setPasswordModalDoctor(doc)}
+                                                        onClick={() => handleOpenPasswordModal(doc)}
                                                         className="p-2 rounded-xl bg-light-teal/20 hover:bg-light-teal/50 text-muted-text hover:text-dark-slate transition-colors cursor-pointer"
                                                         title="Change Password"
                                                     >
@@ -1251,53 +1361,258 @@ export default function DoctorManagement() {
                 </div>
             )}
 
-            {/* CHANGE PASSWORD MODAL */}
-            {passwordModalDoctor && (
-                <div className="fixed inset-0 bg-dark-slate/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 border border-light-teal p-6 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-serif font-bold text-dark-slate">
-                                Update Password for Dr. {passwordModalDoctor.firstName}
-                            </h3>
+            {/* 🔐 SECURE MULTI-FIELD PASSWORD UPDATE MODAL (REACT PORTAL) */}
+            {passwordModalDoctor && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 bg-dark-slate/65 backdrop-blur-sm z-[9999] flex items-center justify-center p-3 sm:p-5 animate-fade-in">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 flex flex-col animate-in zoom-in-95 duration-200">
+                        {/* Pinned Modal Header */}
+                        <div className="px-6 py-4 bg-gradient-to-r from-slate-900 via-[#1e293b] to-[#0f766e] text-white flex items-center justify-between shrink-0">
+                            <div className="flex items-center space-x-3">
+                                <div className="w-9 h-9 rounded-2xl bg-white/15 flex items-center justify-center shadow-inner shrink-0">
+                                    <Key className="w-4 h-4 text-teal-300" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-extrabold tracking-tight">
+                                        Update Password for Dr. {passwordModalDoctor.firstName} {passwordModalDoctor.lastName || ''}
+                                    </h3>
+                                    <p className="text-[11px] text-slate-300 font-medium">
+                                        Username: <span className="text-teal-300 font-mono">@{passwordModalDoctor.username}</span>
+                                    </p>
+                                </div>
+                            </div>
                             <button
+                                type="button"
                                 onClick={() => setPasswordModalDoctor(null)}
-                                className="p-1.5 text-muted-text hover:text-dark-slate rounded-full"
+                                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
+                                title="Close modal"
                             >
-                                <X className="w-5 h-5" />
+                                <X className="w-4 h-4" />
                             </button>
                         </div>
 
-                        <form onSubmit={handleSavePassword} className="space-y-4">
+                        {/* Modal Body */}
+                        <form onSubmit={handleSavePassword} className="p-6 space-y-4 text-left">
+                            {/* Error Alert Box */}
+                            {passwordModalError && (
+                                <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-start gap-2 animate-shake">
+                                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                                    <span>{passwordModalError}</span>
+                                </div>
+                            )}
+
+                            {/* 1. Current (Old) Password */}
                             <div className="space-y-1">
-                                <label className="text-xs font-bold text-muted-text uppercase">New Secure Password</label>
-                                <input
-                                    type="password"
-                                    required
-                                    placeholder="Enter new password"
-                                    value={newPassword}
-                                    onChange={e => setNewPassword(e.target.value)}
-                                    className="w-full px-4 py-2.5 bg-light-teal/20 border border-light-teal/60 rounded-xl text-xs font-medium text-dark-slate focus:outline-none"
-                                />
+                                <div className="flex items-center justify-between">
+                                    <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                        <Lock className="w-3 h-3 text-slate-400" />
+                                        <span>Current (Old) Password</span>
+                                    </label>
+                                    <span className="text-[10px] text-slate-400 font-medium">(Optional for SuperAdmin Override)</span>
+                                </div>
+                                <div className="relative">
+                                    <input
+                                        type={showOldPassword ? "text" : "password"}
+                                        placeholder="Enter doctor's current password (if known)"
+                                        value={oldPassword}
+                                        onChange={e => { setOldPassword(e.target.value); setPasswordModalError(''); }}
+                                        className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-dark-slate placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-teal/20 focus:bg-white transition-all shadow-2xs"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowOldPassword(!showOldPassword)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                                        title={showOldPassword ? "Hide password" : "Show password"}
+                                    >
+                                        {showOldPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                </div>
                             </div>
 
-                            <div className="flex items-center justify-end gap-3 pt-2">
+                            {/* 2. New Secure Password */}
+                            <div className="space-y-1">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                        <Key className="w-3 h-3 text-teal-600" />
+                                        <span>New Secure Password <span className="text-rose-500">*</span></span>
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={handleGenerateStrongPassword}
+                                        className="text-[11px] font-bold text-teal-700 hover:text-teal-900 flex items-center gap-1 hover:underline cursor-pointer"
+                                        title="Auto-generate a strong password satisfying all criteria"
+                                    >
+                                        <Sparkles className="w-3 h-3 text-amber-500" />
+                                        <span>Generate Strong</span>
+                                    </button>
+                                </div>
+                                <div className="relative">
+                                    <input
+                                        type={showNewPassword ? "text" : "password"}
+                                        required
+                                        placeholder="Enter new strong password"
+                                        value={newPassword}
+                                        onChange={e => { setNewPassword(e.target.value); setPasswordModalError(''); }}
+                                        className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-dark-slate placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-teal/20 focus:bg-white transition-all shadow-2xs"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowNewPassword(!showNewPassword)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                                        title={showNewPassword ? "Hide password" : "Show password"}
+                                    >
+                                        {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                </div>
+
+                                {/* Password Strength Meter Bar */}
+                                {newPassword.length > 0 && (
+                                    <div className="pt-1.5">
+                                        <div className="flex items-center justify-between text-[10px] font-bold mb-1">
+                                            <span className="text-slate-500 uppercase">Strength:</span>
+                                            <span className={
+                                                getStrengthScore() <= 2 ? 'text-rose-600' :
+                                                getStrengthScore() <= 4 ? 'text-amber-600' : 'text-emerald-600'
+                                            }>
+                                                {getStrengthScore() <= 2 ? 'Weak' : getStrengthScore() <= 4 ? 'Moderate' : 'Very Strong'}
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-5 gap-1 h-1.5">
+                                            {[1, 2, 3, 4, 5].map((step) => (
+                                                <div
+                                                    key={step}
+                                                    className={`h-full rounded-full transition-all ${
+                                                        step <= getStrengthScore()
+                                                            ? getStrengthScore() <= 2
+                                                                ? 'bg-rose-500'
+                                                                : getStrengthScore() <= 4
+                                                                    ? 'bg-amber-500'
+                                                                    : 'bg-emerald-500'
+                                                            : 'bg-slate-200'
+                                                    }`}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* 3. Confirm New Password */}
+                            <div className="space-y-1">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                        <ShieldCheck className="w-3 h-3 text-slate-400" />
+                                        <span>Confirm New Password <span className="text-rose-500">*</span></span>
+                                    </label>
+                                    {confirmPassword.length > 0 && (
+                                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                            passwordPolicy.matches 
+                                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                                                : 'bg-rose-50 text-rose-700 border border-rose-200'
+                                        }`}>
+                                            {passwordPolicy.matches ? '✓ Passwords Match' : '✕ Passwords Do Not Match'}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="relative">
+                                    <input
+                                        type={showConfirmPassword ? "text" : "password"}
+                                        required
+                                        placeholder="Re-enter new password to confirm"
+                                        value={confirmPassword}
+                                        onChange={e => { setConfirmPassword(e.target.value); setPasswordModalError(''); }}
+                                        className={`w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border rounded-xl text-xs font-medium text-dark-slate placeholder:text-slate-400 focus:outline-none transition-all shadow-2xs ${
+                                            confirmPassword.length > 0
+                                                ? passwordPolicy.matches
+                                                    ? 'border-emerald-300 focus:ring-2 focus:ring-emerald-200 focus:bg-white'
+                                                    : 'border-rose-300 focus:ring-2 focus:ring-rose-200 focus:bg-white'
+                                                : 'border-slate-200 focus:ring-2 focus:ring-primary-teal/20 focus:bg-white'
+                                        }`}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                                        title={showConfirmPassword ? "Hide password" : "Show password"}
+                                    >
+                                        {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* 4. Live Password Policy Checklist */}
+                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1.5">
+                                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1">
+                                    Password Security Policy:
+                                </span>
+                                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] font-semibold">
+                                    <div className={`flex items-center gap-1.5 ${passwordPolicy.minLength ? 'text-emerald-700' : 'text-slate-500'}`}>
+                                        <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ${passwordPolicy.minLength ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                                            {passwordPolicy.minLength ? <Check className="w-2.5 h-2.5 stroke-[3]" /> : <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />}
+                                        </div>
+                                        <span>Min 8 characters</span>
+                                    </div>
+                                    <div className={`flex items-center gap-1.5 ${passwordPolicy.hasUpper ? 'text-emerald-700' : 'text-slate-500'}`}>
+                                        <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ${passwordPolicy.hasUpper ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                                            {passwordPolicy.hasUpper ? <Check className="w-2.5 h-2.5 stroke-[3]" /> : <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />}
+                                        </div>
+                                        <span>Uppercase (A-Z)</span>
+                                    </div>
+                                    <div className={`flex items-center gap-1.5 ${passwordPolicy.hasLower ? 'text-emerald-700' : 'text-slate-500'}`}>
+                                        <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ${passwordPolicy.hasLower ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                                            {passwordPolicy.hasLower ? <Check className="w-2.5 h-2.5 stroke-[3]" /> : <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />}
+                                        </div>
+                                        <span>Lowercase (a-z)</span>
+                                    </div>
+                                    <div className={`flex items-center gap-1.5 ${passwordPolicy.hasNumber ? 'text-emerald-700' : 'text-slate-500'}`}>
+                                        <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ${passwordPolicy.hasNumber ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                                            {passwordPolicy.hasNumber ? <Check className="w-2.5 h-2.5 stroke-[3]" /> : <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />}
+                                        </div>
+                                        <span>Number (0-9)</span>
+                                    </div>
+                                    <div className={`flex items-center gap-1.5 ${passwordPolicy.hasSpecial ? 'text-emerald-700' : 'text-slate-500'} col-span-2`}>
+                                        <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ${passwordPolicy.hasSpecial ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                                            {passwordPolicy.hasSpecial ? <Check className="w-2.5 h-2.5 stroke-[3]" /> : <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />}
+                                        </div>
+                                        <span>Special character (!@#$%^&*...)</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Modal Action Buttons */}
+                            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                                 <button
                                     type="button"
                                     onClick={() => setPasswordModalDoctor(null)}
-                                    className="px-4 py-2 rounded-xl bg-light-teal/30 text-muted-text text-xs font-bold cursor-pointer"
+                                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-5 py-2 rounded-xl bg-primary-teal text-white text-xs font-bold shadow-sm hover:bg-primary-hover cursor-pointer"
+                                    disabled={!isPasswordValid || isSavingPassword}
+                                    className={`px-5 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all shadow-xs cursor-pointer ${
+                                        isPasswordValid && !isSavingPassword
+                                            ? 'bg-primary-teal hover:bg-primary-hover text-white shadow-teal-700/20'
+                                            : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                    }`}
                                 >
-                                    Save Password
+                                    {isSavingPassword ? (
+                                        <>
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            <span>Updating...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Save className="w-3.5 h-3.5" />
+                                            <span>Update Password</span>
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );
