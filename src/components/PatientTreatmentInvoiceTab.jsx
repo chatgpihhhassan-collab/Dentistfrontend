@@ -131,19 +131,27 @@ export default function PatientTreatmentInvoiceTab({
 
             if (itemsRes.ok) {
                 const items = await itemsRes.json();
-                const normalized = (Array.isArray(items) ? items : []).map(i => ({
-                    ...i,
-                    id: i.id || i.treatmentItemID || i.treatmentItemId,
-                    treatmentItemID: i.treatmentItemID || i.id || i.treatmentItemId,
-                    name: i.name || i.procedureName || 'Treatment',
-                    procedureName: i.procedureName || i.name || 'Treatment',
-                    toothNo: i.toothNo !== undefined ? i.toothNo : (i.toothNumber || 0),
-                    toothNumber: i.toothNumber !== undefined ? i.toothNumber : (i.toothNo || 0),
-                    finalPrice: i.finalPrice || i.estimatedPrice || 0,
-                    estimatedPrice: i.estimatedPrice || i.finalPrice || 0,
-                    paid: i.paid || 0,
-                    balance: i.balance !== undefined ? i.balance : Math.max(0, (i.finalPrice || i.estimatedPrice || 0) - (i.paid || 0)),
-                }));
+                const normalized = (Array.isArray(items) ? items : []).map(i => {
+                    const finalPrice = i.finalPrice || i.estimatedPrice || (Number(i.fee) || 0);
+                    const paid = Number(i.paid) || 0;
+                    const balance = i.balance !== undefined ? Number(i.balance) : Math.max(0, finalPrice - paid);
+                    const paymentStatus = (i.paymentStatus || (paid >= finalPrice && finalPrice > 0 ? 'paid' : paid > 0 ? 'partial' : 'unpaid')).toLowerCase();
+
+                    return {
+                        ...i,
+                        id: i.id || i.treatmentItemID || i.treatmentItemId,
+                        treatmentItemID: i.treatmentItemID || i.id || i.treatmentItemId,
+                        name: i.name || i.procedureName || 'Treatment',
+                        procedureName: i.procedureName || i.name || 'Treatment',
+                        toothNo: i.toothNo !== undefined ? i.toothNo : (i.toothNumber || 0),
+                        toothNumber: i.toothNumber !== undefined ? i.toothNumber : (i.toothNo || 0),
+                        finalPrice,
+                        estimatedPrice: i.estimatedPrice || finalPrice,
+                        paid,
+                        balance,
+                        paymentStatus,
+                    };
+                });
                 setInvoiceItems(normalized);
             }
             if (summaryRes.ok) {
@@ -402,17 +410,38 @@ export default function PatientTreatmentInvoiceTab({
         }
     };
 
+    // Dynamic counts for financial tabs
+    const counts = useMemo(() => {
+        let unpaid = 0;
+        let partial = 0;
+        let paid = 0;
+        invoiceItems.forEach(i => {
+            const s = (i.paymentStatus || (i.paid >= i.finalPrice && i.finalPrice > 0 ? 'paid' : i.paid > 0 ? 'partial' : 'unpaid')).toLowerCase();
+            if (s === 'paid') paid++;
+            else if (s === 'partial') partial++;
+            else unpaid++;
+        });
+        return {
+            ALL: invoiceItems.length,
+            UNPAID: unpaid,
+            PARTIAL: partial,
+            PAID: paid,
+        };
+    }, [invoiceItems]);
+
     // Filter Items
     const filteredItems = useMemo(() => {
         return invoiceItems.filter(item => {
-            if (statusFilter === 'UNPAID' && item.paymentStatus !== 'unpaid') return false;
-            if (statusFilter === 'PARTIAL' && item.paymentStatus !== 'partial') return false;
-            if (statusFilter === 'PAID' && item.paymentStatus !== 'paid') return false;
+            const pStatus = (item.paymentStatus || (item.paid >= item.finalPrice && item.finalPrice > 0 ? 'paid' : item.paid > 0 ? 'partial' : 'unpaid')).toLowerCase();
+
+            if (statusFilter === 'UNPAID' && pStatus !== 'unpaid') return false;
+            if (statusFilter === 'PARTIAL' && pStatus !== 'partial') return false;
+            if (statusFilter === 'PAID' && pStatus !== 'paid') return false;
 
             if (searchQuery.trim()) {
                 const q = searchQuery.toLowerCase();
-                const name = (item.name || '').toLowerCase();
-                const tooth = String(item.toothNo || '');
+                const name = (item.name || item.procedureName || '').toLowerCase();
+                const tooth = String(item.toothNo || item.toothNumber || '');
                 const cat = (item.category || '').toLowerCase();
                 return name.includes(q) || tooth.includes(q) || cat.includes(q);
             }
@@ -639,18 +668,30 @@ export default function PatientTreatmentInvoiceTab({
                     </div>
 
                     <div className="flex items-center gap-1 bg-[#F4F6FA] p-1 rounded-xl border border-slate-200">
-                        {['ALL', 'UNPAID', 'PARTIAL', 'PAID'].map(f => (
+                        {[
+                            { id: 'ALL', label: 'ALL', count: counts.ALL },
+                            { id: 'UNPAID', label: 'UNPAID', count: counts.UNPAID },
+                            { id: 'PARTIAL', label: 'PARTIAL', count: counts.PARTIAL },
+                            { id: 'PAID', label: 'PAID', count: counts.PAID }
+                        ].map(t => (
                             <button
-                                key={f}
+                                key={t.id}
                                 type="button"
-                                onClick={() => setStatusFilter(f)}
-                                className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer ${
-                                    statusFilter === f
+                                onClick={() => setStatusFilter(t.id)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                                    statusFilter === t.id
                                         ? 'bg-white text-[#4A7CD2] shadow-2xs font-extrabold'
                                         : 'text-slate-600 hover:text-dark-slate'
                                 }`}
                             >
-                                {f}
+                                <span>{t.label}</span>
+                                <span className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-bold ${
+                                    statusFilter === t.id
+                                        ? 'bg-blue-100 text-[#4A7CD2]'
+                                        : 'bg-slate-200/80 text-slate-600'
+                                }`}>
+                                    {t.count}
+                                </span>
                             </button>
                         ))}
                     </div>
@@ -700,18 +741,34 @@ export default function PatientTreatmentInvoiceTab({
                         <Receipt className="w-8 h-8" />
                     </div>
                     <div className="space-y-1">
-                        <h3 className="text-base font-extrabold text-dark-slate">No Invoiced or Prepaid Items Found</h3>
+                        <h3 className="text-base font-extrabold text-dark-slate">
+                            {invoiceItems.length === 0 
+                                ? 'No Treatment Procedures or Invoices Found' 
+                                : `No ${statusFilter.toLowerCase()} procedures found`}
+                        </h3>
                         <p className="text-xs text-muted-text max-w-md mx-auto">
-                            Procedures appear here when completed by the doctor, or when an advance payment is collected against them.
+                            {invoiceItems.length === 0
+                                ? 'Procedures added in the dental chart or treatment plan will appear here for billing and receipts.'
+                                : `There are no procedures currently marked as ${statusFilter.toLowerCase()} (out of ${invoiceItems.length} total procedures).`}
                         </p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={onNavigateToPlan}
-                        className="mt-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#4A7CD2] text-white hover:bg-[#3665B7] shadow-xs cursor-pointer"
-                    >
-                        View Treatment Plan Tab
-                    </button>
+                    {invoiceItems.length > 0 ? (
+                        <button
+                            type="button"
+                            onClick={() => setStatusFilter('ALL')}
+                            className="mt-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#4A7CD2] text-white hover:bg-[#3665B7] shadow-xs cursor-pointer"
+                        >
+                            Show All Procedures ({invoiceItems.length})
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={onNavigateToPlan}
+                            className="mt-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#4A7CD2] text-white hover:bg-[#3665B7] shadow-xs cursor-pointer"
+                        >
+                            View Treatment Plan Tab
+                        </button>
+                    )}
                 </div>
             ) : (
                 <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-2xs">

@@ -20,6 +20,7 @@ import {
     Check,
     ChevronLeft,
     ChevronRight,
+    Sliders,
     X
 } from 'lucide-react';
 import API_BASE_URL from '../config/apiConfig';
