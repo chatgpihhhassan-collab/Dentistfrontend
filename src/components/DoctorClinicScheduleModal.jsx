@@ -156,7 +156,7 @@ export default function DoctorClinicScheduleModal({ isOpen, onClose, doctor, onD
                 <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-100 flex flex-col max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)] overflow-hidden z-10 animate-in zoom-in-95 duration-200">
                     
                     {/* 🌟 1. PINNED HEADER (Always Visible at Top - Never Cut Off) */}
-                    <div className="px-5 py-4 bg-gradient-to-r from-primary-teal via-[#164e63] to-[#0f3747] text-white flex items-center justify-between shrink-0 shadow-sm">
+                    <div className="px-5 py-4 bg-gradient-to-r from-[#10244B] via-[#162e5d] to-[#4A7CD2] text-white flex items-center justify-between shrink-0 shadow-sm">
                         <div className="flex items-center space-x-3 min-w-0">
                         <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shadow-inner shrink-0">
                             <Clock className="w-5 h-5 text-white" />
@@ -165,7 +165,7 @@ export default function DoctorClinicScheduleModal({ isOpen, onClose, doctor, onD
                             <h3 className="text-sm sm:text-base font-extrabold tracking-tight truncate">
                                 Clinic Profile & Operating Schedule
                             </h3>
-                            <p className="text-[11px] text-teal-100 font-medium truncate">
+                            <p className="text-[11px] text-[#EAF0FC] font-medium truncate">
                                 Live hours, phone, email & open/closed indicator
                             </p>
                         </div>

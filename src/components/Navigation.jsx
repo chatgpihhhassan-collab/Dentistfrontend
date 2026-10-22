@@ -209,10 +209,10 @@ export default function Navigation() {
                             <button
                                 type="button"
                                 onClick={() => setIsStaffModalOpen(true)}
-                                className="hidden md:inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-bold text-teal-800 bg-teal-50/90 hover:bg-teal-100 hover:text-teal-900 px-3 py-1 rounded-full border border-teal-200/90 shadow-2xs transition-all cursor-pointer ring-1 ring-teal-500/10 shrink-0"
+                                className="hidden md:inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-bold text-[#10244B] bg-[#EAF0FC] hover:bg-[#D4E2F9] px-3 py-1 rounded-full border border-[#4A7CD2]/25 shadow-2xs transition-all cursor-pointer shrink-0"
                                 title="Manage Front-Desk Staff, Passwords & Dynamic Granular Permissions"
                             >
-                                <Users className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                                <Users className="w-3.5 h-3.5 text-[#4A7CD2] shrink-0" />
                                 <span>Staff & Receptionists</span>
                             </button>
                         )}

@@ -364,19 +364,19 @@ export default function DoctorStaffReceptionistModal({ isOpen, onClose, doctor }
                 <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl border border-slate-100 flex flex-col max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)] overflow-hidden z-10 animate-in zoom-in-95 duration-200">
 
                     {/* 🌟 1. PINNED HEADER */}
-                    <div className="px-6 py-4.5 bg-gradient-to-r from-slate-900 via-[#1e293b] to-[#0f766e] text-white flex items-center justify-between shrink-0 shadow-sm">
+                    <div className="px-6 py-4.5 bg-gradient-to-r from-[#10244B] via-[#162e5d] to-[#4A7CD2] text-white flex items-center justify-between shrink-0 shadow-sm">
                         <div className="flex items-center space-x-3.5">
                             <div className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center shadow-inner shrink-0">
-                                <Users className="w-5 h-5 text-teal-300" />
+                                <Users className="w-5 h-5 text-[#EAF0FC]" />
                             </div>
                             <div>
                                 <div className="flex items-center gap-2">
                                     <h3 className="text-base font-extrabold tracking-tight">Front-Desk Staff & Receptionist Management</h3>
-                                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-400/30">
+                                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-white/15 text-[#EAF0FC] border border-white/20">
                                         Doctor Authority
                                     </span>
                                 </div>
-                                <p className="text-xs text-slate-300 font-medium">
+                                <p className="text-xs text-slate-200 font-medium">
                                     Multiple receptionists, password resets & dynamic page/button access control
                                 </p>
                             </div>

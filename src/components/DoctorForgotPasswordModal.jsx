@@ -161,40 +161,46 @@ export default function DoctorForgotPasswordModal({
     if (!isOpen || typeof document === 'undefined') return null;
 
     return createPortal(
-        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-900/65 backdrop-blur-sm animate-fade-in p-3 sm:p-5 flex items-center justify-center">
+        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-[#0A1A24]/70 backdrop-blur-md animate-fade-in p-4 flex items-center justify-center">
             {/* Backdrop click dismiss */}
             <div className="fixed inset-0" onClick={onClose} aria-hidden="true" />
 
-            {/* Modal Card */}
-            <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden z-10 animate-in zoom-in-95 duration-200">
-                {/* 🌟 Header */}
-                <div className="px-6 py-4.5 bg-gradient-to-r from-slate-900 via-[#1e293b] to-[#0f766e] text-white flex items-center justify-between shrink-0">
-                    <div className="flex items-center space-x-3.5">
-                        <div className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center shadow-inner shrink-0">
-                            <KeyRound className="w-5 h-5 text-teal-300" />
-                        </div>
-                        <div>
-                            <h3 className="text-base font-extrabold tracking-tight">Clinician Password Reset</h3>
-                            <p className="text-xs text-slate-300 font-medium">
-                                Enter your username and set a new compliant password
-                            </p>
-                        </div>
-                    </div>
+            {/* Modal Card - Synced with Dentia Theme 2 (#4A7CD2, #10244B, #EAF0FC) */}
+            <div className="relative w-full max-w-[480px] bg-white rounded-[2rem] shadow-2xl border border-[#4A7CD2]/20 flex flex-col overflow-hidden z-10 animate-in zoom-in-95 duration-200">
+                
+                {/* Subtle Decorative Ambient Glow */}
+                <div className="absolute -top-24 -left-24 w-48 h-48 bg-[#4A7CD2]/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute -top-24 -right-24 w-48 h-48 bg-[#3665B7]/10 rounded-full blur-3xl pointer-events-none" />
+
+                {/* 🌟 Header - Clinical Branding */}
+                <div className="pt-7 pb-4 px-7 border-b border-[#EAF0FC] relative bg-gradient-to-b from-[#F4F6FA]/80 to-white">
                     <button 
                         type="button" 
                         onClick={onClose}
-                        className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
+                        className="absolute top-6 right-6 w-8 h-8 rounded-full bg-slate-100 hover:bg-[#EAF0FC] text-slate-400 hover:text-[#4A7CD2] flex items-center justify-center transition-all cursor-pointer"
                         title="Close modal"
                     >
                         <X className="w-4 h-4" />
                     </button>
+
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-[#EAF0FC] text-[#4A7CD2] border border-[#4A7CD2]/25 mb-2.5">
+                        <KeyRound className="w-3.5 h-3.5 text-[#4A7CD2]" />
+                        <span>Clinician Workspace Access</span>
+                    </div>
+                    
+                    <h3 className="text-xl font-bold text-[#10244B] tracking-tight">
+                        Reset Clinician Password
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium mt-1 leading-relaxed">
+                        Enter your clinician username and set your new credentials to regain workspace access.
+                    </p>
                 </div>
 
                 {/* 🌟 Body */}
-                <div className="p-6">
+                <div className="p-7">
                     {/* Error Banner */}
                     {error && (
-                        <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-bold text-rose-700 flex items-start gap-2.5 animate-shake">
+                        <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-bold text-rose-700 flex items-start gap-2.5 shadow-2xs">
                             <AlertCircle className="w-4 h-4 text-rose-600 mt-0.5 shrink-0" />
                             <span className="leading-relaxed flex-1">{error}</span>
                         </div>
@@ -203,98 +209,102 @@ export default function DoctorForgotPasswordModal({
                     {isSuccess ? (
                         /* Success View */
                         <div className="py-4 text-center space-y-4">
-                            <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner animate-bounce">
+                            <div className="w-16 h-16 bg-[#EAF0FC] text-[#4A7CD2] rounded-full flex items-center justify-center mx-auto shadow-inner border border-[#4A7CD2]/25">
                                 <CheckCircle2 className="w-9 h-9" />
                             </div>
-                            <div className="space-y-1">
-                                <h4 className="text-lg font-black text-dark-slate">Password Updated Successfully!</h4>
+                            <div className="space-y-1.5">
+                                <h4 className="text-lg font-bold text-[#10244B]">Password Updated Successfully!</h4>
                                 <p className="text-xs text-slate-600 max-w-sm mx-auto leading-relaxed">
-                                    Your password for clinician account <strong className="text-dark-slate font-bold">@{username}</strong> has been updated. You can now log in to access patient charts.
+                                    Your password for clinician account <strong className="text-[#10244B] font-bold">@{username}</strong> has been saved. Your login form is pre-filled and ready.
                                 </p>
                             </div>
                             <div className="pt-2">
                                 <button
                                     type="button"
                                     onClick={onClose}
-                                    className="w-full bg-primary-teal hover:bg-primary-hover text-white text-xs font-extrabold py-3.5 px-4 rounded-xl shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
+                                    className="w-full bg-[#4A7CD2] hover:bg-[#3665B7] text-white text-xs font-bold py-3.5 px-4 rounded-xl shadow-md shadow-[#4A7CD2]/25 transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center justify-center gap-2"
                                 >
-                                    <span>Back to Sign In</span>
+                                    <span>Sign in to Patient Charts</span>
                                     <ArrowRight className="w-4 h-4" />
                                 </button>
                             </div>
                         </div>
                     ) : (
-                        /* Single-Step Password Reset Form */
+                        /* Single-Step Password Reset Form - Styled Identically to Auth.jsx */
                         <form onSubmit={handleResetPassword} className="space-y-4">
                             {/* 1. Clinician Username */}
-                            <div className="space-y-1">
-                                <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                    <User className="w-3.5 h-3.5 text-primary-teal" />
-                                    <span>Clinician / Staff Username</span>
-                                </label>
+                            <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="block text-xs font-bold text-[#10244B]/80">
+                                        Clinician / Staff Username
+                                    </label>
+                                    <span className="text-[11px] text-slate-400 font-medium">e.g. dr.smith</span>
+                                </div>
                                 <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                                        <User className="h-4 w-4" />
+                                    </div>
                                     <input
                                         type="text"
                                         required
-                                        placeholder="e.g. ahmedjh or dr.smith"
+                                        placeholder="Enter clinician username (e.g. ahmedjh)"
                                         value={username}
                                         onChange={(e) => { setUsername(e.target.value); setError(''); }}
-                                        className="w-full pl-3.5 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-dark-slate placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-teal/20 focus:bg-white transition-all shadow-2xs font-mono"
+                                        className="w-full pl-10 pr-4 py-3 bg-[#F4F6FA] focus:bg-white border border-[#EAF0FC] focus:border-[#4A7CD2] rounded-xl text-xs font-semibold text-[#10244B] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/30 transition-all font-mono"
                                     />
                                 </div>
-                                <p className="text-[10px] text-slate-400 pl-1">
-                                    Enter your registered clinician username or staff username.
-                                </p>
                             </div>
 
                             {/* 2. New Password */}
-                            <div className="space-y-1">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                        <Lock className="w-3.5 h-3.5 text-primary-teal" />
-                                        <span>New Password</span>
+                            <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="block text-xs font-bold text-[#10244B]/80">
+                                        New Password
                                     </label>
                                     <button
                                         type="button"
                                         onClick={handleGenerateStrong}
-                                        className="text-[11px] font-bold text-teal-700 hover:text-teal-900 flex items-center gap-1 hover:underline cursor-pointer"
+                                        className="text-[11px] font-bold text-[#4A7CD2] hover:text-[#3665B7] flex items-center gap-1 hover:underline cursor-pointer transition-colors"
                                         title="Auto-generate a strong password satisfying all policy rules"
                                     >
-                                        <Sparkles className="w-3 h-3 text-amber-500" />
+                                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                                         <span>Generate Strong</span>
                                     </button>
                                 </div>
                                 <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                                        <Lock className="h-4 w-4" />
+                                    </div>
                                     <input
                                         type={showNewPassword ? "text" : "password"}
                                         required
-                                        placeholder="Enter new password"
+                                        placeholder="••••••••"
                                         value={newPassword}
                                         onChange={(e) => { setNewPassword(e.target.value); setError(''); }}
-                                        className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-dark-slate placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-teal/20 focus:bg-white transition-all shadow-2xs"
+                                        className="w-full pl-10 pr-10 py-3 bg-[#F4F6FA] focus:bg-white border border-[#EAF0FC] focus:border-[#4A7CD2] rounded-xl text-xs font-semibold text-[#10244B] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/30 transition-all"
                                     />
                                     <button
                                         type="button"
                                         onClick={() => setShowNewPassword(!showNewPassword)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#10244B] cursor-pointer"
                                     >
                                         {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                     </button>
                                 </div>
 
-                                {/* Strength Bar */}
+                                {/* Dynamic Strength Bar */}
                                 {newPassword.length > 0 && (
-                                    <div className="pt-1.5">
+                                    <div className="pt-2">
                                         <div className="flex items-center justify-between text-[10px] font-bold mb-1">
-                                            <span className="text-slate-500 uppercase">Strength:</span>
+                                            <span className="text-slate-400 uppercase tracking-wider">Password Strength:</span>
                                             <span className={
                                                 getStrengthScore() <= 2 ? 'text-rose-600' :
-                                                getStrengthScore() <= 4 ? 'text-amber-600' : 'text-emerald-600'
+                                                getStrengthScore() <= 4 ? 'text-amber-600' : 'text-[#4A7CD2]'
                                             }>
-                                                {getStrengthScore() <= 2 ? 'Weak' : getStrengthScore() <= 4 ? 'Moderate' : 'Very Strong'}
+                                                {getStrengthScore() <= 2 ? 'Weak' : getStrengthScore() <= 4 ? 'Moderate' : 'Very Strong (Protected)'}
                                             </span>
                                         </div>
-                                        <div className="grid grid-cols-5 gap-1 h-1.5">
+                                        <div className="grid grid-cols-5 gap-1.5 h-1.5">
                                             {[1, 2, 3, 4, 5].map((step) => (
                                                 <div
                                                     key={step}
@@ -304,7 +314,7 @@ export default function DoctorForgotPasswordModal({
                                                                 ? 'bg-rose-500'
                                                                 : getStrengthScore() <= 4
                                                                     ? 'bg-amber-500'
-                                                                    : 'bg-emerald-500'
+                                                                    : 'bg-[#4A7CD2]'
                                                             : 'bg-slate-200'
                                                     }`}
                                                 />
@@ -314,47 +324,50 @@ export default function DoctorForgotPasswordModal({
                                 )}
                             </div>
 
-                            {/* 3. Interactive Password Policy Checklist */}
-                            <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5">
-                                <div className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">
-                                    Password Security Rules:
+                            {/* 3. Interactive Password Security Rules Checklist */}
+                            <div className="p-3.5 bg-[#EAF0FC]/60 border border-[#4A7CD2]/20 rounded-2xl space-y-2">
+                                <div className="text-[10px] font-bold uppercase text-[#4A7CD2] tracking-wider flex items-center justify-between">
+                                    <span>Password Security Requirements</span>
+                                    <span className="font-semibold text-slate-500">
+                                        {getStrengthScore()} of 5 met
+                                    </span>
                                 </div>
-                                <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
-                                    <div className={`flex items-center gap-1.5 ${policy.minLength ? 'text-emerald-700 font-bold' : 'text-slate-500'}`}>
-                                        <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ${
-                                            policy.minLength ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'
+                                <div className="grid grid-cols-2 gap-x-2.5 gap-y-1.5 text-[11px]">
+                                    <div className={`flex items-center gap-1.5 ${policy.minLength ? 'text-[#10244B] font-bold' : 'text-slate-500'}`}>
+                                        <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                                            policy.minLength ? 'bg-[#4A7CD2] text-white shadow-2xs' : 'bg-white text-slate-300 border border-slate-200'
                                         }`}>
                                             <Check className="w-2.5 h-2.5" />
                                         </div>
-                                        <span>At least 8 characters</span>
+                                        <span>8+ characters</span>
                                     </div>
-                                    <div className={`flex items-center gap-1.5 ${policy.hasUpper ? 'text-emerald-700 font-bold' : 'text-slate-500'}`}>
-                                        <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ${
-                                            policy.hasUpper ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'
+                                    <div className={`flex items-center gap-1.5 ${policy.hasUpper ? 'text-[#10244B] font-bold' : 'text-slate-500'}`}>
+                                        <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                                            policy.hasUpper ? 'bg-[#4A7CD2] text-white shadow-2xs' : 'bg-white text-slate-300 border border-slate-200'
                                         }`}>
                                             <Check className="w-2.5 h-2.5" />
                                         </div>
-                                        <span>Uppercase letter (A-Z)</span>
+                                        <span>Uppercase (A-Z)</span>
                                     </div>
-                                    <div className={`flex items-center gap-1.5 ${policy.hasLower ? 'text-emerald-700 font-bold' : 'text-slate-500'}`}>
-                                        <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ${
-                                            policy.hasLower ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'
+                                    <div className={`flex items-center gap-1.5 ${policy.hasLower ? 'text-[#10244B] font-bold' : 'text-slate-500'}`}>
+                                        <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                                            policy.hasLower ? 'bg-[#4A7CD2] text-white shadow-2xs' : 'bg-white text-slate-300 border border-slate-200'
                                         }`}>
                                             <Check className="w-2.5 h-2.5" />
                                         </div>
-                                        <span>Lowercase letter (a-z)</span>
+                                        <span>Lowercase (a-z)</span>
                                     </div>
-                                    <div className={`flex items-center gap-1.5 ${policy.hasNumber ? 'text-emerald-700 font-bold' : 'text-slate-500'}`}>
-                                        <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ${
-                                            policy.hasNumber ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'
+                                    <div className={`flex items-center gap-1.5 ${policy.hasNumber ? 'text-[#10244B] font-bold' : 'text-slate-500'}`}>
+                                        <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                                            policy.hasNumber ? 'bg-[#4A7CD2] text-white shadow-2xs' : 'bg-white text-slate-300 border border-slate-200'
                                         }`}>
                                             <Check className="w-2.5 h-2.5" />
                                         </div>
                                         <span>Numeric digit (0-9)</span>
                                     </div>
-                                    <div className={`flex items-center gap-1.5 col-span-2 ${policy.hasSpecial ? 'text-emerald-700 font-bold' : 'text-slate-500'}`}>
-                                        <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ${
-                                            policy.hasSpecial ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'
+                                    <div className={`flex items-center gap-1.5 col-span-2 ${policy.hasSpecial ? 'text-[#10244B] font-bold' : 'text-slate-500'}`}>
+                                        <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                                            policy.hasSpecial ? 'bg-[#4A7CD2] text-white shadow-2xs' : 'bg-white text-slate-300 border border-slate-200'
                                         }`}>
                                             <Check className="w-2.5 h-2.5" />
                                         </div>
@@ -364,11 +377,10 @@ export default function DoctorForgotPasswordModal({
                             </div>
 
                             {/* 4. Confirm Password */}
-                            <div className="space-y-1">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                        <ShieldCheck className="w-3.5 h-3.5 text-primary-teal" />
-                                        <span>Confirm Password</span>
+                            <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="block text-xs font-bold text-[#10244B]/80">
+                                        Confirm Password
                                     </label>
                                     {confirmPassword.length > 0 && (
                                         <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
@@ -381,18 +393,21 @@ export default function DoctorForgotPasswordModal({
                                     )}
                                 </div>
                                 <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                                        <ShieldCheck className="h-4 w-4" />
+                                    </div>
                                     <input
                                         type={showConfirmPassword ? "text" : "password"}
                                         required
-                                        placeholder="Re-enter new password"
+                                        placeholder="••••••••"
                                         value={confirmPassword}
                                         onChange={(e) => { setConfirmPassword(e.target.value); setError(''); }}
-                                        className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-dark-slate placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-teal/20 focus:bg-white transition-all shadow-2xs"
+                                        className="w-full pl-10 pr-10 py-3 bg-[#F4F6FA] focus:bg-white border border-[#EAF0FC] focus:border-[#4A7CD2] rounded-xl text-xs font-semibold text-[#10244B] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4A7CD2]/30 transition-all"
                                     />
                                     <button
                                         type="button"
                                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#10244B] cursor-pointer"
                                     >
                                         {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                     </button>
@@ -404,14 +419,14 @@ export default function DoctorForgotPasswordModal({
                                 <button
                                     type="button"
                                     onClick={onClose}
-                                    className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:text-dark-slate hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                                    className="px-4 py-3 text-xs font-bold text-slate-600 hover:text-[#10244B] hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={loading || !username.trim() || !isPasswordValid}
-                                    className="bg-primary-teal hover:bg-primary-hover disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-xs font-extrabold py-2.5 px-5 rounded-xl shadow-sm transition-all flex items-center space-x-1.5 cursor-pointer"
+                                    className="flex-1 bg-[#4A7CD2] hover:bg-[#3665B7] disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-xs font-bold py-3.5 px-5 rounded-xl shadow-md shadow-[#4A7CD2]/25 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 cursor-pointer"
                                 >
                                     {loading ? (
                                         <>
@@ -421,10 +436,16 @@ export default function DoctorForgotPasswordModal({
                                     ) : (
                                         <>
                                             <span>Update Password</span>
-                                            <ArrowRight className="w-3.5 h-3.5" />
+                                            <ArrowRight className="w-4 h-4" />
                                         </>
                                     )}
                                 </button>
+                            </div>
+
+                            {/* Security Footer Badge */}
+                            <div className="pt-3 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[11px] text-[#4A7CD2] font-semibold">
+                                <ShieldCheck className="w-3.5 h-3.5 text-[#4A7CD2]" />
+                                <span>Encrypted Session · HIPAA & GDPR Clinical Security</span>
                             </div>
                         </form>
                     )}
