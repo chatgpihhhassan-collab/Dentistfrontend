@@ -198,7 +198,43 @@ export default function TreatmentPlanTab({
     const [cancelModalItem, setCancelModalItem] = useState(null);
     const [cancelReason, setCancelReason] = useState('');
     const [savingItem, setSavingItem] = useState(false);
-    const [showFindingsModal, setShowFindingsModal] = useState(false);
+    const [findingsExpanded, setFindingsExpanded] = useState(true);
+    const [findingsArchFilter, setFindingsArchFilter] = useState('ALL'); // 'ALL' | 'UPPER' | 'LOWER'
+
+    const upperFindingsCount = useMemo(() => {
+        return unplannedFindings.filter(f => {
+            const t = Number(f.toothNumber || f.toothKey || 0);
+            return t >= 1 && t <= 16;
+        }).length;
+    }, [unplannedFindings]);
+
+    const lowerFindingsCount = useMemo(() => {
+        return unplannedFindings.filter(f => {
+            const t = Number(f.toothNumber || f.toothKey || 0);
+            return t >= 17 && t <= 32;
+        }).length;
+    }, [unplannedFindings]);
+
+    const filteredFindings = useMemo(() => {
+        if (findingsArchFilter === 'UPPER') {
+            return unplannedFindings.filter(f => {
+                const t = Number(f.toothNumber || f.toothKey || 0);
+                return t >= 1 && t <= 16;
+            });
+        }
+        if (findingsArchFilter === 'LOWER') {
+            return unplannedFindings.filter(f => {
+                const t = Number(f.toothNumber || f.toothKey || 0);
+                return t >= 17 && t <= 32;
+            });
+        }
+        return unplannedFindings;
+    }, [unplannedFindings, findingsArchFilter]);
+
+    const filteredFindingsTotal = useMemo(() => {
+        return filteredFindings.reduce((sum, f) => sum + (f.estimatedPrice || 0), 0);
+    }, [filteredFindings]);
+
     const totalEstimatedFindings = useMemo(() => {
         return unplannedFindings.reduce((sum, f) => sum + (f.estimatedPrice || 0), 0);
     }, [unplannedFindings]);
@@ -335,21 +371,20 @@ export default function TreatmentPlanTab({
             });
             if (res.ok) {
                 showToast('success', `Added Tooth #${finding.toothNumber} to treatment plan.`);
-                if (unplannedFindings.length <= 1) {
-                    setShowFindingsModal(false);
-                }
-                await fetchPlanData(); if (onTreatmentStatusChange) onTreatmentStatusChange();
+                await fetchPlanData();
+                if (onTreatmentStatusChange) onTreatmentStatusChange();
             } else { const e = await res.json().catch(() => ({})); showToast('error', e.message || 'Failed.'); }
         } catch { showToast('error', 'Network error.'); }
         finally { setActionLoading(p => ({ ...p, [`f_${finding.toothNumber}`]: false })); }
     };
 
-    const handleAddAllFindings = async () => {
-        if (!unplannedFindings.length) return;
+    const handleAddAllFindings = async (itemsToAdd = null) => {
+        const targetList = Array.isArray(itemsToAdd) && itemsToAdd.length ? itemsToAdd : unplannedFindings;
+        if (!targetList.length) return;
         setActionLoading(p => ({ ...p, addAllFindings: true }));
         try {
             let addedCount = 0;
-            for (const f of unplannedFindings) {
+            for (const f of targetList) {
                 const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/treatment-items`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -363,11 +398,10 @@ export default function TreatmentPlanTab({
                 if (res.ok) addedCount++;
             }
             showToast('success', `Added ${addedCount} finding(s) to treatment plan.`);
-            setShowFindingsModal(false);
             await fetchPlanData();
             if (onTreatmentStatusChange) onTreatmentStatusChange();
         } catch {
-            showToast('error', 'Failed to add all findings.');
+            showToast('error', 'Failed to add findings.');
         } finally {
             setActionLoading(p => ({ ...p, addAllFindings: false }));
         }
@@ -468,21 +502,22 @@ export default function TreatmentPlanTab({
                 <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
                     {unplannedFindings.length > 0 && (
                         <button
-                            onClick={() => setShowFindingsModal(true)}
-                            title="View unplanned chart findings ready to plan"
+                            onClick={() => setFindingsExpanded(prev => !prev)}
+                            title={findingsExpanded ? "Hide chart clinical findings" : "Show chart clinical findings"}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px',
                                 borderRadius: 9,
-                                background: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)',
-                                border: '1px solid #F59E0B',
+                                background: findingsExpanded ? 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)' : 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)',
+                                border: `1px solid ${findingsExpanded ? '#D97706' : '#F59E0B'}`,
                                 color: '#92400E', fontSize: 11, fontWeight: 800, cursor: 'pointer',
-                                boxShadow: '0 1px 3px rgba(245, 158, 11, 0.15)',
+                                boxShadow: findingsExpanded ? '0 1px 4px rgba(217, 119, 6, 0.25)' : '0 1px 3px rgba(245, 158, 11, 0.15)',
                                 transition: 'all 0.15s ease'
                             }}
                         >
                             <Stethoscope size={13} color="#D97706" />
-                            Findings
+                            <span>Findings</span>
                             <span style={{ background: '#D97706', color: '#fff', borderRadius: 999, fontSize: 8.5, fontWeight: 800, padding: '1px 6px' }}>{unplannedFindings.length}</span>
+                            {findingsExpanded ? <ChevronUp size={12} color="#92400E" /> : <ChevronDown size={12} color="#92400E" />}
                         </button>
                     )}
                     <button onClick={() => setShowCatalogModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 9, background: 'linear-gradient(135deg,#3B82F6,#6366F1)', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', border: 'none', boxShadow: '0 2px 8px rgba(99,102,241,0.3)' }}>
@@ -506,6 +541,222 @@ export default function TreatmentPlanTab({
                     </button>
                 </div>
             </div>
+
+            {/* ── Integrated In-Page Clinical Findings Studio (Scales from 1 to 32 Teeth, Zero Popups) ── */}
+            {unplannedFindings.length > 0 && findingsExpanded && (
+                <div style={{
+                    margin: '6px 18px 8px 18px',
+                    padding: '12px 14px',
+                    background: 'linear-gradient(135deg, #FFFDF5 0%, #FEFCE8 60%, #FFFBEB 100%)',
+                    borderRadius: 14,
+                    border: '1px solid #FDE68A',
+                    borderLeft: '4px solid #F59E0B',
+                    boxShadow: '0 4px 16px -2px rgba(245, 158, 11, 0.12)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                    flexShrink: 0,
+                    animation: 'tp-scaleUp 0.18s ease'
+                }}>
+                    {/* Header Bar */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                        {/* Title and count */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ width: 28, height: 28, borderRadius: 8, background: '#FEF3C7', border: '1px solid #FDE68A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Stethoscope size={15} color="#D97706" />
+                            </div>
+                            <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span style={{ fontSize: 13, fontWeight: 900, color: '#78350F', letterSpacing: '-0.01em' }}>
+                                        Chart-Detected Clinical Findings
+                                    </span>
+                                    <span style={{ background: '#F59E0B', color: '#fff', borderRadius: 999, fontSize: 9, fontWeight: 900, padding: '1px 7px' }}>
+                                        {unplannedFindings.length} Ready
+                                    </span>
+                                </div>
+                                <div style={{ fontSize: 10.5, color: '#92400E', fontWeight: 500 }}>
+                                    Diagnosed on odontogram · Review & enroll directly into treatment plan
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Middle: Arch quick-filters for patients with many teeth findings (e.g. up to 32 teeth) */}
+                        {unplannedFindings.length > 3 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#FEF3C7', padding: '3px 4px', borderRadius: 8, border: '1px solid #FDE68A' }}>
+                                <button
+                                    onClick={() => setFindingsArchFilter('ALL')}
+                                    style={{
+                                        padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 800,
+                                        border: 'none', cursor: 'pointer',
+                                        background: findingsArchFilter === 'ALL' ? '#D97706' : 'transparent',
+                                        color: findingsArchFilter === 'ALL' ? '#fff' : '#92400E'
+                                    }}
+                                >
+                                    All ({unplannedFindings.length})
+                                </button>
+                                {upperFindingsCount > 0 && (
+                                    <button
+                                        onClick={() => setFindingsArchFilter('UPPER')}
+                                        style={{
+                                            padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 800,
+                                            border: 'none', cursor: 'pointer',
+                                            background: findingsArchFilter === 'UPPER' ? '#D97706' : 'transparent',
+                                            color: findingsArchFilter === 'UPPER' ? '#fff' : '#92400E'
+                                        }}
+                                    >
+                                        Upper Arch T1-16 ({upperFindingsCount})
+                                    </button>
+                                )}
+                                {lowerFindingsCount > 0 && (
+                                    <button
+                                        onClick={() => setFindingsArchFilter('LOWER')}
+                                        style={{
+                                            padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 800,
+                                            border: 'none', cursor: 'pointer',
+                                            background: findingsArchFilter === 'LOWER' ? '#D97706' : 'transparent',
+                                            color: findingsArchFilter === 'LOWER' ? '#fff' : '#92400E'
+                                        }}
+                                    >
+                                        Lower Arch T17-32 ({lowerFindingsCount})
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Right: Est Total, Add All & Collapse */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ textAlign: 'right', marginRight: 4 }}>
+                                <div style={{ fontSize: 8.5, color: '#92400E', fontWeight: 700, textTransform: 'uppercase' }}>
+                                    {findingsArchFilter === 'ALL' ? 'Total Est.' : 'Filtered Est.'}
+                                </div>
+                                <div style={{ fontSize: 12.5, fontWeight: 900, color: '#047857' }}>
+                                    {fmtMoney(filteredFindingsTotal)}
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => handleAddAllFindings(filteredFindings)}
+                                disabled={actionLoading.addAllFindings}
+                                style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                                    padding: '6px 14px', borderRadius: 8,
+                                    background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                                    color: '#fff', fontSize: 11, fontWeight: 800, border: 'none',
+                                    cursor: actionLoading.addAllFindings ? 'not-allowed' : 'pointer',
+                                    boxShadow: '0 2px 6px rgba(16,185,129,0.3)', flexShrink: 0
+                                }}
+                            >
+                                {actionLoading.addAllFindings ? (
+                                    <RefreshCw size={12} style={{ animation: 'tp-spin 0.8s linear infinite' }} />
+                                ) : (
+                                    <Sparkles size={12} />
+                                )}
+                                {actionLoading.addAllFindings ? 'Adding…' : `+ Add All (${filteredFindings.length}) to Plan`}
+                            </button>
+
+                            <button
+                                onClick={() => setFindingsExpanded(false)}
+                                title="Hide findings tray"
+                                style={{
+                                    width: 26, height: 26, borderRadius: 7,
+                                    background: '#FEF3C7', border: '1px solid #FDE68A',
+                                    color: '#92400E', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                }}
+                            >
+                                <X size={13} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Responsive Grid that effortlessly handles 1 to 32 Teeth */}
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))',
+                        gap: 8,
+                        maxHeight: unplannedFindings.length > 4 ? '250px' : 'none',
+                        overflowY: 'auto',
+                        paddingRight: unplannedFindings.length > 4 ? 4 : 0
+                    }}>
+                        {filteredFindings.map((f, idx) => {
+                            const toothNum = f.toothKey || f.toothNumber;
+                            const toothName = TOOTH_NAMES?.[f.toothNumber] || `Tooth #${toothNum}`;
+                            const isAdding = !!actionLoading[`f_${f.toothNumber}`];
+
+                            return (
+                                <div
+                                    key={idx}
+                                    style={{
+                                        background: '#fff',
+                                        borderRadius: 10,
+                                        border: '1px solid #FDE68A',
+                                        padding: '8px 12px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: 10,
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                                        transition: 'all 0.15s ease'
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, flex: 1 }}>
+                                        {/* Tooth Badge */}
+                                        <div style={{
+                                            width: 34, height: 34, borderRadius: 8,
+                                            background: '#FFF1F2', border: '1px solid #FECDD3',
+                                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                            flexShrink: 0
+                                        }}>
+                                            <span style={{ fontSize: 6.5, fontWeight: 900, color: '#BE123C', lineHeight: 1 }}>TOOTH</span>
+                                            <span style={{ fontSize: 12, fontWeight: 900, color: '#9F1239', lineHeight: 1.1 }}>#{toothNum}</span>
+                                        </div>
+
+                                        <div style={{ minWidth: 0, flex: 1 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 1 }}>
+                                                <span style={{ fontSize: 12, fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    {f.conditionStatus}
+                                                </span>
+                                                <span style={{ fontSize: 8.5, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#F1F5F9', color: '#64748B', whiteSpace: 'nowrap' }}>
+                                                    {toothNum <= 16 ? 'Upper' : 'Lower'}
+                                                </span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#64748B' }}>
+                                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    {f.suggestedProcedureName}
+                                                </span>
+                                                <span style={{ fontWeight: 800, color: '#059669', background: '#ECFDF5', padding: '0 4px', borderRadius: 4, border: '1px solid #A7F3D0', whiteSpace: 'nowrap' }}>
+                                                    {fmtMoney(f.estimatedPrice)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={() => handleAddFindingToPlan(f)}
+                                        disabled={isAdding}
+                                        style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                                            padding: '5px 11px', borderRadius: 7,
+                                            background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+                                            color: '#fff', fontSize: 10.5, fontWeight: 800, border: 'none',
+                                            cursor: isAdding ? 'not-allowed' : 'pointer',
+                                            boxShadow: '0 1px 3px rgba(217,119,6,0.3)',
+                                            flexShrink: 0
+                                        }}
+                                    >
+                                        {isAdding ? (
+                                            <RefreshCw size={10} style={{ animation: 'tp-spin 0.8s linear infinite' }} />
+                                        ) : (
+                                            <Plus size={11} />
+                                        )}
+                                        {isAdding ? '…' : '+ Add'}
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* ── Category Tabs ────────────────────────────────────────────────── */}
             <div style={{ display: 'flex', gap: 3, padding: '7px 18px', background: '#FAFBFC', borderBottom: '1px solid #EEF2F7', flexShrink: 0, overflowX: 'auto' }}>
@@ -655,236 +906,6 @@ export default function TreatmentPlanTab({
             </div>
 
             {/* ─────────────────── MODALS ─────────────────────────────────────── */}
-
-            {/* Redesigned Clinical Findings Modal for Doctors & Receptionists */}
-            {showFindingsModal && (
-                <ModalOverlay onClose={() => setShowFindingsModal(false)} maxWidth={560}>
-                    <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
-                        {/* Header */}
-                        <ModalHeader
-                            icon={Stethoscope}
-                            title="Unplanned Clinical Findings"
-                            subtitle="Chart diagnoses pending formal treatment plan & pricing"
-                            onClose={() => setShowFindingsModal(false)}
-                        />
-
-                        {/* Quick 2-Step Doctor / Receptionist Workflow Bar */}
-                        <div style={{
-                            background: 'linear-gradient(135deg, #FFFDF5 0%, #FEFCE8 100%)',
-                            borderBottom: '1px solid #FDE68A',
-                            padding: '10px 18px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 10,
-                            flexWrap: 'wrap'
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
-                                <span style={{
-                                    display: 'inline-flex', alignItems: 'center', gap: 4,
-                                    padding: '2px 8px', borderRadius: 999, background: '#FEF3C7',
-                                    color: '#92400E', fontWeight: 800, border: '1px solid #FDE68A'
-                                }}>
-                                    <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#F59E0B', color: '#fff', fontSize: 9, fontWeight: 900, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>1</span>
-                                    Review Diagnoses
-                                </span>
-                                <ChevronRight size={13} color="#D97706" />
-                                <span style={{
-                                    display: 'inline-flex', alignItems: 'center', gap: 4,
-                                    padding: '2px 8px', borderRadius: 999, background: '#ECFDF5',
-                                    color: '#065F46', fontWeight: 800, border: '1px solid #A7F3D0'
-                                }}>
-                                    <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#10B981', color: '#fff', fontSize: 9, fontWeight: 900, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>2</span>
-                                    1-Click Add
-                                </span>
-                            </div>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: '#78350F' }}>
-                                Est. Total: <strong style={{ color: '#059669', fontSize: 12 }}>{fmtMoney(totalEstimatedFindings)}</strong>
-                            </div>
-                        </div>
-
-                        {/* Findings List */}
-                        <div style={{
-                            padding: '14px 18px',
-                            maxHeight: '52vh',
-                            overflowY: 'auto',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 9,
-                            background: '#FAFAFA'
-                        }}>
-                            {unplannedFindings.length === 0 ? (
-                                <div style={{ padding: '30px 10px', textAlign: 'center', color: '#94A3B8' }}>
-                                    <CheckCircle2 size={32} color="#10B981" style={{ margin: '0 auto 8px auto', display: 'block' }} />
-                                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>All Clinical Findings Planned</div>
-                                    <div style={{ fontSize: 11, marginTop: 4 }}>No unplanned findings remaining on chart.</div>
-                                </div>
-                            ) : (
-                                unplannedFindings.map((f, idx) => {
-                                    const toothNum = f.toothKey || f.toothNumber;
-                                    const toothName = TOOTH_NAMES?.[f.toothNumber] || `Tooth #${toothNum}`;
-                                    const isAdding = !!actionLoading[`f_${f.toothNumber}`];
-
-                                    return (
-                                        <div
-                                            key={idx}
-                                            style={{
-                                                background: '#fff',
-                                                borderRadius: 14,
-                                                border: '1px solid #E2E8F0',
-                                                padding: '12px 14px',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'space-between',
-                                                gap: 12,
-                                                boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-                                                transition: 'all 0.15s ease'
-                                            }}
-                                        >
-                                            {/* Left: Tooth & Condition info */}
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0, flex: 1 }}>
-                                                <div style={{
-                                                    width: 42,
-                                                    height: 42,
-                                                    borderRadius: 11,
-                                                    background: '#FFF1F2',
-                                                    border: '1.5px solid #FECDD3',
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    flexShrink: 0
-                                                }}>
-                                                    <span style={{ fontSize: 7, fontWeight: 900, color: '#BE123C', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1 }}>TOOTH</span>
-                                                    <span style={{ fontSize: 14, fontWeight: 900, color: '#9F1239', lineHeight: 1.1 }}>#{toothNum}</span>
-                                                </div>
-
-                                                <div style={{ minWidth: 0, flex: 1 }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                                                        <span style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>
-                                                            {f.conditionStatus}
-                                                        </span>
-                                                        <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 5, background: '#F1F5F9', color: '#475569' }}>
-                                                            {toothName}
-                                                        </span>
-                                                    </div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                                        <span style={{ fontSize: 11, color: '#64748B', fontWeight: 500 }}>
-                                                            Suggests: <strong style={{ color: '#334155' }}>{f.suggestedProcedureName}</strong>
-                                                        </span>
-                                                        <span style={{
-                                                            fontSize: 10,
-                                                            fontWeight: 800,
-                                                            padding: '1px 6px',
-                                                            borderRadius: 6,
-                                                            background: '#ECFDF5',
-                                                            color: '#059669',
-                                                            border: '1px solid #A7F3D0'
-                                                        }}>
-                                                            {fmtMoney(f.estimatedPrice)}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Right: 1-Click Action */}
-                                            <button
-                                                onClick={() => handleAddFindingToPlan(f)}
-                                                disabled={isAdding}
-                                                style={{
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    gap: 5,
-                                                    padding: '7px 14px',
-                                                    borderRadius: 9,
-                                                    background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
-                                                    color: '#fff',
-                                                    fontSize: 11.5,
-                                                    fontWeight: 800,
-                                                    border: 'none',
-                                                    cursor: isAdding ? 'not-allowed' : 'pointer',
-                                                    boxShadow: '0 2px 6px rgba(217,119,6,0.3)',
-                                                    flexShrink: 0,
-                                                    transition: 'all 0.15s ease'
-                                                }}
-                                            >
-                                                {isAdding ? (
-                                                    <RefreshCw size={12} style={{ animation: 'tp-spin 0.8s linear infinite' }} />
-                                                ) : (
-                                                    <Plus size={13} />
-                                                )}
-                                                {isAdding ? 'Adding…' : 'Add to Plan'}
-                                            </button>
-                                        </div>
-                                    );
-                                })
-                            )}
-                        </div>
-
-                        {/* Footer */}
-                        <div style={{
-                            padding: '12px 18px',
-                            background: '#fff',
-                            borderTop: '1px solid #F1F5F9',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 12
-                        }}>
-                            <span style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>
-                                {unplannedFindings.length} {unplannedFindings.length === 1 ? 'condition' : 'conditions'} detected
-                            </span>
-
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowFindingsModal(false)}
-                                    style={{
-                                        padding: '8px 15px',
-                                        borderRadius: 10,
-                                        background: '#F1F5F9',
-                                        border: '1px solid #E2E8F0',
-                                        color: '#475569',
-                                        fontSize: 11.5,
-                                        fontWeight: 700,
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    Close
-                                </button>
-                                {unplannedFindings.length > 0 && (
-                                    <button
-                                        type="button"
-                                        onClick={handleAddAllFindings}
-                                        disabled={actionLoading.addAllFindings}
-                                        style={{
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: 6,
-                                            padding: '8px 18px',
-                                            borderRadius: 10,
-                                            background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-                                            color: '#fff',
-                                            fontSize: 11.5,
-                                            fontWeight: 800,
-                                            border: 'none',
-                                            cursor: actionLoading.addAllFindings ? 'not-allowed' : 'pointer',
-                                            boxShadow: '0 2px 8px rgba(16,185,129,0.35)'
-                                        }}
-                                    >
-                                        {actionLoading.addAllFindings ? (
-                                            <RefreshCw size={13} style={{ animation: 'tp-spin 0.8s linear infinite' }} />
-                                        ) : (
-                                            <Sparkles size={13} />
-                                        )}
-                                        {actionLoading.addAllFindings ? 'Adding All…' : `+ Add All (${unplannedFindings.length}) to Plan`}
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </ModalOverlay>
-            )}
 
             {/* Catalog Modal */}
             {showCatalogModal && (
