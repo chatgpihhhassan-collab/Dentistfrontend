@@ -3,7 +3,7 @@ import {
     Clock, CheckCircle2, Play, Check, AlertCircle,
     Sparkles, Plus, X, Trash2, RefreshCw, Banknote,
     Mic, Lock, Stethoscope, Zap, TrendingUp,
-    Activity, DollarSign, Target, ChevronDown, ChevronUp
+    Activity, DollarSign, Target, ChevronDown, ChevronUp, ChevronRight
 } from 'lucide-react';
 import API_BASE_URL from '../config/apiConfig';
 import { TOOTH_NAMES } from './PatientTreatmentInvoiceTab';
@@ -90,19 +90,20 @@ function IconBtn({ icon: Icon, color, title, onClick, disabled }) {
     );
 }
 
-function ModalOverlay({ children, onClose }) {
+function ModalOverlay({ children, onClose, maxWidth = 520 }) {
     return (
         <div
             onClick={e => { if (e.target === e.currentTarget) onClose(); }}
             style={{
                 position: 'fixed', inset: 0, zIndex: 1000,
-                background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(6px)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+                background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(8px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
             }}>
             <div style={{
-                background: '#fff', borderRadius: 20, width: '100%', maxHeight: '90vh',
-                overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.2)',
-                animation: 'tp-scaleUp 0.2s ease',
+                background: '#fff', borderRadius: 22, width: '100%', maxWidth: maxWidth, maxHeight: '90vh',
+                overflow: 'hidden', boxShadow: '0 25px 60px -15px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(15, 23, 42, 0.06)',
+                display: 'flex', flexDirection: 'column',
+                animation: 'tp-scaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
             }}>
                 {children}
             </div>
@@ -197,7 +198,10 @@ export default function TreatmentPlanTab({
     const [cancelModalItem, setCancelModalItem] = useState(null);
     const [cancelReason, setCancelReason] = useState('');
     const [savingItem, setSavingItem] = useState(false);
-    const [findingsCollapsed, setFindingsCollapsed] = useState(false);
+    const [showFindingsModal, setShowFindingsModal] = useState(false);
+    const totalEstimatedFindings = useMemo(() => {
+        return unplannedFindings.reduce((sum, f) => sum + (f.estimatedPrice || 0), 0);
+    }, [unplannedFindings]);
     // Catalog form
     const [selectedCatalogId, setSelectedCatalogId] = useState('');
     const [catalogTooth, setCatalogTooth] = useState('0');
@@ -331,6 +335,9 @@ export default function TreatmentPlanTab({
             });
             if (res.ok) {
                 showToast('success', `Added Tooth #${finding.toothNumber} to treatment plan.`);
+                if (unplannedFindings.length <= 1) {
+                    setShowFindingsModal(false);
+                }
                 await fetchPlanData(); if (onTreatmentStatusChange) onTreatmentStatusChange();
             } else { const e = await res.json().catch(() => ({})); showToast('error', e.message || 'Failed.'); }
         } catch { showToast('error', 'Network error.'); }
@@ -356,6 +363,7 @@ export default function TreatmentPlanTab({
                 if (res.ok) addedCount++;
             }
             showToast('success', `Added ${addedCount} finding(s) to treatment plan.`);
+            setShowFindingsModal(false);
             await fetchPlanData();
             if (onTreatmentStatusChange) onTreatmentStatusChange();
         } catch {
@@ -460,21 +468,21 @@ export default function TreatmentPlanTab({
                 <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
                     {unplannedFindings.length > 0 && (
                         <button
-                            onClick={() => setFindingsCollapsed(prev => !prev)}
-                            title={findingsCollapsed ? "Show unplanned findings" : "Hide unplanned findings"}
+                            onClick={() => setShowFindingsModal(true)}
+                            title="View unplanned chart findings ready to plan"
                             style={{
-                                display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px',
+                                display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px',
                                 borderRadius: 9,
-                                background: findingsCollapsed ? '#FFF7ED' : '#FEF3C7',
-                                border: `1px solid ${findingsCollapsed ? '#FED7AA' : '#F59E0B'}`,
+                                background: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)',
+                                border: '1px solid #F59E0B',
                                 color: '#92400E', fontSize: 11, fontWeight: 800, cursor: 'pointer',
+                                boxShadow: '0 1px 3px rgba(245, 158, 11, 0.15)',
                                 transition: 'all 0.15s ease'
                             }}
                         >
-                            <Stethoscope size={12} color="#D97706" />
+                            <Stethoscope size={13} color="#D97706" />
                             Findings
-                            <span style={{ background: '#D97706', color: '#fff', borderRadius: 999, fontSize: 8.5, fontWeight: 800, padding: '1px 5px' }}>{unplannedFindings.length}</span>
-                            {findingsCollapsed ? <ChevronDown size={11} color="#92400E" /> : <ChevronUp size={11} color="#92400E" />}
+                            <span style={{ background: '#D97706', color: '#fff', borderRadius: 999, fontSize: 8.5, fontWeight: 800, padding: '1px 6px' }}>{unplannedFindings.length}</span>
                         </button>
                     )}
                     <button onClick={() => setShowCatalogModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 9, background: 'linear-gradient(135deg,#3B82F6,#6366F1)', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', border: 'none', boxShadow: '0 2px 8px rgba(99,102,241,0.3)' }}>
@@ -498,142 +506,6 @@ export default function TreatmentPlanTab({
                     </button>
                 </div>
             </div>
-
-            {/* ── Unplanned Clinical Findings In-Page Section (Doctor-friendly, No Popup) ── */}
-            {unplannedFindings.length > 0 && !findingsCollapsed && (
-                <div style={{
-                    margin: '8px 18px 4px 18px',
-                    padding: '8px 12px',
-                    background: 'linear-gradient(135deg, #FFFDF5 0%, #FEFCE8 60%, #FFFBEB 100%)',
-                    borderRadius: 12,
-                    border: '1px solid #FDE68A',
-                    borderLeft: '4px solid #F59E0B',
-                    boxShadow: '0 1px 3px rgba(245, 158, 11, 0.08)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6,
-                    flexShrink: 0
-                }}>
-                    {/* Sub-header inside the banner */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <div style={{ width: 22, height: 22, borderRadius: 6, background: '#FEF3C7', border: '1px solid #FDE68A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <Stethoscope size={12} color="#D97706" />
-                            </div>
-                            <span style={{ fontSize: 11.5, fontWeight: 800, color: '#78350F', letterSpacing: '-0.01em' }}>
-                                Unplanned Clinical Findings
-                            </span>
-                            <span style={{ background: '#F59E0B', color: '#fff', borderRadius: 999, fontSize: 8.5, fontWeight: 800, padding: '1px 5px' }}>
-                                {unplannedFindings.length}
-                            </span>
-                            <span style={{ fontSize: 10, color: '#92400E', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                · Chart-detected conditions ready to add to treatment plan
-                            </span>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            {unplannedFindings.length > 1 && (
-                                <button
-                                    onClick={handleAddAllFindings}
-                                    disabled={actionLoading.addAllFindings}
-                                    style={{
-                                        display: 'flex', alignItems: 'center', gap: 4,
-                                        padding: '4px 10px', borderRadius: 7,
-                                        background: '#F59E0B', color: '#fff',
-                                        fontSize: 10.5, fontWeight: 800, border: 'none',
-                                        cursor: 'pointer', boxShadow: '0 1px 3px rgba(245,158,11,0.2)'
-                                    }}
-                                >
-                                    {actionLoading.addAllFindings ? 'Adding…' : `+ Add All (${unplannedFindings.length})`}
-                                </button>
-                            )}
-                            <button
-                                onClick={() => setFindingsCollapsed(true)}
-                                title="Collapse findings"
-                                style={{
-                                    padding: '3px 6px', borderRadius: 6,
-                                    background: 'transparent', border: 'none',
-                                    color: '#92400E', cursor: 'pointer',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                }}
-                            >
-                                <X size={13} />
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Inline Findings Grid */}
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: unplannedFindings.length > 1 ? 'repeat(auto-fit, minmax(290px, 1fr))' : '1fr',
-                        gap: 6
-                    }}>
-                        {unplannedFindings.map((f, idx) => {
-                            const toothNum = f.toothKey || f.toothNumber;
-                            const toothName = TOOTH_NAMES?.[f.toothNumber] || `Tooth #${toothNum}`;
-                            const isAdding = !!actionLoading[`f_${f.toothNumber}`];
-
-                            return (
-                                <div
-                                    key={idx}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        gap: 10,
-                                        background: '#FFFFFF',
-                                        borderRadius: 9,
-                                        padding: '6px 11px',
-                                        border: '1px solid #FDE68A',
-                                        boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
-                                    }}
-                                >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
-                                        <span style={{
-                                            fontSize: 9.5, fontWeight: 800,
-                                            padding: '2px 6px', borderRadius: 5,
-                                            background: '#FEE2E2', color: '#991B1B',
-                                            border: '1px solid #FECACA', flexShrink: 0
-                                        }} title={toothName}>
-                                            T#{toothNum}
-                                        </span>
-                                        <div style={{ minWidth: 0, overflow: 'hidden' }}>
-                                            <div style={{ fontSize: 11.5, fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                {f.conditionStatus}
-                                            </div>
-                                            <div style={{ fontSize: 10, color: '#92400E', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                Suggest: {f.suggestedProcedureName} · <strong style={{ color: '#78350F' }}>{fmtMoney(f.estimatedPrice)}</strong>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <button
-                                        onClick={() => handleAddFindingToPlan(f)}
-                                        disabled={isAdding}
-                                        style={{
-                                            padding: '5px 12px',
-                                            borderRadius: 7,
-                                            background: 'linear-gradient(135deg, #F59E0B, #D97706)',
-                                            color: '#fff',
-                                            fontSize: 10.5,
-                                            fontWeight: 800,
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            flexShrink: 0,
-                                            boxShadow: '0 1px 3px rgba(217,119,6,0.3)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 4
-                                        }}
-                                    >
-                                        {isAdding ? '…' : '+ Add'}
-                                    </button>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
 
             {/* ── Category Tabs ────────────────────────────────────────────────── */}
             <div style={{ display: 'flex', gap: 3, padding: '7px 18px', background: '#FAFBFC', borderBottom: '1px solid #EEF2F7', flexShrink: 0, overflowX: 'auto' }}>
@@ -784,10 +656,240 @@ export default function TreatmentPlanTab({
 
             {/* ─────────────────── MODALS ─────────────────────────────────────── */}
 
+            {/* Redesigned Clinical Findings Modal for Doctors & Receptionists */}
+            {showFindingsModal && (
+                <ModalOverlay onClose={() => setShowFindingsModal(false)} maxWidth={560}>
+                    <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
+                        {/* Header */}
+                        <ModalHeader
+                            icon={Stethoscope}
+                            title="Unplanned Clinical Findings"
+                            subtitle="Chart diagnoses pending formal treatment plan & pricing"
+                            onClose={() => setShowFindingsModal(false)}
+                        />
+
+                        {/* Quick 2-Step Doctor / Receptionist Workflow Bar */}
+                        <div style={{
+                            background: 'linear-gradient(135deg, #FFFDF5 0%, #FEFCE8 100%)',
+                            borderBottom: '1px solid #FDE68A',
+                            padding: '10px 18px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 10,
+                            flexWrap: 'wrap'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+                                <span style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                    padding: '2px 8px', borderRadius: 999, background: '#FEF3C7',
+                                    color: '#92400E', fontWeight: 800, border: '1px solid #FDE68A'
+                                }}>
+                                    <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#F59E0B', color: '#fff', fontSize: 9, fontWeight: 900, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>1</span>
+                                    Review Diagnoses
+                                </span>
+                                <ChevronRight size={13} color="#D97706" />
+                                <span style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                    padding: '2px 8px', borderRadius: 999, background: '#ECFDF5',
+                                    color: '#065F46', fontWeight: 800, border: '1px solid #A7F3D0'
+                                }}>
+                                    <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#10B981', color: '#fff', fontSize: 9, fontWeight: 900, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>2</span>
+                                    1-Click Add
+                                </span>
+                            </div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: '#78350F' }}>
+                                Est. Total: <strong style={{ color: '#059669', fontSize: 12 }}>{fmtMoney(totalEstimatedFindings)}</strong>
+                            </div>
+                        </div>
+
+                        {/* Findings List */}
+                        <div style={{
+                            padding: '14px 18px',
+                            maxHeight: '52vh',
+                            overflowY: 'auto',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 9,
+                            background: '#FAFAFA'
+                        }}>
+                            {unplannedFindings.length === 0 ? (
+                                <div style={{ padding: '30px 10px', textAlign: 'center', color: '#94A3B8' }}>
+                                    <CheckCircle2 size={32} color="#10B981" style={{ margin: '0 auto 8px auto', display: 'block' }} />
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>All Clinical Findings Planned</div>
+                                    <div style={{ fontSize: 11, marginTop: 4 }}>No unplanned findings remaining on chart.</div>
+                                </div>
+                            ) : (
+                                unplannedFindings.map((f, idx) => {
+                                    const toothNum = f.toothKey || f.toothNumber;
+                                    const toothName = TOOTH_NAMES?.[f.toothNumber] || `Tooth #${toothNum}`;
+                                    const isAdding = !!actionLoading[`f_${f.toothNumber}`];
+
+                                    return (
+                                        <div
+                                            key={idx}
+                                            style={{
+                                                background: '#fff',
+                                                borderRadius: 14,
+                                                border: '1px solid #E2E8F0',
+                                                padding: '12px 14px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                gap: 12,
+                                                boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                                                transition: 'all 0.15s ease'
+                                            }}
+                                        >
+                                            {/* Left: Tooth & Condition info */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0, flex: 1 }}>
+                                                <div style={{
+                                                    width: 42,
+                                                    height: 42,
+                                                    borderRadius: 11,
+                                                    background: '#FFF1F2',
+                                                    border: '1.5px solid #FECDD3',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    flexShrink: 0
+                                                }}>
+                                                    <span style={{ fontSize: 7, fontWeight: 900, color: '#BE123C', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1 }}>TOOTH</span>
+                                                    <span style={{ fontSize: 14, fontWeight: 900, color: '#9F1239', lineHeight: 1.1 }}>#{toothNum}</span>
+                                                </div>
+
+                                                <div style={{ minWidth: 0, flex: 1 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                                        <span style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>
+                                                            {f.conditionStatus}
+                                                        </span>
+                                                        <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 5, background: '#F1F5F9', color: '#475569' }}>
+                                                            {toothName}
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                                        <span style={{ fontSize: 11, color: '#64748B', fontWeight: 500 }}>
+                                                            Suggests: <strong style={{ color: '#334155' }}>{f.suggestedProcedureName}</strong>
+                                                        </span>
+                                                        <span style={{
+                                                            fontSize: 10,
+                                                            fontWeight: 800,
+                                                            padding: '1px 6px',
+                                                            borderRadius: 6,
+                                                            background: '#ECFDF5',
+                                                            color: '#059669',
+                                                            border: '1px solid #A7F3D0'
+                                                        }}>
+                                                            {fmtMoney(f.estimatedPrice)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Right: 1-Click Action */}
+                                            <button
+                                                onClick={() => handleAddFindingToPlan(f)}
+                                                disabled={isAdding}
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: 5,
+                                                    padding: '7px 14px',
+                                                    borderRadius: 9,
+                                                    background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+                                                    color: '#fff',
+                                                    fontSize: 11.5,
+                                                    fontWeight: 800,
+                                                    border: 'none',
+                                                    cursor: isAdding ? 'not-allowed' : 'pointer',
+                                                    boxShadow: '0 2px 6px rgba(217,119,6,0.3)',
+                                                    flexShrink: 0,
+                                                    transition: 'all 0.15s ease'
+                                                }}
+                                            >
+                                                {isAdding ? (
+                                                    <RefreshCw size={12} style={{ animation: 'tp-spin 0.8s linear infinite' }} />
+                                                ) : (
+                                                    <Plus size={13} />
+                                                )}
+                                                {isAdding ? 'Adding…' : 'Add to Plan'}
+                                            </button>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div style={{
+                            padding: '12px 18px',
+                            background: '#fff',
+                            borderTop: '1px solid #F1F5F9',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 12
+                        }}>
+                            <span style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>
+                                {unplannedFindings.length} {unplannedFindings.length === 1 ? 'condition' : 'conditions'} detected
+                            </span>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowFindingsModal(false)}
+                                    style={{
+                                        padding: '8px 15px',
+                                        borderRadius: 10,
+                                        background: '#F1F5F9',
+                                        border: '1px solid #E2E8F0',
+                                        color: '#475569',
+                                        fontSize: 11.5,
+                                        fontWeight: 700,
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Close
+                                </button>
+                                {unplannedFindings.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={handleAddAllFindings}
+                                        disabled={actionLoading.addAllFindings}
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 6,
+                                            padding: '8px 18px',
+                                            borderRadius: 10,
+                                            background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                                            color: '#fff',
+                                            fontSize: 11.5,
+                                            fontWeight: 800,
+                                            border: 'none',
+                                            cursor: actionLoading.addAllFindings ? 'not-allowed' : 'pointer',
+                                            boxShadow: '0 2px 8px rgba(16,185,129,0.35)'
+                                        }}
+                                    >
+                                        {actionLoading.addAllFindings ? (
+                                            <RefreshCw size={13} style={{ animation: 'tp-spin 0.8s linear infinite' }} />
+                                        ) : (
+                                            <Sparkles size={13} />
+                                        )}
+                                        {actionLoading.addAllFindings ? 'Adding All…' : `+ Add All (${unplannedFindings.length}) to Plan`}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </ModalOverlay>
+            )}
+
             {/* Catalog Modal */}
             {showCatalogModal && (
-                <ModalOverlay onClose={() => setShowCatalogModal(false)}>
-                    <div style={{ maxWidth: 480 }}>
+                <ModalOverlay onClose={() => setShowCatalogModal(false)} maxWidth={500}>
+                    <div style={{ width: '100%' }}>
                         <ModalHeader icon={Sparkles} title="Add from Clinic Catalog" subtitle="Select a standard procedure" onClose={() => setShowCatalogModal(false)} />
                         <form onSubmit={handleAddFromCatalog} style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 13 }}>
                             <FormRow label="Procedure">
@@ -825,8 +927,8 @@ export default function TreatmentPlanTab({
 
             {/* Custom Modal */}
             {showCustomModal && (
-                <ModalOverlay onClose={() => setShowCustomModal(false)}>
-                    <div style={{ maxWidth: 480 }}>
+                <ModalOverlay onClose={() => setShowCustomModal(false)} maxWidth={500}>
+                    <div style={{ width: '100%' }}>
                         <ModalHeader icon={Zap} title="Add Custom Procedure" subtitle="Freeform clinical entry" onClose={() => setShowCustomModal(false)} />
                         <form onSubmit={handleAddCustom} style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 13 }}>
                             <FormRow label="Procedure Name *">
@@ -862,8 +964,8 @@ export default function TreatmentPlanTab({
 
             {/* Payment Modal */}
             {paymentModalItem && (
-                <ModalOverlay onClose={() => setPaymentModalItem(null)}>
-                    <div style={{ maxWidth: 420 }}>
+                <ModalOverlay onClose={() => setPaymentModalItem(null)} maxWidth={440}>
+                    <div style={{ width: '100%' }}>
                         <ModalHeader
                             icon={Banknote} title="Record Advance Payment"
                             subtitle={`${paymentModalItem.name || 'Treatment'} · ${paymentModalItem.toothNo > 0 ? `Tooth #${paymentModalItem.toothNo}` : 'Full Arch'}`}
@@ -896,8 +998,8 @@ export default function TreatmentPlanTab({
 
             {/* Cancel Modal */}
             {cancelModalItem && (
-                <ModalOverlay onClose={() => setCancelModalItem(null)}>
-                    <div style={{ maxWidth: 400 }}>
+                <ModalOverlay onClose={() => setCancelModalItem(null)} maxWidth={420}>
+                    <div style={{ width: '100%' }}>
                         <ModalHeader icon={Trash2} title="Cancel Treatment" subtitle={cancelModalItem.name || cancelModalItem.procedureName || 'Treatment'} onClose={() => setCancelModalItem(null)} danger />
                         <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 13 }}>
                             <FormRow label="Cancellation Reason">
