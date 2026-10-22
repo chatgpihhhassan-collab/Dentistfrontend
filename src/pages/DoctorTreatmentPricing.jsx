@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
 import { 
@@ -7,33 +7,20 @@ import {
     Plus, 
     Search, 
     Sparkles, 
-    ShieldCheck, 
     CheckCircle2, 
     AlertCircle, 
     Clock, 
     Edit3, 
     Trash2, 
-    RefreshCw, 
     Globe, 
     Stethoscope, 
-    Filter,
     Layers,
     RotateCcw,
-    Zap,
     BookOpen,
     Check,
-    ArrowRight,
-    TrendingUp,
-    Sliders,
-    HelpCircle,
-    FileText,
-    Activity,
     ChevronLeft,
     ChevronRight,
-    X,
-    ChevronDown,
-    Info,
-    Calendar
+    X
 } from 'lucide-react';
 import API_BASE_URL from '../config/apiConfig';
 import { STANDARD_DENTAL_PROCEDURES, DENTAL_CATEGORIES } from '../data/standardProcedures';
@@ -113,6 +100,62 @@ export default function DoctorTreatmentPricing() {
     // Filter states for Standard Library tab
     const [libraryCategory, setLibraryCategory] = useState('All');
     const [librarySearch, setLibrarySearch] = useState('');
+    const libraryCategoryScrollRef = useRef(null);
+    const [canScrollCatLeft, setCanScrollCatLeft] = useState(false);
+    const [canScrollCatRight, setCanScrollCatRight] = useState(true);
+
+    const checkCategoryScroll = () => {
+        const el = libraryCategoryScrollRef.current;
+        if (!el) return;
+        setCanScrollCatLeft(el.scrollLeft > 10);
+        setCanScrollCatRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 10);
+    };
+
+    const handleCategoryScroll = (direction) => {
+        const el = libraryCategoryScrollRef.current;
+        if (!el) return;
+        const amount = direction === 'left' ? -340 : 340;
+        el.scrollBy({ left: amount, behavior: 'smooth' });
+        setTimeout(checkCategoryScroll, 350);
+    };
+
+    const handleSelectCategory = (cat) => {
+        setLibraryCategory(cat);
+        if (cat === 'All') {
+            if (libraryCategoryScrollRef.current) {
+                libraryCategoryScrollRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+            }
+        } else {
+            const idx = DENTAL_CATEGORIES.indexOf(cat);
+            if (idx !== -1) {
+                const el = document.getElementById(`cat-pill-${idx}`);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                }
+            }
+        }
+    };
+
+    useEffect(() => {
+        if (activeView === 'library') {
+            const timer = setTimeout(checkCategoryScroll, 120);
+            window.addEventListener('resize', checkCategoryScroll);
+            return () => {
+                clearTimeout(timer);
+                window.removeEventListener('resize', checkCategoryScroll);
+            };
+        }
+    }, [activeView]);
+
+    // Auto-dismiss banner after 6 seconds
+    useEffect(() => {
+        if (feedback.message) {
+            const timer = setTimeout(() => {
+                setFeedback({ type: '', message: '' });
+            }, 6000);
+            return () => clearTimeout(timer);
+        }
+    }, [feedback]);
 
     // State for creating new custom procedure
     const [newCustomProc, setNewCustomProc] = useState({
@@ -868,15 +911,17 @@ export default function DoctorTreatmentPricing() {
 
                     {/* Quick Studio Actions */}
                     <div className="flex items-center gap-2 self-end sm:self-auto">
-                        <button
-                            type="button"
-                            onClick={handleAddAllFromLibrary}
-                            className="px-3.5 py-2 bg-white hover:bg-light-teal text-primary-hover border border-light-teal rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-                            title="Load all 141 procedures into your active schedule"
-                        >
-                            <Sparkles className="w-3.5 h-3.5 text-primary-teal" />
-                            <span>Add All 141 to Schedule</span>
-                        </button>
+                        {activeView !== 'library' && (
+                            <button
+                                type="button"
+                                onClick={handleAddAllFromLibrary}
+                                className="px-3.5 py-2 bg-white hover:bg-light-teal text-primary-hover border border-light-teal rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                                title="Load all 141 procedures into your active schedule"
+                            >
+                                <Sparkles className="w-3.5 h-3.5 text-primary-teal" />
+                                <span>Add All 141 to Schedule</span>
+                            </button>
+                        )}
 
                         <button
                             type="button"
@@ -1523,70 +1568,133 @@ export default function DoctorTreatmentPricing() {
                                 </button>
                             </div>
 
-                            {/* Live Search Filter */}
-                            <div className="relative">
-                                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-text" />
-                                <input
-                                    type="text"
-                                    value={librarySearch}
-                                    onChange={(e) => setLibrarySearch(e.target.value)}
-                                    placeholder="Type procedure name, CDT code (e.g. D0120, D3330), category, or keyword..."
-                                    className="w-full pl-10 pr-10 py-3 bg-warm-cream border border-light-teal rounded-2xl text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 font-medium shadow-xs"
-                                />
-                                {librarySearch && (
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setLibrarySearch('')} 
-                                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-text hover:text-dark-slate text-xs cursor-pointer"
+                            {/* Live Search & Quick Specialty Jump */}
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                                <div className="relative flex-1">
+                                    <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-text" />
+                                    <input
+                                        type="text"
+                                        value={librarySearch}
+                                        onChange={(e) => setLibrarySearch(e.target.value)}
+                                        placeholder="Type procedure name, CDT code (e.g. D0120, D3330), category, or keyword..."
+                                        className="w-full pl-10 pr-10 py-3 bg-warm-cream border border-light-teal rounded-2xl text-xs text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal/40 font-medium shadow-xs"
+                                    />
+                                    {librarySearch && (
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setLibrarySearch('')} 
+                                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-text hover:text-dark-slate text-xs cursor-pointer"
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Quick Jump Dropdown */}
+                                <div className="sm:w-64">
+                                    <select
+                                        value={libraryCategory}
+                                        onChange={(e) => handleSelectCategory(e.target.value)}
+                                        className="w-full px-3.5 py-3 bg-warm-cream border border-light-teal rounded-2xl text-xs font-bold text-dark-slate cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-teal/40 shadow-xs"
+                                        title="Quickly jump to any clinical specialty"
                                     >
-                                        ✕
-                                    </button>
-                                )}
+                                        <option value="All">All 15 Specialties (141 Procedures)</option>
+                                        {DENTAL_CATEGORIES.map((cat, idx) => (
+                                            <option key={cat} value={cat}>
+                                                {idx + 1}. {cat} ({STANDARD_DENTAL_PROCEDURES.filter(p => p.category === cat).length})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
-                        {/* 15 Category Nav Pills */}
-                        <div className="flex items-center gap-1.5 overflow-x-auto pb-2 pt-1 no-scrollbar scroll-smooth">
-                            <button
-                                type="button"
-                                onClick={() => setLibraryCategory('All')}
-                                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
-                                    libraryCategory === 'All'
-                                        ? 'bg-primary-teal text-white shadow-xs'
-                                        : 'bg-white text-dark-slate hover:bg-light-teal border border-light-teal/70'
-                                }`}
-                            >
-                                <span>All Specialties</span>
-                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                                    libraryCategory === 'All' ? 'bg-white/20 text-white' : 'bg-warm-cream text-muted-text'
-                                }`}>
-                                    141
-                                </span>
-                            </button>
+                        {/* 15 Category Carousel with Navigation Controls */}
+                        <div className="relative group px-1">
+                            {/* Left Scroll Navigation Button */}
+                            {canScrollCatLeft && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleCategoryScroll('left')}
+                                    className="absolute -left-2 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-white/95 hover:bg-white text-dark-slate shadow-md border border-light-teal flex items-center justify-center transition-all cursor-pointer hover:scale-110 active:scale-95"
+                                    title="Scroll categories left"
+                                    aria-label="Scroll left"
+                                >
+                                    <ChevronLeft className="w-4 h-4 text-primary-teal" />
+                                </button>
+                            )}
 
-                            {DENTAL_CATEGORIES.map((cat, idx) => {
-                                const catCount = STANDARD_DENTAL_PROCEDURES.filter(p => p.category === cat).length;
-                                const isSelected = libraryCategory === cat;
-                                return (
-                                    <button
-                                        key={cat}
-                                        type="button"
-                                        onClick={() => setLibraryCategory(cat)}
-                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
-                                            isSelected
-                                                ? 'bg-primary-teal text-white shadow-xs'
-                                                : 'bg-white text-dark-slate hover:bg-light-teal border border-light-teal/70'
-                                        }`}
-                                    >
-                                        <span>{idx + 1}. {cat}</span>
-                                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                                            isSelected ? 'bg-white/20 text-white' : 'bg-warm-cream text-muted-text'
-                                        }`}>
-                                            {catCount}
-                                        </span>
-                                    </button>
-                                );
-                            })}
+                            {/* Left Soft Fade Mask */}
+                            {canScrollCatLeft && (
+                                <div className="absolute left-0 top-0 bottom-2 w-10 bg-gradient-to-r from-white via-white/80 to-transparent pointer-events-none z-10" />
+                            )}
+
+                            {/* Category Pills Track */}
+                            <div 
+                                ref={libraryCategoryScrollRef}
+                                onScroll={checkCategoryScroll}
+                                className="flex items-center gap-2 overflow-x-auto pb-3 pt-1 scroll-smooth scrollbar-thin scrollbar-thumb-light-teal/80 hover:scrollbar-thumb-primary-teal/50"
+                            >
+                                <button
+                                    type="button"
+                                    onClick={() => handleSelectCategory('All')}
+                                    className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-2 ${
+                                        libraryCategory === 'All'
+                                            ? 'bg-primary-teal text-white shadow-sm ring-2 ring-primary-teal/20'
+                                            : 'bg-white text-dark-slate hover:bg-light-teal border border-light-teal/70 hover:border-primary-teal/40'
+                                    }`}
+                                >
+                                    <span>All Specialties</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                                        libraryCategory === 'All' ? 'bg-white/20 text-white' : 'bg-warm-cream text-muted-text'
+                                    }`}>
+                                        141
+                                    </span>
+                                </button>
+
+                                {DENTAL_CATEGORIES.map((cat, idx) => {
+                                    const catCount = STANDARD_DENTAL_PROCEDURES.filter(p => p.category === cat).length;
+                                    const isSelected = libraryCategory === cat;
+                                    return (
+                                        <button
+                                            id={`cat-pill-${idx}`}
+                                            key={cat}
+                                            type="button"
+                                            onClick={() => handleSelectCategory(cat)}
+                                            className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-2 ${
+                                                isSelected
+                                                    ? 'bg-primary-teal text-white shadow-sm ring-2 ring-primary-teal/20'
+                                                    : 'bg-white text-dark-slate hover:bg-light-teal border border-light-teal/70 hover:border-primary-teal/40'
+                                            }`}
+                                        >
+                                            <span>{idx + 1}. {cat}</span>
+                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                                                isSelected ? 'bg-white/20 text-white' : 'bg-warm-cream text-muted-text'
+                                            }`}>
+                                                {catCount}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Right Soft Fade Mask */}
+                            {canScrollCatRight && (
+                                <div className="absolute right-0 top-0 bottom-2 w-10 bg-gradient-to-l from-white via-white/80 to-transparent pointer-events-none z-10" />
+                            )}
+
+                            {/* Right Scroll Navigation Button */}
+                            {canScrollCatRight && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleCategoryScroll('right')}
+                                    className="absolute -right-2 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-white/95 hover:bg-white text-dark-slate shadow-md border border-light-teal flex items-center justify-center transition-all cursor-pointer hover:scale-110 active:scale-95"
+                                    title="Scroll categories right"
+                                    aria-label="Scroll right"
+                                >
+                                    <ChevronRight className="w-4 h-4 text-primary-teal" />
+                                </button>
+                            )}
                         </div>
 
                         {/* Category Bulk Action Banner */}
