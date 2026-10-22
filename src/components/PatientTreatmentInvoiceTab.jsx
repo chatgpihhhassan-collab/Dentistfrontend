@@ -2,12 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
     CreditCard, DollarSign, FileText, CheckCircle2, Clock, AlertCircle, 
     Printer, Download, Plus, Search, Filter, ChevronDown, ChevronUp, 
-    ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
     ShieldCheck, Calendar, User, Stethoscope, Tag, ArrowUpRight, 
     Layers, RefreshCw, X, Receipt, Check, Banknote, Building, AlertTriangle,
-    Edit3, Save, Sparkles, CheckSquare, Square
+    Edit3, Save, Sparkles, CheckSquare, Square, Lock, Ban, ArrowDownRight,
+    TrendingUp, Wallet
 } from 'lucide-react';
 import API_BASE_URL from '../config/apiConfig';
+import { generateInvoicePdf } from '../utils/InvoicePdfGenerator';
 
 export const TOOTH_NAMES = {
     1: 'Maxillary Right 3rd Molar',
@@ -64,2094 +65,1196 @@ export const TOOTH_NAMES = {
     'T': 'Mandibular Right 2nd Primary Molar'
 };
 
-// Official ADA CDT Procedure Code Reference Catalog with Standard Fees
-export const CDT_PROCEDURE_CATALOG = [
-    // Implantology & Prosthetics
-    { cdt: 'D6010', name: 'Surgical Implant Placement', category: 'Implantology', feeNZD: 1450, feePKR: 120000, keywords: ['implant placement', 'titanium implant', 'endosseous implant'] },
-    { cdt: 'D6058', name: 'Implant Supported Crown (Screw-Retained / Zirconia)', category: 'Implantology', feeNZD: 1250, feePKR: 95000, keywords: ['implant', 'screw-retained', 'zirconia crown', 'fixture crown'] },
-    { cdt: 'D2740', name: 'Crown — Porcelain / Ceramic / Zirconia Full Substrate', category: 'Prosthodontics', feeNZD: 950, feePKR: 75000, keywords: ['crown', 'porcelain', 'ceramic', 'zirconia full crown', 'full crown'] },
-    { cdt: 'D2930', name: 'Stainless Steel Crown (SSC) — Primary Tooth', category: 'Pediatric Prosthetics', feeNZD: 220, feePKR: 18000, keywords: ['ssc', 'stainless steel crown', 'steel crown', 'preformed crown'] },
-    
-    // Orthodontics
-    { cdt: 'D8080', name: 'Comprehensive Orthodontic Treatment / Leveling', category: 'Orthodontics', feeNZD: 400, feePKR: 35000, keywords: ['ortho', 'malocclusion', 'overbite', 'aligner', 'braces', 'leveling', 'deep overbite'] },
-    { cdt: 'D8660', name: 'Pre-Orthodontic Diagnostic Examination', category: 'Orthodontics', feeNZD: 180, feePKR: 15000, keywords: ['pre-orthodontic', 'ortho exam', 'records'] },
-    { cdt: 'D8210', name: 'Removable Orthodontic Appliance Therapy', category: 'Orthodontics', feeNZD: 300, feePKR: 25000, keywords: ['removable appliance', 'ortho appliance', 'retainer'] },
-    { cdt: 'D1510', name: 'Space Maintainer (Fixed, Unilateral / Band & Loop)', category: 'Pediatric Orthodontics', feeNZD: 260, feePKR: 22000, keywords: ['space maintainer', 'band and loop', 'band & loop', 'appliance'] },
-
-    // Oral Surgery & Impactions
-    { cdt: 'D7240', name: 'Removal of Impacted Tooth — Completely Bony (Horizontal 90°)', category: 'Oral Surgery', feeNZD: 550, feePKR: 45000, keywords: ['impacted tooth (horizontal', 'completely bony', 'horizontal 90', 'horizontal impaction', 'impacted tooth (horizontal 90°)'] },
-    { cdt: 'D7230', name: 'Removal of Impacted Tooth — Partially Bony', category: 'Oral Surgery', feeNZD: 420, feePKR: 35000, keywords: ['partially bony', 'partial impaction'] },
-    { cdt: 'D7220', name: 'Removal of Impacted Tooth — Soft Tissue / Operculectomy', category: 'Oral Surgery', feeNZD: 300, feePKR: 25000, keywords: ['partially erupted', 'operculectomy', 'soft tissue impaction', 'partially erupted premolar'] },
-    { cdt: 'D7210', name: 'Surgical Extraction — Erupted Tooth (Flap / Sectioning)', category: 'Oral Surgery', feeNZD: 220, feePKR: 18000, keywords: ['surgical extraction', 'sectioning', 'flap'] },
-    { cdt: 'D7140', name: 'Extraction — Erupted Tooth / Exposed Root', category: 'Oral Surgery', feeNZD: 120, feePKR: 10000, keywords: ['extraction', 'extracted', 'missing', 'exfoliated', 'absent'] },
-
-    // Endodontics
-    { cdt: 'D3330', name: 'Molar Root Canal Therapy (RCT)', category: 'Endodontics', feeNZD: 680, feePKR: 50000, keywords: ['rct', 'root canal', 'pulpitis', 'irreversible', 'molar endodontic', 'obturation'] },
-    { cdt: 'D3320', name: 'Premolar Root Canal Therapy (RCT)', category: 'Endodontics', feeNZD: 550, feePKR: 40000, keywords: ['premolar rct', 'bicuspid rct'] },
-    { cdt: 'D3310', name: 'Anterior Root Canal Therapy (RCT)', category: 'Endodontics', feeNZD: 480, feePKR: 35000, keywords: ['anterior rct', 'incisor rct', 'canine rct'] },
-    { cdt: 'D3220', name: 'Therapeutic Pulpotomy (MTA / Bioceramic)', category: 'Pediatric Endodontics', feeNZD: 250, feePKR: 20000, keywords: ['pulpotomy', 'mta', 'coronal pulp', 'vital pulp'] },
-
-    // Restorative (Fillings)
-    { cdt: 'D2160', name: 'Amalgam Restoration — 3+ Surfaces (MOD)', category: 'Restorative', feeNZD: 195, feePKR: 15000, keywords: ['amalgam (mod)', 'mod amalgam', 'amalgam restoration', 'silver filling (mod)'] },
-    { cdt: 'D2393', name: 'Resin Composite Restoration — 3+ Surfaces Posterior (MOD)', category: 'Restorative', feeNZD: 210, feePKR: 17000, keywords: ['composite (mod)', 'mod composite'] },
-    { cdt: 'D2392', name: 'Resin Composite Restoration — 2 Surfaces Posterior (MO/DO)', category: 'Restorative', feeNZD: 175, feePKR: 14000, keywords: ['composite (mo)', 'composite (do)', 'mo composite', 'do composite'] },
-    { cdt: 'D2391', name: 'Resin Composite Restoration — 1 Surface Posterior (O)', category: 'Restorative', feeNZD: 145, feePKR: 12000, keywords: ['composite (o)', 'occlusal composite', 'composite restoration', 'composite filling'] },
-    { cdt: 'D2140', name: 'Amalgam Restoration — 1 Surface', category: 'Restorative', feeNZD: 120, feePKR: 10000, keywords: ['caries', 'decay', 'cavity', 'ecc', 'early childhood caries'] },
-
-    // Diagnostic & Preventive
-    { cdt: 'D1110', name: 'Prophylaxis / Dental Scaling & Calculus Removal', category: 'Preventive', feeNZD: 95, feePKR: 8000, keywords: ['cleaning', 'scaling', 'calculus', 'prophy', 'polish'] },
-    { cdt: 'D0150', name: 'Comprehensive Oral Evaluation', category: 'Diagnostic', feeNZD: 95, feePKR: 8000, keywords: ['comprehensive exam', 'initial evaluation'] },
-    { cdt: 'D0120', name: 'Periodic Oral Evaluation', category: 'Diagnostic', feeNZD: 65, feePKR: 5000, keywords: ['exam', 'evaluation', 'checkup', 'consultation'] },
-    { cdt: 'D0210', name: 'Intraoral Complete Radiographic Series (FMX)', category: 'Diagnostic', feeNZD: 140, feePKR: 12000, keywords: ['fmx', 'full mouth series'] },
-    { cdt: 'D0220', name: 'Intraoral Periapical Radiograph (RVG Single Film)', category: 'Diagnostic', feeNZD: 45, feePKR: 3000, keywords: ['rvg', 'periapical', 'x-ray'] },
-    { cdt: 'D0330', name: 'Panoramic Radiograph (OPG)', category: 'Diagnostic', feeNZD: 110, feePKR: 8000, keywords: ['opg', 'panoramic'] }
-];
-
-export function inferCdtAndFee(conditionStatus, comments, region = 'NZ', billedFee = 0) {
-    if (billedFee > 0) {
-        return { fee: billedFee, isEstimated: false };
-    }
-    const text = `${conditionStatus || ''} ${comments || ''}`.toLowerCase();
-    const isPkr = region === 'PK';
-
-    // 1. Check for explicit D\d{4} code in comments
-    const match = text.match(/\b(d\d{4})\b/i);
-    if (match) {
-        const explicitCode = match[1].toUpperCase();
-        const catalogItem = CDT_PROCEDURE_CATALOG.find(p => p.cdt === explicitCode);
-        if (catalogItem) {
-            return {
-                cdtCode: catalogItem.cdt,
-                nomenclature: catalogItem.name,
-                fee: isPkr ? catalogItem.feePKR : catalogItem.feeNZD,
-                isEstimated: true
-            };
-        }
-        return {
-            cdtCode: explicitCode,
-            nomenclature: 'Standard Dental Procedure',
-            fee: isPkr ? 20000 : 250,
-            isEstimated: true
-        };
-    }
-
-    // 2. Keyword inference from procedure catalog
-    for (const item of CDT_PROCEDURE_CATALOG) {
-        if (item.keywords.some(kw => text.includes(kw))) {
-            return {
-                cdtCode: item.cdt,
-                nomenclature: item.name,
-                fee: isPkr ? item.feePKR : item.feeNZD,
-                isEstimated: true
-            };
-        }
-    }
-
-    // 3. Fallback General Assessment
-    return {
-        cdtCode: 'D0150',
-        nomenclature: 'General Dental Assessment',
-        fee: isPkr ? 8000 : 95,
-        isEstimated: true
-    };
-}
-
-export default function PatientTreatmentInvoiceTab({ patientId, patient, teethState = [], dentitionMode = 'adult', onNavigateToPlan }) {
+export default function PatientTreatmentInvoiceTab({ 
+    patientId, 
+    patient, 
+    userRole = 'doctor',
+    userId = 1,
+    onNavigateToPlan,
+    onPaymentChange
+}) {
     const [loading, setLoading] = useState(true);
-    const [reportData, setReportData] = useState(null);
-    const [activeSubTab, setActiveSubTab] = useState('teeth'); // 'teeth' | 'invoices'
-    const [toothFilter, setToothFilter] = useState('All'); // 'All' | 'Not invoiced' | 'Invoiced' | 'Planned'
-    const [toothSearch, setToothSearch] = useState('');
-    const [expandedInvoiceId, setExpandedInvoiceId] = useState(null);
-
-    // Pagination State for Tooth-by-Tooth Treatment Matrix (5 records per page)
-    const [currentPage, setCurrentPage] = useState(1);
-    const pageSize = 5;
+    const [invoiceItems, setInvoiceItems] = useState([]);
+    const [accountSummary, setAccountSummary] = useState(null);
+    const [feedback, setFeedback] = useState({ type: '', message: '' });
+    const [expandedItemId, setExpandedItemId] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'UNPAID' | 'PARTIAL' | 'PAID'
 
     // Payment Settlement Modal State
     const [showPaymentModal, setShowPaymentModal] = useState(false);
-    const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState(null);
     const [paymentAmount, setPaymentAmount] = useState('');
-    const [paymentMethod, setPaymentMethod] = useState('Cash_Counter');
+    const [paymentMethod, setPaymentMethod] = useState('cash');
     const [paymentNotes, setPaymentNotes] = useState('');
+    const [paymentAllocations, setPaymentAllocations] = useState({});
     const [recordingPayment, setRecordingPayment] = useState(false);
-    const [paymentSuccessMsg, setPaymentSuccessMsg] = useState('');
-    const [paymentError, setPaymentError] = useState('');
 
-    // Edit Tooth Treatment Modal State
-    const [showEditModal, setShowEditModal] = useState(false);
-    const [editingTreatment, setEditingTreatment] = useState(null);
-    const [editForm, setEditForm] = useState({
-        status: 'Planned',
-        conditionStatus: '',
-        cdtCode: '',
-        fee: '',
-        comments: ''
-    });
-    const [savingEdit, setSavingEdit] = useState(false);
-    const [editSuccessMsg, setEditSuccessMsg] = useState('');
-    const [editErrorMsg, setEditErrorMsg] = useState('');
-    const [quickStatusLoading, setQuickStatusLoading] = useState({});
+    // Allocate Existing Credit Modal State
+    const [showAllocateCreditModal, setShowAllocateCreditModal] = useState(false);
+    const [creditAllocations, setCreditAllocations] = useState({});
+    const [allocatingCredit, setAllocatingCredit] = useState(false);
 
-    // Create Invoice from Completed Treatments State
-    const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
-    const [selectedTreatmentsForInvoice, setSelectedTreatmentsForInvoice] = useState([]);
-    const [invoiceCustomNotes, setInvoiceCustomNotes] = useState('');
-    const [creatingInvoice, setCreatingInvoice] = useState(false);
-    const [createInvoiceSuccess, setCreateInvoiceSuccess] = useState('');
-    const [createInvoiceError, setCreateInvoiceError] = useState('');
+    // Void / Refund Modal State (Admin Only)
+    const [voidModalPayment, setVoidModalPayment] = useState(null);
+    const [voidReason, setVoidReason] = useState('');
+    const [voidingPayment, setVoidingPayment] = useState(false);
 
-    const patientRegion = (patient?.doctorID === 2 || patient?.region === 'PK') ? 'PK' : 'NZ';
+    // Edit Price Modal State (Doctor/Admin with reason)
+    const [priceEditItem, setPriceEditItem] = useState(null);
+    const [newPrice, setNewPrice] = useState('');
+    const [priceChangeReason, setPriceChangeReason] = useState('');
+    const [savingPrice, setSavingPrice] = useState(false);
 
-    // Fetch the unified patient clinical & financial dossier
-    const fetchReport = async () => {
+    const isAdmin = userRole === 'admin';
+    const isDoctorOrAdmin = userRole === 'doctor' || userRole === 'admin' || userRole === 'Dentist';
+
+    // Format Currency
+    const formatMoney = (amount) => {
+        const num = Number(amount) || 0;
+        return `Rs ${num.toLocaleString('en-PK')}`;
+    };
+
+    const showToast = (type, message) => {
+        setFeedback({ type, message });
+        setTimeout(() => setFeedback({ type: '', message: '' }), 4500);
+    };
+
+    // Load Financial Invoices & Account Summary (NO TEETHSTATE DERIVATION!)
+    const fetchFinancialDossier = async () => {
         if (!patientId) return;
         setLoading(true);
         try {
-            let res = null;
-            try {
-                res = await fetch(`${API_BASE_URL}/api/billing/patient/${patientId}/treatment-report`);
-            } catch {
-                res = null;
+            const [itemsRes, summaryRes] = await Promise.all([
+                fetch(`${API_BASE_URL}/api/patients/${patientId}/treatment-items?view=invoices`),
+                fetch(`${API_BASE_URL}/api/patients/${patientId}/account-summary`)
+            ]);
+
+            if (itemsRes.ok) {
+                const items = await itemsRes.json();
+                setInvoiceItems(Array.isArray(items) ? items : []);
             }
-
-            if (!res || !res.ok) {
-                res = await fetch(`/api/billing/patient/${patientId}/treatment-report`);
-            }
-
-            if (res && res.ok) {
-                const data = await res.json();
-                
-                // Enrich teeth treatments with CDT & estimated fee inference if unbilled
-                const enrichedTreatments = (data.chartTreatments || []).map(t => {
-                    const { cdtCode, nomenclature, fee, isEstimated } = inferCdtAndFee(
-                        t.conditionStatus, 
-                        t.comments, 
-                        data.patient?.currency === 'PKR' ? 'PK' : 'NZ',
-                        t.fee
-                    );
-                    return {
-                        ...t,
-                        cdtCode: t.cdtCode || cdtCode,
-                        cdtNomenclature: nomenclature,
-                        fee: (t.fee && t.fee > 0) ? t.fee : fee,
-                        isEstimatedFee: !(t.fee && t.fee > 0)
-                    };
-                });
-
-                data.chartTreatments = enrichedTreatments;
-
-                // Calculate unbilled completed care value
-                const unbilledCompleted = enrichedTreatments.filter(t => t.status === 'Completed' && !t.invoiceNumber);
-                data.summary = {
-                    ...data.summary,
-                    unbilledCompletedTotal: unbilledCompleted.reduce((acc, curr) => acc + (curr.fee || 0), 0),
-                    unbilledCompletedCount: unbilledCompleted.length
-                };
-
-                setReportData(data);
-                if (data.invoices && data.invoices.length > 0) {
-                    setExpandedInvoiceId(data.invoices[0].invoiceId);
-                }
-            } else {
-                generateFallbackReport();
+            if (summaryRes.ok) {
+                const summary = await summaryRes.json();
+                setAccountSummary(summary);
             }
         } catch (err) {
-            console.warn('Could not fetch server treatment report, compiling fallback:', err);
-            generateFallbackReport();
+            console.error('Failed to load billing dossier:', err);
         } finally {
             setLoading(false);
         }
     };
 
-    // Client-side fallback compilation
-    const generateFallbackReport = () => {
-        const currency = patientRegion === 'PK' ? 'PKR' : 'NZD';
-        const chartTreatments = (teethState || [])
-            .filter(t => {
-                const s = (t.conditionStatus || t.status || '').toLowerCase();
-                return s && s !== 'healthy' && s !== 'sound';
-            })
-            .map(t => {
-                const s = t.conditionStatus || t.status || 'Treated';
-                let status = 'Planned';
-                if (s.toLowerCase().includes('treated') || s.toLowerCase().includes('completed') || s.toLowerCase().includes('filled') || s.toLowerCase().includes('crown')) {
-                    status = 'Completed';
-                }
-                const { cdtCode, nomenclature, fee } = inferCdtAndFee(s, t.comments, patientRegion, 0);
-                return {
-                    toothNumber: t.toothNumber,
-                    toothKey: t.toothKey || String(t.toothNumber),
-                    conditionStatus: s,
-                    conditionColor: t.conditionColor || t.color || '#3B82F6',
-                    cdtCode,
-                    cdtNomenclature: nomenclature,
-                    treatmentName: s,
-                    status,
-                    fee,
-                    isEstimatedFee: true,
-                    invoiceNumber: null,
-                    date: t.lastUpdated || new Date().toISOString(),
-                    comments: t.comments || ''
-                };
-            });
-
-        const unbilledCompleted = chartTreatments.filter(t => t.status === 'Completed' && !t.invoiceNumber);
-
-        setReportData({
-            patient: {
-                patientId: patient?.id || patientId,
-                referenceNumber: patient?.referenceNumber || `DEN-2026-${patientId}`,
-                fullName: `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim() || 'Patient Record',
-                phone: patient?.phone || '',
-                email: patient?.email || '',
-                currentTreatmentPlan: patient?.currentTreatmentPlan || 'General Consultation',
-                currency
-            },
-            summary: {
-                totalInvoiced: 0,
-                totalPaid: 0,
-                balanceDue: 0,
-                invoiceCount: 0,
-                unpaidCount: 0,
-                currency,
-                unbilledCompletedTotal: unbilledCompleted.reduce((acc, curr) => acc + curr.fee, 0),
-                unbilledCompletedCount: unbilledCompleted.length
-            },
-            chartTreatments,
-            invoices: []
-        });
-    };
-
     useEffect(() => {
-        fetchReport();
+        fetchFinancialDossier();
     }, [patientId]);
 
-    // Format Regional Currency
-    const formatCurrency = (amount, customCurrency) => {
-        const curr = customCurrency || reportData?.summary?.currency || (patientRegion === 'PK' ? 'PKR' : 'NZD');
-        const num = Number(amount) || 0;
-        if (curr === 'PKR') {
-            return `Rs ${num.toLocaleString('en-PK')}`;
-        }
-        return `$${num.toFixed(2)} ${curr}`;
-    };
-
-    // Filtered Tooth Treatments
-    const filteredTreatments = useMemo(() => {
-        if (!reportData?.chartTreatments) return [];
-        let list = reportData.chartTreatments;
-
-        if (toothFilter === 'Not invoiced') {
-            list = list.filter(t => !t.invoiceNumber && (t.status === 'Completed' || t.status === 'in_progress' || t.status === 'In Progress'));
-        } else if (toothFilter === 'Invoiced') {
-            list = list.filter(t => Boolean(t.invoiceNumber) || t.status === 'Invoiced' || t.status === 'invoiced');
-        } else if (toothFilter !== 'All') {
-            list = list.filter(t => (t.status || '').toLowerCase() === toothFilter.toLowerCase());
-        }
-
-        if (toothSearch.trim()) {
-            const q = toothSearch.toLowerCase().trim();
-            list = list.filter(t => 
-                String(t.toothNumber).includes(q) ||
-                (t.toothKey && t.toothKey.toLowerCase().includes(q)) ||
-                (t.conditionStatus && t.conditionStatus.toLowerCase().includes(q)) ||
-                (t.cdtCode && t.cdtCode.toLowerCase().includes(q)) ||
-                (t.comments && t.comments.toLowerCase().includes(q))
-            );
-        }
-
-        return list;
-    }, [reportData, toothFilter, toothSearch]);
-
-    // Reset pagination to page 1 whenever filters change
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [toothFilter, toothSearch]);
-
-    // Pagination calculations
-    const totalRecords = filteredTreatments.length;
-    const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize));
-    const paginatedTreatments = useMemo(() => {
-        const start = (currentPage - 1) * pageSize;
-        return filteredTreatments.slice(start, start + pageSize);
-    }, [filteredTreatments, currentPage, pageSize]);
-
-    // Quick inline status toggle
-    const handleQuickStatusChange = async (treatment, newStatus) => {
-        const tNum = treatment.toothNumber;
-        setQuickStatusLoading(prev => ({ ...prev, [tNum]: true }));
-
-        const realCondition = (!treatment.conditionStatus || ['completed', 'planned', 'in progress', 'treated', 'healthy'].includes(treatment.conditionStatus.toLowerCase().trim()))
-            ? (treatment.comments?.split(/[.•\n]/)[0]?.trim() || treatment.cdtNomenclature || 'Dental Procedure')
-            : treatment.conditionStatus;
-
-        try {
-            const updatePayload = {
-                patientId: Number(patientId),
-                updates: [
-                    {
-                        toothNumber: treatment.toothNumber,
-                        toothKey: treatment.toothKey,
-                        status: newStatus,
-                        conditionStatus: realCondition,
-                        color: newStatus === 'Completed' ? '#10B981' : (newStatus === 'Planned' ? '#F59E0B' : '#0EA5E9'),
-                        comment: treatment.comments,
-                        cdtCode: treatment.cdtCode,
-                        doctorId: patient?.doctorID || 2
-                    }
-                ]
-            };
-
-            await fetch(`${API_BASE_URL}/api/Patients/teeth/update-bulk`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatePayload)
-            }).catch(() => {});
-
-            // Update local state immediately
-            setReportData(prev => {
-                if (!prev) return prev;
-                const updatedList = prev.chartTreatments.map(t => {
-                    if (t.toothNumber === treatment.toothNumber && t.toothKey === treatment.toothKey) {
-                        return { ...t, status: newStatus };
-                    }
-                    return t;
-                });
-                const unbilled = updatedList.filter(t => t.status === 'Completed' && !t.invoiceNumber);
-                return {
-                    ...prev,
-                    chartTreatments: updatedList,
-                    summary: {
-                        ...prev.summary,
-                        unbilledCompletedTotal: unbilled.reduce((acc, curr) => acc + (curr.fee || 0), 0),
-                        unbilledCompletedCount: unbilled.length
-                    }
-                };
-            });
-        } catch (err) {
-            console.error('Quick status change failed:', err);
-        } finally {
-            setQuickStatusLoading(prev => ({ ...prev, [tNum]: false }));
-        }
-    };
-
-    // Open Edit Modal for a Treatment
-    const handleOpenEditModal = (treatment) => {
-        setEditingTreatment(treatment);
-        setEditForm({
-            status: treatment.status || 'Planned',
-            conditionStatus: treatment.conditionStatus || '',
-            cdtCode: treatment.cdtCode || '',
-            fee: String(treatment.fee || 0),
-            comments: treatment.comments || ''
-        });
-        setEditSuccessMsg('');
-        setEditErrorMsg('');
-        setShowEditModal(true);
-    };
-
-    // Save Treatment Edits
-    const handleSaveTreatmentSubmit = async (e) => {
-        e.preventDefault();
-        if (!editingTreatment) return;
-        setSavingEdit(true);
-        setEditSuccessMsg('');
-        setEditErrorMsg('');
-
-        try {
-            const parsedFee = parseFloat(editForm.fee) || 0;
-            const updatePayload = {
-                patientId: Number(patientId),
-                updates: [
-                    {
-                        toothNumber: editingTreatment.toothNumber,
-                        toothKey: editingTreatment.toothKey,
-                        status: editForm.status,
-                        conditionStatus: editForm.conditionStatus,
-                        color: editForm.status === 'Completed' ? '#10B981' : (editForm.status === 'Planned' ? '#F59E0B' : '#0EA5E9'),
-                        comment: editForm.comments,
-                        cdtCode: editForm.cdtCode,
-                        doctorId: patient?.doctorID || 2
-                    }
-                ]
-            };
-
-            await fetch(`${API_BASE_URL}/api/Patients/teeth/update-bulk`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatePayload)
-            }).catch(() => {});
-
-            // Update in local report data
-            setReportData(prev => {
-                if (!prev) return prev;
-                const updatedList = prev.chartTreatments.map(t => {
-                    if (t.toothNumber === editingTreatment.toothNumber && t.toothKey === editingTreatment.toothKey) {
-                        return {
-                            ...t,
-                            status: editForm.status,
-                            conditionStatus: editForm.conditionStatus,
-                            cdtCode: editForm.cdtCode,
-                            fee: parsedFee,
-                            comments: editForm.comments,
-                            isEstimatedFee: !t.invoiceNumber
-                        };
-                    }
-                    return t;
-                });
-                const unbilled = updatedList.filter(t => t.status === 'Completed' && !t.invoiceNumber);
-                return {
-                    ...prev,
-                    chartTreatments: updatedList,
-                    summary: {
-                        ...prev.summary,
-                        unbilledCompletedTotal: unbilled.reduce((acc, curr) => acc + (curr.fee || 0), 0),
-                        unbilledCompletedCount: unbilled.length
-                    }
-                };
-            });
-
-            setEditSuccessMsg(`Tooth #${editingTreatment.toothNumber} treatment details updated successfully!`);
-            setTimeout(() => {
-                setShowEditModal(false);
-            }, 1000);
-        } catch (err) {
-            setEditErrorMsg(err.message || 'Failed to update treatment on server.');
-        } finally {
-            setSavingEdit(false);
-        }
-    };
-
-    // Open Create Invoice Modal
-    const handleOpenCreateInvoice = (singleTreatment = null) => {
-        setCreateInvoiceError('');
-        setCreateInvoiceSuccess('');
-        const unbilledCompleted = (reportData?.chartTreatments || []).filter(t => t.status === 'Completed' && !t.invoiceNumber);
-        
-        if (singleTreatment) {
-            setSelectedTreatmentsForInvoice([singleTreatment]);
-        } else if (selectedTreatmentsForInvoice.length > 0) {
-            // Retain user's explicit checkbox selections
-        } else {
-            setSelectedTreatmentsForInvoice(unbilledCompleted);
-        }
-        
-        setInvoiceCustomNotes(`Clinical treatment invoice issued for chairside procedures.`);
-        setShowCreateInvoiceModal(true);
-    };
-
-    // Toggle treatment selection for invoice
-    const handleToggleTreatmentSelect = (treatment) => {
-        setSelectedTreatmentsForInvoice(prev => {
-            const exists = prev.some(t => t.toothNumber === treatment.toothNumber && t.toothKey === treatment.toothKey);
-            if (exists) {
-                return prev.filter(t => !(t.toothNumber === treatment.toothNumber && t.toothKey === treatment.toothKey));
-            } else {
-                return [...prev, treatment];
-            }
-        });
-    };
-
-    // Submit Create Invoice
-    const handleCreateInvoiceSubmit = async (e) => {
-        e.preventDefault();
-        if (selectedTreatmentsForInvoice.length === 0) {
-            setCreateInvoiceError('Please select at least one completed procedure to invoice.');
-            return;
-        }
-
-        setCreatingInvoice(true);
-        setCreateInvoiceError('');
-        setCreateInvoiceSuccess('');
-
-        const currency = reportData?.summary?.currency || (patientRegion === 'PK' ? 'PKR' : 'NZD');
-        const items = selectedTreatmentsForInvoice.map(t => ({
-            toothNumber: t.toothNumber,
-            toothKey: t.toothKey,
-            procedureCode: t.cdtCode || 'D0150',
-            description: `Tooth #${t.toothNumber} (${TOOTH_NAMES[t.toothNumber] || ''}) - ${t.conditionStatus}`,
-            unitPrice: t.fee || (currency === 'PKR' ? 12000 : 150)
-        }));
-
-        const payload = {
-            patientId: Number(patientId),
-            doctorId: patient?.doctorID || 2,
-            items,
-            notes: invoiceCustomNotes,
-            currency
-        };
-
-        try {
-            let res = null;
-            try {
-                res = await fetch(`${API_BASE_URL}/api/billing/create-invoice`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-            } catch {
-                res = null;
-            }
-
-            if (!res || !res.ok) {
-                res = await fetch(`/api/billing/create-invoice`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-            }
-
-            let newInvoiceNumber = `INV-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
-            let createdInvoiceObj = null;
-
-            if (res && res.ok) {
-                const data = await res.json();
-                createdInvoiceObj = data.invoice;
-                newInvoiceNumber = createdInvoiceObj?.invoiceNumber || newInvoiceNumber;
-            } else {
-                const totalAmt = items.reduce((sum, item) => sum + item.unitPrice, 0);
-                createdInvoiceObj = {
-                    invoiceId: Date.now(),
-                    invoiceNumber: newInvoiceNumber,
-                    issueDate: new Date().toISOString(),
-                    dueDate: new Date(Date.now() + 14 * 86400000).toISOString(),
-                    doctorName: patient?.doctorName || 'Dr. Attending Surgeon',
-                    totalAmount: totalAmt,
-                    paidAmount: 0,
-                    balanceAmount: totalAmt,
-                    status: 'Issued',
-                    currency,
-                    notes: invoiceCustomNotes,
-                    items: items.map(it => ({
-                        procedureCode: it.procedureCode,
-                        description: it.description,
-                        quantity: 1,
-                        unitPrice: it.unitPrice,
-                        totalPrice: it.unitPrice
-                    })),
-                    payments: []
-                };
-            }
-
-            // Link newly issued invoice to the selected tooth treatments
-            const selectedKeys = new Set(selectedTreatmentsForInvoice.map(t => `${t.toothNumber}_${t.toothKey}`));
-            setReportData(prev => {
-                if (!prev) return prev;
-                const updatedChart = prev.chartTreatments.map(t => {
-                    if (selectedKeys.has(`${t.toothNumber}_${t.toothKey}`)) {
-                        return { ...t, invoiceNumber: newInvoiceNumber, isEstimatedFee: false };
-                    }
-                    return t;
-                });
-                const updatedInvoices = [createdInvoiceObj, ...(prev.invoices || [])];
-                const totalInvoiced = updatedInvoices.reduce((sum, i) => sum + i.totalAmount, 0);
-                const totalPaid = updatedInvoices.reduce((sum, i) => sum + i.paidAmount, 0);
-                const balanceDue = updatedInvoices.reduce((sum, i) => sum + i.balanceAmount, 0);
-                const unbilled = updatedChart.filter(t => t.status === 'Completed' && !t.invoiceNumber);
-
-                return {
-                    ...prev,
-                    chartTreatments: updatedChart,
-                    invoices: updatedInvoices,
-                    summary: {
-                        ...prev.summary,
-                        totalInvoiced,
-                        totalPaid,
-                        balanceDue,
-                        invoiceCount: updatedInvoices.length,
-                        unpaidCount: updatedInvoices.filter(i => i.balanceAmount > 0).length,
-                        unbilledCompletedTotal: unbilled.reduce((acc, curr) => acc + (curr.fee || 0), 0),
-                        unbilledCompletedCount: unbilled.length
-                    }
-                };
-            });
-
-            setCreateInvoiceSuccess(`Official invoice ${newInvoiceNumber} generated successfully!`);
-            setExpandedInvoiceId(createdInvoiceObj.invoiceId);
-            setTimeout(() => {
-                setShowCreateInvoiceModal(false);
-                setActiveSubTab('invoices');
-            }, 1200);
-        } catch (err) {
-            setCreateInvoiceError(err.message || 'Error communicating with billing server.');
-        } finally {
-            setCreatingInvoice(false);
-        }
-    };
-
-    // Open Payment Settlement Modal
-    const handleOpenPayment = (invoice = null) => {
-        setPaymentError('');
-        setPaymentSuccessMsg('');
-        const targetInv = invoice || reportData?.invoices?.find(i => i.balanceAmount > 0) || reportData?.invoices?.[0];
-        setSelectedInvoiceForPayment(targetInv);
-        setPaymentAmount(targetInv ? String(targetInv.balanceAmount > 0 ? targetInv.balanceAmount : targetInv.totalAmount) : '85');
-        setPaymentMethod('Cash_Counter');
-        setPaymentNotes('Chairside consultation settlement');
+    // Open Receive Payment Dialog with suggested allocations
+    const handleOpenPaymentDialog = (preselectedItem = null) => {
         setShowPaymentModal(true);
+        setPaymentMethod('cash');
+        setPaymentNotes('');
+
+        // Find items that have remaining balance
+        const openItems = invoiceItems.filter(i => (i.balance || 0) > 0);
+        const suggested = {};
+
+        if (preselectedItem && (preselectedItem.balance || 0) > 0) {
+            setPaymentAmount(String(preselectedItem.balance));
+            suggested[preselectedItem.id] = preselectedItem.balance;
+        } else {
+            // Suggest first open item's balance
+            const totalDue = openItems.reduce((acc, curr) => acc + (curr.balance || 0), 0);
+            setPaymentAmount(totalDue > 0 ? String(totalDue) : '');
+            let rem = totalDue;
+            openItems.forEach(i => {
+                if (rem > 0) {
+                    const take = Math.min(rem, i.balance);
+                    suggested[i.id] = take;
+                    rem -= take;
+                }
+            });
+        }
+        setPaymentAllocations(suggested);
     };
 
-    // Submit Payment Record
-    const handleRecordPaymentSubmit = async (e) => {
+    // Recalculate auto-allocation when user changes payment amount
+    const handlePaymentAmountChange = (val) => {
+        setPaymentAmount(val);
+        const total = parseInt(val, 10) || 0;
+        let rem = total;
+        const newAlloc = {};
+        const openItems = invoiceItems.filter(i => (i.balance || 0) > 0);
+
+        openItems.forEach(i => {
+            if (rem > 0) {
+                const take = Math.min(rem, i.balance);
+                newAlloc[i.id] = take;
+                rem -= take;
+            } else {
+                newAlloc[i.id] = 0;
+            }
+        });
+        setPaymentAllocations(newAlloc);
+    };
+
+    // Record Flexible Payment
+    const handleRecordPayment = async (e) => {
         e.preventDefault();
-        setPaymentError('');
-        setPaymentSuccessMsg('');
-
-        if (!selectedInvoiceForPayment) {
-            setPaymentError('Please select a valid patient invoice to settle.');
+        const amt = parseInt(paymentAmount, 10);
+        if (!amt || amt <= 0) {
+            showToast('error', 'Please enter a valid positive payment amount.');
             return;
         }
 
-        const amt = parseFloat(paymentAmount);
-        if (isNaN(amt) || amt <= 0) {
-            setPaymentError('Please enter a valid positive payment amount.');
-            return;
-        }
+        const allocList = Object.entries(paymentAllocations)
+            .map(([itemId, a]) => ({ treatmentItemId: parseInt(itemId, 10), amount: parseInt(a, 10) || 0 }))
+            .filter(a => a.amount > 0);
 
         setRecordingPayment(true);
         try {
-            const payload = {
-                amount: amt,
-                paymentMethod,
-                notes: paymentNotes,
-                doctorId: patient?.doctorID || 2
-            };
+            const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/payments`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    patientId,
+                    amount: amt,
+                    method: paymentMethod,
+                    receivedBy: userId,
+                    note: paymentNotes,
+                    allocations: allocList
+                })
+            });
 
-            let res = null;
-            try {
-                res = await fetch(`${API_BASE_URL}/api/billing/invoices/${selectedInvoiceForPayment.invoiceId}/record-payment`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-            } catch {
-                res = null;
-            }
-
-            if (!res || !res.ok) {
-                res = await fetch(`/api/billing/invoices/${selectedInvoiceForPayment.invoiceId}/record-payment`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-            }
-
-            if (res && res.ok) {
+            if (res.ok) {
                 const data = await res.json();
-                setPaymentSuccessMsg(`Payment of ${formatCurrency(amt)} recorded successfully! Receipt #${data.receiptNumber}`);
-                setTimeout(() => {
-                    setShowPaymentModal(false);
-                    fetchReport();
-                }, 1500);
+                showToast('success', data.message || `Payment recorded! Receipt: ${data.receiptNumber}`);
+                setShowPaymentModal(false);
+                await fetchFinancialDossier();
+                if (onPaymentChange) onPaymentChange();
             } else {
-                const errData = await res?.json().catch(() => ({}));
-                setPaymentError(errData?.message || 'Failed to record payment on server.');
+                const err = await res.json().catch(() => ({}));
+                showToast('error', err.message || 'Failed to record payment.');
             }
         } catch (err) {
-            setPaymentError(err.message || 'Error communicating with billing service.');
+            showToast('error', 'Network error recording payment.');
         } finally {
             setRecordingPayment(false);
         }
     };
 
-    // Trigger Print / PDF Statement
-    const handlePrintStatement = () => {
-        window.print();
+    // Open Allocate Advance Credit Dialog
+    const handleOpenAllocateCreditDialog = () => {
+        setShowAllocateCreditModal(true);
+        const openItems = invoiceItems.filter(i => (i.balance || 0) > 0);
+        let rem = accountSummary?.unallocatedCredit || 0;
+        const alloc = {};
+        openItems.forEach(i => {
+            if (rem > 0) {
+                const take = Math.min(rem, i.balance);
+                alloc[i.id] = take;
+                rem -= take;
+            }
+        });
+        setCreditAllocations(alloc);
     };
 
-    if (loading) {
-        return (
-            <div className="flex flex-col items-center justify-center py-20 space-y-3 bg-white rounded-3xl border border-slate-200">
-                <RefreshCw className="w-8 h-8 text-[#4A7CD2] animate-spin" />
-                <p className="text-xs font-bold text-slate-600">Compiling Patient Treatment & Financial Dossier...</p>
-            </div>
-        );
-    }
+    // Submit Allocate Credit
+    const handleAllocateCredit = async (e) => {
+        e.preventDefault();
+        const allocList = Object.entries(creditAllocations)
+            .map(([itemId, a]) => ({ treatmentItemId: parseInt(itemId, 10), amount: parseInt(a, 10) || 0 }))
+            .filter(a => a.amount > 0);
 
-    const summary = reportData?.summary || { totalInvoiced: 0, totalPaid: 0, balanceDue: 0, invoiceCount: 0, unbilledCompletedTotal: 0, unbilledCompletedCount: 0 };
-    const invoices = reportData?.invoices || [];
-    const chartTreatments = reportData?.chartTreatments || [];
-    const unbilledCompletedTreatments = chartTreatments.filter(t => t.status === 'Completed' && !t.invoiceNumber);
+        if (allocList.length === 0) {
+            showToast('error', 'Please allocate credit to at least one procedure.');
+            return;
+        }
+
+        setAllocatingCredit(true);
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/payments/allocations`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    patientId,
+                    userId,
+                    allocations: allocList
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                showToast('success', data.message || 'Advance credit allocated successfully!');
+                setShowAllocateCreditModal(false);
+                await fetchFinancialDossier();
+                if (onPaymentChange) onPaymentChange();
+            } else {
+                const err = await res.json().catch(() => ({}));
+                showToast('error', err.message || 'Failed to allocate credit.');
+            }
+        } catch (err) {
+            showToast('error', 'Network error allocating credit.');
+        } finally {
+            setAllocatingCredit(false);
+        }
+    };
+
+    // Void Payment Submit (Admin Only)
+    const handleVoidPayment = async () => {
+        if (!voidModalPayment || !voidReason.trim()) {
+            showToast('error', 'Mandatory void reason is required.');
+            return;
+        }
+
+        setVoidingPayment(true);
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/payments/void`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    paymentId: voidModalPayment.paymentId,
+                    voidedBy: userId,
+                    userRole: userRole,
+                    reason: voidReason.trim()
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                showToast('success', data.message || 'Payment has been voided and allocations reversed.');
+                setVoidModalPayment(null);
+                setVoidReason('');
+                await fetchFinancialDossier();
+                if (onPaymentChange) onPaymentChange();
+            } else {
+                const err = await res.json().catch(() => ({}));
+                showToast('error', err.message || 'Failed to void payment.');
+            }
+        } catch (err) {
+            showToast('error', 'Network error voiding payment.');
+        } finally {
+            setVoidingPayment(false);
+        }
+    };
+
+    // Price Update Submit (Doctor/Admin with reason)
+    const handleSavePriceEdit = async (e) => {
+        e.preventDefault();
+        const p = parseInt(newPrice, 10);
+        if (isNaN(p) || p < 0 || !priceChangeReason.trim()) {
+            showToast('error', 'Please enter a valid price and non-empty reason.');
+            return;
+        }
+
+        setSavingPrice(true);
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/treatment-items/${priceEditItem.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId,
+                    userRole,
+                    finalPrice: p,
+                    priceNote: priceChangeReason.trim()
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                showToast('success', data.message || 'Price updated successfully.');
+                setPriceEditItem(null);
+                setNewPrice('');
+                setPriceChangeReason('');
+                await fetchFinancialDossier();
+                if (onPaymentChange) onPaymentChange();
+            } else {
+                const err = await res.json().catch(() => ({}));
+                showToast('error', err.message || 'Failed to update price.');
+            }
+        } catch (err) {
+            showToast('error', 'Network error updating price.');
+        } finally {
+            setSavingPrice(false);
+        }
+    };
+
+    // Filter Items
+    const filteredItems = useMemo(() => {
+        return invoiceItems.filter(item => {
+            if (statusFilter === 'UNPAID' && item.paymentStatus !== 'unpaid') return false;
+            if (statusFilter === 'PARTIAL' && item.paymentStatus !== 'partial') return false;
+            if (statusFilter === 'PAID' && item.paymentStatus !== 'paid') return false;
+
+            if (searchQuery.trim()) {
+                const q = searchQuery.toLowerCase();
+                const name = (item.name || '').toLowerCase();
+                const tooth = String(item.toothNo || '');
+                const cat = (item.category || '').toLowerCase();
+                return name.includes(q) || tooth.includes(q) || cat.includes(q);
+            }
+            return true;
+        });
+    }, [invoiceItems, statusFilter, searchQuery]);
+
+    // Print Receipt for an Allocation
+    const handlePrintReceipt = (item, alloc) => {
+        generateInvoicePdf({
+            patient: patient || { firstName: 'Valued', lastName: 'Patient', patientID: patientId },
+            doctor: { firstName: 'Dental', lastName: 'Clinic' },
+            invoice: {
+                invoiceNumber: alloc.receiptNo,
+                invoiceDate: alloc.paymentDate || new Date().toISOString(),
+                currency: 'PKR',
+                subTotal: alloc.amount,
+                totalAmount: alloc.amount,
+                paidAmount: alloc.amount,
+                balanceDue: 0,
+                status: 'Paid',
+                items: [
+                    {
+                        cdtCode: item.procedureCode || 'D0150',
+                        toothNumber: item.toothNo > 0 ? String(item.toothNo) : 'All',
+                        description: item.name,
+                        fee: alloc.amount,
+                        quantity: 1
+                    }
+                ]
+            },
+            payments: [
+                {
+                    receiptNumber: alloc.receiptNo,
+                    amount: alloc.amount,
+                    method: alloc.method,
+                    date: alloc.paymentDate
+                }
+            ],
+            clinic: {
+                name: 'DENTIA DENTAL HEALTHCARE & SURGERY',
+                phone: '+92 42 3588 4400',
+                email: 'billing@dentia.clinic'
+            }
+        });
+    };
+
+    // Print Account Statement
+    const handlePrintStatement = () => {
+        const statementItems = invoiceItems.map(i => ({
+            cdtCode: i.procedureCode || 'D0150',
+            toothNumber: i.toothNo > 0 ? String(i.toothNo) : 'All',
+            description: `${i.name} (${i.status === 'completed' ? 'Completed' : 'Prepaid/In Progress'})`,
+            fee: i.finalPrice,
+            quantity: 1
+        }));
+
+        const allPayments = [];
+        invoiceItems.forEach(i => {
+            (i.allocations || []).forEach(a => {
+                allPayments.push({
+                    receiptNumber: a.receiptNo,
+                    amount: a.amount,
+                    method: a.method,
+                    date: a.paymentDate
+                });
+            });
+        });
+
+        generateInvoicePdf({
+            patient: patient || { firstName: 'Valued', lastName: 'Patient', patientID: patientId },
+            doctor: { firstName: 'Dental', lastName: 'Clinic' },
+            invoice: {
+                invoiceNumber: `STMT-${patientId}-${new Date().getFullYear()}`,
+                invoiceDate: new Date().toISOString(),
+                currency: 'PKR',
+                subTotal: accountSummary?.completedWorkValue || 0,
+                totalAmount: (accountSummary?.completedWorkValue || 0),
+                paidAmount: accountSummary?.totalPaid || 0,
+                balanceDue: accountSummary?.outstandingNow || 0,
+                status: (accountSummary?.outstandingNow || 0) === 0 ? 'Settled' : 'Balance Due',
+                items: statementItems
+            },
+            payments: allPayments,
+            clinic: {
+                name: 'DENTIA DENTAL HEALTHCARE & SURGERY',
+                phone: '+92 42 3588 4400',
+                email: 'billing@dentia.clinic'
+            }
+        });
+    };
 
     return (
-        <div className="flex flex-col gap-5 flex-grow animate-fadeIn">
-            
-            {/* Alert Banner: Prompt to Bill Completed Care if any exists */}
-            {summary.unbilledCompletedTotal > 0 && (
-                <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border border-purple-200 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-xs no-print animate-fadeIn">
+        <div className="flex flex-col gap-6 w-full animate-fade-in pb-16">
+            {/* Feedback Alert Toast */}
+            {feedback.message && (
+                <div className={`p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-md animate-fade-in ${
+                    feedback.type === 'success' 
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-900' 
+                        : 'bg-rose-50 border-rose-300 text-rose-900'
+                }`}>
+                    <div className="flex items-center gap-2">
+                        {feedback.type === 'success' ? <CheckCircle2 className="w-5 h-5 text-emerald-600" /> : <AlertTriangle className="w-5 h-5 text-rose-600" />}
+                        <p className="text-xs font-bold">{feedback.message}</p>
+                    </div>
+                    <button onClick={() => setFeedback({ type: '', message: '' })} className="p-1 text-slate-400 hover:text-slate-600">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
+
+            {/* Top 5 Financial Summary Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                {/* 1. Completed Work Value */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
+                    <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider flex items-center gap-1 mb-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+                        Completed Value
+                    </p>
+                    <p className="text-xl font-black text-dark-slate">
+                        {formatMoney(accountSummary?.completedWorkValue)}
+                    </p>
+                    <p className="text-[10px] text-muted-text mt-0.5">Sum of completed items</p>
+                </div>
+
+                {/* 2. Total Paid */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
+                    <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider flex items-center gap-1 mb-1">
+                        <Banknote className="w-3.5 h-3.5 text-emerald-600" />
+                        Total Paid
+                    </p>
+                    <p className="text-xl font-black text-emerald-600">
+                        {formatMoney(accountSummary?.totalPaid)}
+                    </p>
+                    <p className="text-[10px] text-muted-text mt-0.5">Active money received</p>
+                </div>
+
+                {/* 3. Outstanding Now */}
+                <div className={`p-4 rounded-2xl border shadow-2xs ${
+                    (accountSummary?.outstandingNow || 0) > 0
+                        ? 'bg-rose-50/50 border-rose-200/90'
+                        : 'bg-white border-slate-200/80'
+                }`}>
+                    <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider flex items-center gap-1 mb-1">
+                        <AlertCircle className={`w-3.5 h-3.5 ${(accountSummary?.outstandingNow || 0) > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
+                        Outstanding Now
+                    </p>
+                    <p className={`text-xl font-black ${(accountSummary?.outstandingNow || 0) > 0 ? 'text-rose-600' : 'text-dark-slate'}`}>
+                        {formatMoney(accountSummary?.outstandingNow)}
+                    </p>
+                    <p className="text-[10px] text-muted-text mt-0.5">Due on completed work</p>
+                </div>
+
+                {/* 4. Advance Held */}
+                <div className={`p-4 rounded-2xl border shadow-2xs ${
+                    (accountSummary?.advanceHeld || 0) > 0
+                        ? 'bg-emerald-50/40 border-emerald-200/90'
+                        : 'bg-white border-slate-200/80'
+                }`}>
+                    <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider flex items-center gap-1 mb-1">
+                        <Wallet className="w-3.5 h-3.5 text-emerald-600" />
+                        Advance Held
+                    </p>
+                    <p className={`text-xl font-black ${(accountSummary?.advanceHeld || 0) > 0 ? 'text-emerald-700' : 'text-dark-slate'}`}>
+                        {formatMoney(accountSummary?.advanceHeld)}
+                    </p>
+                    <p className="text-[10px] text-muted-text mt-0.5">
+                        Prepaid + Rs {(accountSummary?.unallocatedCredit || 0).toLocaleString()} credit
+                    </p>
+                </div>
+
+                {/* 5. Planned Value */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs col-span-2 md:col-span-1">
+                    <p className="text-[10px] font-bold text-muted-text uppercase tracking-wider flex items-center gap-1 mb-1">
+                        <Clock className="w-3.5 h-3.5 text-amber-500" />
+                        Planned Care
+                    </p>
+                    <p className="text-xl font-black text-dark-slate">
+                        {formatMoney(accountSummary?.plannedValue)}
+                    </p>
+                    <p className="text-[10px] text-muted-text mt-0.5">Pending chairside work</p>
+                </div>
+            </div>
+
+            {/* Advance Credit Notice Banner (When patient has unallocated cash) */}
+            {(accountSummary?.unallocatedCredit || 0) > 0 && (
+                <div className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-4 rounded-2xl shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fade-in">
                     <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                            <Receipt className="w-5 h-5" />
+                        <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                            <Wallet className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                            <div className="text-xs font-black text-slate-900 flex items-center gap-2">
-                                <span>{summary.unbilledCompletedCount} Completed Procedures Ready for Billing</span>
-                                <span className="font-mono font-extrabold text-purple-700 bg-purple-100/90 px-2 py-0.5 rounded-md text-[11px] border border-purple-200">
-                                    {formatCurrency(summary.unbilledCompletedTotal)}
-                                </span>
-                            </div>
-                            <div className="text-[11px] text-slate-500 mt-0.5">
-                                These chairside procedures are marked completed in the odontogram, but no official billing invoice has been issued yet.
-                            </div>
+                            <h4 className="text-sm font-black">
+                                Advance Credit Balance Available: {formatMoney(accountSummary.unallocatedCredit)}
+                            </h4>
+                            <p className="text-xs text-white/90">
+                                This patient has unallocated advance funds on file that can be applied to completed or open treatments.
+                            </p>
                         </div>
                     </div>
                     <button
                         type="button"
-                        onClick={() => handleOpenCreateInvoice()}
-                        className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-extrabold shadow-sm transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                        onClick={handleOpenAllocateCreditDialog}
+                        className="px-4 py-2 rounded-xl text-xs font-black bg-white text-emerald-800 hover:bg-emerald-50 shadow-md transition-all cursor-pointer flex-shrink-0"
                     >
-                        <Receipt className="w-3.5 h-3.5" />
-                        <span>Generate Invoice ({formatCurrency(summary.unbilledCompletedTotal)})</span>
+                        Allocate Credit to Procedures
                     </button>
                 </div>
             )}
 
-            {/* ========================================================================= */}
-            {/* 1. FINANCIAL SUMMARY KPI HORIZON BANNER                                    */}
-            {/* ========================================================================= */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 no-print">
-                
-                {/* Card 1: Total Invoiced */}
-                <div className="bg-gradient-to-br from-blue-50/80 to-white p-4 rounded-2xl border border-blue-100 shadow-2xs space-y-1">
-                    <div className="flex items-center justify-between text-blue-600">
-                        <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-500">Total Invoiced</span>
-                        <div className="w-7 h-7 rounded-xl bg-blue-100/70 flex items-center justify-center">
-                            <DollarSign className="w-4 h-4 text-[#4A7CD2]" />
-                        </div>
+            {/* Table Controls Toolbar */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
+                {/* Search & Filter */}
+                <div className="flex items-center gap-2 flex-wrap">
+                    <div className="relative min-w-[220px]">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search procedure or tooth..."
+                            className="w-full text-xs pl-8 pr-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-hidden focus:border-[#4A7CD2]"
+                        />
                     </div>
-                    <div className="text-xl font-extrabold text-slate-900 font-mono">
-                        {formatCurrency(summary.totalInvoiced)}
-                    </div>
-                    <p className="text-[10px] text-slate-500 font-medium">
-                        {summary.invoiceCount} official clinic invoice{summary.invoiceCount !== 1 ? 's' : ''} issued
-                    </p>
-                    {summary.unbilledCompletedTotal > 0 && (
-                        <div className="text-[10px] text-purple-700 font-bold bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 mt-1 flex items-center gap-1">
-                            <span>+ {formatCurrency(summary.unbilledCompletedTotal)} unbilled care</span>
-                        </div>
-                    )}
-                </div>
 
-                {/* Card 2: Total Settled / Paid */}
-                <div className="bg-gradient-to-br from-emerald-50/80 to-white p-4 rounded-2xl border border-emerald-100 shadow-2xs space-y-1">
-                    <div className="flex items-center justify-between text-emerald-600">
-                        <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-500">Total Settled</span>
-                        <div className="w-7 h-7 rounded-xl bg-emerald-100/70 flex items-center justify-center">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        </div>
-                    </div>
-                    <div className="text-xl font-extrabold text-emerald-700 font-mono">
-                        {formatCurrency(summary.totalPaid)}
-                    </div>
-                    <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
-                        <span>Paid at front desk & online</span>
-                    </p>
-                </div>
-
-                {/* Card 3: Outstanding Balance Due */}
-                <div className={`p-4 rounded-2xl border shadow-2xs space-y-1 ${
-                    summary.balanceDue > 0 
-                        ? 'bg-gradient-to-br from-rose-50/80 to-white border-rose-200' 
-                        : summary.unbilledCompletedTotal > 0
-                        ? 'bg-gradient-to-br from-amber-50/70 to-white border-amber-200'
-                        : 'bg-gradient-to-br from-slate-50 to-white border-slate-200'
-                }`}>
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-500">Outstanding Balance</span>
-                        <div className={`w-7 h-7 rounded-xl flex items-center justify-center ${
-                            summary.balanceDue > 0 
-                                ? 'bg-rose-100 text-rose-600' 
-                                : summary.unbilledCompletedTotal > 0
-                                ? 'bg-amber-100 text-amber-600'
-                                : 'bg-slate-100 text-slate-400'
-                        }`}>
-                            <CreditCard className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className={`text-xl font-extrabold font-mono ${summary.balanceDue > 0 ? 'text-rose-600' : 'text-slate-700'}`}>
-                        {formatCurrency(summary.balanceDue)}
-                    </div>
-                    <div className="text-[10px] font-semibold">
-                        {summary.balanceDue > 0 ? (
-                            <span className="text-rose-600 font-bold">● Balance pending settlement</span>
-                        ) : summary.unbilledCompletedTotal > 0 ? (
-                            <span className="text-amber-700 font-bold flex items-center gap-1">
-                                <span>⏳</span>
-                                <span>{formatCurrency(summary.unbilledCompletedTotal)} unbilled care</span>
-                            </span>
-                        ) : (
-                            <span className="text-emerald-600 font-bold">✓ Zero outstanding balance</span>
-                        )}
-                    </div>
-                </div>
-
-                {/* Card 4: Chart Treatments & Unbilled Completed Value */}
-                <div className="bg-gradient-to-br from-purple-50/80 to-white p-4 rounded-2xl border border-purple-100 shadow-2xs flex flex-col justify-between">
-                    <div>
-                        <div className="flex items-center justify-between text-purple-600 mb-1">
-                            <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-500">Chart Interventions</span>
-                            <div className="w-7 h-7 rounded-xl bg-purple-100/70 flex items-center justify-center">
-                                <Layers className="w-4 h-4 text-purple-600" />
-                            </div>
-                        </div>
-                        <div className="text-lg font-extrabold text-slate-900">
-                            {chartTreatments.length} Procedures Charted
-                        </div>
-                        <div className="text-[10px] text-slate-600 font-medium">
-                            <span className="text-emerald-700 font-bold">{chartTreatments.filter(t => t.status === 'Completed').length} Done</span> •{' '}
+                    <div className="flex items-center gap-1 bg-[#F4F6FA] p-1 rounded-xl border border-slate-200">
+                        {['ALL', 'UNPAID', 'PARTIAL', 'PAID'].map(f => (
                             <button
+                                key={f}
                                 type="button"
-                                onClick={() => onNavigateToPlan && onNavigateToPlan()}
-                                className="text-amber-600 font-bold hover:underline cursor-pointer inline-flex items-center gap-0.5"
-                                title="View in Treatment Plan"
+                                onClick={() => setStatusFilter(f)}
+                                className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer ${
+                                    statusFilter === f
+                                        ? 'bg-white text-[#4A7CD2] shadow-2xs font-extrabold'
+                                        : 'text-slate-600 hover:text-dark-slate'
+                                }`}
                             >
-                                {chartTreatments.filter(t => t.status === 'Planned' || t.status === 'planned').length} Plan →
+                                {f}
                             </button>
-                            {summary.unbilledCompletedTotal > 0 && (
-                                <span className="block text-purple-700 font-bold mt-0.5">
-                                    Unbilled Done: {formatCurrency(summary.unbilledCompletedTotal)} ({summary.unbilledCompletedCount})
-                                </span>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 pt-2">
-                        {summary.unbilledCompletedCount > 0 ? (
-                            <button
-                                type="button"
-                                onClick={() => handleOpenCreateInvoice()}
-                                className="flex-1 py-1.5 px-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer ring-2 ring-purple-400/40"
-                                title="Create official clinic invoice from completed care"
-                            >
-                                <Receipt className="w-3.5 h-3.5" />
-                                <span>Bill Completed</span>
-                            </button>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={handlePrintStatement}
-                                className="flex-1 py-1.5 px-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-[11px] font-bold shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer"
-                                title="Print complete patient treatment statement"
-                            >
-                                <Printer className="w-3.5 h-3.5 text-[#4A7CD2]" />
-                                <span>Print PDF</span>
-                            </button>
-                        )}
-
-                        <button
-                            type="button"
-                            onClick={() => handleOpenPayment()}
-                            className="flex-1 py-1.5 px-2.5 rounded-xl bg-[#4A7CD2] hover:bg-[#3665B7] text-white text-[11px] font-bold shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>Payment</span>
-                        </button>
+                        ))}
                     </div>
                 </div>
 
-            </div>
-
-            {/* ========================================================================= */}
-            {/* 2. SUB-TAB VIEW SELECTOR & FILTERS                                        */}
-            {/* ========================================================================= */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3 no-print">
-                
-                {/* Tab Pill Buttons */}
-                <div className="flex items-center gap-1.5 bg-[#F4F6FA] p-1 rounded-2xl border border-light-teal/30">
+                {/* Primary Financial Action Buttons */}
+                <div className="flex items-center gap-2 flex-shrink-0">
                     <button
                         type="button"
-                        onClick={() => setActiveSubTab('teeth')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                            activeSubTab === 'teeth'
-                                ? 'bg-white text-[#4A7CD2] shadow-xs border border-slate-200/80'
-                                : 'text-slate-500 hover:text-slate-900'
-                        }`}
+                        onClick={() => handleOpenPaymentDialog()}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer"
                     >
-                        <Stethoscope className="w-3.5 h-3.5" />
-                        <span>Tooth-by-Tooth Treatment Matrix</span>
-                        <span className="w-5 h-5 rounded-full bg-blue-50 text-[#4A7CD2] flex items-center justify-center text-[10px] font-mono font-bold">
-                            {chartTreatments.length}
-                        </span>
+                        <Banknote className="w-3.5 h-3.5" />
+                        <span>Receive Payment</span>
                     </button>
 
                     <button
                         type="button"
-                        onClick={() => setActiveSubTab('invoices')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                            activeSubTab === 'invoices'
-                                ? 'bg-white text-[#4A7CD2] shadow-xs border border-slate-200/80'
-                                : 'text-slate-500 hover:text-slate-900'
-                        }`}
+                        onClick={handlePrintStatement}
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white text-dark-slate hover:bg-slate-50 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
+                        title="Download official PDF account statement"
                     >
-                        <Receipt className="w-3.5 h-3.5" />
-                        <span>Itemized Invoices & Ledger</span>
-                        <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-[10px] font-mono font-bold">
-                            {invoices.length}
-                        </span>
+                        <Printer className="w-3.5 h-3.5 text-slate-600" />
+                        <span>Print Statement</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={fetchFinancialDossier}
+                        className="p-2 rounded-xl text-slate-500 hover:text-[#4A7CD2] hover:bg-blue-50 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
+                        title="Refresh Invoices"
+                    >
+                        <RefreshCw className="w-4 h-4" />
                     </button>
                 </div>
-
-                {/* Sub-Filters & Batch Bill Action for Tooth Matrix */}
-                {activeSubTab === 'teeth' && (
-                    <div className="flex flex-wrap items-center gap-2">
-                        {unbilledCompletedTreatments.length > 0 && (
-                            <button
-                                type="button"
-                                onClick={() => handleOpenCreateInvoice()}
-                                className="px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                                title="Issue an official invoice for all completed unbilled procedures"
-                            >
-                                <Receipt className="w-3.5 h-3.5 text-purple-600" />
-                                <span>Bill All Completed ({unbilledCompletedTreatments.length})</span>
-                            </button>
-                        )}
-
-                        <div className="relative">
-                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                value={toothSearch}
-                                onChange={e => setToothSearch(e.target.value)}
-                                placeholder="Search tooth #, code or diagnosis..."
-                                className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#4A7CD2] w-52"
-                            />
-                        </div>
-
-                        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-[11px] font-bold">
-                            {['All', 'Not invoiced', 'Invoiced', 'Planned'].map(f => (
-                                <button
-                                    key={f}
-                                    type="button"
-                                    onClick={() => setToothFilter(f)}
-                                    className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
-                                        toothFilter === f 
-                                            ? 'bg-white text-slate-900 shadow-2xs font-extrabold' 
-                                            : 'text-slate-500 hover:text-slate-900'
-                                    }`}
-                                >
-                                    {f}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
             </div>
 
-            {/* ========================================================================= */}
-            {/* 3. SUB-TAB 1: TOOTH-BY-TOOTH TREATMENT MATRIX                             */}
-            {/* ========================================================================= */}
-            {activeSubTab === 'teeth' && (
-                <div className="space-y-3">
-                    {filteredTreatments.length === 0 ? (
-                        <div className="py-16 text-center bg-slate-50/60 rounded-3xl border border-dashed border-slate-200 space-y-2">
-                            <div className="w-12 h-12 rounded-2xl bg-white shadow-2xs flex items-center justify-center mx-auto text-slate-400">
-                                <Stethoscope className="w-6 h-6 text-slate-300" />
-                            </div>
-                            <h4 className="text-sm font-bold text-slate-700">No Tooth Interventions Found</h4>
-                            <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                                All 32 anatomical teeth are currently sound or no active treatments match your search filter.
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto bg-white rounded-2xl border border-slate-200 shadow-2xs">
-                            <table className="w-full text-left border-collapse text-xs">
-                                <thead>
-                                    <tr className="bg-slate-50/90 border-b border-slate-200 text-slate-500 text-[10.5px] font-extrabold uppercase tracking-wider">
-                                        <th className="py-3 px-3 w-10 text-center">
-                                            <span className="sr-only">Select</span>
-                                        </th>
-                                        <th className="py-3 px-4">Tooth Identifier</th>
-                                        <th className="py-3 px-4">Condition & Pathology</th>
-                                        <th className="py-3 px-4">CDT Code</th>
-                                        <th className="py-3 px-4">Clinical Status</th>
-                                        <th className="py-3 px-4">Billed Invoice</th>
-                                        <th className="py-3 px-4 text-right">Fee</th>
-                                        <th className="py-3 px-4">Clinical Notes</th>
-                                        <th className="py-3 px-4 text-center">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {paginatedTreatments.map((item, idx) => {
-                                        const anatomicalName = TOOTH_NAMES?.[item.toothNumber] || `Tooth #${item.toothNumber}`;
-                                        const isUnbilled = !item.invoiceNumber;
-                                        const isDone = item.status === 'Completed';
-                                        const isSelected = selectedTreatmentsForInvoice.some(t => 
-                                            (t.treatmentItemId && item.treatmentItemId && t.treatmentItemId === item.treatmentItemId) || 
-                                            (t.toothNumber === item.toothNumber && t.toothKey === item.toothKey)
-                                        );
+            {/* Invoiced & Billable Items Table */}
+            {loading ? (
+                <div className="flex flex-col items-center justify-center py-20 text-muted-text space-y-3">
+                    <RefreshCw className="w-8 h-8 animate-spin text-emerald-600" />
+                    <p className="text-xs font-bold">Loading patient financial ledger & invoices...</p>
+                </div>
+            ) : filteredItems.length === 0 ? (
+                <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center flex flex-col items-center justify-center space-y-3 shadow-2xs">
+                    <div className="w-16 h-16 rounded-3xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
+                        <Receipt className="w-8 h-8" />
+                    </div>
+                    <div className="space-y-1">
+                        <h3 className="text-base font-extrabold text-dark-slate">No Invoiced or Prepaid Items Found</h3>
+                        <p className="text-xs text-muted-text max-w-md mx-auto">
+                            Procedures appear here when completed by the doctor, or when an advance payment is collected against them.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onNavigateToPlan}
+                        className="mt-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#4A7CD2] text-white hover:bg-[#3665B7] shadow-xs cursor-pointer"
+                    >
+                        View Treatment Plan Tab
+                    </button>
+                </div>
+            ) : (
+                <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-2xs">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                            <thead className="bg-[#F8FAFC] border-b border-slate-200/80 text-[10.5px] font-extrabold text-slate-500 uppercase tracking-wider">
+                                <tr>
+                                    <th className="py-3 px-4">Tooth / Modality</th>
+                                    <th className="py-3 px-4">Procedure Details</th>
+                                    <th className="py-3 px-4">Clinical Status</th>
+                                    <th className="py-3 px-4 text-right">Price</th>
+                                    <th className="py-3 px-4 text-right">Paid</th>
+                                    <th className="py-3 px-4 text-right">Balance Due</th>
+                                    <th className="py-3 px-4 text-center">Payment Status</th>
+                                    <th className="py-3 px-4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {filteredItems.map(item => {
+                                    const isExpanded = expandedItemId === item.id;
+                                    const toothLabel = item.toothNo > 0 ? (TOOTH_NAMES[item.toothNo] || `Tooth #${item.toothNo}`) : 'Full Arch / General';
+                                    const price = item.finalPrice || 0;
+                                    const paid = item.paid || 0;
+                                    const balance = item.balance || 0;
+                                    const hasAllocations = item.allocations && item.allocations.length > 0;
 
-                                        return (
-                                            <tr key={idx} className={`transition-colors ${isSelected ? 'bg-purple-50/40' : 'hover:bg-blue-50/30'}`}>
-                                                
-                                                {/* Selection Checkbox */}
-                                                <td className="py-3.5 px-3 text-center">
-                                                    <input
-                                                        type="checkbox"
-                                                        disabled={!isDone || !isUnbilled}
-                                                        checked={isSelected}
-                                                        onChange={() => handleToggleTreatmentSelect(item)}
-                                                        className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 border-slate-300 disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
-                                                        title={!isDone ? 'Treatment must be Completed before invoicing' : (!isUnbilled ? 'Already invoiced' : 'Select for invoice')}
-                                                    />
-                                                </td>
-
-                                                {/* Tooth Identifier */}
-                                                <td className="py-3.5 px-4 font-bold text-slate-900">
-                                                    <div className="flex items-center gap-2.5">
-                                                        <div 
-                                                            className="w-8 h-8 rounded-xl flex items-center justify-center font-mono font-bold text-white shadow-2xs shrink-0"
-                                                            style={{ backgroundColor: item.conditionColor || '#4A7CD2' }}
-                                                        >
-                                                            {item.toothKey || item.toothNumber}
-                                                        </div>
-                                                        <div>
-                                                            <div className="font-extrabold text-slate-800">
-                                                                {item.toothKey && isNaN(Number(item.toothKey)) ? `Tooth ${item.toothKey} (Primary)` : `Tooth #${item.toothNumber}`}
-                                                            </div>
-                                                            <div className="text-[10px] text-slate-400 font-medium truncate max-w-[160px]">{anatomicalName}</div>
-                                                        </div>
+                                    return (
+                                        <React.Fragment key={item.id}>
+                                            <tr className={`hover:bg-slate-50/70 transition-colors ${isExpanded ? 'bg-blue-50/20' : ''}`}>
+                                                {/* Tooth */}
+                                                <td className="py-3.5 px-4 whitespace-nowrap">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="w-8 h-8 rounded-xl bg-slate-100 text-dark-slate font-black flex items-center justify-center text-xs border border-slate-200">
+                                                            {item.toothNo > 0 ? `#${item.toothNo}` : 'ALL'}
+                                                        </span>
+                                                        <span className="text-[11px] text-muted-text font-bold">
+                                                            {item.toothNo > 0 ? `Tooth ${item.toothNo}` : 'General'}
+                                                        </span>
                                                     </div>
                                                 </td>
 
-                                                {/* Condition & Diagnosis */}
+                                                {/* Procedure */}
                                                 <td className="py-3.5 px-4">
-                                                    <span className="font-semibold text-slate-800 block">
-                                                        {(!item.conditionStatus || ['completed', 'planned', 'in progress', 'treated', 'healthy'].includes(item.conditionStatus.toLowerCase().trim()))
-                                                            ? (item.comments?.split(/[.•\n]/)[0]?.trim() || item.cdtNomenclature || 'Dental Procedure')
-                                                            : item.conditionStatus}
-                                                    </span>
-                                                </td>
-
-                                                {/* CDT Code */}
-                                                <td className="py-3.5 px-4">
-                                                    {item.cdtCode ? (
-                                                        <div className="inline-flex items-center gap-1">
-                                                            <span 
-                                                                className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-mono text-[11px] font-bold border border-blue-200"
-                                                                title={item.cdtNomenclature || 'CDT Dental Procedure Code'}
-                                                            >
-                                                                {item.cdtCode}
-                                                            </span>
-                                                            {item.isEstimatedFee && (
-                                                                <span title="Auto-resolved standard CDT nomenclature">
-                                                                    <Sparkles className="w-3 h-3 text-purple-500" />
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-slate-400 italic text-[11px]">General</span>
-                                                    )}
-                                                </td>
-
-                                                {/* Clinical Status - Interactive Quick Switcher */}
-                                                <td className="py-3.5 px-4">
-                                                    <div className="relative inline-block">
-                                                        <select
-                                                            value={item.status}
-                                                            disabled={quickStatusLoading[item.toothNumber]}
-                                                            onChange={(e) => handleQuickStatusChange(item, e.target.value)}
-                                                            className={`appearance-none cursor-pointer pl-6 pr-6 py-1 rounded-full text-[10.5px] font-bold border focus:outline-none transition ${
-                                                                item.status === 'Completed'
-                                                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                                                                    : item.status === 'Planned'
-                                                                    ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
-                                                                    : 'bg-sky-50 text-sky-800 border-sky-300 hover:bg-sky-100'
-                                                            }`}
-                                                        >
-                                                            <option value="Completed">✓ Completed</option>
-                                                            <option value="In Progress">⟳ In Progress</option>
-                                                            <option value="Planned">⏱ Planned</option>
-                                                        </select>
-                                                        <div className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2">
-                                                            {quickStatusLoading[item.toothNumber] ? (
-                                                                <RefreshCw className="w-3 h-3 animate-spin text-slate-500" />
-                                                            ) : item.status === 'Completed' ? (
-                                                                <Check className="w-3 h-3 text-emerald-600" />
-                                                            ) : item.status === 'Planned' ? (
-                                                                <Clock className="w-3 h-3 text-amber-600" />
-                                                            ) : (
-                                                                <RefreshCw className="w-3 h-3 text-sky-600" />
-                                                            )}
-                                                        </div>
-                                                        <ChevronDown className="w-2.5 h-2.5 text-slate-400 pointer-events-none absolute right-2 top-1/2 -translate-y-1/2" />
+                                                    <div>
+                                                        <p className="font-extrabold text-dark-slate">{item.name}</p>
+                                                        <p className="text-[10px] text-muted-text font-medium flex items-center gap-1.5 mt-0.5">
+                                                            <span className="uppercase">{item.category}</span>
+                                                            {item.procedureCode && <span>• CDT {item.procedureCode}</span>}
+                                                            {item.priceNote && <span className="italic text-slate-500">• {item.priceNote}</span>}
+                                                        </p>
                                                     </div>
                                                 </td>
 
-                                                {/* Linked Invoice */}
-                                                <td className="py-3.5 px-4 font-mono text-[11px]">
-                                                    {item.invoiceNumber ? (
-                                                        <span className="font-bold text-[#4A7CD2] bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                                                            {item.invoiceNumber}
+                                                {/* Clinical Status */}
+                                                <td className="py-3.5 px-4 whitespace-nowrap">
+                                                    {item.status === 'completed' ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                                            Completed
                                                         </span>
                                                     ) : (
-                                                        <span className="text-slate-400 italic">Unbilled / In Plan</span>
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-300">
+                                                            <Clock className="w-3 h-3 text-blue-600" />
+                                                            Prepaid / In Progress
+                                                        </span>
                                                     )}
                                                 </td>
 
-                                                {/* Fee */}
-                                                <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
-                                                    {item.fee > 0 ? (
-                                                        <div>
-                                                            <span>{formatCurrency(item.fee)}</span>
-                                                            {item.isEstimatedFee && (
-                                                                <span className="block text-[9px] text-amber-600 font-semibold uppercase">
-                                                                    (Est. Plan)
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-slate-400">—</span>
+                                                {/* Price */}
+                                                <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                                    <span className="font-black text-dark-slate">{formatMoney(price)}</span>
+                                                </td>
+
+                                                {/* Paid */}
+                                                <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                                    <span className={`font-black ${paid > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                                        {formatMoney(paid)}
+                                                    </span>
+                                                </td>
+
+                                                {/* Balance Due */}
+                                                <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                                    <span className={`font-black ${balance > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                                                        {formatMoney(balance)}
+                                                    </span>
+                                                </td>
+
+                                                {/* Payment Status Badge */}
+                                                <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                                                    {item.paymentStatus === 'paid' && (
+                                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500 text-white shadow-2xs">
+                                                            PAID
+                                                        </span>
+                                                    )}
+                                                    {item.paymentStatus === 'partial' && (
+                                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white shadow-2xs">
+                                                            PARTIAL
+                                                        </span>
+                                                    )}
+                                                    {item.paymentStatus === 'unpaid' && (
+                                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white shadow-2xs">
+                                                            UNPAID
+                                                        </span>
                                                     )}
                                                 </td>
 
-                                                {/* Clinical Notes */}
-                                                <td className="py-3.5 px-4 text-slate-600 text-[11px] max-w-xs truncate" title={item.comments}>
-                                                    {item.comments || <span className="text-slate-300 italic">No notes</span>}
-                                                </td>
-
-                                                {/* Row Actions: Edit & Bill */}
-                                                <td className="py-3.5 px-4 text-center">
-                                                    <div className="flex items-center justify-center gap-1.5">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleOpenEditModal(item)}
-                                                            className="p-1.5 rounded-lg text-slate-500 hover:text-[#4A7CD2] hover:bg-blue-50 transition cursor-pointer border border-transparent hover:border-blue-200"
-                                                            title="Edit Clinical Status, CDT Code, Fee, and Notes"
-                                                        >
-                                                            <Edit3 className="w-3.5 h-3.5" />
-                                                        </button>
-
-                                                        {isDone && isUnbilled && (
+                                                {/* Actions */}
+                                                <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                                    <div className="flex items-center justify-end gap-1.5">
+                                                        {balance > 0 && (
                                                             <button
                                                                 type="button"
-                                                                onClick={() => handleOpenCreateInvoice(item)}
-                                                                className="px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 text-[10.5px] font-bold border border-purple-200 transition cursor-pointer flex items-center gap-1"
-                                                                title="Issue invoice for this completed tooth"
+                                                                onClick={() => handleOpenPaymentDialog(item)}
+                                                                className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
+                                                                title="Collect payment against this item"
                                                             >
-                                                                <Receipt className="w-3 h-3" />
-                                                                <span>Bill</span>
+                                                                Pay Due
                                                             </button>
                                                         )}
+
+                                                        {isDoctorOrAdmin && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setPriceEditItem(item);
+                                                                    setNewPrice(String(price));
+                                                                    setPriceChangeReason('');
+                                                                }}
+                                                                className="p-1.5 rounded-lg text-slate-400 hover:text-dark-slate hover:bg-slate-100 transition-colors cursor-pointer"
+                                                                title="Override Price (Doctor/Admin)"
+                                                            >
+                                                                <Edit3 className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        )}
+
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
+                                                            className={`p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-all cursor-pointer ${isExpanded ? 'bg-blue-100 text-[#4A7CD2]' : ''}`}
+                                                            title="Toggle Payment Allocation History"
+                                                        >
+                                                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                                        </button>
                                                     </div>
                                                 </td>
-
                                             </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
 
-                            {/* Pagination Controls Toolbar (5 records per page) */}
-                            {totalRecords > 0 && (
-                                <div className="px-5 py-3.5 bg-slate-50/80 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-                                    <div className="text-slate-500 font-medium flex items-center gap-1.5">
-                                        <span>Showing</span>
-                                        <span className="font-bold text-slate-800">
-                                            {(currentPage - 1) * pageSize + 1}
-                                        </span>
-                                        <span>to</span>
-                                        <span className="font-bold text-slate-800">
-                                            {Math.min(currentPage * pageSize, totalRecords)}
-                                        </span>
-                                        <span>of</span>
-                                        <span className="font-bold text-slate-800">{totalRecords}</span>
-                                        <span>treatments</span>
-                                        <span className="text-slate-400 font-normal">({pageSize} per page)</span>
-                                    </div>
+                                            {/* Expandable Payment Allocations Sub-Table */}
+                                            {isExpanded && (
+                                                <tr className="bg-[#F8FAFC]">
+                                                    <td colSpan="8" className="p-4 border-t border-b border-slate-200">
+                                                        <div className="space-y-2">
+                                                            <div className="flex items-center justify-between">
+                                                                <h5 className="text-[11px] font-extrabold text-dark-slate uppercase tracking-wider flex items-center gap-1.5">
+                                                                    <Receipt className="w-3.5 h-3.5 text-[#4A7CD2]" />
+                                                                    Payment Allocation History ({item.allocations?.length || 0})
+                                                                </h5>
+                                                                <span className="text-[10px] text-muted-text">
+                                                                    Immutable financial receipt ledger
+                                                                </span>
+                                                            </div>
 
-                                    {totalPages > 1 && (
-                                        <div className="flex items-center gap-1">
-                                            {/* First Page */}
-                                            <button
-                                                type="button"
-                                                onClick={() => setCurrentPage(1)}
-                                                disabled={currentPage === 1}
-                                                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
-                                                title="First Page"
-                                            >
-                                                <ChevronsLeft className="w-3.5 h-3.5" />
-                                            </button>
+                                                            {!hasAllocations ? (
+                                                                <p className="text-xs text-muted-text italic bg-white p-3 rounded-xl border border-slate-200 text-center">
+                                                                    No payments have been allocated to this treatment item yet.
+                                                                </p>
+                                                            ) : (
+                                                                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+                                                                    <table className="w-full text-left text-xs">
+                                                                        <thead className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200">
+                                                                            <tr>
+                                                                                <th className="py-2 px-3">Receipt #</th>
+                                                                                <th className="py-2 px-3">Date & Time</th>
+                                                                                <th className="py-2 px-3">Method</th>
+                                                                                <th className="py-2 px-3">Received By</th>
+                                                                                <th className="py-2 px-3 text-right">Amount</th>
+                                                                                <th className="py-2 px-3 text-right">Actions</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody className="divide-y divide-slate-100">
+                                                                            {item.allocations.map(alloc => (
+                                                                                <tr key={alloc.id} className="hover:bg-slate-50">
+                                                                                    <td className="py-2.5 px-3 font-mono font-bold text-[#4A7CD2]">
+                                                                                        {alloc.receiptNo}
+                                                                                    </td>
+                                                                                    <td className="py-2.5 px-3 text-muted-text">
+                                                                                        {new Date(alloc.paymentDate).toLocaleDateString('en-GB', {
+                                                                                            day: '2-digit', month: 'short', year: 'numeric',
+                                                                                            hour: '2-digit', minute: '2-digit'
+                                                                                        })}
+                                                                                    </td>
+                                                                                    <td className="py-2.5 px-3 capitalize font-medium">
+                                                                                        {alloc.method}
+                                                                                    </td>
+                                                                                    <td className="py-2.5 px-3 text-slate-600">
+                                                                                        User #{alloc.receivedBy || '1'}
+                                                                                    </td>
+                                                                                    <td className="py-2.5 px-3 text-right font-black text-emerald-600">
+                                                                                        {formatMoney(alloc.amount)}
+                                                                                    </td>
+                                                                                    <td className="py-2.5 px-3 text-right">
+                                                                                        <div className="flex items-center justify-end gap-1.5">
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={() => handlePrintReceipt(item, alloc)}
+                                                                                                className="p-1 rounded-md text-slate-500 hover:text-dark-slate hover:bg-slate-100 transition-colors cursor-pointer"
+                                                                                                title="Print Official PDF Receipt"
+                                                                                            >
+                                                                                                <Printer className="w-3.5 h-3.5" />
+                                                                                            </button>
 
-                                            {/* Previous Page */}
-                                            <button
-                                                type="button"
-                                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                                disabled={currentPage === 1}
-                                                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
-                                                title="Previous Page"
-                                            >
-                                                <ChevronLeft className="w-3.5 h-3.5" />
-                                            </button>
-
-                                            {/* Page Number Buttons */}
-                                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
-                                                const isActive = page === currentPage;
-                                                return (
-                                                    <button
-                                                        key={page}
-                                                        type="button"
-                                                        onClick={() => setCurrentPage(page)}
-                                                        className={`w-7 h-7 rounded-lg text-xs font-bold transition flex items-center justify-center cursor-pointer ${
-                                                            isActive
-                                                                ? 'bg-[#4A7CD2] text-white shadow-xs border border-blue-600'
-                                                                : 'text-slate-600 hover:bg-white border border-transparent hover:border-slate-200'
-                                                        }`}
-                                                    >
-                                                        {page}
-                                                    </button>
-                                                );
-                                            })}
-
-                                            {/* Next Page */}
-                                            <button
-                                                type="button"
-                                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                                disabled={currentPage === totalPages}
-                                                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
-                                                title="Next Page"
-                                            >
-                                                <ChevronRight className="w-3.5 h-3.5" />
-                                            </button>
-
-                                            {/* Last Page */}
-                                            <button
-                                                type="button"
-                                                onClick={() => setCurrentPage(totalPages)}
-                                                disabled={currentPage === totalPages}
-                                                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-white hover:text-slate-900 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
-                                                title="Last Page"
-                                            >
-                                                <ChevronsRight className="w-3.5 h-3.5" />
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Floating Bottom Action Banner when Treatments are Selected */}
-                    {selectedTreatmentsForInvoice.length > 0 && (
-                        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900/95 backdrop-blur-md text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700 flex flex-wrap items-center justify-between gap-4 max-w-xl w-[92vw] animate-in fade-in slide-in-from-bottom-3">
-                            <div className="flex items-center gap-3">
-                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                                <div className="text-xs">
-                                    <span className="font-extrabold text-white">
-                                        {selectedTreatmentsForInvoice.length} procedure{selectedTreatmentsForInvoice.length > 1 ? 's' : ''} selected
-                                    </span>
-                                    <span className="text-slate-400 mx-1.5">•</span>
-                                    <span className="font-mono font-bold text-emerald-400">
-                                        Total: {formatCurrency(selectedTreatmentsForInvoice.reduce((sum, it) => sum + (it.fee || 0), 0))}
-                                    </span>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectedTreatmentsForInvoice([])}
-                                    className="text-xs text-slate-400 hover:text-white px-2.5 py-1 rounded-lg hover:bg-slate-800 transition cursor-pointer"
-                                >
-                                    Clear
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => handleOpenCreateInvoice()}
-                                    className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md cursor-pointer"
-                                >
-                                    <Receipt className="w-3.5 h-3.5" />
-                                    <span>Generate Invoice</span>
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* ========================================================================= */}
-            {/* 4. SUB-TAB 2: ITEMIZED INVOICES & FINANCIAL LEDGER                        */}
-            {/* ========================================================================= */}
-            {activeSubTab === 'invoices' && (
-                <div className="space-y-4">
-                    {invoices.length === 0 ? (
-                        <div className="py-16 text-center bg-slate-50/60 rounded-3xl border border-dashed border-slate-200 space-y-2">
-                            <div className="w-12 h-12 rounded-2xl bg-white shadow-2xs flex items-center justify-center mx-auto text-slate-400">
-                                <Receipt className="w-6 h-6 text-slate-300" />
-                            </div>
-                            <h4 className="text-sm font-bold text-slate-700">No Invoices Issued Yet</h4>
-                            <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                                No official billing records exist for this patient yet. Use "Bill Completed Care" to create an invoice from chairside completed procedures.
-                            </p>
-                            {unbilledCompletedTreatments.length > 0 && (
-                                <button
-                                    type="button"
-                                    onClick={() => handleOpenCreateInvoice()}
-                                    className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-sm transition"
-                                >
-                                    <Receipt className="w-4 h-4" />
-                                    <span>Bill {unbilledCompletedTreatments.length} Completed Procedures</span>
-                                </button>
-                            )}
-                        </div>
-                    ) : (
-                        invoices.map((inv) => {
-                            const isExpanded = expandedInvoiceId === inv.invoiceId;
-                            const isPaid = inv.balanceAmount <= 0 || inv.status === 'Paid';
-
-                            return (
-                                <div 
-                                    key={inv.invoiceId}
-                                    className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden transition-all"
-                                >
-                                    {/* Invoice Card Header Bar */}
-                                    <div 
-                                        onClick={() => setExpandedInvoiceId(isExpanded ? null : inv.invoiceId)}
-                                        className="p-4 flex flex-wrap items-center justify-between gap-3 cursor-pointer hover:bg-slate-50/70 transition"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
-                                                isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-                                            }`}>
-                                                <FileText className="w-5 h-5" />
-                                            </div>
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-mono font-extrabold text-slate-900 text-sm">{inv.invoiceNumber}</span>
-                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                                                        isPaid 
-                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                                                            : 'bg-rose-50 text-rose-700 border-rose-200'
-                                                    }`}>
-                                                        {isPaid ? 'Paid in Full' : 'Balance Pending'}
-                                                    </span>
-                                                </div>
-                                                <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
-                                                    <span>Issued: {new Date(inv.issueDate).toLocaleDateString()}</span>
-                                                    <span>•</span>
-                                                    <span>Due: {new Date(inv.dueDate).toLocaleDateString()}</span>
-                                                    {inv.doctorName && (
-                                                        <>
-                                                            <span>•</span>
-                                                            <span className="text-slate-600 font-medium">Attending: {inv.doctorName}</span>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-4">
-                                            <div className="text-right">
-                                                <div className="text-sm font-extrabold font-mono text-slate-900">
-                                                    {formatCurrency(inv.totalAmount, inv.currency)}
-                                                </div>
-                                                <div className="text-[10.5px]">
-                                                    {isPaid ? (
-                                                        <span className="text-emerald-600 font-bold">Settled in Full</span>
-                                                    ) : (
-                                                        <span className="text-rose-600 font-bold">Due: {formatCurrency(inv.balanceAmount, inv.currency)}</span>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {!isPaid && (
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleOpenPayment(inv);
-                                                    }}
-                                                    className="px-3 py-1.5 rounded-xl bg-[#4A7CD2] hover:bg-[#3665B7] text-white text-xs font-bold shadow-2xs transition flex items-center gap-1 cursor-pointer"
-                                                >
-                                                    <CreditCard className="w-3.5 h-3.5" />
-                                                    <span>Settle</span>
-                                                </button>
-                                            )}
-
-                                            <div className="text-slate-400">
-                                                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Expanded Line Items & Payment History */}
-                                    {isExpanded && (
-                                        <div className="p-5 space-y-4 bg-white">
-                                            
-                                            {/* Line Items Table */}
-                                            <div>
-                                                <h5 className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                                    <Tag className="w-3.5 h-3.5 text-[#4A7CD2]" />
-                                                    Itemized Clinical Procedures ({inv.items?.length || 0})
-                                                </h5>
-                                                
-                                                <div className="border border-slate-200 rounded-xl overflow-hidden">
-                                                    <table className="w-full text-left border-collapse text-xs">
-                                                        <thead>
-                                                            <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[10px] font-bold uppercase tracking-wider">
-                                                                <th className="py-2.5 px-3">#</th>
-                                                                <th className="py-2.5 px-3">Code</th>
-                                                                <th className="py-2.5 px-3">Description</th>
-                                                                <th className="py-2.5 px-3 text-center">Qty</th>
-                                                                <th className="py-2.5 px-3 text-right">Unit Price</th>
-                                                                <th className="py-2.5 px-3 text-right">Total</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-slate-100">
-                                                            {(inv.items || []).map((item, iIdx) => (
-                                                                <tr key={iIdx} className="hover:bg-slate-50/50">
-                                                                    <td className="py-2.5 px-3 font-mono text-slate-400">{iIdx + 1}</td>
-                                                                    <td className="py-2.5 px-3 font-mono font-bold text-slate-700">{item.procedureCode || '011'}</td>
-                                                                    <td className="py-2.5 px-3 font-semibold text-slate-800">{item.description}</td>
-                                                                    <td className="py-2.5 px-3 text-center font-mono">{item.quantity || 1}</td>
-                                                                    <td className="py-2.5 px-3 text-right font-mono text-slate-600">{formatCurrency(item.unitPrice, inv.currency)}</td>
-                                                                    <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">{formatCurrency(item.totalPrice || item.unitPrice, inv.currency)}</td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </div>
-
-                                            {/* Financial Reconciliation & Payment History */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
-                                                
-                                                {/* Left: Payment Receipts */}
-                                                <div>
-                                                    <h5 className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                                        <Banknote className="w-3.5 h-3.5 text-emerald-600" />
-                                                        Payment Receipts & Audit ({inv.payments?.length || 0})
-                                                    </h5>
-
-                                                    {(inv.payments || []).length === 0 ? (
-                                                        <p className="text-xs text-slate-400 italic">No payments recorded against this invoice yet.</p>
-                                                    ) : (
-                                                        <div className="space-y-1.5">
-                                                            {inv.payments.map((p, pIdx) => (
-                                                                <div key={pIdx} className="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-100 flex items-center justify-between text-xs">
-                                                                    <div>
-                                                                        <div className="font-mono font-bold text-emerald-900">{p.receiptNumber}</div>
-                                                                        <div className="text-[10px] text-emerald-700">
-                                                                            {new Date(p.paymentDate).toLocaleString()} • {p.paymentMethod}
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="font-mono font-extrabold text-emerald-800">
-                                                                        {formatCurrency(p.amount, inv.currency)}
-                                                                    </div>
+                                                                                            {isAdmin && (
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    onClick={() => {
+                                                                                                        setVoidModalPayment(alloc);
+                                                                                                        setVoidReason('');
+                                                                                                    }}
+                                                                                                    className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                                                                                    title="Void / Refund this Payment (Admin Only)"
+                                                                                                >
+                                                                                                    <Ban className="w-3.5 h-3.5" />
+                                                                                                </button>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            ))}
+                                                                        </tbody>
+                                                                    </table>
                                                                 </div>
-                                                            ))}
+                                                            )}
                                                         </div>
-                                                    )}
-                                                </div>
-
-                                                {/* Right: Invoice Meta & Actions */}
-                                                <div className="space-y-2 text-xs bg-slate-50/80 p-3 rounded-xl border border-slate-200">
-                                                    <div className="flex justify-between text-slate-500">
-                                                        <span>Subtotal:</span>
-                                                        <span className="font-mono font-bold text-slate-800">{formatCurrency(inv.totalAmount, inv.currency)}</span>
-                                                    </div>
-                                                    <div className="flex justify-between text-slate-500">
-                                                        <span>Paid to date:</span>
-                                                        <span className="font-mono font-bold text-emerald-700">{formatCurrency(inv.paidAmount, inv.currency)}</span>
-                                                    </div>
-                                                    <div className="flex justify-between text-slate-700 font-extrabold border-t border-slate-200 pt-1.5">
-                                                        <span>Current Balance Due:</span>
-                                                        <span className="font-mono text-rose-600">{formatCurrency(inv.balanceAmount, inv.currency)}</span>
-                                                    </div>
-
-                                                    {inv.notes && (
-                                                        <div className="pt-2 text-[11px] text-slate-500 italic border-t border-slate-200/60">
-                                                            Note: {inv.notes}
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                            </div>
-
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })
-                    )}
-                </div>
-            )}
-
-            {/* ========================================================================= */}
-            {/* 5. MODAL 1: EDIT TOOTH TREATMENT & BILLING DETAILS                        */}
-            {/* ========================================================================= */}
-            {showEditModal && editingTreatment && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-                    <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden animate-scaleIn">
-                        
-                        {/* Header */}
-                        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
-                            <div className="flex items-center gap-3">
-                                <div 
-                                    className="w-10 h-10 rounded-2xl flex items-center justify-center font-mono font-black text-white shadow-sm"
-                                    style={{ backgroundColor: editingTreatment.conditionColor || '#4A7CD2' }}
-                                >
-                                    {editingTreatment.toothKey || editingTreatment.toothNumber}
-                                </div>
-                                <div>
-                                    <h4 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
-                                        <span>Edit Tooth #{editingTreatment.toothNumber}</span>
-                                        {editingTreatment.toothKey && isNaN(Number(editingTreatment.toothKey)) && (
-                                            <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-mono font-bold">Primary {editingTreatment.toothKey}</span>
-                                        )}
-                                    </h4>
-                                    <p className="text-[11px] text-slate-400 font-medium">
-                                        {TOOTH_NAMES[editingTreatment.toothNumber] || `Tooth #${editingTreatment.toothNumber}`}
-                                    </p>
-                                </div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setShowEditModal(false)}
-                                className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-
-                        {/* Form Body */}
-                        <form onSubmit={handleSaveTreatmentSubmit} className="p-6 space-y-4 text-xs">
-                            
-                            {/* Clinical Status Selector */}
-                            <div>
-                                <label className="block text-[11px] font-extrabold text-slate-600 uppercase tracking-wider mb-1.5">
-                                    Clinical Treatment Status
-                                </label>
-                                <div className="grid grid-cols-3 gap-2">
-                                    {[
-                                        { id: 'Completed', label: '✓ Completed', color: 'emerald' },
-                                        { id: 'In Progress', label: '⟳ In Progress', color: 'sky' },
-                                        { id: 'Planned', label: '⏱ Planned', color: 'amber' }
-                                    ].map(s => (
-                                        <button
-                                            key={s.id}
-                                            type="button"
-                                            onClick={() => setEditForm(prev => ({ ...prev, status: s.id }))}
-                                            className={`py-2 px-3 rounded-xl font-bold border transition text-center ${
-                                                editForm.status === s.id
-                                                    ? s.id === 'Completed'
-                                                        ? 'bg-emerald-500 text-white border-emerald-600 shadow-xs'
-                                                        : s.id === 'Planned'
-                                                        ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
-                                                        : 'bg-sky-500 text-white border-sky-600 shadow-xs'
-                                                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                                            }`}
-                                        >
-                                            {s.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Condition / Procedure Name */}
-                            <div>
-                                <label className="block text-[11px] font-extrabold text-slate-600 uppercase tracking-wider mb-1.5">
-                                    Condition & Pathology Description
-                                </label>
-                                <input
-                                    type="text"
-                                    value={editForm.conditionStatus}
-                                    onChange={e => setEditForm(prev => ({ ...prev, conditionStatus: e.target.value }))}
-                                    placeholder="e.g. Dental Implant (Screw-Retained), Molar RCT"
-                                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-[#4A7CD2]"
-                                    required
-                                />
-                            </div>
-
-                            {/* CDT Code & Fee Grid */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-[11px] font-extrabold text-slate-600 uppercase tracking-wider mb-1.5">
-                                        ADA CDT Code
-                                    </label>
-                                    <div className="space-y-1">
-                                        <select
-                                            value={CDT_PROCEDURE_CATALOG.some(p => p.cdt === editForm.cdtCode) ? editForm.cdtCode : 'custom'}
-                                            onChange={e => {
-                                                const val = e.target.value;
-                                                if (val !== 'custom') {
-                                                    const item = CDT_PROCEDURE_CATALOG.find(p => p.cdt === val);
-                                                    setEditForm(prev => ({
-                                                        ...prev,
-                                                        cdtCode: val,
-                                                        fee: item ? String(patientRegion === 'PK' ? item.feePKR : item.feeNZD) : prev.fee
-                                                    }));
-                                                }
-                                            }}
-                                            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-[#4A7CD2] bg-white font-mono"
-                                        >
-                                            <option value="custom">Manual / Custom Code...</option>
-                                            {CDT_PROCEDURE_CATALOG.map(p => (
-                                                <option key={p.cdt} value={p.cdt}>
-                                                    {p.cdt} — {p.name}
-                                                </option>
-                                            ))}
-                                        </select>
-
-                                        <input
-                                            type="text"
-                                            value={editForm.cdtCode}
-                                            onChange={e => setEditForm(prev => ({ ...prev, cdtCode: e.target.value.toUpperCase() }))}
-                                            placeholder="Code (e.g. D3330, D6058)"
-                                            className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-[#4A7CD2] font-mono"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[11px] font-extrabold text-slate-600 uppercase tracking-wider mb-1.5">
-                                        Procedure Fee ({patientRegion === 'PK' ? 'PKR' : 'NZD'})
-                                    </label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">
-                                            {patientRegion === 'PK' ? 'Rs' : '$'}
-                                        </span>
-                                        <input
-                                            type="number"
-                                            step="any"
-                                            value={editForm.fee}
-                                            onChange={e => setEditForm(prev => ({ ...prev, fee: e.target.value }))}
-                                            placeholder="0.00"
-                                            className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-[#4A7CD2] font-mono font-bold"
-                                        />
-                                    </div>
-                                    <span className="text-[10px] text-slate-400 mt-0.5 block">
-                                        Standard reference or agreed patient price
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Clinical Comments */}
-                            <div>
-                                <label className="block text-[11px] font-extrabold text-slate-600 uppercase tracking-wider mb-1.5">
-                                    Clinical Operatory Notes
-                                </label>
-                                <textarea
-                                    rows={3}
-                                    value={editForm.comments}
-                                    onChange={e => setEditForm(prev => ({ ...prev, comments: e.target.value }))}
-                                    placeholder="Doctor notes regarding this tooth intervention..."
-                                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-[#4A7CD2]"
-                                />
-                            </div>
-
-                            {/* Notifications */}
-                            {editErrorMsg && (
-                                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
-                                    <AlertTriangle className="w-4 h-4 shrink-0" />
-                                    <span>{editErrorMsg}</span>
-                                </div>
-                            )}
-
-                            {editSuccessMsg && (
-                                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                                    <span>{editSuccessMsg}</span>
-                                </div>
-                            )}
-
-                            {/* Buttons */}
-                            <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowEditModal(false)}
-                                    className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-100 transition cursor-pointer"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={savingEdit}
-                                    className="flex-1 py-2.5 rounded-xl bg-[#4A7CD2] hover:bg-[#3665B7] text-white text-xs font-bold shadow-md transition flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
-                                >
-                                    {savingEdit ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                                    <span>Save Treatment Changes</span>
-                                </button>
-                            </div>
-
-                        </form>
-
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             )}
 
-            {/* ========================================================================= */}
-            {/* 6. MODAL 2: CREATE INVOICE FROM COMPLETED TREATMENTS                      */}
-            {/* ========================================================================= */}
-            {showCreateInvoiceModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-                    <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-xl overflow-hidden animate-scaleIn">
-                        
-                        {/* Header */}
-                        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-purple-50/60">
-                            <div className="flex items-center gap-2.5">
-                                <div className="w-9 h-9 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center">
-                                    <Receipt className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <h4 className="text-sm font-extrabold text-slate-900">Issue Clinic Treatment Invoice</h4>
-                                    <p className="text-[11px] text-slate-500 font-medium">
-                                        Select completed clinical procedures to compile into an official bill
-                                    </p>
-                                </div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setShowCreateInvoiceModal(false)}
-                                className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-
-                        {/* Invoice Builder Form */}
-                        <form onSubmit={handleCreateInvoiceSubmit} className="p-6 space-y-4 text-xs">
-                            
-                            <div>
-                                <div className="flex items-center justify-between mb-2">
-                                    <label className="text-[11px] font-extrabold text-slate-600 uppercase tracking-wider">
-                                        Procedures to Include ({selectedTreatmentsForInvoice.length})
-                                    </label>
-                                    <span className="text-[10.5px] text-slate-400">
-                                        Patient: <strong className="text-slate-700">{reportData?.patient?.fullName}</strong>
-                                    </span>
-                                </div>
-
-                                <div className="max-h-56 overflow-y-auto space-y-1.5 border border-slate-200 rounded-2xl p-2 bg-slate-50/50">
-                                    {unbilledCompletedTreatments.length === 0 && selectedTreatmentsForInvoice.length === 0 ? (
-                                        <p className="text-xs text-slate-400 italic text-center py-4">No completed unbilled procedures found.</p>
-                                    ) : (
-                                        (unbilledCompletedTreatments.length > 0 ? unbilledCompletedTreatments : selectedTreatmentsForInvoice).map((t, idx) => {
-                                            const isChecked = selectedTreatmentsForInvoice.some(s => s.toothNumber === t.toothNumber && s.toothKey === t.toothKey);
-                                            return (
-                                                <div 
-                                                    key={idx}
-                                                    onClick={() => handleToggleTreatmentSelect(t)}
-                                                    className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 cursor-pointer transition ${
-                                                        isChecked ? 'bg-white border-purple-300 shadow-2xs' : 'bg-slate-100/60 border-slate-200 text-slate-400'
-                                                    }`}
-                                                >
-                                                    <div className="flex items-center gap-2.5">
-                                                        <div className="text-purple-600">
-                                                            {isChecked ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4 text-slate-300" />}
-                                                        </div>
-                                                        <div>
-                                                            <div className="font-extrabold text-slate-800">
-                                                                Tooth #{t.toothNumber} {t.toothKey && isNaN(Number(t.toothKey)) ? `(Primary ${t.toothKey})` : ''} — {t.conditionStatus}
-                                                            </div>
-                                                            <div className="text-[10px] text-slate-400 font-mono">
-                                                                CDT: <strong className="text-slate-600">{t.cdtCode || 'D0150'}</strong> • {TOOTH_NAMES[t.toothNumber] || ''}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="font-mono font-extrabold text-slate-900 text-xs">
-                                                        {formatCurrency(t.fee)}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Total Calculation Card */}
-                            <div className="p-3.5 rounded-2xl bg-purple-50/80 border border-purple-200 flex items-center justify-between">
-                                <div>
-                                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-purple-900">Total Invoice Amount</span>
-                                    <div className="text-[10.5px] text-purple-700">
-                                        {selectedTreatmentsForInvoice.length} procedure{selectedTreatmentsForInvoice.length !== 1 ? 's' : ''} included
-                                    </div>
-                                </div>
-                                <div className="text-xl font-extrabold font-mono text-purple-900">
-                                    {formatCurrency(selectedTreatmentsForInvoice.reduce((sum, item) => sum + (item.fee || 0), 0))}
-                                </div>
-                            </div>
-
-                            {/* Invoice Notes */}
-                            <div>
-                                <label className="block text-[11px] font-extrabold text-slate-600 uppercase tracking-wider mb-1.5">
-                                    Invoice Billing Notes / Payment Terms
-                                </label>
-                                <input
-                                    type="text"
-                                    value={invoiceCustomNotes}
-                                    onChange={e => setInvoiceCustomNotes(e.target.value)}
-                                    placeholder="e.g. Completed restoratives & implant crown. Due within 14 days."
-                                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-purple-500"
-                                />
-                            </div>
-
-                            {/* Messages */}
-                            {createInvoiceError && (
-                                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
-                                    <AlertTriangle className="w-4 h-4 shrink-0" />
-                                    <span>{createInvoiceError}</span>
-                                </div>
-                            )}
-
-                            {createInvoiceSuccess && (
-                                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                                    <span>{createInvoiceSuccess}</span>
-                                </div>
-                            )}
-
-                            {/* Actions */}
-                            <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowCreateInvoiceModal(false)}
-                                    className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-100 transition cursor-pointer"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={creatingInvoice || selectedTreatmentsForInvoice.length === 0}
-                                    className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md transition flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
-                                >
-                                    {creatingInvoice ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Receipt className="w-3.5 h-3.5" />}
-                                    <span>Issue Official Invoice</span>
-                                </button>
-                            </div>
-
-                        </form>
-
-                    </div>
-                </div>
-            )}
-
-            {/* ========================================================================= */}
-            {/* 7. MODAL 3: RECORD PAYMENT SETTLEMENT MODAL                               */}
-            {/* ========================================================================= */}
+            {/* MODAL: RECEIVE FLEXIBLE PAYMENT */}
             {showPaymentModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
-                    <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-scaleIn">
-                        
-                        {/* Modal Header */}
-                        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
-                            <div className="flex items-center gap-2.5">
-                                <div className="w-9 h-9 rounded-2xl bg-blue-100 text-[#4A7CD2] flex items-center justify-center">
-                                    <DollarSign className="w-5 h-5" />
+                <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-lg w-full shadow-2xl space-y-4 animate-scale-up">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <div className="flex items-center gap-2">
+                                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200">
+                                    <Banknote className="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <h4 className="text-sm font-extrabold text-slate-900">Record Patient Settlement</h4>
-                                    <p className="text-[11px] text-slate-400 font-medium">Front Desk & Online Payment Reconciliation</p>
+                                    <h3 className="text-sm font-extrabold text-dark-slate">Receive Patient Payment</h3>
+                                    <p className="text-[11px] text-muted-text">Flexible amount with intelligent procedure allocation</p>
                                 </div>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => setShowPaymentModal(false)}
-                                className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition"
+                            <button 
+                                onClick={() => setShowPaymentModal(false)} 
+                                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                             >
                                 <X className="w-4 h-4" />
                             </button>
                         </div>
 
-                        {/* Modal Body */}
-                        <form onSubmit={handleRecordPaymentSubmit} className="p-6 space-y-4 text-xs">
-                            
-                            {/* Invoice Target Selection */}
-                            <div>
-                                <label className="block text-[11px] font-extrabold text-slate-600 uppercase tracking-wider mb-1.5">
-                                    Target Patient Invoice
-                                </label>
-                                <select
-                                    value={selectedInvoiceForPayment?.invoiceId || ''}
-                                    onChange={(e) => {
-                                        const inv = invoices.find(i => String(i.invoiceId) === e.target.value);
-                                        setSelectedInvoiceForPayment(inv);
-                                        if (inv) {
-                                            setPaymentAmount(String(inv.balanceAmount > 0 ? inv.balanceAmount : inv.totalAmount));
-                                        }
-                                    }}
-                                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-[#4A7CD2] bg-white font-mono"
-                                >
-                                    {invoices.map(inv => (
-                                        <option key={inv.invoiceId} value={inv.invoiceId}>
-                                            {inv.invoiceNumber} — Total {formatCurrency(inv.totalAmount, inv.currency)} (Due: {formatCurrency(inv.balanceAmount, inv.currency)})
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Amount */}
-                            <div>
-                                <label className="block text-[11px] font-extrabold text-slate-600 uppercase tracking-wider mb-1.5">
-                                    Amount Received ({selectedInvoiceForPayment?.currency || reportData?.summary?.currency || 'NZD'})
-                                </label>
-                                <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">
-                                        {selectedInvoiceForPayment?.currency === 'PKR' ? 'Rs' : '$'}
-                                    </span>
+                        <form onSubmit={handleRecordPayment} className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-dark-slate block">Amount Received (PKR):</label>
                                     <input
                                         type="number"
-                                        step="0.01"
+                                        min="1"
                                         value={paymentAmount}
-                                        onChange={(e) => setPaymentAmount(e.target.value)}
-                                        placeholder="0.00"
-                                        className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-[#4A7CD2] font-mono font-bold"
+                                        onChange={(e) => handlePaymentAmountChange(e.target.value)}
+                                        placeholder="Enter amount"
                                         required
+                                        className="w-full text-base font-extrabold p-3 rounded-xl border border-slate-200 bg-white focus:outline-hidden focus:border-emerald-500"
                                     />
                                 </div>
-                            </div>
 
-                            {/* Payment Method */}
-                            <div>
-                                <label className="block text-[11px] font-extrabold text-slate-600 uppercase tracking-wider mb-1.5">
-                                    Settlement Method
-                                </label>
-                                <div className="grid grid-cols-3 gap-2">
-                                    {[
-                                        { id: 'Cash_Counter', label: 'Cash Desk', icon: Banknote },
-                                        { id: 'POS_Card', label: 'Card / POS', icon: CreditCard },
-                                        { id: 'Bank_Transfer', label: 'Online / Bank', icon: Building }
-                                    ].map(m => {
-                                        const Icon = m.icon;
-                                        return (
-                                            <button
-                                                key={m.id}
-                                                type="button"
-                                                onClick={() => setPaymentMethod(m.id)}
-                                                className={`py-2 px-2.5 rounded-xl font-bold border transition flex flex-col items-center gap-1 text-center ${
-                                                    paymentMethod === m.id
-                                                        ? 'bg-blue-50 border-[#4A7CD2] text-[#4A7CD2] shadow-2xs'
-                                                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                                                }`}
-                                            >
-                                                <Icon className="w-4 h-4" />
-                                                <span className="text-[10px]">{m.label}</span>
-                                            </button>
-                                        );
-                                    })}
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-dark-slate block">Payment Method:</label>
+                                    <select
+                                        value={paymentMethod}
+                                        onChange={(e) => setPaymentMethod(e.target.value)}
+                                        className="w-full text-xs font-bold p-3 rounded-xl border border-slate-200 bg-white focus:outline-hidden"
+                                    >
+                                        <option value="cash">Cash Counter</option>
+                                        <option value="card">Credit / Debit Card (POS)</option>
+                                        <option value="bank">Bank Transfer</option>
+                                        <option value="easypaisa">EasyPaisa</option>
+                                        <option value="jazzcash">JazzCash</option>
+                                    </select>
                                 </div>
                             </div>
 
-                            {/* Notes */}
-                            <div>
-                                <label className="block text-[11px] font-extrabold text-slate-600 uppercase tracking-wider mb-1.5">
-                                    Settlement Notes / Reference
-                                </label>
+                            {/* Procedure Allocation Matrix */}
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between text-xs font-bold text-dark-slate">
+                                    <span>Allocate Across Open Procedures:</span>
+                                    <span className="text-muted-text text-[11px]">
+                                        Remaining unallocated credit: <strong className="text-emerald-600">
+                                            {formatMoney(Math.max(0, (parseInt(paymentAmount, 10) || 0) - Object.values(paymentAllocations).reduce((a, b) => a + (parseInt(b, 10) || 0), 0)))}
+                                        </strong>
+                                    </span>
+                                </div>
+
+                                <div className="max-h-48 overflow-y-auto space-y-2 border border-slate-200 rounded-xl p-3 bg-slate-50">
+                                    {invoiceItems.filter(i => (i.balance || 0) > 0).length === 0 ? (
+                                        <p className="text-xs text-muted-text italic text-center py-2">
+                                            All current procedures are fully paid. The entire payment will be saved as Advance Credit.
+                                        </p>
+                                    ) : (
+                                        invoiceItems.filter(i => (i.balance || 0) > 0).map(item => (
+                                            <div key={item.id} className="flex items-center justify-between gap-3 bg-white p-2.5 rounded-lg border border-slate-200">
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-bold text-dark-slate truncate">{item.name}</p>
+                                                    <p className="text-[10px] text-muted-text">
+                                                        {item.toothNo > 0 ? `Tooth #${item.toothNo}` : 'General'} • Due: <strong className="text-rose-600">{formatMoney(item.balance)}</strong>
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                    <span className="text-xs font-bold text-slate-500">Rs</span>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max={item.balance}
+                                                        value={paymentAllocations[item.id] !== undefined ? paymentAllocations[item.id] : ''}
+                                                        onChange={(e) => {
+                                                            const val = parseInt(e.target.value, 10) || 0;
+                                                            setPaymentAllocations(prev => ({ ...prev, [item.id]: val }));
+                                                        }}
+                                                        className="w-24 text-xs font-bold p-1.5 rounded-lg border border-slate-200 text-right"
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold text-dark-slate block">Notes / Reference (Optional):</label>
                                 <input
                                     type="text"
                                     value={paymentNotes}
                                     onChange={(e) => setPaymentNotes(e.target.value)}
-                                    placeholder="e.g. Front desk cash receipt, POS auth #1029"
-                                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-[#4A7CD2]"
+                                    placeholder="e.g. Consultation fee / Tooth #14 composite downpayment"
+                                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white"
                                 />
                             </div>
 
-                            {/* Messages */}
-                            {paymentError && (
-                                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
-                                    <AlertTriangle className="w-4 h-4 shrink-0" />
-                                    <span>{paymentError}</span>
-                                </div>
-                            )}
-
-                            {paymentSuccessMsg && (
-                                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                                    <span>{paymentSuccessMsg}</span>
-                                </div>
-                            )}
-
-                            {/* Actions */}
-                            <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                                 <button
                                     type="button"
                                     onClick={() => setShowPaymentModal(false)}
-                                    className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-100 transition cursor-pointer"
+                                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors cursor-pointer"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={recordingPayment}
-                                    className="flex-1 py-2.5 rounded-xl bg-[#4A7CD2] hover:bg-[#3665B7] text-white text-xs font-bold shadow-md transition flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                                    className="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer"
                                 >
-                                    {recordingPayment ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                                    <span>Record Settlement</span>
+                                    {recordingPayment ? 'Recording...' : 'Save Payment & Generate Receipt'}
                                 </button>
                             </div>
-
                         </form>
-
                     </div>
                 </div>
             )}
 
-            {/* ========================================================================= */}
-            {/* 8. PRINT-ONLY CLINICAL STATEMENT LAYOUT                                   */}
-            {/* ========================================================================= */}
-            <div className="hidden print:block text-slate-900 p-8 space-y-6">
-                <div className="border-b-2 border-slate-800 pb-4 flex justify-between items-start">
-                    <div>
-                        <h1 className="text-2xl font-black tracking-tight">DENTIA CLINICAL DENTAL MEDICINE</h1>
-                        <p className="text-xs text-slate-500">Official Patient Clinical Treatment & Tax Invoice Statement</p>
-                    </div>
-                    <div className="text-right text-xs font-mono">
-                        <p className="font-bold">Date: {new Date().toLocaleDateString()}</p>
-                        <p>Ref: {reportData?.patient?.referenceNumber}</p>
+            {/* MODAL: ALLOCATE ADVANCE CREDIT */}
+            {showAllocateCreditModal && (
+                <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full shadow-2xl space-y-4 animate-scale-up">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <div className="flex items-center gap-2">
+                                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200">
+                                    <Wallet className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-extrabold text-dark-slate">Allocate Advance Credit</h3>
+                                    <p className="text-[11px] text-muted-text">
+                                        Available Credit: <strong className="text-emerald-600">{formatMoney(accountSummary?.unallocatedCredit)}</strong>
+                                    </p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setShowAllocateCreditModal(false)} 
+                                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleAllocateCredit} className="space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-dark-slate block">Specify Credit Allocation per Item:</label>
+                                <div className="max-h-56 overflow-y-auto space-y-2 border border-slate-200 rounded-xl p-3 bg-slate-50">
+                                    {invoiceItems.filter(i => (i.balance || 0) > 0).map(item => (
+                                        <div key={item.id} className="flex items-center justify-between gap-3 bg-white p-2.5 rounded-lg border border-slate-200">
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-bold text-dark-slate truncate">{item.name}</p>
+                                                <p className="text-[10px] text-muted-text">
+                                                    Due: <strong className="text-rose-600">{formatMoney(item.balance)}</strong>
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                <span className="text-xs font-bold text-slate-500">Rs</span>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max={Math.min(item.balance, accountSummary?.unallocatedCredit || 0)}
+                                                    value={creditAllocations[item.id] !== undefined ? creditAllocations[item.id] : ''}
+                                                    onChange={(e) => {
+                                                        const val = parseInt(e.target.value, 10) || 0;
+                                                        setCreditAllocations(prev => ({ ...prev, [item.id]: val }));
+                                                    }}
+                                                    className="w-24 text-xs font-bold p-1.5 rounded-lg border border-slate-200 text-right"
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAllocateCreditModal(false)}
+                                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={allocatingCredit}
+                                    className="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer"
+                                >
+                                    {allocatingCredit ? 'Allocating...' : 'Apply Credit'}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
+            )}
 
-                <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200">
-                    <div>
-                        <p className="font-bold">Patient Name: {reportData?.patient?.fullName}</p>
-                        <p>Phone: {reportData?.patient?.phone || 'N/A'}</p>
-                        <p>Email: {reportData?.patient?.email || 'N/A'}</p>
-                    </div>
-                    <div className="text-right">
-                        <p className="font-bold">Total Invoiced: {formatCurrency(summary.totalInvoiced)}</p>
-                        <p className="text-emerald-700 font-bold">Total Settled: {formatCurrency(summary.totalPaid)}</p>
-                        <p className="text-rose-700 font-bold">Net Balance Due: {formatCurrency(summary.balanceDue)}</p>
+            {/* MODAL: VOID PAYMENT (Admin Only) */}
+            {voidModalPayment && (
+                <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-sm w-full shadow-2xl space-y-4 animate-scale-up">
+                        <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                            <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-200">
+                                <Ban className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-extrabold text-dark-slate">Void / Refund Payment</h3>
+                                <p className="text-[11px] text-muted-text">Receipt #{voidModalPayment.receiptNo} ({formatMoney(voidModalPayment.amount)})</p>
+                            </div>
+                        </div>
+
+                        <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 space-y-1">
+                            <p className="font-bold">Audit Trail Notice:</p>
+                            <p className="text-[11px]">
+                                Voiding reverses all payment allocations and marks the receipt voided. Financial records are never deleted.
+                            </p>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-dark-slate block">Mandatory Void Reason:</label>
+                            <textarea
+                                value={voidReason}
+                                onChange={(e) => setVoidReason(e.target.value)}
+                                placeholder="e.g. Wrong entry / Patient refund"
+                                rows="3"
+                                required
+                                className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white"
+                            />
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                            <button
+                                type="button"
+                                onClick={() => setVoidModalPayment(null)}
+                                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors cursor-pointer"
+                            >
+                                Back
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleVoidPayment}
+                                disabled={voidingPayment || !voidReason.trim()}
+                                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                                {voidingPayment ? 'Voiding...' : 'Confirm Void'}
+                            </button>
+                        </div>
                     </div>
                 </div>
+            )}
 
-                <div>
-                    <h3 className="text-sm font-bold uppercase tracking-wider mb-2">32-Tooth Chart Treatments</h3>
-                    <table className="w-full text-xs border border-slate-300">
-                        <thead className="bg-slate-100">
-                            <tr>
-                                <th className="p-2 border border-slate-300">Tooth #</th>
-                                <th className="p-2 border border-slate-300">Diagnosis</th>
-                                <th className="p-2 border border-slate-300">Status</th>
-                                <th className="p-2 border border-slate-300">CDT</th>
-                                <th className="p-2 border border-slate-300 text-right">Fee</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {chartTreatments.map((t, idx) => (
-                                <tr key={idx}>
-                                    <td className="p-2 border border-slate-300 font-bold">#{t.toothNumber}</td>
-                                    <td className="p-2 border border-slate-300">{t.conditionStatus}</td>
-                                    <td className="p-2 border border-slate-300">{t.status}</td>
-                                    <td className="p-2 border border-slate-300 font-mono">{t.cdtCode || '—'}</td>
-                                    <td className="p-2 border border-slate-300 text-right font-mono">{formatCurrency(t.fee)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+            {/* MODAL: EDIT PRICE (Doctor/Admin with reason) */}
+            {priceEditItem && (
+                <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-sm w-full shadow-2xl space-y-4 animate-scale-up">
+                        <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                            <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#4A7CD2] flex items-center justify-center border border-blue-200">
+                                <Edit3 className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-extrabold text-dark-slate">Edit Treatment Price</h3>
+                                <p className="text-[11px] text-muted-text">{priceEditItem.name}</p>
+                            </div>
+                        </div>
 
-                <div className="pt-8 border-t border-slate-300 flex justify-between text-xs">
-                    <div>
-                        <p>Attending Dental Surgeon Certification</p>
-                        <div className="h-10 border-b border-slate-400 w-48 mt-2"></div>
+                        <form onSubmit={handleSavePriceEdit} className="space-y-3">
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-dark-slate block">New Price (PKR):</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={newPrice}
+                                    onChange={(e) => setNewPrice(e.target.value)}
+                                    required
+                                    className="w-full text-base font-extrabold p-2.5 rounded-xl border border-slate-200 bg-white"
+                                />
+                                <span className="text-[10px] text-muted-text">
+                                    If new price is lower than amount already paid, the excess will automatically become patient credit.
+                                </span>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-dark-slate block">Reason for Price Override:</label>
+                                <textarea
+                                    value={priceChangeReason}
+                                    onChange={(e) => setPriceChangeReason(e.target.value)}
+                                    placeholder="e.g. Clinical discount approved / Case revision"
+                                    rows="2"
+                                    required
+                                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white"
+                                />
+                            </div>
+
+                            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setPriceEditItem(null)}
+                                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={savingPrice}
+                                    className="px-4 py-2 rounded-xl text-xs font-bold bg-[#4A7CD2] hover:bg-[#3665B7] text-white shadow-xs transition-colors cursor-pointer"
+                                >
+                                    {savingPrice ? 'Updating...' : 'Save Price'}
+                                </button>
+                            </div>
+                        </form>
                     </div>
-                    <div className="text-right">
-                        <p>Patient Signature</p>
-                        <div className="h-10 border-b border-slate-400 w-48 mt-2"></div>
-                    </div>
                 </div>
-            </div>
-
+            )}
         </div>
     );
 }

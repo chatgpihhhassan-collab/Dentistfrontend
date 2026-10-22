@@ -1875,6 +1875,14 @@ export default function PatientDirectory() {
                                                                      const errText = await resPlan.text().catch(() => '');
                                                                      throw new Error(`Failed to save treatment plan: ${resPlan.status} ${errText}`);
                                                                  }
+                                                                  // Auto-sync directory modalities to dentist.TreatmentItems
+                                                                  try {
+                                                                      await apiFetch(`/api/patients/${selectedPatient.patientID}/sync-directory?doctorId=${docId}`, {
+                                                                          method: 'POST'
+                                                                      });
+                                                                  } catch (syncErr) {
+                                                                      console.warn('Directory auto-sync notice:', syncErr);
+                                                                  }
 
                                                                  // 2. Insert clinical log entry
                                                                  try {
@@ -2016,6 +2024,14 @@ export default function PatientDirectory() {
                                                                      const errText = await resPlan.text().catch(() => '');
                                                                      throw new Error(`Failed to save whitening plan: ${resPlan.status} ${errText}`);
                                                                  }
+                                                                  // Auto-sync directory modalities to dentist.TreatmentItems
+                                                                  try {
+                                                                      await apiFetch(`/api/patients/${selectedPatient.patientID}/sync-directory?doctorId=${docId}`, {
+                                                                          method: 'POST'
+                                                                      });
+                                                                  } catch (syncErr) {
+                                                                      console.warn('Directory auto-sync notice:', syncErr);
+                                                                  }
 
                                                                  // 2. Insert clinical log entry
                                                                  try {
@@ -2179,6 +2195,14 @@ export default function PatientDirectory() {
                                                                          const errText = await resPlan.text().catch(() => '');
                                                                          console.warn(`Treatment plan update warning: ${resPlan.status} ${errText}`);
                                                                      }
+                                                                  // Auto-sync directory modalities to dentist.TreatmentItems
+                                                                  try {
+                                                                      await apiFetch(`/api/patients/${selectedPatient.patientID}/sync-directory?doctorId=${docId}`, {
+                                                                          method: 'POST'
+                                                                      });
+                                                                  } catch (syncErr) {
+                                                                      console.warn('Directory auto-sync notice:', syncErr);
+                                                                  }
 
                                                                      // 3. Insert clinical log entry
                                                                      try {

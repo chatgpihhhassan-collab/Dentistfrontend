@@ -886,21 +886,35 @@ export default function ChartPage() {
     return 'chart';
   }); // 'chart' | 'notes' | 'radiographs' | 'treatment_plan' | 'billing'
 
-  // Dynamic Treatment Plan Badge Count (planned + in_progress)
+  // Dynamic Treatment Plan Badge Count (draft + proposed + accepted + in_progress)
   const [planBadgeCount, setPlanBadgeCount] = useState(0);
+  const [activePlanChips, setActivePlanChips] = useState([]);
+  const [financialPill, setFinancialPill] = useState(null);
+  const [activePlanCategoryFilter, setActivePlanCategoryFilter] = useState(null);
 
-  const fetchPlanBadgeCount = async () => {
+  const fetchActivePlansAndBadges = async () => {
     if (!patientId) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/treatment-items?status=planned,in_progress`);
-      if (res.ok) {
-        const items = await res.json();
+      fetch(`${API_BASE_URL}/api/patients/${patientId}/sync-directory?doctorId=${doctor?.doctorID || 1}`, { method: 'POST' }).catch(() => {});
+      const [planRes, chipsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/patients/${patientId}/treatment-items?view=plan`),
+        fetch(`${API_BASE_URL}/api/patients/${patientId}/active-plans`)
+      ]);
+      if (planRes.ok) {
+        const items = await planRes.json();
         setPlanBadgeCount(Array.isArray(items) ? items.length : 0);
       }
+      if (chipsRes.ok) {
+        const chipsData = await chipsRes.json();
+        setActivePlanChips(chipsData.chips || []);
+        setFinancialPill(chipsData.financialPill || null);
+      }
     } catch (err) {
-      console.warn('Could not load treatment plan count:', err);
+      console.warn('Could not load treatment plan & chips:', err);
     }
   };
+
+  const fetchPlanBadgeCount = fetchActivePlansAndBadges;
 
   useEffect(() => {
     if (patientId) {
@@ -7841,6 +7855,57 @@ export default function ChartPage() {
                   })()}
 
 
+                  {/* Active Plan Chips & Financial Balance Pill */}
+                  {activePlanChips.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {activePlanChips.slice(0, 3).map((chip, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setActivePlanCategoryFilter(chip.category);
+                            setActiveTab('treatment_plan');
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10.5px] font-black bg-gradient-to-r from-amber-500/15 to-orange-500/15 hover:from-amber-500/25 hover:to-orange-500/25 text-amber-900 border border-amber-300/80 shadow-2xs transition-all cursor-pointer hover:scale-105 active:scale-95"
+                          title={`Filter Treatment Plan by ${chip.label}`}
+                        >
+                          <Sparkles className="w-3 h-3 text-amber-600" />
+                          <span>{chip.label}</span>
+                          {chip.progress && (
+                            <span className="px-1.5 py-0.2 rounded-md bg-white text-amber-800 font-extrabold text-[9px] border border-amber-200">
+                              {chip.progress}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                      {activePlanChips.length > 3 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActivePlanCategoryFilter(null);
+                            setActiveTab('treatment_plan');
+                          }}
+                          className="px-2 py-1 rounded-xl text-[10px] font-black bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 shadow-2xs transition-all cursor-pointer"
+                          title="View all active treatment plans"
+                        >
+                          +{activePlanChips.length - 3} more
+                        </button>
+                      )}
+                      {financialPill && financialPill.amount > 0 && (
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black shadow-2xs border ${
+                            financialPill.type === 'due'
+                              ? 'bg-rose-50 text-rose-700 border-rose-300'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                          }`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${financialPill.type === 'due' ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} />
+                          <span>{financialPill.label}</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {/* Eighteeth Nano-Pix RVG Chairside Capture Button */}
                   <button
                     type="button"
@@ -9072,6 +9137,9 @@ export default function ChartPage() {
                   patientId={patientId}
                   patient={patient}
                   doctorId={doctor?.doctorID || doctor?.DoctorID || 1}
+                  userRole={doctor?.role || 'doctor'}
+                  categoryFilter={activePlanCategoryFilter}
+                  onClearCategoryFilter={() => setActivePlanCategoryFilter(null)}
                   onTreatmentStatusChange={() => {
                     fetchPlanBadgeCount();
                   }}
@@ -9086,9 +9154,12 @@ export default function ChartPage() {
                 <PatientTreatmentInvoiceTab
                   patientId={patientId}
                   patient={patient}
-                  teethState={teethState}
-                  dentitionMode={dentitionMode}
+                  userRole={doctor?.role || 'doctor'}
+                  userId={doctor?.doctorID || doctor?.DoctorID || 1}
                   onNavigateToPlan={() => setActiveTab('treatment_plan')}
+                  onPaymentChange={() => {
+                    fetchPlanBadgeCount();
+                  }}
                 />
               </div>
             )}
