@@ -199,13 +199,18 @@ export default function LandingDashboard() {
           const data = await res.json();
           if (isMounted && Array.isArray(data) && data.length > 0) {
             const activeDocs = data
-              .filter(d => !d.isSuperAdmin && (d.firstName || d.lastName))
-              .map((d, i) => ({
-                img: d.avatarUrl || `/images/team/${(i % 4) + 1}.webp`,
-                name: `Dr. ${(d.firstName || '') + ' ' + (d.lastName || '')}`.trim() || d.username,
-                role: d.specialization || 'Clinical Dental Specialist',
-                creds: d.qualifications || 'BDS, RDS • Experienced Clinician'
-              }));
+              .filter(d => d.isActive !== false && !d.isSuperAdmin && d.role !== 'Receptionist' && (d.firstName || d.lastName))
+              .map((d, i) => {
+                const rawFirst = (d.firstName || '').replace(/^dr\.?\s+/i, '').trim();
+                const rawLast = (d.lastName || '').trim();
+                const displayName = rawFirst || rawLast ? `Dr. ${rawFirst} ${rawLast}`.trim() : d.username;
+                return {
+                  img: d.profileImageUrl || d.avatarUrl || `/images/team/${(i % 4) + 1}.webp`,
+                  name: displayName,
+                  role: d.specialization || 'Clinical Dental Specialist',
+                  creds: d.title || d.qualifications || 'Experienced Clinician'
+                };
+              });
             if (activeDocs.length > 0) {
               setClinicDoctors(activeDocs);
             }
