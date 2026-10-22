@@ -89,10 +89,10 @@ export default function Navigation() {
                     </div>
                     <div className="flex items-center space-x-4">
                         {doctor && orgName && (
-                            <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-600 bg-white/80 px-2.5 py-0.5 rounded-full border border-light-teal/60 shadow-2xs">
+                            <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-700 bg-white px-3 py-0.5 rounded-full border border-[#4A7CD2]/30 shadow-2xs">
                                 <Building2 className="w-3.5 h-3.5 text-[#4A7CD2] shrink-0" />
-                                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Hospital:</span>
-                                <strong className="text-slate-800 font-bold max-w-[220px] truncate" title={orgName}>{orgName}</strong>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Hospital:</span>
+                                <strong className="text-slate-800 font-bold max-w-[340px] truncate" title={orgName}>{orgName}</strong>
                             </div>
                         )}
                         <span className="flex items-center text-accent-gold font-bold">
@@ -110,26 +110,19 @@ export default function Navigation() {
                 </div>
             )}
 
-            <header className="w-full max-w-[1800px] mx-auto bg-gradient-to-r from-white/95 via-white/85 to-[#EAF0FC]/75 backdrop-blur-2xl border border-white/90 h-20 flex items-center justify-between px-6 rounded-full shadow-lg shadow-[#0A1A24]/5 transition-all duration-300">
-                <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate(doctor && doctor.isSuperAdmin ? '/admin/doctors' : '/')}>
+            <header className="w-full max-w-[1800px] mx-auto bg-gradient-to-r from-white/95 via-white/85 to-[#EAF0FC]/75 backdrop-blur-2xl border border-white/90 h-20 flex items-center justify-between gap-4 px-6 rounded-full shadow-lg shadow-[#0A1A24]/5 transition-all duration-300">
+                {/* 🌟 Left: Brand Identity */}
+                <div 
+                    className="flex items-center space-x-3 cursor-pointer shrink-0" 
+                    onClick={() => navigate(doctor && doctor.isSuperAdmin ? '/admin/doctors' : '/')}
+                    title="Dentia Clinical Suite"
+                >
                     <img src="/images/logo-black.webp" alt="Dentia Logo" className="h-8 object-contain" />
-                    {doctor && orgName && (
-                        <div className="hidden xl:flex items-center gap-2 pl-3 border-l border-slate-200">
-                            <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-200/80 flex items-center justify-center text-indigo-600 shadow-2xs flex-shrink-0">
-                                <Building2 className="w-3.5 h-3.5" />
-                            </div>
-                            <div className="flex flex-col text-left leading-tight">
-                                <span className="text-[8.5px] font-black uppercase tracking-wider text-slate-400">Affiliated Hospital</span>
-                                <span className="text-xs font-black text-[#10244B] max-w-[210px] truncate" title={orgName}>
-                                    {orgName}
-                                </span>
-                            </div>
-                        </div>
-                    )}
                 </div>
                 
-                <nav className="hidden lg:flex items-center space-x-1.5 bg-gradient-to-r from-[#EAF0FC]/80 via-white/80 to-[#EAF0FC]/95 p-1.5 rounded-full border border-[#4A7CD2]/20 shadow-inner">
-                    {/* 🛡️ SUPERADMIN NAVIGATION: SuperAdmin ONLY has access to Organizations & Doctors */}
+                {/* 🌟 Center: Context-Aware Navigation Capsule */}
+                <nav className="hidden lg:flex items-center space-x-1.5 bg-gradient-to-r from-[#EAF0FC]/80 via-white/80 to-[#EAF0FC]/95 p-1.5 rounded-full border border-[#4A7CD2]/20 shadow-inner shrink-0">
+                    {/* 🛡️ SUPERADMIN NAVIGATION */}
                     {doctor && doctor.isSuperAdmin ? (
                         <>
                             <Link 
@@ -166,6 +159,7 @@ export default function Navigation() {
                                 <Home className="w-5 h-5" />
                             </Link>
                             
+                            {/* Doctor Workspace Clinical Tools */}
                             {doctor && (
                                 <>
                                     <Link 
@@ -213,47 +207,62 @@ export default function Navigation() {
                                     >
                                         <MessageCircle className="w-5 h-5 text-emerald-600" />
                                     </Link>
+                                    <Link 
+                                        to="/treatment" 
+                                        aria-current={location.pathname === '/treatment' ? "page" : undefined}
+                                        aria-label="Treatments & Procedures"
+                                        className={getLinkClass(location.pathname === '/treatment')}
+                                        title="Treatments & Procedures"
+                                    >
+                                        <Stethoscope className="w-5 h-5" />
+                                    </Link>
                                 </>
                             )}
                             
-                            <Link 
-                                to="/treatment" 
-                                aria-current={location.pathname === '/treatment' ? "page" : undefined}
-                                aria-label="Treatments"
-                                className={getLinkClass(location.pathname === '/treatment')}
-                                title="Treatments"
-                            >
-                                <Stethoscope className="w-5 h-5" />
-                            </Link>
-                            <a 
-                                href="/#about" 
-                                aria-label="About Us"
-                                className={getLinkClass(location.hash === '#about')}
-                                title="About Us"
-                            >
-                                <Info className="w-5 h-5" />
-                            </a>
-                            <a 
-                                href="/#team" 
-                                aria-label="Our Doctors"
-                                className={getLinkClass(location.hash === '#team')}
-                                title="Our Doctors"
-                            >
-                                <UserCheck className="w-5 h-5" />
-                            </a>
-                            <a 
-                                href="/#reviews" 
-                                aria-label="Patient Reviews"
-                                className={getLinkClass(location.hash === '#reviews')}
-                                title="Patient Reviews"
-                            >
-                                <Star className="w-5 h-5" />
-                            </a>
+                            {/* Public Marketing Links: Only visible to public website visitors */}
+                            {!doctor && (
+                                <>
+                                    <Link 
+                                        to="/treatment" 
+                                        aria-current={location.pathname === '/treatment' ? "page" : undefined}
+                                        aria-label="Treatments"
+                                        className={getLinkClass(location.pathname === '/treatment')}
+                                        title="Treatments"
+                                    >
+                                        <Stethoscope className="w-5 h-5" />
+                                    </Link>
+                                    <a 
+                                        href="/#about" 
+                                        aria-label="About Us"
+                                        className={getLinkClass(location.hash === '#about')}
+                                        title="About Us"
+                                    >
+                                        <Info className="w-5 h-5" />
+                                    </a>
+                                    <a 
+                                        href="/#team" 
+                                        aria-label="Our Doctors"
+                                        className={getLinkClass(location.hash === '#team')}
+                                        title="Our Doctors"
+                                    >
+                                        <UserCheck className="w-5 h-5" />
+                                    </a>
+                                    <a 
+                                        href="/#reviews" 
+                                        aria-label="Patient Reviews"
+                                        className={getLinkClass(location.hash === '#reviews')}
+                                        title="Patient Reviews"
+                                    >
+                                        <Star className="w-5 h-5" />
+                                    </a>
+                                </>
+                            )}
                         </>
                     )}
                 </nav>
 
-                <div className="flex items-center space-x-3">
+                {/* 🌟 Right: Clinician Status, Profile & Quick Actions */}
+                <div className="flex items-center space-x-3 shrink-0">
                     {/* Chairside Hardware Connection Badge (Doctors only) */}
                     {(!doctor || !doctor.isSuperAdmin) && (
                         <HardwareDeviceSyncBadge onOpenCapturePanel={() => {
@@ -275,7 +284,8 @@ export default function Navigation() {
 
                     {doctor ? (
                         <div className="flex items-center space-x-2.5">
-                            <div className="flex items-center space-x-2 bg-white pr-3.5 pl-1.5 py-1.5 rounded-full border border-light-teal shadow-xs hover:border-[#4A7CD2]/40 transition-all whitespace-nowrap">
+                            {/* Doctor Profile Pill with Affiliated Organization */}
+                            <div className="flex items-center space-x-2.5 bg-white pr-4 pl-1.5 py-1.5 rounded-full border border-light-teal shadow-xs hover:border-[#4A7CD2]/40 transition-all whitespace-nowrap">
                                 <div className="w-8 h-8 rounded-full bg-light-teal/50 flex items-center justify-center overflow-hidden flex-shrink-0 border border-white shadow-2xs">
                                     <img 
                                         src={doctor.profileImageUrl || `https://ui-avatars.com/api/?name=${doctor.firstName || 'Super'}+${doctor.lastName || 'Admin'}&background=EAF0FC&color=4A7CD2`} 
@@ -284,12 +294,19 @@ export default function Navigation() {
                                     />
                                 </div>
                                 <div className="flex flex-col text-left leading-tight hidden sm:flex">
-                                    <span className="text-xs font-black text-dark-slate whitespace-nowrap">
-                                        {doctor.isSuperAdmin ? 'SuperAdmin' : `Dr. ${doctor.lastName || doctor.firstName || 'Doctor'}`}
+                                    <span className="text-xs font-bold text-dark-slate whitespace-nowrap">
+                                        {doctor.isSuperAdmin 
+                                            ? 'SuperAdmin' 
+                                            : (() => {
+                                                const rawName = (doctor.lastName || doctor.firstName || 'Doctor').trim();
+                                                const capitalized = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+                                                return `Dr. ${capitalized}`;
+                                              })()
+                                        }
                                     </span>
                                     {orgName && (
                                         <span 
-                                            className="text-[9.5px] font-bold text-[#4A7CD2] flex items-center gap-1 max-w-[170px] truncate" 
+                                            className="text-[10px] font-semibold text-[#4A7CD2] flex items-center gap-1 max-w-[190px] truncate" 
                                             title={`Affiliated with ${orgName}`}
                                         >
                                             <Building2 className="w-2.5 h-2.5 shrink-0 text-[#4A7CD2]" />
