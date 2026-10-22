@@ -48,12 +48,13 @@ import FullPageSkeletonLoader from './components/FullPageSkeletonLoader';
 import LegacyBrowserBanner from './components/LegacyBrowserBanner';
 
 import { validateClinicianSession } from './services/sessionSecurityService';
+import { hasPermission } from './utils/permissionUtils';
 
 const PageFallback = () => (
   <FullPageSkeletonLoader />
 );
 
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, permissionKey }) => {
     const location = useLocation();
     const sessionCheck = validateClinicianSession();
     
@@ -78,6 +79,18 @@ const ProtectedRoute = ({ children }) => {
     if (doctor && doctor.isSuperAdmin) {
         return <Navigate to="/admin/doctors" replace />;
     }
+
+    // Dynamic Receptionist Granular Permission Guard
+    if (doctor && doctor.role === 'Receptionist' && permissionKey) {
+        if (!hasPermission(doctor, permissionKey)) {
+            const fallback = hasPermission(doctor, 'directory') 
+                ? '/directory' 
+                : hasPermission(doctor, 'appointments') 
+                    ? '/appointments' 
+                    : '/';
+            return <Navigate to={fallback} replace />;
+        }
+    }
     
     return children;
 };
@@ -101,7 +114,7 @@ const AdminRoute = ({ children }) => {
     return children;
 };
 
-const AdminOrDoctorRoute = ({ children }) => {
+const AdminOrDoctorRoute = ({ children, permissionKey }) => {
     const location = useLocation();
     const sessionCheck = validateClinicianSession();
     
@@ -118,6 +131,14 @@ const AdminOrDoctorRoute = ({ children }) => {
         }
         
         return <Navigate to={`/login?${redirectParam}`} state={{ from: location, ...alertState }} replace />;
+    }
+
+    const doctor = JSON.parse(localStorage.getItem('doctor') || '{}');
+    if (doctor && doctor.role === 'Receptionist' && permissionKey) {
+        if (!hasPermission(doctor, permissionKey)) {
+            const fallback = hasPermission(doctor, 'directory') ? '/directory' : '/';
+            return <Navigate to={fallback} replace />;
+        }
     }
     
     return children;
@@ -197,19 +218,19 @@ export default function App() {
             <Route path="/login" element={<BlockSuperAdmin><Auth /></BlockSuperAdmin>} />
             <Route path="/auth" element={<Navigate to="/login" replace />} />
             
-            {/* 🛡️ Protected Clinician Workspace & Clinical Patient Records */}
-            <Route path="/directory" element={<ProtectedRoute><PatientDirectory /></ProtectedRoute>} />
-            <Route path="/chart/:patientId" element={<ProtectedRoute><ChartPage /></ProtectedRoute>} />
-            <Route path="/chart/:patientId/ai-studio" element={<ProtectedRoute><DentiaAIRadiologyStudioPage /></ProtectedRoute>} />
-            <Route path="/ai-studio" element={<ProtectedRoute><DentiaAIRadiologyStudioPage /></ProtectedRoute>} />
-            <Route path="/chart/:patientId/tooth" element={<ProtectedRoute><ToothDetailPage /></ProtectedRoute>} />
-            <Route path="/chart/:patientId/tooth/:toothNumber" element={<ProtectedRoute><ToothDetailPage /></ProtectedRoute>} />
-            <Route path="/new-patient" element={<ProtectedRoute><NewPatientPage /></ProtectedRoute>} />
-            <Route path="/history/:patientId" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
-            <Route path="/ai-notes" element={<ProtectedRoute><AIDentalNotesPage /></ProtectedRoute>} />
-            <Route path="/ai-notes/detail/:noteId" element={<ProtectedRoute><AIDentalNoteDetailPage /></ProtectedRoute>} />
-            <Route path="/treatment" element={<ProtectedRoute><Treatment /></ProtectedRoute>} />
-            <Route path="/appointments" element={<ProtectedRoute><AppointmentsList /></ProtectedRoute>} />
+            {/* 🛡️ Protected Clinician Workspace & Clinical Patient Records (Dynamic Permission Aware) */}
+            <Route path="/directory" element={<ProtectedRoute permissionKey="directory"><PatientDirectory /></ProtectedRoute>} />
+            <Route path="/chart/:patientId" element={<ProtectedRoute permissionKey="chart"><ChartPage /></ProtectedRoute>} />
+            <Route path="/chart/:patientId/ai-studio" element={<ProtectedRoute permissionKey="aiStudio"><DentiaAIRadiologyStudioPage /></ProtectedRoute>} />
+            <Route path="/ai-studio" element={<ProtectedRoute permissionKey="aiStudio"><DentiaAIRadiologyStudioPage /></ProtectedRoute>} />
+            <Route path="/chart/:patientId/tooth" element={<ProtectedRoute permissionKey="chart"><ToothDetailPage /></ProtectedRoute>} />
+            <Route path="/chart/:patientId/tooth/:toothNumber" element={<ProtectedRoute permissionKey="chart"><ToothDetailPage /></ProtectedRoute>} />
+            <Route path="/new-patient" element={<ProtectedRoute permissionKey="newPatient"><NewPatientPage /></ProtectedRoute>} />
+            <Route path="/history/:patientId" element={<ProtectedRoute permissionKey="directory"><HistoryPage /></ProtectedRoute>} />
+            <Route path="/ai-notes" element={<ProtectedRoute permissionKey="aiNotes"><AIDentalNotesPage /></ProtectedRoute>} />
+            <Route path="/ai-notes/detail/:noteId" element={<ProtectedRoute permissionKey="aiNotes"><AIDentalNoteDetailPage /></ProtectedRoute>} />
+            <Route path="/treatment" element={<ProtectedRoute permissionKey="treatmentCatalog"><Treatment /></ProtectedRoute>} />
+            <Route path="/appointments" element={<ProtectedRoute permissionKey="appointments"><AppointmentsList /></ProtectedRoute>} />
             <Route path="/setup-guide" element={<ProtectedRoute><NanoPixSetupGuide /></ProtectedRoute>} />
             
             {/* Online Patient Booking (Accessible to public visitors & logged-in doctors) */}
@@ -219,24 +240,24 @@ export default function App() {
                 </BlockSuperAdmin>
             } />
             <Route path="/treatment-pricing" element={
-                <ProtectedRoute>
+                <ProtectedRoute permissionKey="treatmentPricing">
                     <DoctorTreatmentPricing />
                 </ProtectedRoute>
             } />
             <Route path="/doctor/pricing" element={
-                <ProtectedRoute>
+                <ProtectedRoute permissionKey="treatmentPricing">
                     <DoctorTreatmentPricing />
                 </ProtectedRoute>
             } />
             
             {/* 🌐 Clinic Doctor Dynamic Website Studio */}
             <Route path="/clinic/website-studio" element={
-                <ProtectedRoute>
+                <ProtectedRoute permissionKey="clinicWebsiteStudio">
                     <ClinicWebsiteStudio />
                 </ProtectedRoute>
             } />
             <Route path="/admin/website" element={
-                <ProtectedRoute>
+                <ProtectedRoute permissionKey="clinicWebsiteStudio">
                     <ClinicWebsiteStudio />
                 </ProtectedRoute>
             } />
@@ -258,12 +279,12 @@ export default function App() {
                 </AdminRoute>
             } />
             <Route path="/admin/whatsapp" element={
-                <AdminOrDoctorRoute>
+                <AdminOrDoctorRoute permissionKey="whatsappHub">
                     <WhatsAppAdminPage />
                 </AdminOrDoctorRoute>
             } />
             <Route path="/whatsapp-manager" element={
-                <AdminOrDoctorRoute>
+                <AdminOrDoctorRoute permissionKey="whatsappHub">
                     <WhatsAppAdminPage />
                 </AdminOrDoctorRoute>
             } />

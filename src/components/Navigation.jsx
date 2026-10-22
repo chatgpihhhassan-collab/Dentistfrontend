@@ -6,6 +6,8 @@ import { purgeClinicianSession } from '../services/sessionSecurityService';
 import landingCmsService from '../services/landingCmsService';
 import { getClinicLiveStatus } from '../utils/clinicScheduleUtils';
 import DoctorClinicScheduleModal from './DoctorClinicScheduleModal';
+import DoctorStaffReceptionistModal from './DoctorStaffReceptionistModal';
+import { hasPermission } from '../utils/permissionUtils';
 
 export default function Navigation() {
     const navigate = useNavigate();
@@ -20,6 +22,7 @@ export default function Navigation() {
     });
     const [config, setConfig] = React.useState(() => landingCmsService.getConfig());
     const [isScheduleModalOpen, setIsScheduleModalOpen] = React.useState(false);
+    const [isStaffModalOpen, setIsStaffModalOpen] = React.useState(false);
     const [currentTime, setCurrentTime] = React.useState(() => new Date());
 
     // Continuous real-time clock ticker for minute-accurate open/closed status
@@ -189,6 +192,17 @@ export default function Navigation() {
                                 <span>Clinic Hours</span>
                             </button>
                         )}
+                        {doctor && !doctor.isSuperAdmin && doctor.role !== 'Receptionist' && (
+                            <button
+                                type="button"
+                                onClick={() => setIsStaffModalOpen(true)}
+                                className="hidden md:flex items-center gap-1.5 text-[11px] font-bold text-slate-700 bg-white hover:text-teal-700 hover:border-teal-400 px-3 py-0.5 rounded-full border border-slate-200 shadow-2xs transition-all cursor-pointer ring-1 ring-black/5"
+                                title="Manage Front-Desk Staff, Passwords & Dynamic Granular Permissions"
+                            >
+                                <Users className="w-3 h-3 text-teal-600" />
+                                <span>Staff & Receptionists</span>
+                            </button>
+                        )}
                         {doctor && orgName && (
                             <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-700 bg-white px-3 py-0.5 rounded-full border border-[#4A7CD2]/30 shadow-2xs">
                                 <Building2 className="w-3.5 h-3.5 text-[#4A7CD2] shrink-0" />
@@ -260,63 +274,75 @@ export default function Navigation() {
                                 <Home className="w-5 h-5" />
                             </Link>
                             
-                            {/* Doctor Workspace Clinical Tools */}
+                            {/* Doctor Workspace Clinical Tools (Granular Permissions Aware) */}
                             {doctor && (
                                 <>
-                                    <Link 
-                                        to="/directory" 
-                                        aria-current={(location.pathname === '/directory' || location.pathname.startsWith('/chart')) ? "page" : undefined}
-                                        aria-label="Patient Directory"
-                                        className={getLinkClass(location.pathname === '/directory' || location.pathname.startsWith('/chart'))}
-                                        title="Patient Directory"
-                                    >
-                                        <Users className="w-5 h-5" />
-                                    </Link>
-                                    <Link 
-                                        to="/appointments" 
-                                        aria-current={location.pathname === '/appointments' ? "page" : undefined}
-                                        aria-label="Appointments Hub"
-                                        className={getLinkClass(location.pathname === '/appointments')}
-                                        title="Appointments Hub"
-                                    >
-                                        <Calendar className="w-5 h-5" />
-                                    </Link>
-                                    <Link 
-                                        to="/doctor/pricing" 
-                                        aria-current={(location.pathname === '/doctor/pricing' || location.pathname === '/treatment-pricing') ? "page" : undefined}
-                                        aria-label="Doctor Fee Schedules & Treatment Pricing"
-                                        className={getLinkClass(location.pathname === '/doctor/pricing' || location.pathname === '/treatment-pricing')}
-                                        title="Doctor Fee Schedules & Treatment Pricing"
-                                    >
-                                        <DollarSign className="w-5 h-5" />
-                                    </Link>
-                                    <Link 
-                                        to="/clinic/website-studio" 
-                                        aria-current={(location.pathname === '/clinic/website-studio' || location.pathname === '/admin/website') ? "page" : undefined}
-                                        aria-label="Website & Landing Page Studio"
-                                        className={getLinkClass(location.pathname === '/clinic/website-studio' || location.pathname === '/admin/website')}
-                                        title="Website & Landing Page Studio (Doctor CMS)"
-                                    >
-                                        <Globe className="w-5 h-5 text-teal-600" />
-                                    </Link>
-                                    <Link 
-                                        to="/admin/whatsapp" 
-                                        aria-current={(location.pathname === '/admin/whatsapp' || location.pathname === '/whatsapp-manager') ? "page" : undefined}
-                                        aria-label="WhatsApp Gateway & Messaging Hub"
-                                        className={getLinkClass(location.pathname === '/admin/whatsapp' || location.pathname === '/whatsapp-manager')}
-                                        title="WhatsApp Gateway & Messaging Hub"
-                                    >
-                                        <MessageCircle className="w-5 h-5 text-emerald-600" />
-                                    </Link>
-                                    <Link 
-                                        to="/treatment" 
-                                        aria-current={location.pathname === '/treatment' ? "page" : undefined}
-                                        aria-label="Treatments & Procedures"
-                                        className={getLinkClass(location.pathname === '/treatment')}
-                                        title="Treatments & Procedures"
-                                    >
-                                        <Stethoscope className="w-5 h-5" />
-                                    </Link>
+                                    {hasPermission(doctor, 'directory') && (
+                                        <Link 
+                                            to="/directory" 
+                                            aria-current={(location.pathname === '/directory' || location.pathname.startsWith('/chart')) ? "page" : undefined}
+                                            aria-label="Patient Directory"
+                                            className={getLinkClass(location.pathname === '/directory' || location.pathname.startsWith('/chart'))}
+                                            title="Patient Directory"
+                                        >
+                                            <Users className="w-5 h-5" />
+                                        </Link>
+                                    )}
+                                    {hasPermission(doctor, 'appointments') && (
+                                        <Link 
+                                            to="/appointments" 
+                                            aria-current={location.pathname === '/appointments' ? "page" : undefined}
+                                            aria-label="Appointments Hub"
+                                            className={getLinkClass(location.pathname === '/appointments')}
+                                            title="Appointments Hub"
+                                        >
+                                            <Calendar className="w-5 h-5" />
+                                        </Link>
+                                    )}
+                                    {hasPermission(doctor, 'treatmentPricing') && (
+                                        <Link 
+                                            to="/doctor/pricing" 
+                                            aria-current={(location.pathname === '/doctor/pricing' || location.pathname === '/treatment-pricing') ? "page" : undefined}
+                                            aria-label="Doctor Fee Schedules & Treatment Pricing"
+                                            className={getLinkClass(location.pathname === '/doctor/pricing' || location.pathname === '/treatment-pricing')}
+                                            title="Doctor Fee Schedules & Treatment Pricing"
+                                        >
+                                            <DollarSign className="w-5 h-5" />
+                                        </Link>
+                                    )}
+                                    {hasPermission(doctor, 'clinicWebsiteStudio') && (
+                                        <Link 
+                                            to="/clinic/website-studio" 
+                                            aria-current={(location.pathname === '/clinic/website-studio' || location.pathname === '/admin/website') ? "page" : undefined}
+                                            aria-label="Website & Landing Page Studio"
+                                            className={getLinkClass(location.pathname === '/clinic/website-studio' || location.pathname === '/admin/website')}
+                                            title="Website & Landing Page Studio (Doctor CMS)"
+                                        >
+                                            <Globe className="w-5 h-5 text-teal-600" />
+                                        </Link>
+                                    )}
+                                    {hasPermission(doctor, 'whatsappHub') && (
+                                        <Link 
+                                            to="/admin/whatsapp" 
+                                            aria-current={(location.pathname === '/admin/whatsapp' || location.pathname === '/whatsapp-manager') ? "page" : undefined}
+                                            aria-label="WhatsApp Gateway & Messaging Hub"
+                                            className={getLinkClass(location.pathname === '/admin/whatsapp' || location.pathname === '/whatsapp-manager')}
+                                            title="WhatsApp Gateway & Messaging Hub"
+                                        >
+                                            <MessageCircle className="w-5 h-5 text-emerald-600" />
+                                        </Link>
+                                    )}
+                                    {hasPermission(doctor, 'treatmentCatalog') && (
+                                        <Link 
+                                            to="/treatment" 
+                                            aria-current={location.pathname === '/treatment' ? "page" : undefined}
+                                            aria-label="Treatments & Procedures"
+                                            className={getLinkClass(location.pathname === '/treatment')}
+                                            title="Treatments & Procedures"
+                                        >
+                                            <Stethoscope className="w-5 h-5" />
+                                        </Link>
+                                    )}
                                 </>
                             )}
                             
@@ -364,8 +390,8 @@ export default function Navigation() {
 
                 {/* 🌟 Right: Clinician Status, Profile & Quick Actions */}
                 <div className="flex items-center space-x-3 shrink-0">
-                    {/* Chairside Hardware Connection Badge (Doctors only) */}
-                    {(!doctor || !doctor.isSuperAdmin) && (
+                    {/* Chairside Hardware Connection Badge (Clinical Dentists only) */}
+                    {(!doctor || (!doctor.isSuperAdmin && doctor.role !== 'Receptionist')) && (
                         <HardwareDeviceSyncBadge onOpenCapturePanel={() => {
                             console.log('🩺 [HARDWARE DIAGNOSTIC] Doctor clicked Hardware Badge action in navbar:', {
                                 doctorId: doctor?.doctorID || doctor?.id,
@@ -398,11 +424,13 @@ export default function Navigation() {
                                     <span className="text-xs font-bold text-dark-slate whitespace-nowrap">
                                         {doctor.isSuperAdmin 
                                             ? 'SuperAdmin' 
-                                            : (() => {
-                                                const rawName = (doctor.lastName || doctor.firstName || 'Doctor').trim();
-                                                const capitalized = rawName.charAt(0).toUpperCase() + rawName.slice(1);
-                                                return `Dr. ${capitalized}`;
-                                              })()
+                                            : doctor.role === 'Receptionist'
+                                                ? `Receptionist ${doctor.firstName || 'Staff'}`
+                                                : (() => {
+                                                    const rawName = (doctor.lastName || doctor.firstName || 'Doctor').trim();
+                                                    const capitalized = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+                                                    return `Dr. ${capitalized}`;
+                                                  })()
                                         }
                                     </span>
                                     {orgName && (
@@ -449,6 +477,15 @@ export default function Navigation() {
                     onClose={() => setIsScheduleModalOpen(false)}
                     doctor={doctor}
                     onDoctorUpdated={(updated) => setDoctor(updated)}
+                />
+            )}
+
+            {/* Doctor Front-Desk Staff & Multi-Receptionist Permission Manager Modal */}
+            {doctor && !doctor.isSuperAdmin && doctor.role !== 'Receptionist' && (
+                <DoctorStaffReceptionistModal
+                    isOpen={isStaffModalOpen}
+                    onClose={() => setIsStaffModalOpen(false)}
+                    doctor={doctor}
                 />
             )}
         </div>
