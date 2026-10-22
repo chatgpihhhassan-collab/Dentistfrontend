@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
     Clock, 
     Phone, 
@@ -34,6 +35,21 @@ export default function DoctorClinicScheduleModal({ isOpen, onClose, doctor, onD
     });
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState(null);
+
+    // Lock body scroll and listen for Escape key when modal is open
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') onClose();
+        };
+        const prevOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.body.style.overflow = prevOverflow;
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isOpen, onClose]);
 
     // Sync state whenever doctor changes or modal opens
     useEffect(() => {
@@ -127,8 +143,10 @@ export default function DoctorClinicScheduleModal({ isOpen, onClose, doctor, onD
         }
     };
 
-    return (
-        <div className="fixed inset-0 z-[150] overflow-y-auto bg-slate-900/65 backdrop-blur-sm animate-fade-in p-3 sm:p-5">
+    if (!isOpen || typeof document === 'undefined') return null;
+
+    return createPortal(
+        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-900/65 backdrop-blur-sm animate-fade-in p-3 sm:p-5">
             {/* Backdrop click dismiss */}
             <div className="fixed inset-0" onClick={onClose} aria-hidden="true" />
 
@@ -356,6 +374,7 @@ export default function DoctorClinicScheduleModal({ isOpen, onClose, doctor, onD
                 </div>
             </div>
         </div>
-    </div>
+    </div>,
+    document.body
     );
 }
