@@ -1,9 +1,11 @@
 import React from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { LogOut, Home, Users, Calendar, Stethoscope, Info, CalendarPlus, Phone, Clock, Mail, Star, UserCheck, DollarSign, Building2, Shield, MessageCircle, Globe } from 'lucide-react';
+import { LogOut, Home, Users, Calendar, Stethoscope, Info, CalendarPlus, Phone, Clock, Mail, Star, UserCheck, DollarSign, Building2, Shield, MessageCircle, Globe, Sliders } from 'lucide-react';
 import { HardwareDeviceSyncBadge } from './HardwareDeviceSyncBadge';
 import { purgeClinicianSession } from '../services/sessionSecurityService';
 import landingCmsService from '../services/landingCmsService';
+import { getClinicLiveStatus } from '../utils/clinicScheduleUtils';
+import DoctorClinicScheduleModal from './DoctorClinicScheduleModal';
 
 export default function Navigation() {
     const navigate = useNavigate();
@@ -17,22 +19,48 @@ export default function Navigation() {
         }
     });
     const [config, setConfig] = React.useState(() => landingCmsService.getConfig());
+    const [isScheduleModalOpen, setIsScheduleModalOpen] = React.useState(false);
+    const [currentTime, setCurrentTime] = React.useState(() => new Date());
+
+    // Continuous real-time clock ticker for minute-accurate open/closed status
+    React.useEffect(() => {
+        const timer = setInterval(() => {
+            setCurrentTime(new Date());
+        }, 30000); // Check every 30 seconds
+        return () => clearInterval(timer);
+    }, []);
+
+    // Listen for doctor profile and clinic schedule updates across the app
+    React.useEffect(() => {
+        const handleProfileUpdate = (e) => {
+            if (e.detail) {
+                setDoctor(e.detail);
+            }
+        };
+        window.addEventListener('dentia:doctor-profile-updated', handleProfileUpdate);
+        return () => window.removeEventListener('dentia:doctor-profile-updated', handleProfileUpdate);
+    }, []);
 
     React.useEffect(() => {
         if (doctor) {
             const docId = doctor.doctorID || doctor.id;
-            if (docId && !doctor.organizationName) {
+            // Fetch updated profile if organization or clinic details are missing
+            if (docId && (!doctor.organizationName || !doctor.phone || !doctor.clinicOperatingHours)) {
                 fetch(`/api/auth/doctor/${docId}`)
                     .then(res => res.ok ? res.json() : null)
                     .then(docData => {
-                        if (docData && (docData.organizationName || docData.OrganizationName)) {
-                            const resolvedOrg = docData.organizationName || docData.OrganizationName;
+                        if (docData) {
                             const updated = {
                                 ...doctor,
-                                organizationID: docData.organizationID || docData.OrganizationID,
-                                organizationName: resolvedOrg,
-                                organizationLogoUrl: docData.organizationLogoUrl || docData.OrganizationLogoUrl,
-                                organizationCity: docData.organizationCity || docData.OrganizationCity
+                                organizationID: docData.organizationID || docData.OrganizationID || doctor.organizationID,
+                                organizationName: docData.organizationName || docData.OrganizationName || doctor.organizationName,
+                                organizationLogoUrl: docData.organizationLogoUrl || docData.OrganizationLogoUrl || doctor.organizationLogoUrl,
+                                organizationCity: docData.organizationCity || docData.OrganizationCity || doctor.organizationCity,
+                                phone: docData.phone || docData.Phone || doctor.phone || '+92 334 5081202',
+                                email: docData.email || docData.Email || doctor.email || 'bajwa.376@gmail.com',
+                                clinicName: docData.clinicName || docData.ClinicName || doctor.clinicName || 'Bajwa Dental & Oral Surgery Clinic',
+                                clinicOperatingHours: docData.clinicOperatingHours || docData.ClinicOperatingHours || doctor.clinicOperatingHours || 'Mon - Sat: 03:00 - 20:00',
+                                isClinicOpenManualOverride: docData.isClinicOpenManualOverride !== undefined ? docData.isClinicOpenManualOverride : doctor.isClinicOpenManualOverride
                             };
                             localStorage.setItem('doctor', JSON.stringify(updated));
                             setDoctor(updated);
@@ -42,13 +70,22 @@ export default function Navigation() {
             }
         }
         return landingCmsService.subscribe(setConfig);
-    }, [doctor]);
+    }, [doctor?.doctorID]);
 
     const orgName = doctor ? (
         doctor.organizationName || 
         doctor.OrganizationName || 
         (doctor.region === 'PK' ? 'Shifa International Hospitals Ltd' : 'Dentia Auckland Regional Dental Hospital')
     ) : null;
+
+    // Doctor-specific contact info with dynamic clinic fallback
+    const displayPhone = doctor?.phone || config.phone || '+92 334 5081202';
+    const displayEmail = doctor?.email || config.email || 'bajwa.376@gmail.com';
+    const displaySchedule = doctor?.clinicOperatingHours || config.operatingHours || 'Mon - Sat: 03:00 - 20:00';
+    const manualOverride = doctor?.isClinicOpenManualOverride;
+    
+    // Real-time live open/closed status calculation
+    const liveStatus = getClinicLiveStatus(displaySchedule, manualOverride, currentTime);
 
     const handleLogout = () => {
         try {
@@ -68,35 +105,99 @@ export default function Navigation() {
             : `${baseClasses} text-slate-600 hover:text-primary-teal hover:bg-white/60 hover:scale-105`;
     };
 
-    const cleanPhone = `tel:${(config.phone || '').replace(/[^\d+]/g, '')}`;
+    const cleanPhone = `tel:${displayPhone.replace(/[^\d+]/g, '')}`;
     const showTopBar = config.sections?.showTopContactBar !== false;
 
     return (
-        <div className="pt-3 pb-2 px-4 sm:px-6 sticky top-0 z-50 bg-[#FBFBFA]/95 backdrop-blur-md border-b border-light-teal/40 transition-all shadow-xs">
-            {/* Top Contact Bar - Fully Dynamic */}
+        <div className="pt-2 pb-2 px-3 sm:px-6 sticky top-0 z-50 bg-[#FBFBFA]/95 backdrop-blur-md border-b border-light-teal/40 transition-all shadow-xs">
+            {/* Top Contact & Operating Status Bar */}
             {showTopBar && (
-                <div className="w-full max-w-[1800px] mx-auto px-4 mb-2 flex items-center justify-between text-xs text-muted-text font-medium">
-                    <div className="flex items-center space-x-6">
-                        <a href={cleanPhone} className="flex items-center text-slate-600 hover:text-primary-teal transition-colors">
-                            <Phone className="w-3.5 h-3.5 mr-1.5 text-primary-teal" /> {config.phone || '+1 123 456 789'}
+                <div className="w-full max-w-[1800px] mx-auto px-2 sm:px-4 mb-2 flex flex-wrap lg:flex-nowrap items-center justify-between gap-y-2 text-xs text-muted-text font-medium">
+                    
+                    {/* Left: Contact Info & Real-Time Open/Closed Status */}
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+                        
+                        {/* Direct Phone */}
+                        <a 
+                            href={cleanPhone} 
+                            className="flex items-center text-slate-700 hover:text-primary-teal font-semibold transition-colors group"
+                            title={`Call Clinic: ${displayPhone}`}
+                        >
+                            <Phone className="w-3.5 h-3.5 mr-1.5 text-primary-teal group-hover:scale-110 transition-transform" /> 
+                            <span>{displayPhone}</span>
                         </a>
-                        <span className="flex items-center text-slate-600">
-                            <Clock className="w-3.5 h-3.5 mr-1.5 text-primary-teal" /> {config.operatingHours || 'Mon - Sat: 08:00 - 20:00'}
-                        </span>
-                        <a href={`mailto:${config.email}`} className="flex items-center text-slate-600 hover:text-primary-teal transition-colors hidden md:flex">
-                            <Mail className="w-3.5 h-3.5 mr-1.5 text-primary-teal" /> {config.email || 'contact@dentiaclinic.com'}
+
+                        {/* Clinic Schedule & Live Status Badge */}
+                        <div className="flex items-center gap-2">
+                            <span className="flex items-center text-slate-700 font-semibold" title={`Weekly Schedule: ${displaySchedule}`}>
+                                <Clock className="w-3.5 h-3.5 mr-1.5 text-primary-teal" /> 
+                                <span>{displaySchedule}</span>
+                            </span>
+
+                            {/* 🟢 / 🔴 Dynamic Real-Time Open / Closed Status Pill */}
+                            <button
+                                type="button"
+                                onClick={() => doctor && setIsScheduleModalOpen(true)}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all shadow-2xs border ${
+                                    liveStatus.isOpen 
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400' 
+                                        : 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100 hover:border-rose-400'
+                                } ${doctor ? 'cursor-pointer hover:scale-105 ring-1 ring-black/5' : ''}`}
+                                title={doctor ? `Clinic is currently ${liveStatus.label} (${liveStatus.detail}). Click to update schedule or toggle open/closed.` : `Live Status: ${liveStatus.label} (${liveStatus.detail})`}
+                            >
+                                <span className="relative flex h-2 w-2">
+                                    {liveStatus.isOpen && (
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    )}
+                                    <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                                        liveStatus.isOpen ? 'bg-emerald-500' : 'bg-rose-500'
+                                    }`}></span>
+                                </span>
+                                <span className="tracking-tight">{liveStatus.label}</span>
+                                <span className="hidden md:inline text-[10px] font-medium opacity-85">
+                                    • {liveStatus.detail}
+                                </span>
+                                {doctor && (
+                                    <span className="text-[9px] bg-white/80 px-1 py-0.2 rounded font-bold text-slate-600 border border-slate-200/80 ml-0.5">
+                                        Edit
+                                    </span>
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Direct Email */}
+                        <a 
+                            href={`mailto:${displayEmail}`} 
+                            className="flex items-center text-slate-700 hover:text-primary-teal font-semibold transition-colors hidden sm:flex group"
+                            title={`Email Clinic: ${displayEmail}`}
+                        >
+                            <Mail className="w-3.5 h-3.5 mr-1.5 text-primary-teal group-hover:scale-110 transition-transform" /> 
+                            <span>{displayEmail}</span>
                         </a>
                     </div>
-                    <div className="flex items-center space-x-4">
+
+                    {/* Right: Hospital Affiliation & Trust Proof */}
+                    <div className="flex items-center space-x-3 sm:space-x-4 ml-auto">
+                        {doctor && (
+                            <button
+                                type="button"
+                                onClick={() => setIsScheduleModalOpen(true)}
+                                className="hidden xl:flex items-center gap-1.5 text-[11px] font-bold text-slate-600 bg-white hover:text-primary-teal hover:border-primary-teal/40 px-2.5 py-0.5 rounded-full border border-slate-200 shadow-2xs transition-all cursor-pointer"
+                                title="Doctor Clinic Schedule & Live Status Settings"
+                            >
+                                <Sliders className="w-3 h-3 text-primary-teal" />
+                                <span>Clinic Hours</span>
+                            </button>
+                        )}
                         {doctor && orgName && (
                             <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-700 bg-white px-3 py-0.5 rounded-full border border-[#4A7CD2]/30 shadow-2xs">
                                 <Building2 className="w-3.5 h-3.5 text-[#4A7CD2] shrink-0" />
                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Hospital:</span>
-                                <strong className="text-slate-800 font-bold max-w-[340px] truncate" title={orgName}>{orgName}</strong>
+                                <strong className="text-slate-800 font-bold max-w-[280px] truncate" title={orgName}>{orgName}</strong>
                             </div>
                         )}
-                        <span className="flex items-center text-accent-gold font-bold">
-                            ★ {config.socialProof?.googleRating || 5.0} <span className="text-slate-600 font-medium ml-1">({config.socialProof?.googleReviewCountText || '23k Google Reviews'})</span>
+                        <span className="flex items-center text-accent-gold font-bold whitespace-nowrap">
+                            ★ {config.socialProof?.googleRating || 5.0} <span className="text-slate-600 font-medium ml-1 hidden sm:inline">({config.socialProof?.googleReviewCountText || '23k Google Reviews'})</span>
                         </span>
                         {!doctor && (
                             <button 
@@ -340,6 +441,16 @@ export default function Navigation() {
                     )}
                 </div>
             </header>
+
+            {/* Doctor Clinic Operating Schedule & Profile Management Modal */}
+            {doctor && (
+                <DoctorClinicScheduleModal
+                    isOpen={isScheduleModalOpen}
+                    onClose={() => setIsScheduleModalOpen(false)}
+                    doctor={doctor}
+                    onDoctorUpdated={(updated) => setDoctor(updated)}
+                />
+            )}
         </div>
     );
 }

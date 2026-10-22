@@ -709,6 +709,11 @@ export default function PatientDirectory() {
         const docInfo = JSON.parse(stored);
         setDoctor(docInfo);
 
+        const handleDocUpdate = (e) => {
+            if (e.detail) setDoctor(e.detail);
+        };
+        window.addEventListener('dentia:doctor-profile-updated', handleDocUpdate);
+
         let isCancelled = false;
 
         // 🌟 INSTANT SWR RENDER: Check sessionStorage cache immediately (0ms instant display)
@@ -792,6 +797,7 @@ export default function PatientDirectory() {
         return () => {
             isCancelled = true;
             clearTimeout(slowTimer);
+            window.removeEventListener('dentia:doctor-profile-updated', handleDocUpdate);
         };
     }, [navigate]);
 

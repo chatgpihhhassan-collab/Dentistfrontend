@@ -63,7 +63,12 @@ export default function DoctorManagement() {
         hospitalDepartment: 'Department of Oral Surgery & Dentistry',
         initialOrganization: '',
         initialRole: '',
-        profileImageUrl: ''
+        profileImageUrl: '',
+        phone: '+92 334 5081202',
+        email: 'bajwa.376@gmail.com',
+        clinicName: 'Bajwa Dental & Oral Surgery Clinic',
+        clinicOperatingHours: 'Mon - Sat: 03:00 - 20:00',
+        isClinicOpenManualOverride: null
     });
 
     const getAuthHeaders = () => ({
@@ -134,6 +139,11 @@ export default function DoctorManagement() {
             profileImageUrl: doc.profileImageUrl || '',
             organizationID: doc.organizationID ? String(doc.organizationID) : '',
             hospitalDepartment: doc.hospitalDepartment || 'Department of Oral Surgery & Dentistry',
+            phone: doc.phone || '+92 334 5081202',
+            email: doc.email || 'bajwa.376@gmail.com',
+            clinicName: doc.clinicName || 'Bajwa Dental & Oral Surgery Clinic',
+            clinicOperatingHours: doc.clinicOperatingHours || 'Mon - Sat: 03:00 - 20:00',
+            isClinicOpenManualOverride: doc.isClinicOpenManualOverride !== undefined ? doc.isClinicOpenManualOverride : null,
             isActive: doc.isActive !== false,
             organizations: orgArray.length > 0 ? orgArray : [
                 { organization: '', role: '', period: '', description: '' }
@@ -195,7 +205,12 @@ export default function DoctorManagement() {
                 reviewCount: editingDoctor.reviewCount || 25,
                 isActive: editingDoctor.isActive !== false,
                 organizationID: editingDoctor.organizationID ? parseInt(editingDoctor.organizationID, 10) : null,
-                hospitalDepartment: editingDoctor.hospitalDepartment
+                hospitalDepartment: editingDoctor.hospitalDepartment,
+                phone: editingDoctor.phone,
+                email: editingDoctor.email,
+                clinicName: editingDoctor.clinicName,
+                clinicOperatingHours: editingDoctor.clinicOperatingHours,
+                isClinicOpenManualOverride: editingDoctor.isClinicOpenManualOverride
             };
 
             const res = await fetch(`/api/auth/doctors/${editingDoctor.doctorID}`, {
@@ -255,7 +270,12 @@ export default function DoctorManagement() {
                 profileImageUrl: newDocForm.profileImageUrl || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=400',
                 isActive: true,
                 organizationID: newDocForm.organizationID ? parseInt(newDocForm.organizationID, 10) : null,
-                hospitalDepartment: newDocForm.hospitalDepartment || 'Department of Oral Surgery & Dentistry'
+                hospitalDepartment: newDocForm.hospitalDepartment || 'Department of Oral Surgery & Dentistry',
+                phone: newDocForm.phone || '+92 334 5081202',
+                email: newDocForm.email || 'bajwa.376@gmail.com',
+                clinicName: newDocForm.clinicName || 'Bajwa Dental & Oral Surgery Clinic',
+                clinicOperatingHours: newDocForm.clinicOperatingHours || 'Mon - Sat: 03:00 - 20:00',
+                isClinicOpenManualOverride: newDocForm.isClinicOpenManualOverride
             };
 
             const res = await fetch('/api/auth/doctors', {
@@ -654,6 +674,7 @@ export default function DoctorManagement() {
                         <div className="flex border-b border-light-teal/40 px-8 bg-warm-cream/30 gap-6">
                             {[
                                 { id: 'profile', label: 'Basic & Hospital Affiliation', icon: User },
+                                { id: 'clinic', label: 'Clinic Schedule & Timing', icon: Clock },
                                 { id: 'organizations', label: 'Career Timeline', icon: Building2 },
                                 { id: 'education', label: 'Degrees & Fellowships', icon: GraduationCap }
                             ].map(tab => (
@@ -932,6 +953,124 @@ export default function DoctorManagement() {
                                             onChange={e => setEditingDoctor({ ...editingDoctor, languages: e.target.value })}
                                             className="w-full px-4 py-2.5 bg-light-teal/20 border border-light-teal/60 rounded-xl text-xs font-medium text-dark-slate focus:outline-none"
                                         />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* TAB 4: CLINIC SCHEDULE & OPERATING HOURS */}
+                            {editActiveTab === 'clinic' && (
+                                <div className="space-y-4">
+                                    <div className="p-4 rounded-2xl bg-light-teal/20 border border-light-teal/60 space-y-4">
+                                        <div className="flex items-center gap-2">
+                                            <Clock className="w-4 h-4 text-primary-teal" />
+                                            <span className="text-xs font-bold text-dark-slate uppercase tracking-wider">Practitioner Clinic Schedule & Contact Information</span>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                                <label className="text-[11px] font-bold text-muted-text uppercase">Doctor / Clinic Direct Phone *</label>
+                                                <input
+                                                    type="text"
+                                                    value={editingDoctor.phone || ''}
+                                                    onChange={e => setEditingDoctor({ ...editingDoctor, phone: e.target.value })}
+                                                    placeholder="+92 334 5081202"
+                                                    className="w-full px-3.5 py-2.5 bg-white border border-light-teal/60 rounded-xl text-xs font-semibold text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal"
+                                                />
+                                            </div>
+
+                                            <div className="space-y-1">
+                                                <label className="text-[11px] font-bold text-muted-text uppercase">Doctor / Clinic Email *</label>
+                                                <input
+                                                    type="email"
+                                                    value={editingDoctor.email || ''}
+                                                    onChange={e => setEditingDoctor({ ...editingDoctor, email: e.target.value })}
+                                                    placeholder="bajwa.376@gmail.com"
+                                                    className="w-full px-3.5 py-2.5 bg-white border border-light-teal/60 rounded-xl text-xs font-semibold text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[11px] font-bold text-muted-text uppercase">Clinic / Practice Name</label>
+                                            <input
+                                                type="text"
+                                                value={editingDoctor.clinicName || ''}
+                                                onChange={e => setEditingDoctor({ ...editingDoctor, clinicName: e.target.value })}
+                                                placeholder="Bajwa Dental & Oral Surgery Clinic"
+                                                className="w-full px-3.5 py-2.5 bg-white border border-light-teal/60 rounded-xl text-xs font-semibold text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[11px] font-bold text-muted-text uppercase">Weekly Operating Schedule & Timings</label>
+                                            <input
+                                                type="text"
+                                                value={editingDoctor.clinicOperatingHours || ''}
+                                                onChange={e => setEditingDoctor({ ...editingDoctor, clinicOperatingHours: e.target.value })}
+                                                placeholder="e.g. Mon - Sat: 03:00 - 20:00"
+                                                className="w-full px-3.5 py-2.5 bg-white border border-light-teal/60 rounded-xl text-xs font-semibold text-dark-slate focus:outline-none focus:ring-2 focus:ring-primary-teal"
+                                            />
+                                            <div className="flex flex-wrap gap-1.5 pt-1">
+                                                {[
+                                                    'Mon - Sat: 03:00 - 20:00',
+                                                    'Mon - Sat: 09:00 - 18:00',
+                                                    'Mon - Fri: 09:00 - 17:00, Sat: 09:00 - 14:00',
+                                                    'Daily: 10:00 - 22:00'
+                                                ].map((preset, idx) => (
+                                                    <button
+                                                        key={idx}
+                                                        type="button"
+                                                        onClick={() => setEditingDoctor({ ...editingDoctor, clinicOperatingHours: preset })}
+                                                        className={`px-2 py-0.5 rounded-lg text-[10px] font-medium border transition-colors cursor-pointer ${
+                                                            editingDoctor.clinicOperatingHours === preset
+                                                                ? 'bg-primary-teal text-white border-primary-teal font-bold'
+                                                                : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-600'
+                                                        }`}
+                                                    >
+                                                        {preset}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[11px] font-bold text-muted-text uppercase">Real-Time Clinic Status Override</label>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setEditingDoctor({ ...editingDoctor, isClinicOpenManualOverride: null })}
+                                                    className={`px-3 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                                                        editingDoctor.isClinicOpenManualOverride === null || editingDoctor.isClinicOpenManualOverride === undefined
+                                                            ? 'bg-primary-teal/15 border-primary-teal text-primary-teal shadow-xs'
+                                                            : 'bg-white border-slate-200 text-slate-600'
+                                                    }`}
+                                                >
+                                                    ⚙️ Auto Schedule
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setEditingDoctor({ ...editingDoctor, isClinicOpenManualOverride: true })}
+                                                    className={`px-3 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                                                        editingDoctor.isClinicOpenManualOverride === true
+                                                            ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-xs'
+                                                            : 'bg-white border-slate-200 text-slate-600'
+                                                    }`}
+                                                >
+                                                    🟢 Force OPEN
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setEditingDoctor({ ...editingDoctor, isClinicOpenManualOverride: false })}
+                                                    className={`px-3 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                                                        editingDoctor.isClinicOpenManualOverride === false
+                                                            ? 'bg-rose-50 border-rose-500 text-rose-700 shadow-xs'
+                                                            : 'bg-white border-slate-200 text-slate-600'
+                                                    }`}
+                                                >
+                                                    🔴 Force CLOSED
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             )}
