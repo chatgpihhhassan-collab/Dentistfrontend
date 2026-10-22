@@ -33,6 +33,8 @@ export default function Navigation() {
         return () => clearInterval(timer);
     }, []);
 
+    const isHomePage = location.pathname === '/' || location.pathname === '/dashboard';
+
     // Listen for doctor profile and clinic schedule updates across the app
     React.useEffect(() => {
         const handleProfileUpdate = (e) => {
@@ -40,8 +42,18 @@ export default function Navigation() {
                 setDoctor(e.detail);
             }
         };
+        const handleOpenStaffModal = () => setIsStaffModalOpen(true);
+        const handleOpenScheduleModal = () => setIsScheduleModalOpen(true);
+
         window.addEventListener('dentia:doctor-profile-updated', handleProfileUpdate);
-        return () => window.removeEventListener('dentia:doctor-profile-updated', handleProfileUpdate);
+        window.addEventListener('dentia:open-staff-modal', handleOpenStaffModal);
+        window.addEventListener('dentia:open-schedule-modal', handleOpenScheduleModal);
+
+        return () => {
+            window.removeEventListener('dentia:doctor-profile-updated', handleProfileUpdate);
+            window.removeEventListener('dentia:open-staff-modal', handleOpenStaffModal);
+            window.removeEventListener('dentia:open-schedule-modal', handleOpenScheduleModal);
+        };
     }, []);
 
     React.useEffect(() => {
@@ -141,7 +153,7 @@ export default function Navigation() {
                             <button
                                 type="button"
                                 onClick={() => doctor && setIsScheduleModalOpen(true)}
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all shadow-2xs border ${
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all shadow-2xs border whitespace-nowrap shrink-0 ${
                                     liveStatus.isOpen 
                                         ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400' 
                                         : 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100 hover:border-rose-400'
@@ -156,12 +168,12 @@ export default function Navigation() {
                                         liveStatus.isOpen ? 'bg-emerald-500' : 'bg-rose-500'
                                     }`}></span>
                                 </span>
-                                <span className="tracking-tight">{liveStatus.label}</span>
-                                <span className="hidden md:inline text-[10px] font-medium opacity-85">
+                                <span className="tracking-tight whitespace-nowrap">{liveStatus.label}</span>
+                                <span className="hidden md:inline text-[10px] font-medium opacity-85 whitespace-nowrap">
                                     • {liveStatus.detail}
                                 </span>
                                 {doctor && (
-                                    <span className="text-[9px] bg-white/80 px-1 py-0.2 rounded font-bold text-slate-600 border border-slate-200/80 ml-0.5">
+                                    <span className="text-[9px] bg-white/80 px-1 py-0.2 rounded font-bold text-slate-600 border border-slate-200/80 ml-0.5 whitespace-nowrap">
                                         Edit
                                     </span>
                                 )}
@@ -171,46 +183,47 @@ export default function Navigation() {
                         {/* Direct Email */}
                         <a 
                             href={`mailto:${displayEmail}`} 
-                            className="flex items-center text-slate-700 hover:text-primary-teal font-semibold transition-colors hidden sm:flex group"
+                            className="flex items-center text-slate-700 hover:text-primary-teal font-semibold transition-colors hidden sm:flex group whitespace-nowrap shrink-0"
                             title={`Email Clinic: ${displayEmail}`}
                         >
-                            <Mail className="w-3.5 h-3.5 mr-1.5 text-primary-teal group-hover:scale-110 transition-transform" /> 
+                            <Mail className="w-3.5 h-3.5 mr-1.5 text-primary-teal group-hover:scale-110 transition-transform shrink-0" /> 
                             <span>{displayEmail}</span>
                         </a>
                     </div>
 
                     {/* Right: Hospital Affiliation & Trust Proof */}
                     <div className="flex items-center space-x-3 sm:space-x-4 ml-auto">
-                        {doctor && (
+                        {/* 🌟 Clinic Hours & Staff Management: ONLY visible on Home Page for Doctors */}
+                        {isHomePage && doctor && (
                             <button
                                 type="button"
                                 onClick={() => setIsScheduleModalOpen(true)}
-                                className="hidden xl:flex items-center gap-1.5 text-[11px] font-bold text-slate-600 bg-white hover:text-primary-teal hover:border-primary-teal/40 px-2.5 py-0.5 rounded-full border border-slate-200 shadow-2xs transition-all cursor-pointer"
+                                className="hidden xl:inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-bold text-slate-600 bg-white hover:text-primary-teal hover:border-primary-teal/40 px-2.5 py-1 rounded-full border border-slate-200 shadow-2xs transition-all cursor-pointer shrink-0"
                                 title="Doctor Clinic Schedule & Live Status Settings"
                             >
-                                <Sliders className="w-3 h-3 text-primary-teal" />
+                                <Sliders className="w-3 h-3 text-primary-teal shrink-0" />
                                 <span>Clinic Hours</span>
                             </button>
                         )}
-                        {doctor && !doctor.isSuperAdmin && doctor.role !== 'Receptionist' && (
+                        {isHomePage && doctor && !doctor.isSuperAdmin && doctor.role !== 'Receptionist' && (
                             <button
                                 type="button"
                                 onClick={() => setIsStaffModalOpen(true)}
-                                className="hidden md:flex items-center gap-1.5 text-[11px] font-bold text-slate-700 bg-white hover:text-teal-700 hover:border-teal-400 px-3 py-0.5 rounded-full border border-slate-200 shadow-2xs transition-all cursor-pointer ring-1 ring-black/5"
+                                className="hidden md:inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-bold text-teal-800 bg-teal-50/90 hover:bg-teal-100 hover:text-teal-900 px-3 py-1 rounded-full border border-teal-200/90 shadow-2xs transition-all cursor-pointer ring-1 ring-teal-500/10 shrink-0"
                                 title="Manage Front-Desk Staff, Passwords & Dynamic Granular Permissions"
                             >
-                                <Users className="w-3 h-3 text-teal-600" />
+                                <Users className="w-3.5 h-3.5 text-teal-600 shrink-0" />
                                 <span>Staff & Receptionists</span>
                             </button>
                         )}
                         {doctor && orgName && (
-                            <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-700 bg-white px-3 py-0.5 rounded-full border border-[#4A7CD2]/30 shadow-2xs">
+                            <div className="hidden lg:flex items-center gap-1.5 whitespace-nowrap text-xs text-slate-700 bg-white px-3 py-1 rounded-full border border-[#4A7CD2]/30 shadow-2xs shrink-0">
                                 <Building2 className="w-3.5 h-3.5 text-[#4A7CD2] shrink-0" />
                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Hospital:</span>
                                 <strong className="text-slate-800 font-bold max-w-[280px] truncate" title={orgName}>{orgName}</strong>
                             </div>
                         )}
-                        <span className="flex items-center text-accent-gold font-bold whitespace-nowrap">
+                        <span className="flex items-center text-accent-gold font-bold whitespace-nowrap shrink-0">
                             ★ {config.socialProof?.googleRating || 5.0} <span className="text-slate-600 font-medium ml-1 hidden sm:inline">({config.socialProof?.googleReviewCountText || '23k Google Reviews'})</span>
                         </span>
                         {!doctor && (

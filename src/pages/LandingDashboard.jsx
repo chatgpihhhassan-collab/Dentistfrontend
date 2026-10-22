@@ -172,6 +172,22 @@ export default function LandingDashboard() {
   const [toastMessage, setToastMessage] = useState(location.state?.message || '');
   const [openFaq, setOpenFaq] = useState(null);
   const [clinicDoctors, setClinicDoctors] = useState([]);
+  const [doctor, setDoctor] = useState(() => {
+    try {
+      const stored = localStorage.getItem('doctor');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    const handleProfileUpdate = (e) => {
+      if (e.detail) setDoctor(e.detail);
+    };
+    window.addEventListener('dentia:doctor-profile-updated', handleProfileUpdate);
+    return () => window.removeEventListener('dentia:doctor-profile-updated', handleProfileUpdate);
+  }, []);
 
   // WEB-001: Dynamic Loading of Real Clinic Doctors from /api/auth/doctors
   useEffect(() => {
@@ -233,6 +249,52 @@ export default function LandingDashboard() {
       <Navigation />
 
       <main className="flex-grow">
+        {/* 🌟 Clinician Quick Access Bar: Only visible on Home Page for logged-in Doctors */}
+        {doctor && !doctor.isSuperAdmin && doctor.role !== 'Receptionist' && (
+          <div className="w-full bg-gradient-to-r from-[#0A1A24] via-[#102433] to-[#0A1A24] border-b border-primary-teal/20 text-white py-2.5 px-4 sm:px-6 shadow-sm">
+            <div className="max-w-[1440px] mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="font-semibold text-teal-300">Clinician Workspace:</span>
+                <strong className="text-white font-bold">Dr. {(doctor.lastName || doctor.firstName || 'Doctor')}</strong>
+                {doctor.clinicName && (
+                  <span className="hidden md:inline text-slate-400 font-medium">
+                    • {doctor.clinicName}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('dentia:open-staff-modal'))}
+                  className="inline-flex items-center gap-1.5 whitespace-nowrap bg-teal-500/20 hover:bg-teal-500/30 text-teal-200 hover:text-white border border-teal-400/40 px-3.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs"
+                  title="Manage Front-Desk Staff, Passwords & Granular Permissions"
+                >
+                  <Users className="w-3.5 h-3.5 text-teal-300" />
+                  <span>Staff & Receptionists</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('dentia:open-schedule-modal'))}
+                  className="inline-flex items-center gap-1.5 whitespace-nowrap bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white border border-white/20 px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs"
+                  title="Update Clinic Operating Hours & Live Status"
+                >
+                  <Clock className="w-3.5 h-3.5 text-slate-300" />
+                  <span>Clinic Hours</span>
+                </button>
+                <RouterLink
+                  to="/directory"
+                  className="inline-flex items-center gap-1 whitespace-nowrap bg-primary-teal hover:bg-primary-hover text-white px-3.5 py-1 rounded-full text-xs font-bold transition-all shadow-xs"
+                >
+                  <span>Open Patient Directory →</span>
+                </RouterLink>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── 1. HERO SECTION ── */}
         {sec.showHeroSection && (
