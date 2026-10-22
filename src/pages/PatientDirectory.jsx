@@ -843,6 +843,24 @@ export default function PatientDirectory() {
             .join(' ');
     };
 
+    // Format general names or single string to Title Case (e.g. 'sahil raja' -> 'Sahil Raja')
+    const formatTitleCase = (str) => {
+        if (!str || typeof str !== 'string') return '';
+        const cleaned = str.replace(/[^a-zA-Z\s.'-]/g, '').replace(/\s+/g, ' ').trim();
+        return cleaned
+            .split(' ')
+            .map(w => w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : '')
+            .join(' ');
+    };
+
+    // Format Doctor greeting name (e.g. 'ahmed' -> 'Ahmed', 'dr. bajwa' -> 'Bajwa')
+    const getDoctorDisplayName = (doc) => {
+        if (!doc) return 'Doctor';
+        let raw = (doc.lastName || doc.firstName || doc.name || 'Doctor').trim();
+        raw = raw.replace(/^dr\.?\s+/i, '');
+        return formatTitleCase(raw) || 'Doctor';
+    };
+
     // Calculate age from date of birth (PAT-003)
     const getAge = (dobString) => {
         if (!dobString) return null;
@@ -1144,7 +1162,7 @@ export default function PatientDirectory() {
                                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                             </span>
                             <h2 className="text-sm sm:text-base font-extrabold tracking-tight text-dark-slate flex items-center gap-1.5 whitespace-nowrap">
-                                {getDynamicGreeting()}, <span className="text-[#4A7CD2]">Dr. {doctor?.lastName || 'Doctor'}</span>
+                                {getDynamicGreeting()}, <span className="text-[#4A7CD2]">Dr. {getDoctorDisplayName(doctor)}</span>
                             </h2>
                         </div>
 
@@ -2305,7 +2323,7 @@ export default function PatientDirectory() {
                                                 }`}
                                             >
                                                 <div className="min-w-0 pr-1">
-                                                    <p className="font-extrabold text-[#10244B] text-xs truncate">{app.fullName}</p>
+                                                    <p className="font-extrabold text-[#10244B] text-xs truncate">{formatTitleCase(app.fullName)}</p>
                                                     <span className="text-[9px] text-slate-500 font-semibold truncate block">{app.reason || 'General Checkup'}</span>
                                                 </div>
                                                 <span className="bg-[#4A7CD2] text-white px-2 py-0.5 rounded-md flex items-center gap-1 font-bold text-[9px] flex-shrink-0">
@@ -2338,7 +2356,7 @@ export default function PatientDirectory() {
                                                 }`}
                                             >
                                                 <div className="min-w-0 pr-1">
-                                                    <p className="font-extrabold text-[#10244B] text-xs truncate">{app.fullName}</p>
+                                                    <p className="font-extrabold text-[#10244B] text-xs truncate">{formatTitleCase(app.fullName)}</p>
                                                     <span className="text-[9px] text-slate-500 font-semibold truncate block">{app.reason || 'Completed Visit'}</span>
                                                 </div>
                                                 <span className="bg-rose-500 text-white px-2 py-0.5 rounded-md flex items-center gap-1 font-bold text-[9px] flex-shrink-0">
