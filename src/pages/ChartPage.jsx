@@ -10228,25 +10228,30 @@ export default function ChartPage() {
                     });
 
                     return (
-                      <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 animate-fade-in">
-                        <div className="w-full max-w-[580px] bg-white rounded-3xl border border-slate-200/90 shadow-2xl p-5 space-y-3.5">
-                          {/* Modern Modal Header */}
-                          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-5 animate-fade-in">
+                        <div className="w-full max-w-4xl bg-white rounded-3xl border border-slate-200/90 shadow-2xl flex flex-col max-h-[88vh] overflow-hidden">
+                          {/* Pinned Modal Header */}
+                          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-white flex-shrink-0 z-10">
                             <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-[#4A7CD2] to-[#2563EB] text-white flex items-center justify-center font-black text-xs shadow-xs tracking-tight">
+                              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#4A7CD2] to-[#2563EB] text-white flex items-center justify-center font-black text-sm shadow-xs tracking-tight flex-shrink-0">
                                 {detailedTooth}
                               </div>
                               <div>
-                                <h3 className="text-sm font-extrabold text-slate-900 leading-tight">
-                                  {isPediatricDetailed ? `Primary Tooth ${detailedTooth} Surface Anatomy` : `Tooth #${detailedTooth} Surface Anatomy`}
-                                </h3>
-                                <p className="text-[11px] font-semibold text-[#4A7CD2] mt-0.5">
+                                <div className="flex items-center gap-2">
+                                  <h3 className="text-base font-extrabold text-slate-900 leading-tight">
+                                    {isPediatricDetailed ? `Primary Tooth ${detailedTooth} Surface Anatomy` : `Tooth #${detailedTooth} Surface Anatomy`}
+                                  </h3>
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                                    {isPediatricDetailed ? 'Primary (A–T)' : 'Permanent (1–32)'}
+                                  </span>
+                                </div>
+                                <p className="text-xs font-semibold text-[#4A7CD2] mt-0.5">
                                   {toothName}
                                 </p>
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-2">
                               {/* Open in New Tab Option */}
                               <button
                                 type="button"
@@ -10254,7 +10259,7 @@ export default function ChartPage() {
                                   const curPid = patientId || patient?.patientID || patient?.patientId || '18';
                                   window.open(`/chart/${curPid}/tooth/${detailedTooth}`, '_blank');
                                 }}
-                                className="flex items-center gap-1.5 bg-blue-50/80 hover:bg-blue-100 text-[#2563EB] text-[11px] font-extrabold px-3 py-1.5 rounded-xl border border-blue-200/60 transition-all cursor-pointer shadow-2xs hover:shadow-xs"
+                                className="flex items-center gap-1.5 bg-blue-50/80 hover:bg-blue-100 text-[#2563EB] text-xs font-extrabold px-3.5 py-2 rounded-xl border border-blue-200/60 transition-all cursor-pointer shadow-2xs hover:shadow-xs"
                                 title="Open Full 3D Dossier & EHR Details in New Tab"
                               >
                                 <ExternalLink className="w-3.5 h-3.5" />
@@ -10267,187 +10272,234 @@ export default function ChartPage() {
                                   setDetailedTooth(null);
                                   setShowPaletteDrawer(false);
                                 }}
-                                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer transition-colors"
+                                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors"
                               >
                                 <X className="w-4 h-4" />
                               </button>
                             </div>
                           </div>
 
-                          {/* Associated Diagnostic Radiograph Banner */}
-                          {associatedRadiograph && (
-                            <div className="flex items-center justify-between p-2.5 rounded-xl bg-cyan-50 border border-cyan-200 text-xs shadow-2xs">
-                              <div className="flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
-                                <span className="text-slate-800 font-bold">
-                                  Diagnosed in Radiograph: <span className="text-cyan-700 font-mono">{associatedRadiograph.imageName}</span>
-                                </span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleInspectScan(associatedRadiograph)}
-                                className="flex items-center gap-1 text-[11px] font-bold text-cyan-600 hover:text-cyan-800 underline cursor-pointer"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                                <span>Inspect Scan (PiP)</span>
-                              </button>
-                            </div>
-                          )}
-
-                          {/* 5-Surface Diagram & Quick Actions Card */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center bg-slate-50/90 p-3.5 rounded-2xl border border-slate-200/70 shadow-2xs">
-                            {/* 5-Surface Geometric Box Diagram */}
-                            <div className="flex flex-col items-center">
-                              <span className="text-[9.5px] font-black text-slate-600 uppercase tracking-wider mb-1">
-                                5 Surface Zones (O, M, D, B, L)
-                              </span>
-                              <ToothSurfaceDiagram
-                                toothNumber={detailedTooth}
-                                surfaceData={activeSurfaceData}
-                                selectedCondition={selectedPaletteCondition}
-                                onSurfaceClick={(surfKey, cond) => {
-                                  const updatedForTooth = {
-                                    ...activeSurfaceData,
-                                    [surfKey]: activeSurfaceData[surfKey] === cond ? 'Normal / Healthy' : cond
-                                  };
-                                  setToothSurfacesState(prev => ({
-                                    ...prev,
-                                    [detailedTooth]: updatedForTooth
-                                  }));
-
-                                  // Sync back to main teethState instantly
-                                  const affected = Object.keys(updatedForTooth).filter(k => updatedForTooth[k] && updatedForTooth[k] !== 'Normal / Healthy');
-                                  let newStatus = 'Healthy';
-                                  if (affected.length > 0) {
-                                    newStatus = `${cond} — ${affected.join(', ')}`;
-                                  }
-                                  const commentStr = `Surface Zone ${surfKey}: ${cond} applied on Tooth #${detailedTooth}`;
-                                  setTeethState(prev => {
-                                    const toothKeyStr = String(detailedTooth).toUpperCase();
-                                    const idx = prev.findIndex(x => String(x.toothNumber ?? x.ToothNumber).toUpperCase() === toothKeyStr);
-                                    if (idx >= 0) {
-                                      const arr = [...prev];
-                                      arr[idx] = { ...arr[idx], status: newStatus, conditionStatus: newStatus, comments: commentStr, comment: commentStr };
-                                      return arr;
-                                    }
-                                    return [...prev, { toothNumber: detailedTooth, status: newStatus, conditionStatus: newStatus, comments: commentStr, comment: commentStr }];
-                                  });
-
-                                  // Non-blocking async DB save
-                                  executeCommand(detailedTooth, newStatus, commentStr).catch(e => console.warn("DB save err:", e));
-                                }}
-                                size={125}
-                              />
-                            </div>
-
-                            {/* Current Status & EHR Details Card */}
-                            <div className="flex flex-col gap-2 text-xs">
-                              {/* Actual Diagnosed Clinical Status */}
-                              <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
-                                <span className="text-[9.5px] font-bold text-slate-500 block uppercase tracking-wider">EHR Diagnosed Status</span>
+                          {/* Scrollable Modal Body */}
+                          <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+                            {/* Associated Diagnostic Radiograph Banner */}
+                            {associatedRadiograph && (
+                              <div className="flex items-center justify-between p-3 rounded-2xl bg-cyan-50/90 border border-cyan-200 text-xs shadow-2xs">
                                 <div className="flex items-center gap-2">
-                                  <span className={`w-2.5 h-2.5 rounded-full ${isActuallyHealthy ? 'bg-emerald-500' : 'bg-blue-600'}`} />
-                                  <span className="font-black text-slate-900 text-sm block truncate">
-                                    {existingTooth?.status || existingTooth?.conditionStatus || 'Healthy (Intact Enamel)'}
+                                  <span className="w-2.5 h-2.5 rounded-full bg-cyan-500 animate-pulse" />
+                                  <span className="text-slate-800 font-bold">
+                                    Diagnosed in Radiograph: <span className="text-cyan-700 font-mono">{associatedRadiograph.imageName}</span>
                                   </span>
                                 </div>
-                                <p className="text-[10px] font-semibold text-muted-text mt-0.5 line-clamp-2">
-                                  {existingTooth?.comments || existingTooth?.comment || (isPediatricDetailed ? `Intact primary deciduous enamel on Tooth ${detailedTooth}, physiological baseline` : 'Intact anatomical enamel, physiological baseline')}
-                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => handleInspectScan(associatedRadiograph)}
+                                  className="flex items-center gap-1 text-[11.5px] font-bold text-cyan-600 hover:text-cyan-800 underline cursor-pointer"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>Inspect Scan (PiP)</span>
+                                </button>
+                              </div>
+                            )}
+
+                            {/* 2-Column Studio Layout */}
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                              {/* Left Column: 5-Surface Diagram & EHR Details (5 cols) */}
+                              <div className="lg:col-span-5 flex flex-col gap-3">
+                                {/* 5-Surface Geometric Box Diagram Card */}
+                                <div className="bg-slate-50/90 rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex flex-col items-center text-center">
+                                  <div className="flex items-center justify-between w-full mb-2">
+                                    <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">
+                                      5 Surface Zones (MODBL)
+                                    </span>
+                                    <span className="text-[9.5px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                                      Interactive
+                                    </span>
+                                  </div>
+
+                                  <div className="my-1">
+                                    <ToothSurfaceDiagram
+                                      toothNumber={detailedTooth}
+                                      surfaceData={activeSurfaceData}
+                                      selectedCondition={selectedPaletteCondition}
+                                      onSurfaceClick={(surfKey, cond) => {
+                                        const updatedForTooth = {
+                                          ...activeSurfaceData,
+                                          [surfKey]: activeSurfaceData[surfKey] === cond ? 'Normal / Healthy' : cond
+                                        };
+                                        setToothSurfacesState(prev => ({
+                                          ...prev,
+                                          [detailedTooth]: updatedForTooth
+                                        }));
+
+                                        // Sync back to main teethState instantly
+                                        const affected = Object.keys(updatedForTooth).filter(k => updatedForTooth[k] && updatedForTooth[k] !== 'Normal / Healthy');
+                                        let newStatus = 'Healthy';
+                                        if (affected.length > 0) {
+                                          newStatus = `${cond} — ${affected.join(', ')}`;
+                                        }
+                                        const commentStr = `Surface Zone ${surfKey}: ${cond} applied on Tooth #${detailedTooth}`;
+                                        setTeethState(prev => {
+                                          const toothKeyStr = String(detailedTooth).toUpperCase();
+                                          const idx = prev.findIndex(x => String(x.toothNumber ?? x.ToothNumber).toUpperCase() === toothKeyStr);
+                                          if (idx >= 0) {
+                                            const arr = [...prev];
+                                            arr[idx] = { ...arr[idx], status: newStatus, conditionStatus: newStatus, comments: commentStr, comment: commentStr };
+                                            return arr;
+                                          }
+                                          return [...prev, { toothNumber: detailedTooth, status: newStatus, conditionStatus: newStatus, comments: commentStr, comment: commentStr }];
+                                        });
+
+                                        // Non-blocking async DB save
+                                        executeCommand(detailedTooth, newStatus, commentStr).catch(e => console.warn("DB save err:", e));
+                                      }}
+                                      size={135}
+                                    />
+                                  </div>
+
+                                  <p className="text-[10.5px] text-slate-500 mt-2 font-medium">
+                                    Click any zone to apply: <strong className="text-blue-700">{activePaletteCondition}</strong>
+                                  </p>
+
+                                  <div className="flex items-center gap-2 w-full mt-3 pt-3 border-t border-slate-200/70">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const cond = activePaletteCondition;
+                                        const isHealthy = cond === 'Normal / Healthy' || cond === 'Healthy';
+                                        const newSurfaces = isHealthy 
+                                          ? { O: 'Normal / Healthy', M: 'Normal / Healthy', D: 'Normal / Healthy', B: 'Normal / Healthy', L: 'Normal / Healthy' }
+                                          : { O: cond, M: cond, D: cond, B: cond, L: cond };
+
+                                        setToothSurfacesState(prev => ({
+                                          ...prev,
+                                          [detailedTooth]: newSurfaces
+                                        }));
+
+                                        const commentStr = `Restorative & Prosthodontic: ${cond} charted across all surfaces of Tooth #${detailedTooth}`;
+                                        setTeethState(prev => {
+                                          const toothKeyStr = String(detailedTooth).toUpperCase();
+                                          const idx = prev.findIndex(x => String(x.toothNumber ?? x.ToothNumber).toUpperCase() === toothKeyStr);
+                                          const newObj = {
+                                            toothNumber: detailedTooth,
+                                            status: cond,
+                                            conditionStatus: cond,
+                                            comments: commentStr,
+                                            comment: commentStr
+                                          };
+                                          if (idx >= 0) {
+                                            const updated = [...prev];
+                                            updated[idx] = { ...updated[idx], ...newObj };
+                                            return updated;
+                                          }
+                                          return [...prev, newObj];
+                                        });
+
+                                        executeCommand(detailedTooth, cond, commentStr).catch(e => console.warn("DB save err:", e));
+                                      }}
+                                      className="flex-1 py-1.5 px-2.5 rounded-xl text-[10.5px] font-extrabold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-all cursor-pointer"
+                                    >
+                                      Apply to All Surfaces
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setToothSurfacesState(prev => ({
+                                          ...prev,
+                                          [detailedTooth]: { O: 'Normal / Healthy', M: 'Normal / Healthy', D: 'Normal / Healthy', B: 'Normal / Healthy', L: 'Normal / Healthy' }
+                                        }));
+                                        setTeethState(prev => {
+                                          const toothKeyStr = String(detailedTooth).toUpperCase();
+                                          const idx = prev.findIndex(x => String(x.toothNumber ?? x.ToothNumber).toUpperCase() === toothKeyStr);
+                                          if (idx >= 0) {
+                                            const arr = [...prev];
+                                            arr[idx] = { ...arr[idx], status: 'Healthy', conditionStatus: 'Healthy', comments: 'Intact enamel, physiological baseline', comment: 'Intact enamel, physiological baseline' };
+                                            return arr;
+                                          }
+                                          return prev;
+                                        });
+                                        executeCommand(detailedTooth, 'Healthy', 'Intact enamel, physiological baseline').catch(e => console.warn(e));
+                                      }}
+                                      className="py-1.5 px-2.5 rounded-xl text-[10.5px] font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition-all cursor-pointer"
+                                    >
+                                      Reset Healthy
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Actual Diagnosed Clinical Status Card */}
+                                <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-1.5">
+                                  <span className="text-[9.5px] font-black text-slate-500 block uppercase tracking-wider">EHR Diagnosed Status</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isActuallyHealthy ? 'bg-emerald-500' : 'bg-blue-600'}`} />
+                                    <span className="font-extrabold text-slate-900 text-xs truncate">
+                                      {existingTooth?.status || existingTooth?.conditionStatus || 'Healthy (Intact Enamel)'}
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] font-medium text-slate-500 leading-snug">
+                                    {existingTooth?.comments || existingTooth?.comment || (isPediatricDetailed ? `Intact primary deciduous enamel on Tooth ${detailedTooth}, physiological baseline` : 'Intact anatomical enamel, physiological baseline')}
+                                  </p>
+                                </div>
                               </div>
 
-                              {/* Action Buttons */}
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => setShowPaletteDrawer(!showPaletteDrawer)}
-                                  className="flex-1 flex items-center justify-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-[#2563EB] font-black text-[11px] py-2 px-3 rounded-xl border border-blue-200 transition-all cursor-pointer shadow-2xs"
-                                >
-                                  <span>🎨</span>
-                                  <span>{showPaletteDrawer ? 'Hide Treatment Tools' : 'Edit Treatment & Surfaces'}</span>
-                                </button>
+                              {/* Right Column: Clinical Conditions Palette (7 cols) */}
+                              <div className="lg:col-span-7 flex flex-col h-full">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                                    Clinical Conditions & Procedures:
+                                  </span>
+                                  <span className="text-[10.5px] font-extrabold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-lg border border-blue-200">
+                                    Active: {activePaletteCondition}
+                                  </span>
+                                </div>
 
-                                <button
-                                  type="button"
-                                  onClick={() => {
+                                <ClinicalConditionPalette
+                                  selectedCondition={activePaletteCondition}
+                                  onSelectCondition={setSelectedPaletteCondition}
+                                  selectedToothNum={detailedTooth}
+                                  isPediatric={isPediatricDetailed}
+                                  onApplyToTooth={(tNum, cond) => {
+                                    const isHealthy = cond === 'Normal / Healthy' || cond === 'Healthy';
+                                    const newSurfaces = isHealthy 
+                                      ? { O: 'Normal / Healthy', M: 'Normal / Healthy', D: 'Normal / Healthy', B: 'Normal / Healthy', L: 'Normal / Healthy' }
+                                      : { O: cond, M: cond, D: cond, B: cond, L: cond };
+
+                                    // 1. Instant optimistic state update
                                     setToothSurfacesState(prev => ({
                                       ...prev,
-                                      [detailedTooth]: { O: 'Normal / Healthy', M: 'Normal / Healthy', D: 'Normal / Healthy', B: 'Normal / Healthy', L: 'Normal / Healthy' }
+                                      [tNum]: newSurfaces
                                     }));
+
+                                    const commentStr = `Restorative & Prosthodontic: ${cond} charted on Tooth #${tNum}`;
                                     setTeethState(prev => {
-                                      const toothKeyStr = String(detailedTooth).toUpperCase();
+                                      const toothKeyStr = String(tNum).toUpperCase();
                                       const idx = prev.findIndex(x => String(x.toothNumber ?? x.ToothNumber).toUpperCase() === toothKeyStr);
+                                      const newObj = {
+                                        toothNumber: tNum,
+                                        status: cond,
+                                        conditionStatus: cond,
+                                        comments: commentStr,
+                                        comment: commentStr
+                                      };
                                       if (idx >= 0) {
-                                        const arr = [...prev];
-                                        arr[idx] = { ...arr[idx], status: 'Healthy', conditionStatus: 'Healthy', comments: 'Intact enamel, physiological baseline', comment: 'Intact enamel, physiological baseline' };
-                                        return arr;
+                                        const updated = [...prev];
+                                        updated[idx] = { ...updated[idx], ...newObj };
+                                        return updated;
                                       }
-                                      return prev;
+                                      return [...prev, newObj];
                                     });
-                                    executeCommand(detailedTooth, 'Healthy', 'Intact enamel, physiological baseline').catch(e => console.warn(e));
+
+                                    // 2. Non-blocking async DB save
+                                    executeCommand(tNum, cond, commentStr).catch(e => console.warn("DB save err:", e));
                                   }}
-                                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] py-2 px-3 rounded-xl border border-slate-200 transition-all cursor-pointer"
-                                >
-                                  Reset Healthy
-                                </button>
+                                  className="border-slate-200/90 shadow-2xs"
+                                />
                               </div>
                             </div>
                           </div>
 
-                          {/* 7-Category Clinical Palette (Expandable on Demand for Treatment Charting) */}
-                          {showPaletteDrawer && (
-                            <div className="animate-fade-in space-y-2 pt-1 border-t border-slate-100">
-                              <div className="flex items-center justify-between px-1 text-[11px]">
-                                <span className="font-black text-slate-700">Select Procedure to Apply to Surfaces:</span>
-                                <span className="font-extrabold text-[#2563EB] bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
-                                  Selected: {activePaletteCondition}
-                                </span>
-                              </div>
-                              <ClinicalConditionPalette
-                                selectedCondition={activePaletteCondition}
-                                onSelectCondition={setSelectedPaletteCondition}
-                                selectedToothNum={detailedTooth}
-                                isPediatric={isPediatricDetailed}
-                                onApplyToTooth={(tNum, cond) => {
-                                  const isHealthy = cond === 'Normal / Healthy' || cond === 'Healthy';
-                                  const newSurfaces = isHealthy 
-                                    ? { O: 'Normal / Healthy', M: 'Normal / Healthy', D: 'Normal / Healthy', B: 'Normal / Healthy', L: 'Normal / Healthy' }
-                                    : { O: cond, M: cond, D: cond, B: cond, L: cond };
-
-                                  // 1. Instant optimistic state update
-                                  setToothSurfacesState(prev => ({
-                                    ...prev,
-                                    [tNum]: newSurfaces
-                                  }));
-
-                                  const commentStr = `Restorative & Prosthodontic: ${cond} charted on Tooth #${tNum}`;
-                                  setTeethState(prev => {
-                                    const toothKeyStr = String(tNum).toUpperCase();
-                                    const idx = prev.findIndex(x => String(x.toothNumber ?? x.ToothNumber).toUpperCase() === toothKeyStr);
-                                    const newObj = {
-                                      toothNumber: tNum,
-                                      status: cond,
-                                      conditionStatus: cond,
-                                      comments: commentStr,
-                                      comment: commentStr
-                                    };
-                                    if (idx >= 0) {
-                                      const updated = [...prev];
-                                      updated[idx] = { ...updated[idx], ...newObj };
-                                      return updated;
-                                    }
-                                    return [...prev, newObj];
-                                  });
-
-                                  // 2. Non-blocking async DB save
-                                  executeCommand(tNum, cond, commentStr).catch(e => console.warn("DB save err:", e));
-                                }}
-                              />
-                            </div>
-                          )}
-
-                          {/* Modal Actions Footer */}
-                          <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                          {/* Pinned Modal Actions Footer */}
+                          <div className="flex items-center justify-between px-6 py-3.5 bg-slate-50/90 border-t border-slate-100 flex-shrink-0 z-10">
                             <button
                               type="button"
                               onClick={() => {
@@ -10460,16 +10512,21 @@ export default function ChartPage() {
                               <span>View 3D Occlusal Model & Full Record ↗</span>
                             </button>
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setDetailedTooth(null);
-                                setShowPaletteDrawer(false);
-                              }}
-                              className="text-xs bg-[#4A7CD2] hover:bg-[#3665B7] text-white font-black px-5 py-2 rounded-xl cursor-pointer shadow-xs transition-all"
-                            >
-                              Done Inspecting
-                            </button>
+                            <div className="flex items-center gap-3">
+                              <span className="text-[11px] font-medium text-slate-400 hidden sm:inline">
+                                Cloud auto-sync enabled
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDetailedTooth(null);
+                                  setShowPaletteDrawer(false);
+                                }}
+                                className="text-xs bg-[#4A7CD2] hover:bg-[#3665B7] text-white font-black px-6 py-2 rounded-xl cursor-pointer shadow-xs transition-all"
+                              >
+                                Done Inspecting
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
