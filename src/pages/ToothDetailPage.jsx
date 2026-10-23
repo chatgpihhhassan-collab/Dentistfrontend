@@ -342,6 +342,12 @@ export default function ToothDetailPage() {
         let pData = null;
         if (pRes && pRes.ok) {
           pData = await pRes.json();
+          if (pData) {
+            const computedAge = calculatePatientAge(pData.dob || pData.DOB);
+            if (computedAge !== null) {
+              pData.age = computedAge;
+            }
+          }
           setPatient(pData);
           lastLoadedPatientIdRef.current = pid;
 

@@ -4,6 +4,8 @@
  * Features clear Maxilla (Upper Jaw) and Mandible (Lower Jaw) categorization with Tooth Types & Quadrants
  */
 
+import { calculatePatientAge } from './toothDataConstants.js';
+
 export const getAttendingDoctorName = (doctor, patient) => {
   let docObj = doctor;
 
@@ -66,8 +68,23 @@ export const handlePrintCompletePatientReport = (patientArg, teethListArg = [], 
     doctor = patientArg.doctor || doctorArg;
   }
 
+  // Resiliently calculate accurate patient age from DOB (e.g. 1988 -> 37 Yrs)
+  let resolvedAge = null;
+  const rawDobVal = patient?.dob || patient?.DOB || patient?.dateOfBirth || patient?.DateOfBirth;
+  if (rawDobVal) {
+    resolvedAge = calculatePatientAge(rawDobVal);
+  }
+  if (resolvedAge === null && (patient?.age || patient?.Age)) {
+    const parsed = parseInt(patient.age || patient.Age, 10);
+    if (!isNaN(parsed) && parsed >= 0) resolvedAge = parsed;
+  }
+  if (resolvedAge === null && patientArg?.patientAge !== undefined) {
+    const parsed = parseInt(patientArg.patientAge, 10);
+    if (!isNaN(parsed) && parsed >= 0) resolvedAge = parsed;
+  }
+
   const isPed = (patient?.dentitionType || '').toLowerCase() === 'pediatric' || 
-                (patient?.age && patient.age < 13);
+                (resolvedAge !== null ? resolvedAge < 13 : (patient?.age ? patient.age < 13 : false));
   
   // Format Patient Name cleanly (e.g. "salman ALI" -> "Salman Ali")
   const pFirst = (patient?.firstName || patient?.FirstName || '').trim();
@@ -518,11 +535,11 @@ export const handlePrintCompletePatientReport = (patientArg, teethListArg = [], 
           </div>
           <div>
             <div class="field-label">Age & Gender</div>
-            <div class="field-val">${patient?.age ? `${patient.age} Yrs` : '25 Yrs'} (${patient?.gender || 'Female'})</div>
+            <div class="field-val">${resolvedAge !== null ? `${resolvedAge} Yrs` : (patient?.age ? `${patient.age} Yrs` : 'N/A')} (${patient?.gender || patient?.Gender || 'Unspecified'})</div>
           </div>
           <div>
             <div class="field-label">Dentition Category</div>
-            <div class="field-val" style="font-weight: 700; color: #6D28D9;">${isPed ? '👶 Pediatric Primary (A–T)' : '🦷 Adult Permanent (1–32)'}</div>
+            <div class="field-val" style="font-weight: 700; color: #6D28D9;">${isPed ? '👶 Pediatric Primary (A–T)' : (resolvedAge !== null && resolvedAge <= 12 && resolvedAge >= 6 ? '🔀 Mixed Dentition' : '🦷 Adult Permanent (1–32)')}</div>
           </div>
         </div>
 

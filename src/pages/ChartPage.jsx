@@ -2243,6 +2243,13 @@ export default function ChartPage() {
         return;
       }
 
+      if (patientData) {
+        const computedAge = calculatePatientAge(patientData.dob || patientData.DOB);
+        if (computedAge !== null) {
+          patientData.age = computedAge;
+        }
+      }
+
       setPatient(patientData);
       setPrescriptions(presData || []);
 
