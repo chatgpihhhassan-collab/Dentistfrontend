@@ -1213,8 +1213,7 @@ export default function ChartPage() {
   const [isApplyingAiFindings, setIsApplyingAiFindings] = useState(false);
   const [appliedRadiographIds, setAppliedRadiographIds] = useState(new Set());
   const [deletingXrayId, setDeletingXrayId] = useState(null);
-
-  // Direct Dental Chart Radiographs & Impact Spotlight States
+  const [scanToDelete, setScanToDelete] = useState(null); // { id, title, type }
   const [activeScanImpact, setActiveScanImpact] = useState(null); // { scanId, imageName, teeth: [...], findings, radiograph }
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
   const [inspectorRadiograph, setInspectorRadiograph] = useState(null);
@@ -3359,7 +3358,7 @@ export default function ChartPage() {
     }
   };
 
-  const handleDeleteRadiograph = async (radId, e) => {
+  const handleDeleteRadiograph = (radId, e) => {
     if (e && e.stopPropagation) {
       e.stopPropagation();
     }
@@ -3367,11 +3366,19 @@ export default function ChartPage() {
 
     const targetScan = radiographs.find(r => (r.radiographID || r.RadiographID) === radId);
     const scanTitle = targetScan?.imageName || targetScan?.ImageName || `Scan #${radId}`;
+    const scanType = targetScan?.scanType || targetScan?.ScanType || targetScan?.type || 'Radiograph Scan';
 
-    const confirmMsg = `Are you sure you want to permanently delete "${scanTitle}"?\n\nThis will remove the radiograph image and its AI radiology diagnostic report. This action cannot be undone.`;
-    if (!window.confirm(confirmMsg)) {
-      return;
-    }
+    setScanToDelete({
+      id: radId,
+      title: scanTitle,
+      type: scanType
+    });
+  };
+
+  const handleConfirmDeleteRadiograph = async () => {
+    if (!scanToDelete?.id) return;
+    const radId = scanToDelete.id;
+    const scanTitle = scanToDelete.title;
 
     setDeletingXrayId(radId);
     try {
@@ -3444,13 +3451,15 @@ export default function ChartPage() {
 
         setToast({ visible: true, message: `Radiograph "${scanTitle}" deleted successfully.` });
         setTimeout(() => setToast({ visible: false, message: "" }), 3500);
+        setScanToDelete(null);
       } else {
         const errText = await res.text().catch(() => '');
         throw new Error(errText || `Server returned HTTP ${res.status}`);
       }
     } catch (err) {
       console.error("Error deleting radiograph:", err);
-      alert(`Error deleting radiograph: ${err.message || 'Failed to delete'}`);
+      setToast({ visible: true, message: `Error deleting radiograph: ${err.message || 'Failed to delete'}` });
+      setTimeout(() => setToast({ visible: false, message: "" }), 4000);
     } finally {
       setDeletingXrayId(null);
     }
@@ -13381,6 +13390,98 @@ export default function ChartPage() {
                   Save Changes First
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🗑️ Radiograph Scan Delete Confirmation Modal (Replaces browser window.confirm) */}
+      {scanToDelete && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => {
+            if (!deletingXrayId) setScanToDelete(null);
+          }}
+        >
+          <div
+            className="bg-white rounded-3xl border border-slate-200/90 p-6 max-w-md w-full shadow-2xl space-y-4 animate-scale-up"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center shrink-0 shadow-xs">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0 pt-0.5">
+                <h3 className="text-base font-extrabold text-slate-800 tracking-tight">
+                  Permanently Delete Scan?
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  This action is irreversible and cannot be undone.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setScanToDelete(null)}
+                disabled={Boolean(deletingXrayId)}
+                className="w-8 h-8 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition cursor-pointer disabled:opacity-40"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/70 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">File Name:</span>
+                <span className="text-xs font-bold text-slate-800 truncate" title={scanToDelete.title}>
+                  {scanToDelete.title}
+                </span>
+              </div>
+              {scanToDelete.type && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Scan Type:</span>
+                  <span className="text-xs font-semibold text-slate-700">
+                    {scanToDelete.type}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-rose-50/80 rounded-2xl p-3.5 border border-rose-100 flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <p className="text-xs text-rose-800 leading-relaxed">
+                This will remove the radiograph image and its AI radiology diagnostic report. This action cannot be undone.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setScanToDelete(null)}
+                disabled={Boolean(deletingXrayId)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteRadiograph}
+                disabled={Boolean(deletingXrayId)}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {deletingXrayId ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Permanently</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
