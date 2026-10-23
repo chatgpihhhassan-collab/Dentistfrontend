@@ -4,6 +4,7 @@ import {
   FileText, Trash2, CheckCircle2, ChevronRight, Activity, Clock
 } from 'lucide-react';
 import { API_BASE_URL } from '../../config/apiConfig';
+import { apiFetch } from '../../utils/apiClient';
 
 const COMMON_SITES = [
   'Buccal Mucosa (Left)',
@@ -89,16 +90,15 @@ export default function BiopsyPathologyModal({
   const loadBiopsyRecords = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/biopsy-records`);
+      const res = await apiFetch(`/api/patients/${patientId}/biopsy-records`);
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setRecordsList(data);
-          try {
-            localStorage.setItem(`dentia_biopsy_records_${patientId}`, JSON.stringify(data));
-          } catch (e) {}
-          return;
-        }
+        const records = Array.isArray(data) ? data : [];
+        setRecordsList(records);
+        try {
+          localStorage.setItem(`dentia_biopsy_records_${patientId}`, JSON.stringify(records));
+        } catch (e) {}
+        return;
       }
     } catch (err) {
       console.warn('Network call to load biopsy records failed, falling back to local cache:', err);
@@ -162,12 +162,12 @@ export default function BiopsyPathologyModal({
       };
       try {
         const prev = JSON.parse(localStorage.getItem(`dentia_biopsy_records_${patientId}`) || '[]');
-        const updated = [localRecord, ...prev.filter(r => r.biopsyID !== localRecord.biopsyID)];
+        const updated = [localRecord, ...prev.filter(r => (r.biopsyID ?? r.biopsyId ?? r.id) !== localRecord.biopsyID)];
         localStorage.setItem(`dentia_biopsy_records_${patientId}`, JSON.stringify(updated));
         setRecordsList(updated);
       } catch (e) {}
 
-      const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/biopsy-records`, {
+      const res = await apiFetch(`/api/patients/${patientId}/biopsy-records`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -204,28 +204,46 @@ export default function BiopsyPathologyModal({
     }
   };
 
-  const handleDelete = async (biopsyId) => {
+  const handleDelete = async (targetId) => {
+    if (!targetId) return;
     if (!window.confirm('Delete this biopsy & pathology record?')) return;
+    
+    // 1. Instant optimistic local deletion
+    setRecordsList(prev => prev.filter(r => (r.biopsyID ?? r.biopsyId ?? r.BiopsyID ?? r.id) !== targetId));
+    
+    // 2. Remove from local storage cache immediately
     try {
-      const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/biopsy-records/${biopsyId}`, {
+      const prev = JSON.parse(localStorage.getItem(`dentia_biopsy_records_${patientId}`) || '[]');
+      const updated = prev.filter(r => (r.biopsyID ?? r.biopsyId ?? r.BiopsyID ?? r.id) !== targetId);
+      localStorage.setItem(`dentia_biopsy_records_${patientId}`, JSON.stringify(updated));
+    } catch (e) {}
+
+    if (formData.biopsyId === targetId || formData.biopsyID === targetId) {
+      handleResetForm();
+    }
+
+    // 3. Call backend deletion with authorization
+    try {
+      const res = await apiFetch(`/api/patients/${patientId}/biopsy-records/${targetId}`, {
         method: 'DELETE'
       });
       if (res.ok) {
-        setToast({ show: true, message: 'Biopsy record deleted.', type: 'success' });
-        loadBiopsyRecords();
-        if (formData.biopsyId === biopsyId) {
-          handleResetForm();
-        }
+        setToast({ show: true, message: 'Biopsy record deleted successfully.', type: 'success' });
+      } else {
+        setToast({ show: true, message: 'Biopsy record removed.', type: 'success' });
       }
     } catch (err) {
-      console.error('Delete error:', err);
+      console.warn('Delete backend call failed, removed locally:', err);
+      setToast({ show: true, message: 'Biopsy record removed locally.', type: 'success' });
     }
+    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 2500);
   };
 
   const handleSelectRecord = (record) => {
-    setActiveBiopsyId(record.biopsyID);
+    const recId = record.biopsyID ?? record.biopsyId ?? record.BiopsyID ?? record.id;
+    setActiveBiopsyId(recId);
     setFormData({
-      biopsyId: record.biopsyID,
+      biopsyId: recId,
       biopsyType: record.biopsyType || 'Incisional',
       siteOfBiopsy: record.siteOfBiopsy || '',
       toothNumber: record.toothNumber,
@@ -674,11 +692,12 @@ export default function BiopsyPathologyModal({
                 ) : (
                   <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
                     {recordsList.map(record => {
-                      const isSelected = activeBiopsyId === record.biopsyID;
+                      const recId = record.biopsyID ?? record.biopsyId ?? record.BiopsyID ?? record.id;
+                      const isSelected = activeBiopsyId === recId || formData.biopsyId === recId;
                       const isExcisional = record.biopsyType === 'Excisional';
                       return (
                         <div
-                          key={record.biopsyID}
+                          key={recId}
                           className={`p-3 rounded-xl border text-left transition-all ${
                             isSelected
                               ? 'bg-purple-50/80 border-purple-400 ring-2 ring-purple-500/20'
@@ -713,7 +732,7 @@ export default function BiopsyPathologyModal({
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleDelete(record.biopsyID)}
+                              onClick={() => handleDelete(recId)}
                               className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                               title="Delete Biopsy"
                             >

@@ -6,6 +6,7 @@ import {
     Activity, DollarSign, Target, ChevronDown, ChevronUp, ChevronRight
 } from 'lucide-react';
 import API_BASE_URL from '../config/apiConfig';
+import { apiFetch } from '../utils/apiClient';
 import { TOOTH_NAMES } from './PatientTreatmentInvoiceTab';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -155,18 +156,20 @@ function FormRow({ label, children }) {
     );
 }
 
-function ModalFooter({ onCancel, submitLabel, loading }) {
+function ModalFooter({ onCancel, submitLabel, loading, disabled = false }) {
+    const isBtnDisabled = loading || disabled;
     return (
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid #F1F5F9' }}>
             <button type="button" onClick={onCancel} style={{
                 padding: '8px 18px', borderRadius: 10, background: '#F1F5F9',
                 border: '1px solid #E2E8F0', color: '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer',
             }}>Cancel</button>
-            <button type="submit" disabled={loading} style={{
+            <button type="submit" disabled={isBtnDisabled} style={{
                 padding: '8px 20px', borderRadius: 10, border: 'none', fontSize: 12, fontWeight: 700,
-                background: loading ? '#94A3B8' : 'linear-gradient(135deg,#3B82F6,#6366F1)',
-                color: '#fff', cursor: loading ? 'not-allowed' : 'pointer',
-                boxShadow: loading ? 'none' : '0 2px 8px rgba(99,102,241,0.3)',
+                background: isBtnDisabled ? '#CBD5E1' : 'linear-gradient(135deg,#3B82F6,#6366F1)',
+                color: isBtnDisabled ? '#64748B' : '#fff', cursor: isBtnDisabled ? 'not-allowed' : 'pointer',
+                boxShadow: isBtnDisabled ? 'none' : '0 2px 8px rgba(99,102,241,0.3)',
+                opacity: isBtnDisabled ? 0.75 : 1,
             }}>
                 {loading ? 'Saving…' : submitLabel}
             </button>
@@ -256,6 +259,10 @@ export default function TreatmentPlanTab({
     const [paymentMethod, setPaymentMethod] = useState('cash');
     const [paymentNotes, setPaymentNotes] = useState('');
 
+    // Single active treatment per tooth constraint state
+    const [conflictModalData, setConflictModalData] = useState(null);
+    const [conflictReasonNotes, setConflictReasonNotes] = useState('');
+
     const isDoctorOrAdmin = userRole === 'doctor' || userRole === 'admin' || userRole === 'Dentist';
     const fmtMoney = (n) => `Rs ${(Number(n) || 0).toLocaleString('en-PK')}`;
 
@@ -267,9 +274,9 @@ export default function TreatmentPlanTab({
         setLoading(true);
         try {
             const [iR, fR, cR] = await Promise.all([
-                fetch(`${API_BASE_URL}/api/patients/${patientId}/treatment-items?view=plan`),
-                fetch(`${API_BASE_URL}/api/patients/${patientId}/findings/unplanned`),
-                fetch(`${API_BASE_URL}/api/treatment-catalog`),
+                apiFetch(`/api/patients/${patientId}/treatment-items?view=plan`),
+                apiFetch(`/api/patients/${patientId}/findings/unplanned`),
+                apiFetch(`/api/treatment-catalog`),
             ]);
             if (iR.ok) {
                 const data = await iR.json();
@@ -306,15 +313,46 @@ export default function TreatmentPlanTab({
     const handleStatusTransition = async (rawId, newStatus, reason = null) => {
         const itemId = resolveId(rawId);
         if (!itemId) { showToast('error', 'Invalid procedure identifier.'); return; }
+
+        const currentItem = treatmentItems.find(i => resolveId(i) === itemId);
+
+        // CLINICAL RULE: Enforce Single Active Treatment per Tooth in Single Appointment
+        if (newStatus === 'in_progress' && currentItem && (currentItem.toothNo > 0 || currentItem.toothNumber > 0) && !reason) {
+            const tNum = currentItem.toothNo || currentItem.toothNumber;
+            const activeOther = treatmentItems.find(i => 
+                (i.toothNo === tNum || i.toothNumber === tNum) && 
+                i.status === 'in_progress' && 
+                resolveId(i) !== itemId
+            );
+            if (activeOther) {
+                setConflictModalData({
+                    activeItem: activeOther,
+                    nextItem: currentItem,
+                    toothNumber: tNum
+                });
+                setConflictReasonNotes('');
+                return;
+            }
+        }
+
         setActionLoading(p => ({ ...p, [itemId]: true }));
         try {
-            const res = await fetch(`${API_BASE_URL}/api/treatment-items/${itemId}`, {
-                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: doctorId || 1, userRole: userRole || 'Doctor', status: newStatus, closedReason: reason }),
+            const res = await apiFetch(`/api/treatment-items/${itemId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    userId: doctorId || 1, 
+                    userRole: userRole || 'Doctor', 
+                    status: newStatus, 
+                    closedReason: reason,
+                    transitionNotes: reason
+                }),
             });
             if (res.ok) {
                 const d = await res.json();
                 showToast('success', d.message || `Status updated.`);
+                setConflictModalData(null);
+                setConflictReasonNotes('');
                 await fetchPlanData();
                 if (onTreatmentStatusChange) onTreatmentStatusChange();
             } else {
@@ -329,51 +367,96 @@ export default function TreatmentPlanTab({
         e.preventDefault();
         const sel = catalog.find(c => String(c.id) === String(selectedCatalogId));
         if (!sel) { showToast('error', 'Select a procedure.'); return; }
+
+        const rawPrice = catalogPrice !== '' ? catalogPrice : sel.defaultPrice;
+        const numPrice = Number(rawPrice);
+        if (isNaN(numPrice) || numPrice <= 0) {
+            showToast('error', 'Procedure fee must be greater than zero. Zero or negative fee is not allowed.');
+            return;
+        }
+
         setSavingItem(true);
         try {
             const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/treatment-items`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ patientId, doctorId, catalogId: sel.id, name: sel.name, category: sel.category, toothNo: parseInt(catalogTooth, 10) || 0, source: 'manual', estimatedPrice: parseInt(catalogPrice, 10) || sel.defaultPrice, finalPrice: parseInt(catalogPrice, 10) || sel.defaultPrice, plannedVisits: parseInt(catalogVisits, 10) || sel.defaultVisits || 1, status: 'proposed', priceNote: catalogNote }),
+                body: JSON.stringify({
+                    patientId,
+                    doctorId,
+                    catalogId: sel.id,
+                    name: sel.name,
+                    category: sel.category,
+                    toothNo: parseInt(catalogTooth, 10) || 0,
+                    source: 'manual',
+                    estimatedPrice: numPrice,
+                    finalPrice: numPrice,
+                    plannedVisits: parseInt(catalogVisits, 10) || sel.defaultVisits || 1,
+                    status: 'proposed',
+                    priceNote: catalogNote
+                }),
             });
             if (res.ok) {
                 showToast('success', `Added "${sel.name}"`);
                 setShowCatalogModal(false); setSelectedCatalogId(''); setCatalogTooth('0'); setCatalogPrice(''); setCatalogNote('');
                 await fetchPlanData(); if (onTreatmentStatusChange) onTreatmentStatusChange();
-            } else { const e = await res.json().catch(() => ({})); showToast('error', e.message || 'Failed.'); }
+            } else { const err = await res.json().catch(() => ({})); showToast('error', err.message || 'Failed.'); }
         } catch { showToast('error', 'Network error.'); }
         finally { setSavingItem(false); }
     };
 
     const handleAddCustom = async (e) => {
         e.preventDefault();
-        if (!customName.trim()) { showToast('error', 'Name required.'); return; }
+        if (!customName.trim()) { showToast('error', 'Procedure name is required.'); return; }
+
+        const numPrice = Number(customPrice);
+        if (isNaN(numPrice) || numPrice <= 0) {
+            showToast('error', 'Procedure fee must be greater than zero. Zero or negative fee is not allowed.');
+            return;
+        }
+
         setSavingItem(true);
         try {
             const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/treatment-items`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ patientId, doctorId, name: customName.trim(), category: customCategory, toothNo: parseInt(customTooth, 10) || 0, source: 'manual', estimatedPrice: parseInt(customPrice, 10) || 0, finalPrice: parseInt(customPrice, 10) || 0, plannedVisits: parseInt(customVisits, 10) || 1, status: 'proposed', priceNote: customNote }),
+                body: JSON.stringify({
+                    patientId,
+                    doctorId,
+                    name: customName.trim(),
+                    category: customCategory,
+                    toothNo: parseInt(customTooth, 10) || 0,
+                    source: 'manual',
+                    estimatedPrice: numPrice,
+                    finalPrice: numPrice,
+                    plannedVisits: parseInt(customVisits, 10) || 1,
+                    status: 'proposed',
+                    priceNote: customNote
+                }),
             });
             if (res.ok) {
                 showToast('success', `Added "${customName}"`);
                 setShowCustomModal(false); setCustomName(''); setCustomTooth('0'); setCustomPrice(''); setCustomNote('');
                 await fetchPlanData(); if (onTreatmentStatusChange) onTreatmentStatusChange();
-            } else { const e = await res.json().catch(() => ({})); showToast('error', e.message || 'Failed.'); }
+            } else { const err = await res.json().catch(() => ({})); showToast('error', err.message || 'Failed.'); }
         } catch { showToast('error', 'Network error.'); }
         finally { setSavingItem(false); }
     };
 
     const handleAddFindingToPlan = async (finding) => {
+        const fee = Number(finding.estimatedPrice || finding.finalPrice || 0);
+        if (isNaN(fee) || fee <= 0) {
+            showToast('error', 'Cannot add procedure with zero or negative fee.');
+            return;
+        }
         setActionLoading(p => ({ ...p, [`f_${finding.toothNumber}`]: true }));
         try {
             const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/treatment-items`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ patientId, doctorId, name: finding.suggestedProcedureName, category: 'restorative', procedureCode: finding.suggestedProcedureCode, toothNo: finding.toothNumber, source: 'chart_save', sourceRef: `Finding: ${finding.conditionStatus}`, estimatedPrice: finding.estimatedPrice, finalPrice: finding.estimatedPrice, plannedVisits: 1, status: 'proposed', priceNote: finding.comments || `From chart: ${finding.conditionStatus}` }),
+                body: JSON.stringify({ patientId, doctorId, name: finding.suggestedProcedureName, category: 'restorative', procedureCode: finding.suggestedProcedureCode, toothNo: finding.toothNumber, source: 'chart_save', sourceRef: `Finding: ${finding.conditionStatus}`, estimatedPrice: fee, finalPrice: fee, plannedVisits: 1, status: 'proposed', priceNote: finding.comments || `From chart: ${finding.conditionStatus}` }),
             });
             if (res.ok) {
                 showToast('success', `Added Tooth #${finding.toothNumber} to treatment plan.`);
                 await fetchPlanData();
                 if (onTreatmentStatusChange) onTreatmentStatusChange();
-            } else { const e = await res.json().catch(() => ({})); showToast('error', e.message || 'Failed.'); }
+            } else { const err = await res.json().catch(() => ({})); showToast('error', err.message || 'Failed.'); }
         } catch { showToast('error', 'Network error.'); }
         finally { setActionLoading(p => ({ ...p, [`f_${finding.toothNumber}`]: false })); }
     };
@@ -381,17 +464,29 @@ export default function TreatmentPlanTab({
     const handleAddAllFindings = async (itemsToAdd = null) => {
         const targetList = Array.isArray(itemsToAdd) && itemsToAdd.length ? itemsToAdd : unplannedFindings;
         if (!targetList.length) return;
+
+        const validFindings = targetList.filter(f => {
+            const fee = Number(f.estimatedPrice || f.finalPrice || 0);
+            return !isNaN(fee) && fee > 0;
+        });
+
+        if (!validFindings.length) {
+            showToast('error', 'No findings with valid fee greater than zero.');
+            return;
+        }
+
         setActionLoading(p => ({ ...p, addAllFindings: true }));
         try {
             let addedCount = 0;
-            for (const f of targetList) {
+            for (const f of validFindings) {
+                const fee = Number(f.estimatedPrice || f.finalPrice || 0);
                 const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/treatment-items`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         patientId, doctorId, name: f.suggestedProcedureName, category: 'restorative',
                         procedureCode: f.suggestedProcedureCode, toothNo: f.toothNumber, source: 'chart_save',
-                        sourceRef: `Finding: ${f.conditionStatus}`, estimatedPrice: f.estimatedPrice,
-                        finalPrice: f.estimatedPrice, plannedVisits: 1, status: 'proposed',
+                        sourceRef: `Finding: ${f.conditionStatus}`, estimatedPrice: fee,
+                        finalPrice: fee, plannedVisits: 1, status: 'proposed',
                         priceNote: f.comments || `From chart: ${f.conditionStatus}`
                     }),
                 });
@@ -409,23 +504,59 @@ export default function TreatmentPlanTab({
 
     const handleRecordAdvance = async (e) => {
         e.preventDefault();
-        const amt = parseInt(paymentAmount, 10);
-        if (!paymentModalItem || !amt || amt <= 0) { showToast('error', 'Enter a valid amount.'); return; }
+        const amt = Number(paymentAmount);
+        const balanceDue = Number(paymentModalItem?.balance ?? paymentModalItem?.finalPrice ?? 0);
+
+        if (!paymentModalItem || isNaN(amt) || amt <= 0) {
+            showToast('error', 'Please enter a valid positive payment amount.');
+            return;
+        }
+
+        // CLINICAL & FINANCIAL RULE: Payment amount cannot exceed balance due
+        if (amt > balanceDue) {
+            showToast('error', `Amount cannot be greater than balance due (${fmtMoney(balanceDue)}).`);
+            return;
+        }
+
+        // Prevent overflow / astronomical integers
+        if (amt > 20000000) {
+            showToast('error', 'Amount exceeds the maximum permissible transaction limit (Rs 20,000,000).');
+            return;
+        }
+
         const targetId = resolveId(paymentModalItem);
         if (!targetId) { showToast('error', 'Invalid reference.'); return; }
         setSavingItem(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/payments`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ patientId, amount: amt, method: paymentMethod, receivedBy: doctorId || 1, note: paymentNotes || `Advance for ${paymentModalItem.name || 'treatment'}`, allocations: [{ treatmentItemId: targetId, amount: Math.min(amt, paymentModalItem.balance || paymentModalItem.finalPrice) }] }),
+            const res = await apiFetch(`/api/patients/${patientId}/payments`, {
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    patientId: parseInt(patientId, 10), 
+                    amount: Math.round(amt), 
+                    method: paymentMethod, 
+                    receivedBy: doctorId || 1, 
+                    note: paymentNotes || `Advance for ${paymentModalItem.name || 'treatment'}`, 
+                    allocations: [{ treatmentItemId: targetId, amount: Math.min(Math.round(amt), balanceDue) }] 
+                }),
             });
             if (res.ok) {
-                const d = await res.json(); showToast('success', d.message || 'Payment recorded!');
-                setPaymentModalItem(null); setPaymentAmount(''); setPaymentNotes('');
-                await fetchPlanData(); if (onTreatmentStatusChange) onTreatmentStatusChange();
-            } else { const e = await res.json().catch(() => ({})); showToast('error', e.message || (e.errors ? Object.values(e.errors).flat().join(', ') : '') || 'Payment failed.'); }
-        } catch { showToast('error', 'Network error.'); }
-        finally { setSavingItem(false); }
+                const d = await res.json(); 
+                showToast('success', d.message || `Payment of ${fmtMoney(amt)} recorded successfully!`);
+                setPaymentModalItem(null); 
+                setPaymentAmount(''); 
+                setPaymentNotes('');
+                await fetchPlanData(); 
+                if (onTreatmentStatusChange) onTreatmentStatusChange();
+            } else { 
+                const e = await res.json().catch(() => ({})); 
+                showToast('error', e.message || (e.errors ? Object.values(e.errors).flat().join(', ') : '') || 'Payment failed.'); 
+            }
+        } catch { 
+            showToast('error', 'Network error.'); 
+        } finally { 
+            setSavingItem(false); 
+        }
     };
 
     // ── Derived Data ──────────────────────────────────────────────────────────
@@ -908,114 +1039,255 @@ export default function TreatmentPlanTab({
             {/* ─────────────────── MODALS ─────────────────────────────────────── */}
 
             {/* Catalog Modal */}
-            {showCatalogModal && (
-                <ModalOverlay onClose={() => setShowCatalogModal(false)} maxWidth={500}>
-                    <div style={{ width: '100%' }}>
-                        <ModalHeader icon={Sparkles} title="Add from Clinic Catalog" subtitle="Select a standard procedure" onClose={() => setShowCatalogModal(false)} />
-                        <form onSubmit={handleAddFromCatalog} style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 13 }}>
-                            <FormRow label="Procedure">
-                                <select value={selectedCatalogId} onChange={e => {
-                                    setSelectedCatalogId(e.target.value);
-                                    const it = catalog.find(c => String(c.id) === String(e.target.value));
-                                    if (it) { setCatalogPrice(it.defaultPrice || ''); setCatalogVisits(it.defaultVisits || '1'); }
-                                }} required style={selectStyle}>
-                                    <option value="">— Choose Procedure —</option>
-                                    {catalog.map(c => <option key={c.id} value={c.id}>{c.name} ({(c.category || '').toUpperCase()}) — Rs {c.defaultPrice?.toLocaleString()}</option>)}
-                                </select>
-                            </FormRow>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                                <FormRow label="Tooth #">
-                                    <select value={catalogTooth} onChange={e => setCatalogTooth(e.target.value)} style={selectStyle}>
-                                        <option value="0">0 — Full Arch</option>
-                                        {Array.from({ length: 32 }, (_, i) => i + 1).map(n => <option key={n} value={n}>#{n}{TOOTH_NAMES?.[n] ? ` — ${TOOTH_NAMES[n]}` : ''}</option>)}
+            {showCatalogModal && (() => {
+                const sel = catalog.find(c => String(c.id) === String(selectedCatalogId));
+                const effectiveFee = catalogPrice !== '' ? Number(catalogPrice) : (sel ? sel.defaultPrice : null);
+                const isFeeInvalid = effectiveFee !== null && (isNaN(effectiveFee) || effectiveFee <= 0);
+                const isSubmitDisabled = !selectedCatalogId || isFeeInvalid || effectiveFee === null || effectiveFee <= 0 || savingItem;
+
+                return (
+                    <ModalOverlay onClose={() => setShowCatalogModal(false)} maxWidth={500}>
+                        <div style={{ width: '100%' }}>
+                            <ModalHeader icon={Sparkles} title="Add from Clinic Catalog" subtitle="Select a standard procedure" onClose={() => setShowCatalogModal(false)} />
+                            <form onSubmit={handleAddFromCatalog} style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 13 }}>
+                                <FormRow label="Procedure *">
+                                    <select value={selectedCatalogId} onChange={e => {
+                                        setSelectedCatalogId(e.target.value);
+                                        const it = catalog.find(c => String(c.id) === String(e.target.value));
+                                        if (it) { setCatalogPrice(it.defaultPrice || ''); setCatalogVisits(it.defaultVisits || '1'); }
+                                    }} required style={selectStyle}>
+                                        <option value="">— Choose Procedure —</option>
+                                        {catalog.map(c => <option key={c.id} value={c.id}>{c.name} ({(c.category || '').toUpperCase()}) — Rs {c.defaultPrice?.toLocaleString()}</option>)}
                                     </select>
                                 </FormRow>
-                                <FormRow label="Fee (Rs)">
-                                    <input type="number" value={catalogPrice} onChange={e => setCatalogPrice(e.target.value)} placeholder="Auto-filled" style={inputStyle} />
-                                </FormRow>
-                                <FormRow label="Visits">
-                                    <input type="number" value={catalogVisits} onChange={e => setCatalogVisits(e.target.value)} min="1" style={inputStyle} />
-                                </FormRow>
-                                <FormRow label="Note (opt)">
-                                    <input type="text" value={catalogNote} onChange={e => setCatalogNote(e.target.value)} placeholder="Optional" style={inputStyle} />
-                                </FormRow>
-                            </div>
-                            <ModalFooter onCancel={() => setShowCatalogModal(false)} submitLabel="Add to Plan" loading={savingItem} />
-                        </form>
-                    </div>
-                </ModalOverlay>
-            )}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                    <FormRow label="Tooth #">
+                                        <select value={catalogTooth} onChange={e => setCatalogTooth(e.target.value)} style={selectStyle}>
+                                            <option value="0">0 — Full Arch</option>
+                                            {Array.from({ length: 32 }, (_, i) => i + 1).map(n => <option key={n} value={n}>#{n}{TOOTH_NAMES?.[n] ? ` — ${TOOTH_NAMES[n]}` : ''}</option>)}
+                                        </select>
+                                    </FormRow>
+                                    <FormRow label="Fee (Rs) *">
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                            <input 
+                                                type="number" 
+                                                value={catalogPrice} 
+                                                onChange={e => setCatalogPrice(e.target.value)} 
+                                                placeholder="Enter Fee > 0" 
+                                                min="1"
+                                                required 
+                                                style={{
+                                                    ...inputStyle,
+                                                    border: isFeeInvalid ? '2px solid #EF4444' : inputStyle.border,
+                                                    background: isFeeInvalid ? '#FEF2F2' : '#fff'
+                                                }} 
+                                            />
+                                            {isFeeInvalid && (
+                                                <span style={{ fontSize: 10.5, color: '#DC2626', fontWeight: 700 }}>
+                                                    Fee must be greater than 0
+                                                </span>
+                                            )}
+                                        </div>
+                                    </FormRow>
+                                    <FormRow label="Visits">
+                                        <input type="number" value={catalogVisits} onChange={e => setCatalogVisits(e.target.value)} min="1" style={inputStyle} />
+                                    </FormRow>
+                                    <FormRow label="Note (opt)">
+                                        <input type="text" value={catalogNote} onChange={e => setCatalogNote(e.target.value)} placeholder="Optional" style={inputStyle} />
+                                    </FormRow>
+                                </div>
+                                <ModalFooter onCancel={() => setShowCatalogModal(false)} submitLabel="Add to Plan" loading={savingItem} disabled={isSubmitDisabled} />
+                            </form>
+                        </div>
+                    </ModalOverlay>
+                );
+            })()}
 
             {/* Custom Modal */}
-            {showCustomModal && (
-                <ModalOverlay onClose={() => setShowCustomModal(false)} maxWidth={500}>
-                    <div style={{ width: '100%' }}>
-                        <ModalHeader icon={Zap} title="Add Custom Procedure" subtitle="Freeform clinical entry" onClose={() => setShowCustomModal(false)} />
-                        <form onSubmit={handleAddCustom} style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 13 }}>
-                            <FormRow label="Procedure Name *">
-                                <input type="text" value={customName} onChange={e => setCustomName(e.target.value)} placeholder="e.g. Laser Splint" required style={inputStyle} />
-                            </FormRow>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                                <FormRow label="Category">
-                                    <select value={customCategory} onChange={e => setCustomCategory(e.target.value)} style={selectStyle}>
-                                        {['restorative','ortho','whitening','endo','surgery','periodontal','consultation'].map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
-                                    </select>
+            {showCustomModal && (() => {
+                const effectiveFee = customPrice !== '' ? Number(customPrice) : null;
+                const isFeeInvalid = effectiveFee !== null && (isNaN(effectiveFee) || effectiveFee <= 0);
+                const isSubmitDisabled = !customName.trim() || isFeeInvalid || effectiveFee === null || effectiveFee <= 0 || savingItem;
+
+                return (
+                    <ModalOverlay onClose={() => setShowCustomModal(false)} maxWidth={500}>
+                        <div style={{ width: '100%' }}>
+                            <ModalHeader icon={Zap} title="Add Custom Procedure" subtitle="Freeform clinical entry" onClose={() => setShowCustomModal(false)} />
+                            <form onSubmit={handleAddCustom} style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 13 }}>
+                                <FormRow label="Procedure Name *">
+                                    <input type="text" value={customName} onChange={e => setCustomName(e.target.value)} placeholder="e.g. Laser Splint" required style={inputStyle} />
                                 </FormRow>
-                                <FormRow label="Tooth #">
-                                    <select value={customTooth} onChange={e => setCustomTooth(e.target.value)} style={selectStyle}>
-                                        <option value="0">0 — Full Arch</option>
-                                        {Array.from({ length: 32 }, (_, i) => i + 1).map(n => <option key={n} value={n}>#{n}</option>)}
-                                    </select>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                    <FormRow label="Category">
+                                        <select value={customCategory} onChange={e => setCustomCategory(e.target.value)} style={selectStyle}>
+                                            {['restorative','ortho','whitening','endo','surgery','periodontal','consultation'].map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+                                        </select>
+                                    </FormRow>
+                                    <FormRow label="Tooth #">
+                                        <select value={customTooth} onChange={e => setCustomTooth(e.target.value)} style={selectStyle}>
+                                            <option value="0">0 — Full Arch</option>
+                                            {Array.from({ length: 32 }, (_, i) => i + 1).map(n => <option key={n} value={n}>#{n}</option>)}
+                                        </select>
+                                    </FormRow>
+                                    <FormRow label="Fee (Rs) *">
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                            <input 
+                                                type="number" 
+                                                value={customPrice} 
+                                                onChange={e => setCustomPrice(e.target.value)} 
+                                                placeholder="Enter Fee > 0" 
+                                                min="1" 
+                                                required 
+                                                style={{
+                                                    ...inputStyle,
+                                                    border: isFeeInvalid ? '2px solid #EF4444' : inputStyle.border,
+                                                    background: isFeeInvalid ? '#FEF2F2' : '#fff'
+                                                }} 
+                                            />
+                                            {isFeeInvalid && (
+                                                <span style={{ fontSize: 10.5, color: '#DC2626', fontWeight: 700 }}>
+                                                    Fee must be greater than 0
+                                                </span>
+                                            )}
+                                        </div>
+                                    </FormRow>
+                                    <FormRow label="Visits">
+                                        <input type="number" value={customVisits} onChange={e => setCustomVisits(e.target.value)} min="1" style={inputStyle} />
+                                    </FormRow>
+                                </div>
+                                <FormRow label="Note (opt)">
+                                    <input type="text" value={customNote} onChange={e => setCustomNote(e.target.value)} placeholder="Clinical note" style={inputStyle} />
                                 </FormRow>
-                                <FormRow label="Fee (Rs)">
-                                    <input type="number" value={customPrice} onChange={e => setCustomPrice(e.target.value)} placeholder="0" style={inputStyle} />
-                                </FormRow>
-                                <FormRow label="Visits">
-                                    <input type="number" value={customVisits} onChange={e => setCustomVisits(e.target.value)} min="1" style={inputStyle} />
-                                </FormRow>
-                            </div>
-                            <FormRow label="Note (opt)">
-                                <input type="text" value={customNote} onChange={e => setCustomNote(e.target.value)} placeholder="Clinical note" style={inputStyle} />
-                            </FormRow>
-                            <ModalFooter onCancel={() => setShowCustomModal(false)} submitLabel="Add Custom" loading={savingItem} />
-                        </form>
-                    </div>
-                </ModalOverlay>
-            )}
+                                <ModalFooter onCancel={() => setShowCustomModal(false)} submitLabel="Add Custom" loading={savingItem} disabled={isSubmitDisabled} />
+                            </form>
+                        </div>
+                    </ModalOverlay>
+                );
+            })()}
 
             {/* Payment Modal */}
-            {paymentModalItem && (
-                <ModalOverlay onClose={() => setPaymentModalItem(null)} maxWidth={440}>
-                    <div style={{ width: '100%' }}>
-                        <ModalHeader
-                            icon={Banknote} title="Record Advance Payment"
-                            subtitle={`${paymentModalItem.name || 'Treatment'} · ${paymentModalItem.toothNo > 0 ? `Tooth #${paymentModalItem.toothNo}` : 'Full Arch'}`}
-                            onClose={() => setPaymentModalItem(null)} />
-                        <form onSubmit={handleRecordAdvance} style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 13 }}>
-                            <div style={{ background: '#F8FAFC', borderRadius: 11, padding: '11px 13px', border: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between' }}>
-                                <div><div style={{ fontSize: 8.5, color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase' }}>Procedure Fee</div><div style={{ fontSize: 15, fontWeight: 900, color: '#0F172A' }}>{fmtMoney(paymentModalItem.finalPrice || 0)}</div></div>
-                                <div style={{ textAlign: 'right' }}><div style={{ fontSize: 8.5, color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase' }}>Balance Due</div><div style={{ fontSize: 15, fontWeight: 900, color: '#DC2626' }}>{fmtMoney(paymentModalItem.balance || 0)}</div></div>
-                            </div>
-                            <FormRow label="Amount (Rs) *">
-                                <input type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} min="1" required style={{ ...inputStyle, fontSize: 15, fontWeight: 800 }} placeholder="Enter amount" />
-                            </FormRow>
-                            <FormRow label="Method">
-                                <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} style={selectStyle}>
-                                    <option value="cash">Cash Counter</option>
-                                    <option value="card">Card / POS</option>
-                                    <option value="bank">Bank Transfer</option>
-                                    <option value="easypaisa">EasyPaisa</option>
-                                    <option value="jazzcash">JazzCash</option>
-                                </select>
-                            </FormRow>
-                            <FormRow label="Note (opt)">
-                                <input type="text" value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} placeholder="e.g. First installment" style={inputStyle} />
-                            </FormRow>
-                            <ModalFooter onCancel={() => setPaymentModalItem(null)} submitLabel="Confirm Payment" loading={savingItem} />
-                        </form>
-                    </div>
-                </ModalOverlay>
-            )}
+            {paymentModalItem && (() => {
+                const balanceDue = Number(paymentModalItem.balance ?? paymentModalItem.finalPrice ?? 0);
+                const rawAmount = paymentAmount ? String(paymentAmount).trim() : '';
+                const numAmount = rawAmount ? Number(rawAmount) : 0;
+                const isOverBalance = numAmount > balanceDue;
+                const isZeroOrNegative = rawAmount !== '' && (isNaN(numAmount) || numAmount <= 0);
+                const isTooLarge = numAmount > 20000000;
+                const hasValidationError = isOverBalance || isZeroOrNegative || isTooLarge;
+                const isSubmitDisabled = !rawAmount || numAmount <= 0 || hasValidationError || balanceDue <= 0 || savingItem;
+
+                return (
+                    <ModalOverlay onClose={() => setPaymentModalItem(null)} maxWidth={440}>
+                        <div style={{ width: '100%' }}>
+                            <ModalHeader
+                                icon={Banknote} 
+                                title="Record Advance Payment"
+                                subtitle={`${paymentModalItem.name || 'Treatment'} · ${paymentModalItem.toothNo > 0 ? `Tooth #${paymentModalItem.toothNo}` : 'Full Arch'}`}
+                                onClose={() => setPaymentModalItem(null)} 
+                            />
+                            <form onSubmit={handleRecordAdvance} style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 13 }}>
+                                <div style={{ background: '#F8FAFC', borderRadius: 11, padding: '11px 13px', border: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div>
+                                        <div style={{ fontSize: 8.5, color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Procedure Fee</div>
+                                        <div style={{ fontSize: 15, fontWeight: 900, color: '#0F172A' }}>{fmtMoney(paymentModalItem.finalPrice || 0)}</div>
+                                    </div>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <div style={{ fontSize: 8.5, color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Balance Due</div>
+                                        <div style={{ fontSize: 15, fontWeight: 900, color: balanceDue > 0 ? '#DC2626' : '#10B981' }}>{fmtMoney(balanceDue)}</div>
+                                    </div>
+                                </div>
+
+                                <FormRow label="Amount (Rs) *">
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                        <div style={{ position: 'relative' }}>
+                                            <input 
+                                                type="number" 
+                                                value={paymentAmount} 
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    // Limit max 8 digits to prevent integer overflow
+                                                    if (val.length > 8) return;
+                                                    setPaymentAmount(val);
+                                                }} 
+                                                min="1" 
+                                                max={balanceDue}
+                                                required 
+                                                style={{ 
+                                                    ...inputStyle, 
+                                                    fontSize: 15, 
+                                                    fontWeight: 800,
+                                                    border: isOverBalance ? '2px solid #EF4444' : inputStyle.border,
+                                                    background: isOverBalance ? '#FEF2F2' : '#fff',
+                                                    color: isOverBalance ? '#991B1B' : '#0F172A',
+                                                    paddingRight: balanceDue > 0 ? '90px' : '12px'
+                                                }} 
+                                                placeholder={`Enter amount (Max: ${balanceDue.toLocaleString()})`} 
+                                            />
+                                            {balanceDue > 0 && numAmount !== balanceDue && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPaymentAmount(String(balanceDue))}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        right: 8,
+                                                        top: '50%',
+                                                        transform: 'translateY(-50%)',
+                                                        fontSize: 10,
+                                                        fontWeight: 800,
+                                                        color: '#2563EB',
+                                                        background: '#EFF6FF',
+                                                        border: '1px solid #BFDBFE',
+                                                        padding: '3px 8px',
+                                                        borderRadius: 6,
+                                                        cursor: 'pointer'
+                                                    }}
+                                                    title="Auto-fill total balance due"
+                                                >
+                                                    Full Balance
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {isOverBalance && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#DC2626', fontSize: 11.5, fontWeight: 700, padding: '5px 8px', background: '#FEF2F2', borderRadius: 8, border: '1px solid #FCA5A5' }}>
+                                                <AlertCircle style={{ width: 14, height: 14, flexShrink: 0 }} />
+                                                <span>Amount cannot be greater than balance due ({fmtMoney(balanceDue)}).</span>
+                                            </div>
+                                        )}
+                                        {isZeroOrNegative && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#DC2626', fontSize: 11.5, fontWeight: 700, padding: '5px 8px', background: '#FEF2F2', borderRadius: 8, border: '1px solid #FCA5A5' }}>
+                                                <AlertCircle style={{ width: 14, height: 14, flexShrink: 0 }} />
+                                                <span>Payment amount must be greater than zero.</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </FormRow>
+
+                                <FormRow label="Method">
+                                    <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} style={selectStyle}>
+                                        <option value="cash">Cash Counter</option>
+                                        <option value="card">Card / POS</option>
+                                        <option value="bank">Bank Transfer</option>
+                                        <option value="easypaisa">EasyPaisa</option>
+                                        <option value="jazzcash">JazzCash</option>
+                                    </select>
+                                </FormRow>
+
+                                <FormRow label="Note (opt)">
+                                    <input type="text" value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} placeholder="e.g. First installment" style={inputStyle} />
+                                </FormRow>
+
+                                <ModalFooter 
+                                    onCancel={() => setPaymentModalItem(null)} 
+                                    submitLabel="Confirm Payment" 
+                                    loading={savingItem} 
+                                    disabled={isSubmitDisabled}
+                                />
+                            </form>
+                        </div>
+                    </ModalOverlay>
+                );
+            })()}
 
             {/* Cancel Modal */}
             {cancelModalItem && (
@@ -1034,6 +1306,73 @@ export default function TreatmentPlanTab({
                                     setCancelModalItem(null);
                                 }} style={{ padding: '8px 16px', borderRadius: 10, background: '#EF4444', color: '#fff', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}>
                                     Cancel Procedure
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </ModalOverlay>
+            )}
+
+            {/* Single Treatment Conflict Resolution Modal */}
+            {conflictModalData && (
+                <ModalOverlay onClose={() => setConflictModalData(null)} maxWidth={480}>
+                    <div style={{ width: '100%' }}>
+                        <ModalHeader 
+                            icon={AlertCircle} 
+                            title="Single-Treatment Rule Notice" 
+                            subtitle={`Tooth #${conflictModalData.toothNumber} Treatment Conflict`} 
+                            onClose={() => setConflictModalData(null)} 
+                            danger 
+                        />
+                        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                            <div style={{ padding: 12, borderRadius: 14, background: '#FFF1F2', border: '1px solid #FECDD3', fontSize: 12, color: '#9F1239' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 900, fontSize: 13 }}>
+                                    <span>⚠️ Active Treatment In Progress:</span>
+                                </div>
+                                <div style={{ fontSize: 13, fontWeight: 800, color: '#881337', marginTop: 4 }}>
+                                    {conflictModalData.activeItem?.name || conflictModalData.activeItem?.procedureName || 'Existing Procedure'}
+                                </div>
+                                <p style={{ marginTop: 6, fontSize: 11.5, color: '#BE123C', lineHeight: 1.4 }}>
+                                    Only <strong>one treatment at a time</strong> can be implemented on a tooth in a single appointment. To begin <strong>"{conflictModalData.nextItem?.name || conflictModalData.nextItem?.procedureName}"</strong>, the current treatment must be stopped, and clinical notes recorded explaining the transition.
+                                </p>
+                            </div>
+
+                            <FormRow label="Reason & Clinical Notes for Starting Next Treatment *">
+                                <textarea 
+                                    value={conflictReasonNotes} 
+                                    onChange={e => setConflictReasonNotes(e.target.value)} 
+                                    placeholder="Explain why the current treatment is being stopped and why the next treatment is required (e.g., pulp exposure noted, unexpected fracture, procedural pivot)..." 
+                                    rows={3} 
+                                    style={{ ...inputStyle, resize: 'none' }} 
+                                    required 
+                                    autoFocus
+                                />
+                            </FormRow>
+
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 4 }}>
+                                <button 
+                                    type="button" 
+                                    onClick={() => setConflictModalData(null)} 
+                                    style={{ padding: '8px 16px', borderRadius: 10, background: '#F1F5F9', border: '1px solid #CBD5E1', color: '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                                >
+                                    Keep Current Treatment
+                                </button>
+                                <button 
+                                    type="button" 
+                                    disabled={!conflictReasonNotes.trim() || actionLoading[resolveId(conflictModalData.nextItem)]}
+                                    onClick={() => {
+                                        const nextId = resolveId(conflictModalData.nextItem);
+                                        handleStatusTransition(nextId, 'in_progress', conflictReasonNotes.trim());
+                                    }} 
+                                    style={{ 
+                                        padding: '8px 18px', borderRadius: 10, 
+                                        background: conflictReasonNotes.trim() ? '#2563EB' : '#94A3B8', 
+                                        color: '#fff', fontSize: 12, fontWeight: 800, border: 'none', 
+                                        cursor: conflictReasonNotes.trim() ? 'pointer' : 'not-allowed',
+                                        boxShadow: conflictReasonNotes.trim() ? '0 2px 8px rgba(37,99,235,0.3)' : 'none'
+                                    }}
+                                >
+                                    Stop Previous & Start Next Treatment
                                 </button>
                             </div>
                         </div>

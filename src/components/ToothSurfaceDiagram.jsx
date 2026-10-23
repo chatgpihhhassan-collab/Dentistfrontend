@@ -574,7 +574,7 @@ export default function ToothSurfaceDiagram({
     if (lower.includes('rct') || lower.includes('canal') || lower.includes('endo') || lower.includes('root canal')) {
       return { fill: '#7C3AED', stroke: '#4C1D95', textFill: '#FFFFFF' };
     }
-    if (lower.includes('crown') || lower.includes('bridge') || lower.includes('zirconia')) {
+    if (lower.includes('crown') || lower.includes('bridge') || lower.includes('zirconia') || lower.includes('pontic')) {
       return { fill: '#D97706', stroke: '#B45309', textFill: '#FFFFFF' };
     }
     if (lower.includes('implant')) {

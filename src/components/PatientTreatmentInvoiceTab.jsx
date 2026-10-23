@@ -8,6 +8,7 @@ import {
     TrendingUp, Wallet
 } from 'lucide-react';
 import API_BASE_URL from '../config/apiConfig';
+import { apiFetch } from '../utils/apiClient';
 import { generateInvoicePdf } from '../utils/InvoicePdfGenerator';
 
 export const TOOTH_NAMES = {
@@ -76,6 +77,8 @@ export default function PatientTreatmentInvoiceTab({
     const [loading, setLoading] = useState(true);
     const [invoiceItems, setInvoiceItems] = useState([]);
     const [accountSummary, setAccountSummary] = useState(null);
+    const [paymentsList, setPaymentsList] = useState([]);
+    const [activeView, setActiveView] = useState('procedures'); // 'procedures' | 'payments'
     const [feedback, setFeedback] = useState({ type: '', message: '' });
     const [expandedItemId, setExpandedItemId] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -94,7 +97,7 @@ export default function PatientTreatmentInvoiceTab({
     const [creditAllocations, setCreditAllocations] = useState({});
     const [allocatingCredit, setAllocatingCredit] = useState(false);
 
-    // Void / Refund Modal State (Admin Only)
+    // Void / Refund Modal State (Doctor & Admin)
     const [voidModalPayment, setVoidModalPayment] = useState(null);
     const [voidReason, setVoidReason] = useState('');
     const [voidingPayment, setVoidingPayment] = useState(false);
@@ -119,17 +122,19 @@ export default function PatientTreatmentInvoiceTab({
         setTimeout(() => setFeedback({ type: '', message: '' }), 4500);
     };
 
-    // Load Financial Invoices & Account Summary (NO TEETHSTATE DERIVATION!)
+    // Load Financial Invoices, Account Summary & Payments History
     const fetchFinancialDossier = async () => {
         if (!patientId) return;
         setLoading(true);
         try {
-            const [itemsRes, summaryRes] = await Promise.all([
-                fetch(`${API_BASE_URL}/api/patients/${patientId}/treatment-items?view=invoices`),
-                fetch(`${API_BASE_URL}/api/patients/${patientId}/account-summary`)
+            const cacheBuster = Date.now();
+            const [itemsRes, summaryRes, paymentsRes] = await Promise.all([
+                apiFetch(`/api/patients/${patientId}/treatment-items?view=invoices&_t=${cacheBuster}`),
+                apiFetch(`/api/patients/${patientId}/account-summary?_t=${cacheBuster}`),
+                apiFetch(`/api/patients/${patientId}/payments?_t=${cacheBuster}`)
             ]);
 
-            if (itemsRes.ok) {
+            if (itemsRes && itemsRes.ok) {
                 const items = await itemsRes.json();
                 const normalized = (Array.isArray(items) ? items : []).map(i => {
                     const finalPrice = i.finalPrice || i.estimatedPrice || (Number(i.fee) || 0);
@@ -154,9 +159,13 @@ export default function PatientTreatmentInvoiceTab({
                 });
                 setInvoiceItems(normalized);
             }
-            if (summaryRes.ok) {
+            if (summaryRes && summaryRes.ok) {
                 const summary = await summaryRes.json();
                 setAccountSummary(summary);
+            }
+            if (paymentsRes && paymentsRes.ok) {
+                const pList = await paymentsRes.json();
+                setPaymentsList(Array.isArray(pList) ? pList : []);
             }
         } catch (err) {
             console.error('Failed to load billing dossier:', err);
@@ -224,10 +233,27 @@ export default function PatientTreatmentInvoiceTab({
     // Record Flexible Payment
     const handleRecordPayment = async (e) => {
         e.preventDefault();
-        const amt = parseInt(paymentAmount, 10);
-        if (!amt || amt <= 0) {
+        const amt = Number(paymentAmount);
+        if (isNaN(amt) || amt <= 0) {
             showToast('error', 'Please enter a valid positive payment amount.');
             return;
+        }
+
+        if (amt > 20000000) {
+            showToast('error', 'Amount exceeds the maximum permissible transaction limit (Rs 20,000,000).');
+            return;
+        }
+
+        // Validate procedure-specific allocations do not exceed balance due
+        for (const [itemId, aVal] of Object.entries(paymentAllocations)) {
+            const allocAmt = Number(aVal) || 0;
+            if (allocAmt > 0) {
+                const item = invoiceItems.find(i => String(i.id || i.treatmentItemID || i.treatmentItemId) === String(itemId));
+                if (item && allocAmt > (item.balance || 0)) {
+                    showToast('error', `Allocation for "${item.name}" (Rs ${allocAmt.toLocaleString()}) cannot exceed balance due (Rs ${(item.balance || 0).toLocaleString()}).`);
+                    return;
+                }
+            }
         }
 
         const allocList = Object.entries(paymentAllocations)
@@ -236,7 +262,7 @@ export default function PatientTreatmentInvoiceTab({
 
         setRecordingPayment(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/payments`, {
+            const res = await apiFetch(`/api/patients/${patientId}/payments`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -297,7 +323,7 @@ export default function PatientTreatmentInvoiceTab({
 
         setAllocatingCredit(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/api/payments/allocations`, {
+            const res = await apiFetch(`/api/payments/allocations`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -324,22 +350,23 @@ export default function PatientTreatmentInvoiceTab({
         }
     };
 
-    // Void Payment Submit (Admin Only)
+    // Void Payment Submit (Doctor & Admin with reason)
     const handleVoidPayment = async () => {
-        if (!voidModalPayment || !voidReason.trim()) {
+        const pId = voidModalPayment?.paymentId || voidModalPayment?.paymentID || voidModalPayment?.id;
+        if (!pId || !voidReason.trim()) {
             showToast('error', 'Mandatory void reason is required.');
             return;
         }
 
         setVoidingPayment(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/api/payments/void`, {
+            const res = await apiFetch(`/api/payments/void`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    paymentId: voidModalPayment.paymentId,
-                    voidedBy: userId,
-                    userRole: userRole,
+                    paymentId: pId,
+                    voidedBy: userId || 1,
+                    userRole: userRole || 'Doctor',
                     reason: voidReason.trim()
                 })
             });
@@ -366,8 +393,8 @@ export default function PatientTreatmentInvoiceTab({
     const handleSavePriceEdit = async (e) => {
         e.preventDefault();
         const p = parseInt(newPrice, 10);
-        if (isNaN(p) || p < 0 || !priceChangeReason.trim()) {
-            showToast('error', 'Please enter a valid price and non-empty reason.');
+        if (isNaN(p) || p <= 0 || !priceChangeReason.trim()) {
+            showToast('error', 'Please enter a valid price greater than zero and non-empty reason.');
             return;
         }
 
@@ -379,7 +406,7 @@ export default function PatientTreatmentInvoiceTab({
 
         setSavingPrice(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/api/treatment-items/${targetId}`, {
+            const res = await apiFetch(`/api/treatment-items/${targetId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -408,6 +435,47 @@ export default function PatientTreatmentInvoiceTab({
         } finally {
             setSavingPrice(false);
         }
+    };
+
+    // Print Official Receipt for a Payment in Ledger
+    const handlePrintSinglePaymentReceipt = (payment) => {
+        const receiptNum = payment.receiptNo || payment.receiptNumber || `REC-${payment.paymentID || payment.paymentId}`;
+        generateInvoicePdf({
+            patient: patient || { firstName: 'Valued', lastName: 'Patient', patientID: patientId },
+            doctor: { firstName: 'Dental', lastName: 'Clinic' },
+            invoice: {
+                invoiceNumber: receiptNum,
+                invoiceDate: payment.paymentDate || new Date().toISOString(),
+                currency: 'PKR',
+                subTotal: payment.amount,
+                totalAmount: payment.amount,
+                paidAmount: payment.amount,
+                balanceDue: 0,
+                status: (payment.status || '').toLowerCase() === 'voided' ? 'Voided' : 'Paid',
+                items: [
+                    {
+                        cdtCode: 'PAYMENT',
+                        toothNumber: 'All',
+                        description: `Payment Receipt ${receiptNum} (${payment.method || 'cash'})`,
+                        fee: payment.amount,
+                        quantity: 1
+                    }
+                ]
+            },
+            payments: [
+                {
+                    receiptNumber: receiptNum,
+                    amount: payment.amount,
+                    method: payment.method || 'cash',
+                    date: payment.paymentDate
+                }
+            ],
+            clinic: {
+                name: 'DENTIA DENTAL HEALTHCARE & SURGERY',
+                phone: '+92 42 3588 4400',
+                email: 'billing@dentia.clinic'
+            }
+        });
     };
 
     // Dynamic counts for financial tabs
@@ -652,368 +720,623 @@ export default function PatientTreatmentInvoiceTab({
                 </div>
             )}
 
-            {/* Table Controls Toolbar */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
-                {/* Search & Filter */}
-                <div className="flex items-center gap-2 flex-wrap">
-                    <div className="relative min-w-[220px]">
-                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search procedure or tooth..."
-                            className="w-full text-xs pl-8 pr-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-hidden focus:border-[#4A7CD2]"
-                        />
-                    </div>
+            {/* Primary View Switcher: Procedures vs Payments Ledger */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-slate-200 pb-2">
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setActiveView('procedures')}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                            activeView === 'procedures'
+                                ? 'bg-[#4A7CD2] text-white shadow-xs font-black'
+                                : 'bg-white text-slate-600 hover:text-dark-slate hover:bg-slate-100 border border-slate-200'
+                        }`}
+                    >
+                        <Layers className="w-4 h-4" />
+                        <span>Procedures & Invoices</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                            activeView === 'procedures' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                        }`}>
+                            {invoiceItems.length}
+                        </span>
+                    </button>
 
-                    <div className="flex items-center gap-1 bg-[#F4F6FA] p-1 rounded-xl border border-slate-200">
-                        {[
-                            { id: 'ALL', label: 'ALL', count: counts.ALL },
-                            { id: 'UNPAID', label: 'UNPAID', count: counts.UNPAID },
-                            { id: 'PARTIAL', label: 'PARTIAL', count: counts.PARTIAL },
-                            { id: 'PAID', label: 'PAID', count: counts.PAID }
-                        ].map(t => (
-                            <button
-                                key={t.id}
-                                type="button"
-                                onClick={() => setStatusFilter(t.id)}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                                    statusFilter === t.id
-                                        ? 'bg-white text-[#4A7CD2] shadow-2xs font-extrabold'
-                                        : 'text-slate-600 hover:text-dark-slate'
-                                }`}
-                            >
-                                <span>{t.label}</span>
-                                <span className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-bold ${
-                                    statusFilter === t.id
-                                        ? 'bg-blue-100 text-[#4A7CD2]'
-                                        : 'bg-slate-200/80 text-slate-600'
-                                }`}>
-                                    {t.count}
-                                </span>
-                            </button>
-                        ))}
-                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setActiveView('payments')}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                            activeView === 'payments'
+                                ? 'bg-emerald-600 text-white shadow-xs font-black'
+                                : 'bg-white text-slate-600 hover:text-dark-slate hover:bg-slate-100 border border-slate-200'
+                        }`}
+                    >
+                        <Receipt className="w-4 h-4" />
+                        <span>Payment Receipts Ledger</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                            activeView === 'payments' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                        }`}>
+                            {paymentsList.length}
+                        </span>
+                    </button>
                 </div>
 
-                {/* Primary Financial Action Buttons */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                        type="button"
-                        onClick={() => handleOpenPaymentDialog()}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer"
-                    >
-                        <Banknote className="w-3.5 h-3.5" />
-                        <span>Receive Payment</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={handlePrintStatement}
-                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white text-dark-slate hover:bg-slate-50 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
-                        title="Download official PDF account statement"
-                    >
-                        <Printer className="w-3.5 h-3.5 text-slate-600" />
-                        <span>Print Statement</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={fetchFinancialDossier}
-                        className="p-2 rounded-xl text-slate-500 hover:text-[#4A7CD2] hover:bg-blue-50 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
-                        title="Refresh Invoices"
-                    >
-                        <RefreshCw className="w-4 h-4" />
-                    </button>
+                <div className="text-[11px] text-muted-text font-medium hidden md:block">
+                    {activeView === 'procedures' 
+                        ? 'Detailed procedure breakdown, pricing & clinical delivery'
+                        : 'Official payment receipts ledger, unallocated credits & void/refund management'}
                 </div>
             </div>
 
-            {/* Invoiced & Billable Items Table */}
-            {loading ? (
-                <div className="flex flex-col items-center justify-center py-20 text-muted-text space-y-3">
-                    <RefreshCw className="w-8 h-8 animate-spin text-emerald-600" />
-                    <p className="text-xs font-bold">Loading patient financial ledger & invoices...</p>
-                </div>
-            ) : filteredItems.length === 0 ? (
-                <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center flex flex-col items-center justify-center space-y-3 shadow-2xs">
-                    <div className="w-16 h-16 rounded-3xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
-                        <Receipt className="w-8 h-8" />
+            {/* VIEW 1: PROCEDURES & INVOICES */}
+            {activeView === 'procedures' && (
+                <>
+                    {/* Table Controls Toolbar */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
+                        {/* Search & Filter */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <div className="relative min-w-[220px]">
+                                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search procedure or tooth..."
+                                    className="w-full text-xs pl-8 pr-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-hidden focus:border-[#4A7CD2]"
+                                />
+                            </div>
+
+                            <div className="flex items-center gap-1 bg-[#F4F6FA] p-1 rounded-xl border border-slate-200">
+                                {[
+                                    { id: 'ALL', label: 'ALL', count: counts.ALL },
+                                    { id: 'UNPAID', label: 'UNPAID', count: counts.UNPAID },
+                                    { id: 'PARTIAL', label: 'PARTIAL', count: counts.PARTIAL },
+                                    { id: 'PAID', label: 'PAID', count: counts.PAID }
+                                ].map(t => (
+                                    <button
+                                        key={t.id}
+                                        type="button"
+                                        onClick={() => setStatusFilter(t.id)}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                                            statusFilter === t.id
+                                                ? 'bg-white text-[#4A7CD2] shadow-2xs font-extrabold'
+                                                : 'text-slate-600 hover:text-dark-slate'
+                                        }`}
+                                    >
+                                        <span>{t.label}</span>
+                                        <span className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-bold ${
+                                            statusFilter === t.id
+                                                ? 'bg-blue-100 text-[#4A7CD2]'
+                                                : 'bg-slate-200/80 text-slate-600'
+                                        }`}>
+                                            {t.count}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Primary Financial Action Buttons */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => handleOpenPaymentDialog()}
+                                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer"
+                            >
+                                <Banknote className="w-3.5 h-3.5" />
+                                <span>Receive Payment</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handlePrintStatement}
+                                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white text-dark-slate hover:bg-slate-50 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
+                                title="Download official PDF account statement"
+                            >
+                                <Printer className="w-3.5 h-3.5 text-slate-600" />
+                                <span>Print Statement</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={fetchFinancialDossier}
+                                className="p-2 rounded-xl text-slate-500 hover:text-[#4A7CD2] hover:bg-blue-50 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
+                                title="Refresh Invoices"
+                            >
+                                <RefreshCw className="w-4 h-4" />
+                            </button>
+                        </div>
                     </div>
-                    <div className="space-y-1">
-                        <h3 className="text-base font-extrabold text-dark-slate">
-                            {invoiceItems.length === 0 
-                                ? 'No Treatment Procedures or Invoices Found' 
-                                : `No ${statusFilter.toLowerCase()} procedures found`}
-                        </h3>
-                        <p className="text-xs text-muted-text max-w-md mx-auto">
-                            {invoiceItems.length === 0
-                                ? 'Procedures added in the dental chart or treatment plan will appear here for billing and receipts.'
-                                : `There are no procedures currently marked as ${statusFilter.toLowerCase()} (out of ${invoiceItems.length} total procedures).`}
-                        </p>
-                    </div>
-                    {invoiceItems.length > 0 ? (
-                        <button
-                            type="button"
-                            onClick={() => setStatusFilter('ALL')}
-                            className="mt-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#4A7CD2] text-white hover:bg-[#3665B7] shadow-xs cursor-pointer"
-                        >
-                            Show All Procedures ({invoiceItems.length})
-                        </button>
+
+                    {/* Invoiced & Billable Items Table */}
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-20 text-muted-text space-y-3">
+                            <RefreshCw className="w-8 h-8 animate-spin text-emerald-600" />
+                            <p className="text-xs font-bold">Loading patient financial ledger & invoices...</p>
+                        </div>
+                    ) : filteredItems.length === 0 ? (
+                        <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center flex flex-col items-center justify-center space-y-3 shadow-2xs">
+                            <div className="w-16 h-16 rounded-3xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
+                                <Receipt className="w-8 h-8" />
+                            </div>
+                            <div className="space-y-1">
+                                <h3 className="text-base font-extrabold text-dark-slate">
+                                    {invoiceItems.length === 0 
+                                        ? 'No Treatment Procedures or Invoices Found' 
+                                        : `No ${statusFilter.toLowerCase()} procedures found`}
+                                </h3>
+                                <p className="text-xs text-muted-text max-w-md mx-auto">
+                                    {invoiceItems.length === 0
+                                        ? 'Procedures added in the dental chart or treatment plan will appear here for billing and receipts.'
+                                        : `There are no procedures currently marked as ${statusFilter.toLowerCase()} (out of ${invoiceItems.length} total procedures).`}
+                                </p>
+                            </div>
+                            {invoiceItems.length > 0 ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setStatusFilter('ALL')}
+                                    className="mt-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#4A7CD2] text-white hover:bg-[#3665B7] shadow-xs cursor-pointer"
+                                >
+                                    Show All Procedures ({invoiceItems.length})
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={onNavigateToPlan}
+                                    className="mt-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#4A7CD2] text-white hover:bg-[#3665B7] shadow-xs cursor-pointer"
+                                >
+                                    View Treatment Plan Tab
+                                </button>
+                            )}
+                        </div>
                     ) : (
-                        <button
-                            type="button"
-                            onClick={onNavigateToPlan}
-                            className="mt-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#4A7CD2] text-white hover:bg-[#3665B7] shadow-xs cursor-pointer"
-                        >
-                            View Treatment Plan Tab
-                        </button>
-                    )}
-                </div>
-            ) : (
-                <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-2xs">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs">
-                            <thead className="bg-[#F8FAFC] border-b border-slate-200/80 text-[10.5px] font-extrabold text-slate-500 uppercase tracking-wider">
-                                <tr>
-                                    <th className="py-3 px-4">Tooth / Modality</th>
-                                    <th className="py-3 px-4">Procedure Details</th>
-                                    <th className="py-3 px-4">Clinical Status</th>
-                                    <th className="py-3 px-4 text-right">Price</th>
-                                    <th className="py-3 px-4 text-right">Paid</th>
-                                    <th className="py-3 px-4 text-right">Balance Due</th>
-                                    <th className="py-3 px-4 text-center">Payment Status</th>
-                                    <th className="py-3 px-4 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {filteredItems.map(item => {
-                                    const itemId = item.id || item.treatmentItemID || item.treatmentItemId;
-                                    const isExpanded = expandedItemId === itemId;
-                                    const toothNo = item.toothNo !== undefined ? item.toothNo : (item.toothNumber || 0);
-                                    const toothLabel = toothNo > 0 ? (TOOTH_NAMES[toothNo] || `Tooth #${toothNo}`) : 'Full Arch / General';
-                                    const itemName = item.name || item.procedureName || 'Treatment';
-                                    const price = item.finalPrice || 0;
-                                    const paid = item.paid || 0;
-                                    const balance = item.balance || 0;
-                                    const hasAllocations = item.allocations && item.allocations.length > 0;
+                        <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-2xs">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs">
+                                    <thead className="bg-[#F8FAFC] border-b border-slate-200/80 text-[10.5px] font-extrabold text-slate-500 uppercase tracking-wider">
+                                        <tr>
+                                            <th className="py-3 px-4">Tooth / Modality</th>
+                                            <th className="py-3 px-4">Procedure Details</th>
+                                            <th className="py-3 px-4">Clinical Status</th>
+                                            <th className="py-3 px-4 text-right">Price</th>
+                                            <th className="py-3 px-4 text-right">Paid</th>
+                                            <th className="py-3 px-4 text-right">Balance Due</th>
+                                            <th className="py-3 px-4 text-center">Payment Status</th>
+                                            <th className="py-3 px-4 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {filteredItems.map(item => {
+                                            const itemId = item.id || item.treatmentItemID || item.treatmentItemId;
+                                            const isExpanded = expandedItemId === itemId;
+                                            const toothNo = item.toothNo !== undefined ? item.toothNo : (item.toothNumber || 0);
+                                            const itemName = item.name || item.procedureName || 'Treatment';
+                                            const price = item.finalPrice || 0;
+                                            const paid = item.paid || 0;
+                                            const balance = item.balance || 0;
+                                            const hasAllocations = item.allocations && item.allocations.length > 0;
 
-                                    return (
-                                        <React.Fragment key={itemId}>
-                                            <tr className={`hover:bg-slate-50/70 transition-colors ${isExpanded ? 'bg-blue-50/20' : ''}`}>
-                                                {/* Tooth */}
-                                                <td className="py-3.5 px-4 whitespace-nowrap">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="w-8 h-8 rounded-xl bg-slate-100 text-dark-slate font-black flex items-center justify-center text-xs border border-slate-200">
-                                                            {toothNo > 0 ? `#${toothNo}` : 'ALL'}
-                                                        </span>
-                                                        <span className="text-[11px] text-muted-text font-bold">
-                                                            {toothNo > 0 ? `Tooth ${toothNo}` : 'General'}
-                                                        </span>
-                                                    </div>
-                                                </td>
-
-                                                {/* Procedure */}
-                                                <td className="py-3.5 px-4">
-                                                    <div>
-                                                        <p className="font-extrabold text-dark-slate">{itemName}</p>
-                                                        <p className="text-[10px] text-muted-text font-medium flex items-center gap-1.5 mt-0.5">
-                                                            <span className="uppercase">{item.category}</span>
-                                                            {item.procedureCode && <span>• CDT {item.procedureCode}</span>}
-                                                            {item.priceNote && <span className="italic text-slate-500">• {item.priceNote}</span>}
-                                                        </p>
-                                                    </div>
-                                                </td>
-
-                                                {/* Clinical Status */}
-                                                <td className="py-3.5 px-4 whitespace-nowrap">
-                                                    {item.status === 'completed' ? (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                                            Completed
-                                                        </span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-300">
-                                                            <Clock className="w-3 h-3 text-blue-600" />
-                                                            Prepaid / In Progress
-                                                        </span>
-                                                    )}
-                                                </td>
-
-                                                {/* Price */}
-                                                <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                                                    <span className="font-black text-dark-slate">{formatMoney(price)}</span>
-                                                </td>
-
-                                                {/* Paid */}
-                                                <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                                                    <span className={`font-black ${paid > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                                                        {formatMoney(paid)}
-                                                    </span>
-                                                </td>
-
-                                                {/* Balance Due */}
-                                                <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                                                    <span className={`font-black ${balance > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
-                                                        {formatMoney(balance)}
-                                                    </span>
-                                                </td>
-
-                                                {/* Payment Status Badge */}
-                                                <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                                                    {item.paymentStatus === 'paid' && (
-                                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500 text-white shadow-2xs">
-                                                            PAID
-                                                        </span>
-                                                    )}
-                                                    {item.paymentStatus === 'partial' && (
-                                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white shadow-2xs">
-                                                            PARTIAL
-                                                        </span>
-                                                    )}
-                                                    {item.paymentStatus === 'unpaid' && (
-                                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white shadow-2xs">
-                                                            UNPAID
-                                                        </span>
-                                                    )}
-                                                </td>
-
-                                                {/* Actions */}
-                                                <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                                                    <div className="flex items-center justify-end gap-1.5">
-                                                        {balance > 0 && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleOpenPaymentDialog(item)}
-                                                                className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
-                                                                title="Collect payment against this item"
-                                                            >
-                                                                Pay Due
-                                                            </button>
-                                                        )}
-
-                                                        {isDoctorOrAdmin && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setPriceEditItem(item);
-                                                                    setNewPrice(String(price));
-                                                                    setPriceChangeReason('');
-                                                                }}
-                                                                className="p-1.5 rounded-lg text-slate-400 hover:text-dark-slate hover:bg-slate-100 transition-colors cursor-pointer"
-                                                                title="Override Price (Doctor/Admin)"
-                                                            >
-                                                                <Edit3 className="w-3.5 h-3.5" />
-                                                            </button>
-                                                        )}
-
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setExpandedItemId(isExpanded ? null : itemId)}
-                                                            className={`p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-all cursor-pointer ${isExpanded ? 'bg-blue-100 text-[#4A7CD2]' : ''}`}
-                                                            title="Toggle Payment Allocation History"
-                                                        >
-                                                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-
-                                            {/* Expandable Payment Allocations Sub-Table */}
-                                            {isExpanded && (
-                                                <tr className="bg-[#F8FAFC]">
-                                                    <td colSpan="8" className="p-4 border-t border-b border-slate-200">
-                                                        <div className="space-y-2">
-                                                            <div className="flex items-center justify-between">
-                                                                <h5 className="text-[11px] font-extrabold text-dark-slate uppercase tracking-wider flex items-center gap-1.5">
-                                                                    <Receipt className="w-3.5 h-3.5 text-[#4A7CD2]" />
-                                                                    Payment Allocation History ({item.allocations?.length || 0})
-                                                                </h5>
-                                                                <span className="text-[10px] text-muted-text">
-                                                                    Immutable financial receipt ledger
+                                            return (
+                                                <React.Fragment key={itemId}>
+                                                    <tr className={`hover:bg-slate-50/70 transition-colors ${isExpanded ? 'bg-blue-50/20' : ''}`}>
+                                                        {/* Tooth */}
+                                                        <td className="py-3.5 px-4 whitespace-nowrap">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="w-8 h-8 rounded-xl bg-slate-100 text-dark-slate font-black flex items-center justify-center text-xs border border-slate-200">
+                                                                    {toothNo > 0 ? `#${toothNo}` : 'ALL'}
+                                                                </span>
+                                                                <span className="text-[11px] text-muted-text font-bold">
+                                                                    {toothNo > 0 ? `Tooth ${toothNo}` : 'General'}
                                                                 </span>
                                                             </div>
+                                                        </td>
 
-                                                            {!hasAllocations ? (
-                                                                <p className="text-xs text-muted-text italic bg-white p-3 rounded-xl border border-slate-200 text-center">
-                                                                    No payments have been allocated to this treatment item yet.
+                                                        {/* Procedure */}
+                                                        <td className="py-3.5 px-4">
+                                                            <div>
+                                                                <p className="font-extrabold text-dark-slate">{itemName}</p>
+                                                                <p className="text-[10px] text-muted-text font-medium flex items-center gap-1.5 mt-0.5">
+                                                                    <span className="uppercase">{item.category}</span>
+                                                                    {item.procedureCode && <span>• CDT {item.procedureCode}</span>}
+                                                                    {item.priceNote && <span className="italic text-slate-500">• {item.priceNote}</span>}
                                                                 </p>
-                                                            ) : (
-                                                                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
-                                                                    <table className="w-full text-left text-xs">
-                                                                        <thead className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200">
-                                                                            <tr>
-                                                                                <th className="py-2 px-3">Receipt #</th>
-                                                                                <th className="py-2 px-3">Date & Time</th>
-                                                                                <th className="py-2 px-3">Method</th>
-                                                                                <th className="py-2 px-3">Received By</th>
-                                                                                <th className="py-2 px-3 text-right">Amount</th>
-                                                                                <th className="py-2 px-3 text-right">Actions</th>
-                                                                            </tr>
-                                                                        </thead>
-                                                                        <tbody className="divide-y divide-slate-100">
-                                                                            {item.allocations.map(alloc => (
-                                                                                <tr key={alloc.id} className="hover:bg-slate-50">
-                                                                                    <td className="py-2.5 px-3 font-mono font-bold text-[#4A7CD2]">
-                                                                                        {alloc.receiptNo}
-                                                                                    </td>
-                                                                                    <td className="py-2.5 px-3 text-muted-text">
-                                                                                        {new Date(alloc.paymentDate).toLocaleDateString('en-GB', {
-                                                                                            day: '2-digit', month: 'short', year: 'numeric',
-                                                                                            hour: '2-digit', minute: '2-digit'
-                                                                                        })}
-                                                                                    </td>
-                                                                                    <td className="py-2.5 px-3 capitalize font-medium">
-                                                                                        {alloc.method}
-                                                                                    </td>
-                                                                                    <td className="py-2.5 px-3 text-slate-600">
-                                                                                        User #{alloc.receivedBy || '1'}
-                                                                                    </td>
-                                                                                    <td className="py-2.5 px-3 text-right font-black text-emerald-600">
-                                                                                        {formatMoney(alloc.amount)}
-                                                                                    </td>
-                                                                                    <td className="py-2.5 px-3 text-right">
-                                                                                        <div className="flex items-center justify-end gap-1.5">
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                onClick={() => handlePrintReceipt(item, alloc)}
-                                                                                                className="p-1 rounded-md text-slate-500 hover:text-dark-slate hover:bg-slate-100 transition-colors cursor-pointer"
-                                                                                                title="Print Official PDF Receipt"
-                                                                                            >
-                                                                                                <Printer className="w-3.5 h-3.5" />
-                                                                                            </button>
+                                                            </div>
+                                                        </td>
 
-                                                                                            {isAdmin && (
-                                                                                                <button
-                                                                                                    type="button"
-                                                                                                    onClick={() => {
-                                                                                                        setVoidModalPayment(alloc);
-                                                                                                        setVoidReason('');
-                                                                                                    }}
-                                                                                                    className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                                                                                                    title="Void / Refund this Payment (Admin Only)"
-                                                                                                >
-                                                                                                    <Ban className="w-3.5 h-3.5" />
-                                                                                                </button>
-                                                                                            )}
-                                                                                        </div>
-                                                                                    </td>
-                                                                                </tr>
-                                                                            ))}
-                                                                        </tbody>
-                                                                    </table>
+                                                        {/* Clinical Status */}
+                                                        <td className="py-3.5 px-4 whitespace-nowrap">
+                                                            {item.status === 'completed' ? (
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                                                    Completed
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-300">
+                                                                    <Clock className="w-3 h-3 text-blue-600" />
+                                                                    Prepaid / In Progress
+                                                                </span>
+                                                            )}
+                                                        </td>
+
+                                                        {/* Price */}
+                                                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                                            <span className="font-black text-dark-slate">{formatMoney(price)}</span>
+                                                        </td>
+
+                                                        {/* Paid */}
+                                                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                                            <span className={`font-black ${paid > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                                                {formatMoney(paid)}
+                                                            </span>
+                                                        </td>
+
+                                                        {/* Balance Due */}
+                                                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                                            <span className={`font-black ${balance > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                                                                {formatMoney(balance)}
+                                                            </span>
+                                                        </td>
+
+                                                        {/* Payment Status Badge */}
+                                                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                                                            {item.paymentStatus === 'paid' && (
+                                                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500 text-white shadow-2xs">
+                                                                    PAID
+                                                                </span>
+                                                            )}
+                                                            {item.paymentStatus === 'partial' && (
+                                                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white shadow-2xs">
+                                                                    PARTIAL
+                                                                </span>
+                                                            )}
+                                                            {item.paymentStatus === 'unpaid' && (
+                                                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white shadow-2xs">
+                                                                    UNPAID
+                                                                </span>
+                                                            )}
+                                                        </td>
+
+                                                        {/* Actions */}
+                                                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                                            <div className="flex items-center justify-end gap-1.5">
+                                                                {balance > 0 && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleOpenPaymentDialog(item)}
+                                                                        className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
+                                                                        title="Collect payment against this item"
+                                                                    >
+                                                                        Pay Due
+                                                                    </button>
+                                                                )}
+
+                                                                {isDoctorOrAdmin && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setPriceEditItem(item);
+                                                                            setNewPrice(String(price));
+                                                                            setPriceChangeReason('');
+                                                                        }}
+                                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-dark-slate hover:bg-slate-100 transition-colors cursor-pointer"
+                                                                        title="Override Price (Doctor/Admin)"
+                                                                    >
+                                                                        <Edit3 className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                )}
+
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setExpandedItemId(isExpanded ? null : itemId)}
+                                                                    className={`p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-all cursor-pointer ${isExpanded ? 'bg-blue-100 text-[#4A7CD2]' : ''}`}
+                                                                    title="Toggle Payment Allocation History"
+                                                                >
+                                                                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+
+                                                    {/* Expandable Payment Allocations Sub-Table */}
+                                                    {isExpanded && (
+                                                        <tr className="bg-[#F8FAFC]">
+                                                            <td colSpan="8" className="p-4 border-t border-b border-slate-200">
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <h5 className="text-[11px] font-extrabold text-dark-slate uppercase tracking-wider flex items-center gap-1.5">
+                                                                            <Receipt className="w-3.5 h-3.5 text-[#4A7CD2]" />
+                                                                            Payment Allocation History ({item.allocations?.length || 0})
+                                                                        </h5>
+                                                                        <span className="text-[10px] text-muted-text">
+                                                                            Immutable financial receipt ledger
+                                                                        </span>
+                                                                    </div>
+
+                                                                    {!hasAllocations ? (
+                                                                        <p className="text-xs text-muted-text italic bg-white p-3 rounded-xl border border-slate-200 text-center">
+                                                                            No payments have been allocated to this treatment item yet.
+                                                                        </p>
+                                                                    ) : (
+                                                                        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+                                                                            <table className="w-full text-left text-xs">
+                                                                                <thead className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200">
+                                                                                    <tr>
+                                                                                        <th className="py-2 px-3">Receipt #</th>
+                                                                                        <th className="py-2 px-3">Date & Time</th>
+                                                                                        <th className="py-2 px-3">Method</th>
+                                                                                        <th className="py-2 px-3">Received By</th>
+                                                                                        <th className="py-2 px-3 text-right">Amount</th>
+                                                                                        <th className="py-2 px-3 text-right">Actions</th>
+                                                                                    </tr>
+                                                                                </thead>
+                                                                                <tbody className="divide-y divide-slate-100">
+                                                                                    {item.allocations.map(alloc => (
+                                                                                        <tr key={alloc.id || alloc.allocationId || alloc.allocationID} className="hover:bg-slate-50">
+                                                                                            <td className="py-2.5 px-3 font-mono font-bold text-[#4A7CD2]">
+                                                                                                {alloc.receiptNumber || alloc.receiptNo}
+                                                                                            </td>
+                                                                                            <td className="py-2.5 px-3 text-muted-text">
+                                                                                                {new Date(alloc.paymentDate).toLocaleDateString('en-GB', {
+                                                                                                    day: '2-digit', month: 'short', year: 'numeric',
+                                                                                                    hour: '2-digit', minute: '2-digit'
+                                                                                                })}
+                                                                                            </td>
+                                                                                            <td className="py-2.5 px-3 capitalize font-medium">
+                                                                                                {alloc.method || alloc.paymentMethod || 'cash'}
+                                                                                            </td>
+                                                                                            <td className="py-2.5 px-3 text-slate-600">
+                                                                                                {alloc.receivedByName || `User #${alloc.receivedBy || '1'}`}
+                                                                                            </td>
+                                                                                            <td className="py-2.5 px-3 text-right font-black text-emerald-600">
+                                                                                                {formatMoney(alloc.amount)}
+                                                                                            </td>
+                                                                                            <td className="py-2.5 px-3 text-right">
+                                                                                                <div className="flex items-center justify-end gap-1.5">
+                                                                                                    <button
+                                                                                                        type="button"
+                                                                                                        onClick={() => handlePrintReceipt(item, alloc)}
+                                                                                                        className="p-1 rounded-md text-slate-500 hover:text-dark-slate hover:bg-slate-100 transition-colors cursor-pointer"
+                                                                                                        title="Print Official PDF Receipt"
+                                                                                                    >
+                                                                                                        <Printer className="w-3.5 h-3.5" />
+                                                                                                    </button>
+
+                                                                                                    {isDoctorOrAdmin && (
+                                                                                                        <button
+                                                                                                            type="button"
+                                                                                                            onClick={() => {
+                                                                                                                setVoidModalPayment({
+                                                                                                                    ...alloc,
+                                                                                                                    paymentId: alloc.paymentId || alloc.paymentID,
+                                                                                                                    receiptNo: alloc.receiptNumber || alloc.receiptNo,
+                                                                                                                    amount: alloc.amount
+                                                                                                                });
+                                                                                                                setVoidReason('');
+                                                                                                            }}
+                                                                                                            className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                                                                                            title="Void / Refund this Payment"
+                                                                                                        >
+                                                                                                            <Ban className="w-3.5 h-3.5" />
+                                                                                                        </button>
+                                                                                                    )}
+                                                                                                </div>
+                                                                                            </td>
+                                                                                        </tr>
+                                                                                    ))}
+                                                                                </tbody>
+                                                                            </table>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </>
+            )}
+
+            {/* VIEW 2: PAYMENT RECEIPTS LEDGER */}
+            {activeView === 'payments' && (
+                <div className="space-y-4">
+                    {/* Toolbar */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200">
+                                <Receipt className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <h4 className="text-xs font-black text-dark-slate">Payment Receipts History & Ledger</h4>
+                                <p className="text-[10px] text-muted-text">
+                                    {paymentsList.length} total payment transaction{paymentsList.length !== 1 ? 's' : ''} on record
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => handleOpenPaymentDialog()}
+                                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer"
+                            >
+                                <Banknote className="w-3.5 h-3.5" />
+                                <span>Receive Payment</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={fetchFinancialDossier}
+                                className="p-2 rounded-xl text-slate-500 hover:text-[#4A7CD2] hover:bg-blue-50 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
+                                title="Refresh Payments Ledger"
+                            >
+                                <RefreshCw className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Ledger Table */}
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-20 text-muted-text space-y-3">
+                            <RefreshCw className="w-8 h-8 animate-spin text-emerald-600" />
+                            <p className="text-xs font-bold">Loading payment receipts ledger...</p>
+                        </div>
+                    ) : paymentsList.length === 0 ? (
+                        <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center flex flex-col items-center justify-center space-y-3 shadow-2xs">
+                            <div className="w-16 h-16 rounded-3xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
+                                <Receipt className="w-8 h-8" />
+                            </div>
+                            <div className="space-y-1">
+                                <h3 className="text-base font-extrabold text-dark-slate">No Payment Receipts Recorded</h3>
+                                <p className="text-xs text-muted-text max-w-md mx-auto">
+                                    No active or historical payments have been recorded for this patient yet. Use the Receive Payment button to record a payment.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => handleOpenPaymentDialog()}
+                                className="mt-2 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer flex items-center gap-1.5"
+                            >
+                                <Banknote className="w-4 h-4" />
+                                <span>Receive First Payment</span>
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-2xs">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs">
+                                    <thead className="bg-[#F8FAFC] border-b border-slate-200/80 text-[10.5px] font-extrabold text-slate-500 uppercase tracking-wider">
+                                        <tr>
+                                            <th className="py-3 px-4">Receipt #</th>
+                                            <th className="py-3 px-4">Date & Time</th>
+                                            <th className="py-3 px-4">Payment Method</th>
+                                            <th className="py-3 px-4">Received By</th>
+                                            <th className="py-3 px-4 text-right">Total Amount</th>
+                                            <th className="py-3 px-4 text-center">Allocation Status</th>
+                                            <th className="py-3 px-4 text-center">Receipt Status</th>
+                                            <th className="py-3 px-4 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {paymentsList.map(pay => {
+                                            const isVoided = (pay.status || '').toLowerCase() === 'voided' || (pay.paymentStatus || '').toLowerCase() === 'voided';
+                                            const pId = pay.paymentID || pay.paymentId;
+                                            const recNo = pay.receiptNo || pay.receiptNumber || `REC-${pId}`;
+                                            const unallocated = pay.unallocatedAmount !== undefined ? pay.unallocatedAmount : Math.max(0, (pay.amount || 0) - (pay.allocatedAmount || 0));
+
+                                            return (
+                                                <tr key={pId} className={`hover:bg-slate-50/70 transition-colors ${isVoided ? 'bg-slate-50/80 opacity-60' : ''}`}>
+                                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs border ${
+                                                                isVoided ? 'bg-rose-50 text-rose-600 border-rose-200' : 'bg-blue-50 text-[#4A7CD2] border-blue-200'
+                                                            }`}>
+                                                                <Receipt className="w-4 h-4" />
+                                                            </div>
+                                                            <div>
+                                                                <span className="font-mono font-black text-dark-slate">{recNo}</span>
+                                                                {isVoided && <p className="text-[10px] text-rose-600 font-bold">Reversed & Voided</p>}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+
+                                                    <td className="py-3.5 px-4 whitespace-nowrap text-muted-text font-medium">
+                                                        {new Date(pay.paymentDate).toLocaleDateString('en-GB', {
+                                                            day: '2-digit', month: 'short', year: 'numeric',
+                                                            hour: '2-digit', minute: '2-digit'
+                                                        })}
+                                                    </td>
+
+                                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                                        <span className="capitalize font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                                                            {pay.method || pay.paymentMethod || 'cash'}
+                                                        </span>
+                                                    </td>
+
+                                                    <td className="py-3.5 px-4 whitespace-nowrap text-slate-600 font-medium">
+                                                        {pay.receivedByName || 'Front Desk'}
+                                                    </td>
+
+                                                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                                        <span className={`font-black text-sm ${isVoided ? 'line-through text-slate-400' : 'text-emerald-600'}`}>
+                                                            {formatMoney(pay.amount)}
+                                                        </span>
+                                                    </td>
+
+                                                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                                                        {isVoided ? (
+                                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-600">
+                                                                Reversed
+                                                            </span>
+                                                        ) : unallocated > 0 ? (
+                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                                                <Wallet className="w-3 h-3 text-amber-600" />
+                                                                Rs {unallocated.toLocaleString()} Unallocated Credit
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                                                Fully Allocated
+                                                            </span>
+                                                        )}
+                                                    </td>
+
+                                                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                                                        {isVoided ? (
+                                                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white shadow-2xs" title={pay.voidReason || 'Voided'}>
+                                                                VOIDED
+                                                            </span>
+                                                        ) : (
+                                                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500 text-white shadow-2xs">
+                                                                ACTIVE
+                                                            </span>
+                                                        )}
+                                                    </td>
+
+                                                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                                        <div className="flex items-center justify-end gap-1.5">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handlePrintSinglePaymentReceipt(pay)}
+                                                                className="p-1.5 rounded-lg text-slate-500 hover:text-dark-slate hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+                                                                title="Print Official PDF Receipt"
+                                                            >
+                                                                <Printer className="w-3.5 h-3.5" />
+                                                            </button>
+
+                                                            {!isVoided && isDoctorOrAdmin && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setVoidModalPayment({
+                                                                            ...pay,
+                                                                            paymentId: pId,
+                                                                            receiptNo: recNo,
+                                                                            amount: pay.amount
+                                                                        });
+                                                                        setVoidReason('');
+                                                                    }}
+                                                                    className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer flex items-center gap-1"
+                                                                    title="Void / Refund this payment (reverses all allocations)"
+                                                                >
+                                                                    <Ban className="w-3 h-3 text-rose-600" />
+                                                                    <span>Void / Refund</span>
+                                                                </button>
                                                             )}
                                                         </div>
                                                     </td>
                                                 </tr>
-                                            )}
-                                        </React.Fragment>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -1233,7 +1556,9 @@ export default function PatientTreatmentInvoiceTab({
                             </div>
                             <div>
                                 <h3 className="text-sm font-extrabold text-dark-slate">Void / Refund Payment</h3>
-                                <p className="text-[11px] text-muted-text">Receipt #{voidModalPayment.receiptNo} ({formatMoney(voidModalPayment.amount)})</p>
+                                <p className="text-[11px] text-muted-text">
+                                    Receipt #{voidModalPayment.receiptNumber || voidModalPayment.receiptNo || ('REC-' + (voidModalPayment.paymentId || voidModalPayment.paymentID))} ({formatMoney(voidModalPayment.amount)})
+                                </p>
                             </div>
                         </div>
 
@@ -1249,7 +1574,7 @@ export default function PatientTreatmentInvoiceTab({
                             <textarea
                                 value={voidReason}
                                 onChange={(e) => setVoidReason(e.target.value)}
-                                placeholder="e.g. Wrong entry / Patient refund"
+                                placeholder="e.g. Cancelled treatment / Wrong entry / Patient refund"
                                 rows="3"
                                 required
                                 className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white"
@@ -1296,12 +1621,21 @@ export default function PatientTreatmentInvoiceTab({
                                 <label className="text-xs font-bold text-dark-slate block">New Price (PKR):</label>
                                 <input
                                     type="number"
-                                    min="0"
+                                    min="1"
                                     value={newPrice}
                                     onChange={(e) => setNewPrice(e.target.value)}
                                     required
-                                    className="w-full text-base font-extrabold p-2.5 rounded-xl border border-slate-200 bg-white"
+                                    className={`w-full text-base font-extrabold p-2.5 rounded-xl border bg-white ${
+                                        newPrice !== '' && (isNaN(parseInt(newPrice, 10)) || parseInt(newPrice, 10) <= 0)
+                                            ? 'border-rose-400 focus:border-rose-500 focus:ring-1 focus:ring-rose-500'
+                                            : 'border-slate-200'
+                                    }`}
                                 />
+                                {newPrice !== '' && (isNaN(parseInt(newPrice, 10)) || parseInt(newPrice, 10) <= 0) && (
+                                    <span className="text-[11px] text-rose-600 font-semibold block">
+                                        Price must be greater than zero.
+                                    </span>
+                                )}
                                 <span className="text-[10px] text-muted-text">
                                     If new price is lower than amount already paid, the excess will automatically become patient credit.
                                 </span>
@@ -1329,8 +1663,8 @@ export default function PatientTreatmentInvoiceTab({
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={savingPrice}
-                                    className="px-4 py-2 rounded-xl text-xs font-bold bg-[#4A7CD2] hover:bg-[#3665B7] text-white shadow-xs transition-colors cursor-pointer"
+                                    disabled={savingPrice || isNaN(parseInt(newPrice, 10)) || parseInt(newPrice, 10) <= 0 || !priceChangeReason.trim()}
+                                    className="px-4 py-2 rounded-xl text-xs font-bold bg-[#4A7CD2] hover:bg-[#3665B7] text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {savingPrice ? 'Updating...' : 'Save Price'}
                                 </button>

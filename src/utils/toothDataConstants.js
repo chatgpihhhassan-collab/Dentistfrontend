@@ -205,6 +205,8 @@ export const parseSurfacesFromRecord = (statusStr, commentsStr, customSurfaces =
     conditionLabel = 'Root Canal (RCT)';
   } else if (s.includes('pulpotomy') || full.includes('pulpotomy') || full.includes('mta')) {
     conditionLabel = 'Pulpotomy (MTA)';
+  } else if (s.includes('bridge') || full.includes('bridge') || s.includes('pontic') || full.includes('pontic')) {
+    conditionLabel = 'Bridge / Pontic';
   } else if (s.includes('ssc') || full.includes('stainless') || s.includes('crown') || full.includes('crown')) {
     conditionLabel = 'Stainless Steel Crown (SSC)';
   } else if (s.includes('space') || full.includes('space') || full.includes('maintainer')) {
@@ -231,6 +233,7 @@ export const parseSurfacesFromRecord = (statusStr, commentsStr, customSurfaces =
 
   // 1. Full-Coverage / Full-Tooth Conditions
   if (
+    conditionLabel === 'Bridge / Pontic' ||
     conditionLabel === 'Periodontal Bone Loss' ||
     conditionLabel === 'Root Resorption' ||
     conditionLabel === 'Periapical Cyst' ||

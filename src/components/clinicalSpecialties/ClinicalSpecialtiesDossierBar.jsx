@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Microscope, Sparkles, ChevronRight, Activity, Clock, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { API_BASE_URL } from '../../config/apiConfig';
+import { apiFetch } from '../../utils/apiClient';
 
 export default function ClinicalSpecialtiesDossierBar({
   patientId,
@@ -38,9 +39,9 @@ export default function ClinicalSpecialtiesDossierBar({
     const fetchSpecialties = async () => {
       try {
         const [impRes, bioRes, aliRes] = await Promise.allSettled([
-          fetch(`${API_BASE_URL}/api/patients/${patientId}/implant-plans`),
-          fetch(`${API_BASE_URL}/api/patients/${patientId}/biopsy-records`),
-          fetch(`${API_BASE_URL}/api/patients/${patientId}/ortho-aligners`)
+          apiFetch(`/api/patients/${patientId}/implant-plans`),
+          apiFetch(`/api/patients/${patientId}/biopsy-records`),
+          apiFetch(`/api/patients/${patientId}/ortho-aligners`)
         ]);
 
         if (impRes.status === 'fulfilled' && impRes.value.ok) {

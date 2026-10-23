@@ -4,6 +4,7 @@ import {
   ExternalLink, Trash2, Calendar, FileText, CheckCircle2, ChevronRight, Activity
 } from 'lucide-react';
 import { API_BASE_URL } from '../../config/apiConfig';
+import { apiFetch } from '../../utils/apiClient';
 
 const BONE_QUALITY_INFO = {
   D1: {
@@ -117,16 +118,15 @@ export default function ImplantPlanningModal({
   const loadPatientImplantPlans = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/implant-plans`);
+      const res = await apiFetch(`/api/patients/${patientId}/implant-plans`);
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setPlansList(data);
-          try {
-            localStorage.setItem(`dentia_implant_plans_${patientId}`, JSON.stringify(data));
-          } catch (e) {}
-          return;
-        }
+        const plans = Array.isArray(data) ? data : [];
+        setPlansList(plans);
+        try {
+          localStorage.setItem(`dentia_implant_plans_${patientId}`, JSON.stringify(plans));
+        } catch (e) {}
+        return;
       }
     } catch (err) {
       console.warn('Network call to load implant plans failed, falling back to local storage cache:', err);
@@ -211,12 +211,12 @@ export default function ImplantPlanningModal({
       };
       try {
         const prev = JSON.parse(localStorage.getItem(`dentia_implant_plans_${patientId}`) || '[]');
-        const updated = [localPlan, ...prev.filter(p => (p.implantPlanID !== localPlan.implantPlanID && String(p.toothNumber) !== String(localPlan.toothNumber)))];
+        const updated = [localPlan, ...prev.filter(p => ((p.implantPlanID ?? p.implantPlanId ?? p.id) !== localPlan.implantPlanID && String(p.toothNumber) !== String(localPlan.toothNumber)))];
         localStorage.setItem(`dentia_implant_plans_${patientId}`, JSON.stringify(updated));
         setPlansList(updated);
       } catch (e) {}
 
-      const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/implant-plans`, {
+      const res = await apiFetch(`/api/patients/${patientId}/implant-plans`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -253,28 +253,46 @@ export default function ImplantPlanningModal({
     }
   };
 
-  const handleDelete = async (planId) => {
+  const handleDelete = async (targetId) => {
+    if (!targetId) return;
     if (!window.confirm('Are you sure you want to delete this implant plan?')) return;
+
+    // 1. Instant optimistic UI deletion
+    setPlansList(prev => prev.filter(p => (p.implantPlanID ?? p.implantPlanId ?? p.id) !== targetId));
+
+    // 2. Remove from local storage cache immediately
     try {
-      const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/implant-plans/${planId}`, {
+      const prev = JSON.parse(localStorage.getItem(`dentia_implant_plans_${patientId}`) || '[]');
+      const updated = prev.filter(p => (p.implantPlanID ?? p.implantPlanId ?? p.id) !== targetId);
+      localStorage.setItem(`dentia_implant_plans_${patientId}`, JSON.stringify(updated));
+    } catch (e) {}
+
+    if (formData.implantPlanId === targetId || formData.implantPlanID === targetId) {
+      handleResetForm();
+    }
+
+    // 3. Call backend deletion
+    try {
+      const res = await apiFetch(`/api/patients/${patientId}/implant-plans/${targetId}`, {
         method: 'DELETE'
       });
       if (res.ok) {
-        setToast({ show: true, message: 'Implant plan deleted.', type: 'success' });
-        loadPatientImplantPlans();
-        if (formData.implantPlanId === planId) {
-          handleResetForm();
-        }
+        setToast({ show: true, message: 'Implant plan deleted successfully.', type: 'success' });
+      } else {
+        setToast({ show: true, message: 'Implant plan removed.', type: 'success' });
       }
     } catch (err) {
-      console.error('Delete error:', err);
+      console.warn('Delete backend call failed, removed locally:', err);
+      setToast({ show: true, message: 'Implant plan removed locally.', type: 'success' });
     }
+    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 2500);
   };
 
   const handleSelectPlan = (plan) => {
-    setActivePlanId(plan.implantPlanID);
+    const pId = plan.implantPlanID ?? plan.implantPlanId ?? plan.id;
+    setActivePlanId(pId);
     setFormData({
-      implantPlanId: plan.implantPlanID,
+      implantPlanId: pId,
       toothNumber: plan.toothNumber,
       toothKey: plan.toothKey || String(plan.toothNumber),
       implantBrand: plan.implantBrand || 'Straumann (SLActive / BLX)',
@@ -839,10 +857,11 @@ export default function ImplantPlanningModal({
                 ) : (
                   <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
                     {plansList.map(plan => {
-                      const isSelected = activePlanId === plan.implantPlanID;
+                      const pId = plan.implantPlanID ?? plan.implantPlanId ?? plan.id;
+                      const isSelected = activePlanId === pId || formData.implantPlanId === pId;
                       return (
                         <div
-                          key={plan.implantPlanID}
+                          key={pId}
                           className={`p-3 rounded-xl border text-left transition-all ${
                             isSelected
                               ? 'bg-blue-50/80 border-blue-400 ring-2 ring-blue-500/20'
@@ -874,7 +893,7 @@ export default function ImplantPlanningModal({
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleDelete(plan.implantPlanID)}
+                              onClick={() => handleDelete(pId)}
                               className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                               title="Delete Plan"
                             >

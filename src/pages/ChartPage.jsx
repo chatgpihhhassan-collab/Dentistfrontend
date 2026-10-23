@@ -684,7 +684,16 @@ export default function ChartPage() {
   const [dentitionMode, setDentitionMode] = useState('permanent'); // 'permanent' | 'pediatric' | 'mixed'
   const [detailedTooth, setDetailedTooth] = useState(null);
   const [showPaletteDrawer, setShowPaletteDrawer] = useState(false);
-  const [selectedPaletteCondition, setSelectedPaletteCondition] = useState('Normal / Healthy');
+  const [selectedPaletteCondition, setSelectedPaletteCondition] = useState(null);
+
+  // Clear any active palette condition override when navigating to a different tooth or closing modal
+  useEffect(() => {
+    if (detailedTooth) {
+      setSelectedPaletteCondition(prev => (prev && String(prev.tooth) === String(detailedTooth) ? prev : null));
+    } else {
+      setSelectedPaletteCondition(null);
+    }
+  }, [detailedTooth]);
   const [toothSurfacesState, setToothSurfacesState] = useState({});
   const [categoryRestrictionModal, setCategoryRestrictionModal] = useState({
     isOpen: false,
@@ -731,6 +740,34 @@ export default function ChartPage() {
   const [chartLoadStatus, setChartLoadStatus] = useState('Verifying clinician credentials...');
   const [isChartReadyBadge, setIsChartReadyBadge] = useState(false);
   const [isChartSlowConnection, setIsChartSlowConnection] = useState(false);
+
+  // ⏱️ Treatment Session & Chairside Operatory Timer States (Requirement #1)
+  const [showStartTreatmentModal, setShowStartTreatmentModal] = useState(false);
+  const [isTreatmentTimerRunning, setIsTreatmentTimerRunning] = useState(() => {
+    return typeof window !== 'undefined' && sessionStorage.getItem(`dentia_treatment_running_${patientId}`) === 'true';
+  });
+  const [treatmentStartTime, setTreatmentStartTime] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    const saved = sessionStorage.getItem(`dentia_treatment_start_${patientId}`);
+    return saved ? parseInt(saved, 10) : null;
+  });
+  const [treatmentSeconds, setTreatmentSeconds] = useState(() => {
+    if (typeof window === 'undefined') return 0;
+    const saved = sessionStorage.getItem(`dentia_treatment_start_${patientId}`);
+    if (saved && sessionStorage.getItem(`dentia_treatment_running_${patientId}`) === 'true') {
+      return Math.max(0, Math.floor((Date.now() - parseInt(saved, 10)) / 1000));
+    }
+    return 0;
+  });
+  const [activeAppointmentId, setActiveAppointmentId] = useState(null);
+
+  // 🛡️ Odontogram Unsaved Changes, Baseline Tracking & Revert States (Requirements #2 & #3)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [pendingNavigationPath, setPendingNavigationPath] = useState(null);
+  const savedTeethBaselineRef = useRef([]);
+  const savedSurfacesBaselineRef = useRef({});
+  const [planRefreshKey, setPlanRefreshKey] = useState(0);
   
   // Voice Recording & AI Notes States
   const [isRecording, setIsRecording] = useState(false);
@@ -781,6 +818,214 @@ export default function ChartPage() {
       chatScrollContainerRef.current.scrollTop = chatScrollContainerRef.current.scrollHeight;
     }
   }, [messages, isMicActive]);
+
+  // ⏱️ Treatment Timer Active Ticker
+  useEffect(() => {
+    let interval = null;
+    if (isTreatmentTimerRunning && treatmentStartTime) {
+      interval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - treatmentStartTime) / 1000);
+        setTreatmentSeconds(elapsed);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isTreatmentTimerRunning, treatmentStartTime]);
+
+  // 🛡️ Global Window Unsaved Flag Synchronization
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.__dentia_has_unsaved_chart_changes = hasUnsavedChanges;
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.__dentia_has_unsaved_chart_changes = false;
+      }
+    };
+  }, [hasUnsavedChanges]);
+
+  // 🛡️ Browser Window BeforeUnload & Popstate Interception
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = 'Unsaved data will be lost? do you want to continue?';
+        return e.returnValue;
+      }
+    };
+
+    const handlePopState = () => {
+      if (hasUnsavedChanges) {
+        window.history.pushState(null, '', window.location.href);
+        setPendingNavigationPath('/directory');
+        setShowUnsavedModal(true);
+      }
+    };
+
+    const handleNavbarSafeNav = (e) => {
+      if (e.detail?.to) {
+        handleSafeNavigate(e.detail.to);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('dentia:request-safe-navigate', handleNavbarSafeNav);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('dentia:request-safe-navigate', handleNavbarSafeNav);
+    };
+  }, [hasUnsavedChanges, teethState, toothSurfacesState]);
+
+  // ⏱️ Treatment Session Activation & Persistence Handlers
+  const handleStartTreatmentConfirmed = async () => {
+    const now = Date.now();
+    setIsTreatmentTimerRunning(true);
+    setTreatmentStartTime(now);
+    setTreatmentSeconds(0);
+    sessionStorage.setItem(`dentia_treatment_running_${patientId}`, 'true');
+    sessionStorage.setItem(`dentia_treatment_start_${patientId}`, String(now));
+    setShowStartTreatmentModal(false);
+    setActiveTab('chart'); // Keep focus on odontogram page
+
+    const docData = JSON.parse(localStorage.getItem('doctor') || '{}');
+    const docId = docData.doctorID || docData.DoctorID || 1;
+    const apptId = activeAppointmentId || patientVisits[0]?.appointmentID || patientVisits[0]?.id;
+
+    try {
+      await apiFetch('/api/appointments/record-treatment-time', {
+        method: 'POST',
+        body: JSON.stringify({
+          appointmentId: apptId ? parseInt(apptId, 10) : null,
+          patientId: parseInt(patientId, 10),
+          doctorId: docId,
+          durationSeconds: 0,
+          formattedDuration: '00:00',
+          action: 'START_TREATMENT_SESSION',
+          notes: `Chairside treatment session started on Odontogram for Patient #${patientId}`,
+          startedAt: new Date().toISOString()
+        })
+      });
+    } catch (e) {
+      console.warn("Non-blocking treatment session init notify:", e);
+    }
+
+    setToast({ visible: true, message: '⏱️ Treatment timer started! Operatory duration is now being recorded.' });
+    setTimeout(() => setToast({ visible: false, message: '' }), 4000);
+  };
+
+  const handleDismissStartTreatment = () => {
+    setShowStartTreatmentModal(false);
+    setActiveTab('chart');
+  };
+
+  const handleSaveAndRecordTreatment = async (stopSession = false) => {
+    if (!treatmentStartTime) return;
+    const currentSecs = Math.max(1, Math.floor((Date.now() - treatmentStartTime) / 1000));
+    const mins = Math.floor(currentSecs / 60);
+    const secs = currentSecs % 60;
+    const hrs = Math.floor(mins / 60);
+    const remMins = mins % 60;
+    const formatted = hrs > 0 
+      ? `${hrs}h ${remMins}m ${secs}s` 
+      : `${mins}m ${secs}s`;
+
+    const docData = JSON.parse(localStorage.getItem('doctor') || '{}');
+    const docId = docData.doctorID || docData.DoctorID || 1;
+    const apptId = activeAppointmentId || patientVisits[0]?.appointmentID || patientVisits[0]?.id;
+
+    try {
+      await apiFetch('/api/appointments/record-treatment-time', {
+        method: 'POST',
+        body: JSON.stringify({
+          appointmentId: apptId ? parseInt(apptId, 10) : null,
+          patientId: parseInt(patientId, 10),
+          doctorId: docId,
+          durationSeconds: currentSecs,
+          formattedDuration: formatted,
+          action: stopSession ? 'COMPLETE_TREATMENT_SESSION' : 'RECORD_TREATMENT_TIME',
+          notes: `Chairside treatment session recorded: ${formatted} on Odontogram for Patient #${patientId}`,
+          endedAt: stopSession ? new Date().toISOString() : null
+        })
+      });
+
+      if (stopSession) {
+        setIsTreatmentTimerRunning(false);
+        setTreatmentStartTime(null);
+        setTreatmentSeconds(0);
+        sessionStorage.removeItem(`dentia_treatment_running_${patientId}`);
+        sessionStorage.removeItem(`dentia_treatment_start_${patientId}`);
+        setToast({ 
+          visible: true, 
+          message: `✓ Total treatment time (${formatted}) appended to Appointment & Patient #${patientId} record!` 
+        });
+        setTimeout(() => setToast({ visible: false, message: '' }), 5000);
+      } else {
+        setToast({ 
+          visible: true, 
+          message: `⏱️ Treatment duration logged (${formatted}) to Appointment record.` 
+        });
+        setTimeout(() => setToast({ visible: false, message: '' }), 4000);
+      }
+    } catch (err) {
+      console.error("Error recording treatment time:", err);
+    }
+  };
+
+  // 🛡️ Safe Navigation & Revert Unsaved Changes Handlers
+  const handleSafeNavigate = (toPath) => {
+    if (hasUnsavedChanges) {
+      setPendingNavigationPath(toPath);
+      setShowUnsavedModal(true);
+      return false;
+    }
+    navigate(toPath);
+    return true;
+  };
+
+  const handleRevertUnsavedChanges = () => {
+    if (savedTeethBaselineRef.current && savedTeethBaselineRef.current.length > 0) {
+      setTeethState(JSON.parse(JSON.stringify(savedTeethBaselineRef.current)));
+    }
+    if (savedSurfacesBaselineRef.current) {
+      setToothSurfacesState(JSON.parse(JSON.stringify(savedSurfacesBaselineRef.current)));
+    }
+    setHasUnsavedChanges(false);
+    if (typeof window !== 'undefined') {
+      window.__dentia_has_unsaved_chart_changes = false;
+    }
+    setPlanRefreshKey(prev => prev + 1);
+    setShowUnsavedModal(false);
+    setToast({ 
+      visible: true, 
+      message: '↺ Unsaved chart & treatment plan changes reverted. Previously saved records preserved.' 
+    });
+    setTimeout(() => setToast({ visible: false, message: '' }), 4500);
+
+    if (pendingNavigationPath) {
+      const dest = pendingNavigationPath;
+      setPendingNavigationPath(null);
+      navigate(dest);
+    }
+  };
+
+  const handleConfirmSaveAndNavigate = async () => {
+    await handleSaveChart();
+    setShowUnsavedModal(false);
+    if (pendingNavigationPath) {
+      const dest = pendingNavigationPath;
+      setPendingNavigationPath(null);
+      navigate(dest);
+    }
+  };
+
+  const handleCancelUnsavedModal = () => {
+    setShowUnsavedModal(false);
+    setPendingNavigationPath(null);
+  };
 
   // Real-time evaluation of live transcription to dynamically satisfy Omission Compliance Checklist
   const evaluateTranscriptChecklist = (text) => {
@@ -1561,6 +1806,10 @@ export default function ChartPage() {
 
             console.log(`👶 [Pediatric Primary Chart Loaded for Patient #${patientId}]:`, full20Primary);
             setTeethState(full20Primary);
+            savedTeethBaselineRef.current = JSON.parse(JSON.stringify(full20Primary));
+            savedSurfacesBaselineRef.current = JSON.parse(JSON.stringify(toothSurfacesState || {}));
+            setHasUnsavedChanges(false);
+            if (typeof window !== 'undefined') window.__dentia_has_unsaved_chart_changes = false;
             return;
           }
 
@@ -1611,6 +1860,10 @@ export default function ChartPage() {
           });
 
           setTeethState(full32Teeth);
+          savedTeethBaselineRef.current = JSON.parse(JSON.stringify(full32Teeth));
+          savedSurfacesBaselineRef.current = JSON.parse(JSON.stringify(toothSurfacesState || {}));
+          setHasUnsavedChanges(false);
+          if (typeof window !== 'undefined') window.__dentia_has_unsaved_chart_changes = false;
   };
 
   const fetchTeethChart = (activeMode = dentitionMode) => {
@@ -1633,6 +1886,10 @@ export default function ChartPage() {
             isPediatric: true
           }));
           setTeethState(default20);
+          savedTeethBaselineRef.current = JSON.parse(JSON.stringify(default20));
+          savedSurfacesBaselineRef.current = JSON.parse(JSON.stringify(toothSurfacesState || {}));
+          setHasUnsavedChanges(false);
+          if (typeof window !== 'undefined') window.__dentia_has_unsaved_chart_changes = false;
         } else {
           const default32 = Array.from({ length: 32 }, (_, i) => ({
             toothNumber: i + 1,
@@ -1643,6 +1900,10 @@ export default function ChartPage() {
             mobility: 'Grade 0'
           }));
           setTeethState(default32);
+          savedTeethBaselineRef.current = JSON.parse(JSON.stringify(default32));
+          savedSurfacesBaselineRef.current = JSON.parse(JSON.stringify(toothSurfacesState || {}));
+          setHasUnsavedChanges(false);
+          if (typeof window !== 'undefined') window.__dentia_has_unsaved_chart_changes = false;
         }
       });
   };
@@ -2039,6 +2300,17 @@ export default function ChartPage() {
         if (isCancelled) return;
         setIsChartLoading(false);
         setIsChartReadyBadge(true);
+
+        // ⏱️ Odontogram Treatment Session Prompt Gating (Requirement #1)
+        const alreadyPrompted = typeof window !== 'undefined' ? sessionStorage.getItem(`dentia_treatment_prompted_${patientId}`) : null;
+        const isTimerOn = typeof window !== 'undefined' ? sessionStorage.getItem(`dentia_treatment_running_${patientId}`) === 'true' : false;
+        if (!alreadyPrompted && !isTimerOn) {
+          setShowStartTreatmentModal(true);
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem(`dentia_treatment_prompted_${patientId}`, 'true');
+          }
+        }
+
         setTimeout(() => {
           if (!isCancelled) setIsChartReadyBadge(false);
         }, 2800);
@@ -4437,6 +4709,17 @@ export default function ChartPage() {
       });
 
       if (res.ok) {
+        savedTeethBaselineRef.current = JSON.parse(JSON.stringify(teethState));
+        savedSurfacesBaselineRef.current = JSON.parse(JSON.stringify(toothSurfacesState));
+        setHasUnsavedChanges(false);
+        if (typeof window !== 'undefined') {
+          window.__dentia_has_unsaved_chart_changes = false;
+        }
+
+        if (isTreatmentTimerRunning) {
+          handleSaveAndRecordTreatment(false).catch(() => {});
+        }
+
         invalidateCache(`patient_${pid}_chart`);
         // Post save log
         const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
@@ -4564,37 +4847,9 @@ export default function ChartPage() {
       updated = [...teethState, { toothNumber: toothNum, color: finalColor, status: mergedStatus, conditionStatus: mergedStatus, comments: mergedComments, comment: mergedComments, rotationDeg, ...extraProps }];
     }
     setTeethState(updated);
-
-    // Persist immediately on tooth select change to database
-    const isPed = dentitionMode === 'pediatric' || /^[A-T]$/i.test(String(toothNum));
-    const dentitionCat = isPed ? 'Pediatric' : (dentitionMode === 'mixed' ? 'Mixed' : 'Adult');
-    const docId = doctor?.doctorID || doctor?.DoctorID || 1;
-    const updates = [{
-      toothNumber: toothNum,
-      toothKey: String(toothNum),
-      dentitionCategory: dentitionCat,
-      doctorId: docId,
-      status: mergedStatus,
-      conditionStatus: mergedStatus,
-      color: finalColor,
-      comment: `${mergedComments}${rotationDeg !== 0 ? ` (Rotation: ${rotationDeg}°)` : ''}`,
-      comments: `${mergedComments}${rotationDeg !== 0 ? ` (Rotation: ${rotationDeg}°)` : ''}`
-    }];
-
-    try {
-      const pid = parseInt(patientId) || (patient?.patientID ? parseInt(patient.patientID) : 5);
-      const res = await fetch('/api/patients/teeth/update-bulk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          patientId: pid,
-          updates
-        })
-      });
-      const resData = await res.json();
-      console.log(`💾 [DB Save Tooth #${toothNum} for Patient #${pid}]:`, resData, updates[0]);
-    } catch (err) {
-      console.error("Error updating tooth status in database:", err);
+    setHasUnsavedChanges(true);
+    if (typeof window !== 'undefined') {
+      window.__dentia_has_unsaved_chart_changes = true;
     }
   };
 
@@ -7745,13 +8000,73 @@ export default function ChartPage() {
                   <CreditCard className="w-3.5 h-3.5" /> Treatment & Invoices
                 </button>
               </div>
-              <div className="flex items-center gap-3">
-                <button onClick={() => navigate('/directory')} className="bg-[#EAF0FC] text-[#4A7CD2] px-4 py-2 rounded-xl text-xs font-bold border border-light-teal flex items-center hover:bg-light-teal/40 transition-colors">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <button 
+                  onClick={() => handleSafeNavigate('/directory')} 
+                  className="bg-[#EAF0FC] text-[#4A7CD2] px-3.5 py-2 rounded-xl text-xs font-bold border border-light-teal flex items-center hover:bg-light-teal/40 transition-colors cursor-pointer"
+                >
                   <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Directory
                 </button>
+
+                {/* ⏱️ Operatory Treatment Timer Widget (Requirement #1) */}
+                {isTreatmentTimerRunning ? (
+                  <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-300 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-extrabold shadow-2xs">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                    </span>
+                    <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="font-mono text-xs font-black text-emerald-950 tracking-tight">
+                      {Math.floor(treatmentSeconds / 60).toString().padStart(2, '0')}:{(treatmentSeconds % 60).toString().padStart(2, '0')}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveAndRecordTreatment(true)}
+                      className="ml-1 px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[9.5px] font-black uppercase tracking-wider transition-colors cursor-pointer active:scale-95 shadow-2xs"
+                      title="Stop timer and record total treatment duration for this appointment/patient"
+                    >
+                      Record & End
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowStartTreatmentModal(true)}
+                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                    title="Start treatment timer to record procedure time"
+                  >
+                    <Play className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
+                    <span>Start Treatment</span>
+                  </button>
+                )}
+
+                {/* ↺ Revert Unsaved Changes Button (Requirement #3) */}
+                {hasUnsavedChanges && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPendingNavigationPath(null);
+                      setShowUnsavedModal(true);
+                    }}
+                    className="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs animate-fade-in"
+                    title="Revert all unsaved changes made in this session"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Revert Unsaved</span>
+                  </button>
+                )}
+
                 {activeTab === 'chart' && (
-                  <button onClick={handleSaveChart} className="bg-[#4A7CD2] hover:bg-[#3665B7] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5 transition-colors">
-                    <Save className="w-3.5 h-3.5" /> Save Chart
+                  <button 
+                    onClick={handleSaveChart} 
+                    className={`text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5 transition-all cursor-pointer ${
+                      hasUnsavedChanges
+                        ? 'bg-amber-600 hover:bg-amber-700 ring-2 ring-amber-400 ring-offset-1 animate-pulse'
+                        : 'bg-[#4A7CD2] hover:bg-[#3665B7]'
+                    }`}
+                  >
+                    <Save className="w-3.5 h-3.5" /> 
+                    <span>{hasUnsavedChanges ? 'Save Chart (Unsaved)' : 'Save Chart'}</span>
                   </button>
                 )}
               </div>
@@ -9134,6 +9449,7 @@ export default function ChartPage() {
             {activeTab === 'treatment_plan' && (
               <div className="flex flex-col gap-6 flex-grow animate-fade-in w-full">
                 <TreatmentPlanTab
+                  key={`tp_${patientId}_${planRefreshKey}`}
                   patientId={patientId}
                   patient={patient}
                   doctorId={doctor?.doctorID || doctor?.DoctorID || 1}
@@ -10195,27 +10511,86 @@ export default function ChartPage() {
 
                     let conditionKey = 'Normal / Healthy';
                     if (!isActuallyHealthy) {
-                      if (fullText.includes('BRACKET') || fullText.includes('ORTHODONTIC') || fullText.includes('ORTHO') || fullText.includes('BRACE')) conditionKey = 'Orthodontic Bracket';
-                      else if (fullText.includes('SPACE') || fullText.includes('MAINTAINER')) conditionKey = 'Space Maintainer';
-                      else if (fullText.includes('PULPOTOMY') || fullText.includes('MTA')) conditionKey = 'Pulpotomy (MTA)';
-                      else if (fullText.includes('SSC') || fullText.includes('STAINLESS')) conditionKey = 'Stainless Steel Crown (SSC)';
-                      else if (fullText.includes('COMPOSITE') || fullText.includes('RESIN')) conditionKey = 'Filling - Composite';
-                      else if (fullText.includes('AMALGAM')) conditionKey = 'Filling - Amalgam';
-                      else if (fullText.includes('GIC')) conditionKey = 'Filling - GIC';
-                      else if (fullText.includes('IMPLANT')) conditionKey = 'Dental Implant';
-                      else if (fullText.includes('RCT') || fullText.includes('CANAL') || fullText.includes('ENDO') || fullText.includes('ROOT CANAL')) conditionKey = 'Root Canal Treated (RCT)';
-                      else if (fullText.includes('CARIES') || fullText.includes('DECAY') || fullText.includes('CAVITY') || fullText.includes('KEERA') || fullText.includes('ECC')) conditionKey = 'Caries (Decay)';
-                      else if (fullText.includes('MISS') || fullText.includes('EXTRACT') || fullText.includes('ABSENT') || fullText.includes('EXFOLIAT')) conditionKey = 'Missing Tooth';
-                      else if (fullText.includes('CROWN') || fullText.includes('BRIDGE') || fullText.includes('ZIRCONIA')) conditionKey = 'Crown - Ceramic/Zirconia';
-                      else if (fullText.includes('VENEER')) conditionKey = 'Veneer';
-                      else if (fullText.includes('SEALANT')) conditionKey = 'Sealant';
-                      else conditionKey = 'Caries (Decay)';
+                      const rawStatusTrimmed = (existingTooth?.status || existingTooth?.conditionStatus || '').trim();
+                      const baseStatusTrimmed = rawStatusTrimmed.split('—')[0].split('-')[0].trim();
+                      const exactConditionMatch = Object.keys(CLINICAL_CONDITIONS).find(
+                        k => k.toLowerCase() === rawStatusTrimmed.toLowerCase() || k.toLowerCase() === baseStatusTrimmed.toLowerCase()
+                      );
+
+                      if (exactConditionMatch) {
+                        conditionKey = exactConditionMatch;
+                      } else if (fullText.includes('BRIDGE') || fullText.includes('PONTIC')) {
+                        conditionKey = 'Bridge / Pontic';
+                      } else if (fullText.includes('BRACKET') || fullText.includes('ORTHODONTIC') || fullText.includes('ORTHO') || fullText.includes('BRACE')) {
+                        conditionKey = 'Orthodontic Bracket';
+                      } else if (fullText.includes('SPACE') || fullText.includes('MAINTAINER')) {
+                        conditionKey = 'Space Maintainer';
+                      } else if (fullText.includes('DENTURE')) {
+                        conditionKey = 'Denture Section';
+                      } else if (fullText.includes('PULPOTOMY') || fullText.includes('MTA')) {
+                        conditionKey = 'Pulpotomy (MTA)';
+                      } else if (fullText.includes('SSC') || fullText.includes('STAINLESS')) {
+                        conditionKey = 'Stainless Steel Crown (SSC)';
+                      } else if (fullText.includes('COMPOSITE') || fullText.includes('RESIN')) {
+                        conditionKey = 'Filling - Composite';
+                      } else if (fullText.includes('AMALGAM')) {
+                        conditionKey = 'Filling - Amalgam';
+                      } else if (fullText.includes('GIC')) {
+                        conditionKey = 'Filling - GIC';
+                      } else if (fullText.includes('IMPLANT')) {
+                        conditionKey = 'Dental Implant';
+                      } else if (fullText.includes('RCT') || fullText.includes('CANAL') || fullText.includes('ENDO') || fullText.includes('ROOT CANAL')) {
+                        conditionKey = 'Root Canal Treated (RCT)';
+                      } else if (fullText.includes('CARIES') || fullText.includes('DECAY') || fullText.includes('CAVITY') || fullText.includes('KEERA') || fullText.includes('ECC')) {
+                        conditionKey = 'Caries (Decay)';
+                      } else if (fullText.includes('MISS') || fullText.includes('EXTRACT') || fullText.includes('ABSENT') || fullText.includes('EXFOLIAT')) {
+                        conditionKey = 'Missing Tooth';
+                      } else if (fullText.includes('PFM')) {
+                        conditionKey = 'Crown - PFM';
+                      } else if (fullText.includes('CROWN') || fullText.includes('ZIRCONIA') || fullText.includes('CERAMIC')) {
+                        conditionKey = 'Crown - Ceramic/Zirconia';
+                      } else if (fullText.includes('VENEER')) {
+                        conditionKey = 'Veneer';
+                      } else if (fullText.includes('SEALANT')) {
+                        conditionKey = 'Sealant';
+                      } else if (fullText.includes('POST')) {
+                        conditionKey = 'Post & Core';
+                      } else if (fullText.includes('MOBILITY')) {
+                        conditionKey = 'Mobility Grade I/II/III';
+                      } else if (fullText.includes('RECESSION')) {
+                        conditionKey = 'Gingival Recession';
+                      } else if (fullText.includes('CALCULUS') || fullText.includes('PLAQUE')) {
+                        conditionKey = 'Calculus / Plaque';
+                      } else if (fullText.includes('IMPACTED') || fullText.includes('UNERUPTED')) {
+                        conditionKey = 'Impacted / Unerupted';
+                      } else if (fullText.includes('FRACTURE') || fullText.includes('CHIP')) {
+                        conditionKey = 'Fractured / Chipped';
+                      } else if (fullText.includes('ATTRITION') || fullText.includes('ABRASION') || fullText.includes('WEAR')) {
+                        conditionKey = 'Attrition / Abrasion';
+                      } else if (fullText.includes('FLUOROSIS') || fullText.includes('DISCOLOR')) {
+                        conditionKey = 'Discoloration / Fluorosis';
+                      } else if (fullText.includes('RESORPTION')) {
+                        conditionKey = 'Root Resorption';
+                      } else if (fullText.includes('SUPERNUMERARY')) {
+                        conditionKey = 'Supernumerary Tooth';
+                      } else if (fullText.includes('DIASTEMA')) {
+                        conditionKey = 'Diastema (Gap)';
+                      } else if (fullText.includes('ROTATION') || fullText.includes('MALPOSITION')) {
+                        conditionKey = 'Malposition / Rotation';
+                      } else {
+                        conditionKey = 'Caries (Decay)';
+                      }
                     }
 
-                    // Auto-sync active palette condition to tooth's diagnosed procedure if currently on default
-                    const activePaletteCondition = (selectedPaletteCondition && selectedPaletteCondition !== 'Normal / Healthy') 
-                      ? selectedPaletteCondition 
-                      : conditionKey;
+                    // Auto-sync active palette condition:
+                    // If user manually selected a palette condition for THIS tooth in this session, use it.
+                    // Otherwise, strictly isolate and use THIS tooth's diagnosed clinical condition (conditionKey).
+                    const activePaletteCondition = (
+                      selectedPaletteCondition && 
+                      typeof selectedPaletteCondition === 'object' && 
+                      String(selectedPaletteCondition.tooth) === String(detailedTooth) && 
+                      selectedPaletteCondition.condition
+                    ) ? selectedPaletteCondition.condition : conditionKey;
 
                     const activeSurfaceData = isActuallyHealthy ? {} : (toothSurfacesState[detailedTooth] || dbInitialSurfaces);
                     const toothName = isPediatricDetailed 
@@ -10271,6 +10646,7 @@ export default function ChartPage() {
                                 onClick={() => {
                                   setDetailedTooth(null);
                                   setShowPaletteDrawer(false);
+                                  setSelectedPaletteCondition(null);
                                 }}
                                 className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors"
                               >
@@ -10320,7 +10696,7 @@ export default function ChartPage() {
                                     <ToothSurfaceDiagram
                                       toothNumber={detailedTooth}
                                       surfaceData={activeSurfaceData}
-                                      selectedCondition={selectedPaletteCondition}
+                                      selectedCondition={activePaletteCondition}
                                       onSurfaceClick={(surfKey, cond) => {
                                         const updatedForTooth = {
                                           ...activeSurfaceData,
@@ -10404,6 +10780,7 @@ export default function ChartPage() {
                                     <button
                                       type="button"
                                       onClick={() => {
+                                        setSelectedPaletteCondition({ tooth: detailedTooth, condition: 'Normal / Healthy' });
                                         setToothSurfacesState(prev => ({
                                           ...prev,
                                           [detailedTooth]: { O: 'Normal / Healthy', M: 'Normal / Healthy', D: 'Normal / Healthy', B: 'Normal / Healthy', L: 'Normal / Healthy' }
@@ -10455,10 +10832,11 @@ export default function ChartPage() {
 
                                 <ClinicalConditionPalette
                                   selectedCondition={activePaletteCondition}
-                                  onSelectCondition={setSelectedPaletteCondition}
+                                  onSelectCondition={(cond) => setSelectedPaletteCondition({ tooth: detailedTooth, condition: cond })}
                                   selectedToothNum={detailedTooth}
                                   isPediatric={isPediatricDetailed}
                                   onApplyToTooth={(tNum, cond) => {
+                                    setSelectedPaletteCondition({ tooth: tNum, condition: cond });
                                     const isHealthy = cond === 'Normal / Healthy' || cond === 'Healthy';
                                     const newSurfaces = isHealthy 
                                       ? { O: 'Normal / Healthy', M: 'Normal / Healthy', D: 'Normal / Healthy', B: 'Normal / Healthy', L: 'Normal / Healthy' }
@@ -10521,6 +10899,7 @@ export default function ChartPage() {
                                 onClick={() => {
                                   setDetailedTooth(null);
                                   setShowPaletteDrawer(false);
+                                  setSelectedPaletteCondition(null);
                                 }}
                                 className="text-xs bg-[#4A7CD2] hover:bg-[#3665B7] text-white font-black px-6 py-2 rounded-xl cursor-pointer shadow-xs transition-all"
                               >
@@ -12909,6 +13288,103 @@ export default function ChartPage() {
           }
         }}
       />
+
+      {/* ⏱️ Odontogram Treatment Session Start Prompt Modal (Requirement #1) */}
+      {showStartTreatmentModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+            <div className="p-6 bg-gradient-to-br from-[#EAF0FC] via-white to-emerald-50/40 border-b border-slate-100 flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 border border-emerald-300 text-emerald-700 flex items-center justify-center shrink-0 shadow-2xs">
+                <Clock className="w-6 h-6 animate-pulse" />
+              </div>
+              <div className="flex-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                  Operatory Treatment Gating
+                </span>
+                <h3 className="text-lg font-black text-slate-900 mt-1">
+                  Do you want to start treatment?
+                </h3>
+                <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+                  Starting treatment will activate the chairside procedure timer for <strong>{patient ? `${patient.firstName} ${patient.lastName}` : `Patient #${patientId}`}</strong> (ID #{patientId}). Total procedure duration will be recorded with this appointment.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={handleDismissStartTreatment}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-200/70 border border-slate-300 transition-colors cursor-pointer"
+              >
+                Review Only / Not Now
+              </button>
+              <button
+                type="button"
+                onClick={handleStartTreatmentConfirmed}
+                className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <Play className="w-3.5 h-3.5 fill-white" />
+                Yes, Start Treatment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ⚠️ Odontogram Unsaved Changes Confirmation Modal (Requirements #2 & #3) */}
+      {showUnsavedModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-amber-200 overflow-hidden transform transition-all">
+            <div className="p-6 bg-gradient-to-br from-amber-50/70 via-white to-rose-50/30 border-b border-amber-100 flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 border border-amber-300 text-amber-700 flex items-center justify-center shrink-0 shadow-2xs">
+                <AlertTriangle className="w-6 h-6 text-amber-600 animate-bounce" />
+              </div>
+              <div className="flex-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">
+                  Unsaved Odontogram Changes
+                </span>
+                <h3 className="text-lg font-black text-slate-900 mt-1">
+                  Unsaved data will be lost? do you want to continue?
+                </h3>
+                <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+                  Agar aap save kiye baghair exit kartay hain to is session mein chart ya treatment plan par ki gayi tabdeelian revert ho jayen gi. <strong>Pehle se saved records bilkul mehfooz rahain gay.</strong>
+                </p>
+                <div className="mt-2 text-[11px] bg-amber-100/60 border border-amber-200 text-amber-900 rounded-xl p-2.5">
+                  ✓ Revert karne se sirf unsaved data discard hoga, pehle se database mein mojood records revert nahi hoon gay.
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+              <button
+                type="button"
+                onClick={handleCancelUnsavedModal}
+                className="px-3 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-200/70 border border-slate-300 transition-colors cursor-pointer"
+              >
+                Keep Editing
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleRevertUnsavedChanges}
+                  className="px-3.5 py-2 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Discard & Revert Unsaved
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmSaveAndNavigate}
+                  className="px-4 py-2 rounded-xl text-xs font-black bg-[#4A7CD2] hover:bg-[#3665B7] text-white shadow-md transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  Save Changes First
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>

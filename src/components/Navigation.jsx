@@ -35,6 +35,30 @@ export default function Navigation() {
 
     const isHomePage = location.pathname === '/' || location.pathname === '/dashboard';
 
+    // 🛡️ Airtight Global Navigation Interception for Unsaved Odontogram Changes
+    const handleSafeNavigateRequest = (toPath) => {
+        if (typeof window !== 'undefined' && window.__dentia_has_unsaved_chart_changes) {
+            window.dispatchEvent(new CustomEvent('dentia:request-safe-navigate', { detail: { to: toPath } }));
+            return false;
+        }
+        navigate(toPath);
+        return true;
+    };
+
+    const handleInterceptLinkClick = (e) => {
+        if (typeof window !== 'undefined' && window.__dentia_has_unsaved_chart_changes) {
+            const anchor = e.target.closest('a');
+            if (anchor && anchor.getAttribute('href')) {
+                const targetPath = anchor.getAttribute('href');
+                if (targetPath && !targetPath.startsWith('#') && targetPath !== location.pathname) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.dispatchEvent(new CustomEvent('dentia:request-safe-navigate', { detail: { to: targetPath } }));
+                }
+            }
+        }
+    };
+
     // Listen for doctor profile and clinic schedule updates across the app
     React.useEffect(() => {
         const handleProfileUpdate = (e) => {
@@ -238,11 +262,14 @@ export default function Navigation() {
                 </div>
             )}
 
-            <header className="w-full max-w-[1800px] mx-auto bg-gradient-to-r from-white/95 via-white/85 to-[#EAF0FC]/75 backdrop-blur-2xl border border-white/90 h-20 flex items-center justify-between gap-4 px-6 rounded-full shadow-lg shadow-[#0A1A24]/5 transition-all duration-300">
+            <header 
+                onClickCapture={handleInterceptLinkClick}
+                className="w-full max-w-[1800px] mx-auto bg-gradient-to-r from-white/95 via-white/85 to-[#EAF0FC]/75 backdrop-blur-2xl border border-white/90 h-20 flex items-center justify-between gap-4 px-6 rounded-full shadow-lg shadow-[#0A1A24]/5 transition-all duration-300"
+            >
                 {/* 🌟 Left: Brand Identity */}
                 <div 
                     className="flex items-center space-x-3 cursor-pointer shrink-0" 
-                    onClick={() => navigate(doctor && doctor.isSuperAdmin ? '/admin/doctors' : '/')}
+                    onClick={() => handleSafeNavigateRequest(doctor && doctor.isSuperAdmin ? '/admin/doctors' : '/')}
                     title="Dentia Clinical Suite"
                 >
                     <img src="/images/logo-black.webp" alt="Dentia Logo" className="h-8 object-contain" />
@@ -458,7 +485,7 @@ export default function Navigation() {
                                 </div>
                             </div>
                             <button 
-                                onClick={() => navigate(doctor.isSuperAdmin ? '/admin/doctors' : '/directory')}
+                                onClick={() => handleSafeNavigateRequest(doctor.isSuperAdmin ? '/admin/doctors' : '/directory')}
                                 className="bg-primary-teal hover:bg-primary-hover text-white font-bold py-2.5 px-4 rounded-full text-xs transition-all shadow-md cursor-pointer whitespace-nowrap"
                             >
                                 {doctor.isSuperAdmin ? 'Admin Suite' : 'Workspace'}
