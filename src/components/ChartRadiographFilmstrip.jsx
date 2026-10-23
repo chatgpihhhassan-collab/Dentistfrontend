@@ -421,7 +421,7 @@ export default function ChartRadiographFilmstrip({
         type="file" 
         ref={fileInputRef} 
         onChange={handleFileInputChange} 
-        accept="image/*,.dcm,.tif,.bmp" 
+        accept="image/jpeg,image/png,image/webp,image/tiff,image/bmp,.jpg,.jpeg,.png,.webp,.tif,.tiff,.bmp,.dcm" 
         className="hidden" 
       />
 

@@ -30,7 +30,7 @@ import TreatmentPlanTab from '../components/TreatmentPlanTab';
 import ChartRadiographFilmstrip from '../components/ChartRadiographFilmstrip';
 import RadiographImpactInspectorModal from '../components/RadiographImpactInspectorModal';
 import ClinicalReportEditor from '../components/ClinicalReportEditor';
-import { extractAiFindingsFromReport, extractSoapFromReport, compressImageForUpload, isTestRadiograph, getHumanReadableReport, recombineReportWithStructuredData } from '../utils/aiRadiologyUtils';
+import { extractAiFindingsFromReport, extractSoapFromReport, compressImageForUpload, isSupportedRadiographImage, isTestRadiograph, getHumanReadableReport, recombineReportWithStructuredData } from '../utils/aiRadiologyUtils';
 import AIBadgeAndActions from '../components/AIBadgeAndActions';
 import { AIFindingsConfirmModal } from '../components/ai';
 import { useDigoraHardwareSync } from '../hooks/useDigoraHardwareSync';
@@ -3049,6 +3049,17 @@ export default function ChartPage() {
   const handleUploadXray = async (e) => {
     const rawFile = e.target.files?.[0] || (e.dataTransfer?.files?.[0]);
     if (!rawFile) return;
+
+    // Strict Image Format Verification (Explicitly block PDF, DOC, XLSX, etc.)
+    const formatCheck = isSupportedRadiographImage(rawFile);
+    if (!formatCheck.valid) {
+      console.warn('[UPLOAD REJECTED - INVALID FILE TYPE]', formatCheck.error);
+      setToast({ visible: true, message: formatCheck.error });
+      setTimeout(() => setToast({ visible: false, message: '' }), 6000);
+      if (e.target) e.target.value = '';
+      return;
+    }
+
     setUploadingXray(true);
     setToast({ visible: true, message: "Compressing & optimizing radiograph (target <= 18 KB)..." });
     const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
@@ -8874,7 +8885,7 @@ export default function ChartPage() {
                   }`}>
                     <input 
                       type="file" 
-                      accept="image/*,.dcm,.tif,.bmp" 
+                      accept="image/jpeg,image/png,image/webp,image/tiff,image/bmp,.jpg,.jpeg,.png,.webp,.tif,.tiff,.bmp,.dcm" 
                       onChange={handleUploadXray} 
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                       disabled={uploadingXray}

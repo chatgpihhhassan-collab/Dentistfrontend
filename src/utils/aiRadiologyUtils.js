@@ -176,15 +176,74 @@ export const extractAiFindingsFromReport = (reportText) => {
 };
 
 /**
+ * Strict file format validation for dental radiographs and clinical scans.
+ * Strictly permits only image formats (JPG, JPEG, PNG, WEBP, TIFF, BMP, DCM).
+ * Blocks documents, PDFs, and spreadsheets (PDF, DOC, DOCX, XLS, XLSX, etc.).
+ */
+export const isSupportedRadiographImage = (file) => {
+  if (!file) return { valid: false, error: 'No file selected.' };
+
+  const fileName = (file.name || '').toLowerCase();
+  const mimeType = (file.type || '').toLowerCase();
+
+  // Known disallowed non-image document & spreadsheet extensions
+  const disallowedExts = [
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.csv', 
+    '.ppt', '.pptx', '.txt', '.rtf', '.odt', '.ods',
+    '.zip', '.rar', '.7z', '.tar', '.gz', '.exe', '.bat'
+  ];
+  const hasDisallowedExt = disallowedExts.some(ext => fileName.endsWith(ext));
+
+  const disallowedMimes = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument',
+    'application/vnd.ms-excel',
+    'text/plain',
+    'text/csv',
+    'application/zip',
+    'application/x-rar-compressed'
+  ];
+  const hasDisallowedMime = disallowedMimes.some(mime => mimeType.includes(mime));
+
+  if (hasDisallowedExt || hasDisallowedMime) {
+    return {
+      valid: false,
+      error: `Invalid file format ("${file.name}"). Radiographs support image files only (JPG, PNG, WEBP, TIFF, BMP). Documents, PDFs, and spreadsheets cannot be uploaded.`
+    };
+  }
+
+  // Allowed image extensions
+  const allowedImageExts = ['.jpg', '.jpeg', '.png', '.webp', '.tif', '.tiff', '.bmp', '.dcm'];
+  const hasAllowedExt = allowedImageExts.some(ext => fileName.endsWith(ext));
+  const isImageMime = mimeType.startsWith('image/');
+
+  if (!isImageMime && !hasAllowedExt) {
+    return {
+      valid: false,
+      error: `Unsupported file format ("${file.name}"). Please select an image file (JPG, PNG, WEBP, TIFF, BMP).`
+    };
+  }
+
+  return { valid: true };
+};
+
+/**
  * Progressively compresses any radiographic image / frame to <= 18 KB
  * The remote API firewall enforces a strict 20 KB ceiling. Keeping payloads <= 18 KB
  * guarantees 100% 200 OK delivery without 403 Forbidden / CORS blocks.
  */
 export const compressImageForUpload = (file, targetMaxBytes = 18 * 1024) => {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     if (!file || !(file instanceof Blob)) {
       console.log('[COMPRESS LOG] Input is not a valid Blob/File, passing through.');
       return resolve(file);
+    }
+
+    const check = isSupportedRadiographImage(file);
+    if (!check.valid) {
+      console.warn('[COMPRESS LOG] Disallowed non-image file:', check.error);
+      return reject(new Error(check.error));
     }
 
     const origKb = (file.size / 1024).toFixed(1);
@@ -285,8 +344,8 @@ export const compressImageForUpload = (file, targetMaxBytes = 18 * 1024) => {
 
     img.onerror = () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
-      console.warn("[COMPRESS LOG] Image decoding failed, using raw file.");
-      resolve(file);
+      console.warn("[COMPRESS LOG] Image decoding failed: file is not a valid image format.");
+      reject(new Error(`Failed to decode "${file.name}". Please ensure it is a valid image file.`));
     };
 
     img.src = objectUrl;

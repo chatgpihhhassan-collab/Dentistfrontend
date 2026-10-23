@@ -482,7 +482,7 @@ export default function DigoraScannerModal({
               type="file" 
               ref={fileInputRef} 
               onChange={handleFileInputChange} 
-              accept="image/*,.dcm,.raw,.tif,.tiff" 
+              accept="image/jpeg,image/png,image/webp,image/tiff,image/bmp,.jpg,.jpeg,.png,.webp,.tif,.tiff,.bmp,.dcm" 
               className="hidden" 
             />
             <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shadow-2xs">

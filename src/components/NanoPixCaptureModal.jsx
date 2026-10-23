@@ -924,7 +924,7 @@ export const NanoPixCaptureModal = ({
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/*,.dcm,.tif,.tiff,.bmp"
+                      accept="image/jpeg,image/png,image/webp,image/tiff,image/bmp,.jpg,.jpeg,.png,.webp,.tif,.tiff,.bmp,.dcm"
                       onChange={(e) => {
                         if (e.target.files && e.target.files[0]) {
                           processImageForActiveSlot(e.target.files[0]);
