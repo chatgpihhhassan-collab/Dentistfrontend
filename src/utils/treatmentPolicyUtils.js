@@ -4,7 +4,7 @@
 // =========================================================================
 
 import { API_BASE_URL } from '../config/apiConfig';
-import { apiFetch } from './safeApiUtils';
+import { apiFetch } from './apiClient';
 
 const POLICY_CACHE = new Map();
 
@@ -113,3 +113,19 @@ export function getPolicyBlockedContent(errorCode, { tooth = '', treatment = '' 
             };
     }
 }
+
+/**
+ * Checks whether a specific tooth chart is locked for editing
+ */
+export function isToothChartLocked(policy, toothNumber) {
+    if (!policy || !policy.lockedToothNumbers) return false;
+    return policy.lockedToothNumbers.map(Number).includes(Number(toothNumber));
+}
+
+/**
+ * Alias for getPolicyBlockedContent
+ */
+export function getPolicyAlertMessage(errorCode, details = {}) {
+    return getPolicyBlockedContent(errorCode, details);
+}
+

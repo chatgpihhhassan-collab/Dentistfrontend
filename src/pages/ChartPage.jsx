@@ -1503,6 +1503,20 @@ export default function ChartPage() {
   const [activePlanChips, setActivePlanChips] = useState([]);
   const [financialPill, setFinancialPill] = useState(null);
   const [activePlanCategoryFilter, setActivePlanCategoryFilter] = useState(null);
+  const [modalitiesStatus, setModalitiesStatus] = useState(null);
+
+  const fetchModalitiesStatus = async (pId = patientId) => {
+    if (!pId) return;
+    try {
+      const res = await apiFetch(`/api/patients/${pId}/modalities-status`);
+      if (res.ok) {
+        const data = await res.json();
+        setModalitiesStatus(data);
+      }
+    } catch (err) {
+      console.warn('Could not load modalities status:', err);
+    }
+  };
 
   const fetchActivePlansAndBadges = async () => {
     if (!patientId) return;
@@ -1521,6 +1535,7 @@ export default function ChartPage() {
         setActivePlanChips(chipsData.chips || []);
         setFinancialPill(chipsData.financialPill || null);
       }
+      fetchModalitiesStatus(patientId);
     } catch (err) {
       console.warn('Could not load treatment plan & chips:', err);
     }
@@ -1566,9 +1581,31 @@ export default function ChartPage() {
         fetchPlanBadgeCount(),
         refreshTreatmentPolicy(patientId),
         checkAndAutoBillConsultation(),
-        fetchLatestSession()
+        fetchLatestSession(),
+        fetchModalitiesStatus(patientId)
       ]).catch(() => {});
     }
+  }, [patientId]);
+
+  // Real-time listener for clinical modality updates (Whitening, Braces, Cavities)
+  useEffect(() => {
+    const handleModalityUpdate = (e) => {
+      const d = e.detail;
+      if (d?.patientId && String(d.patientId) === String(patientId)) {
+        fetchModalitiesStatus(patientId);
+        fetchActivePlansAndBadges();
+        if (d.currentTreatmentPlan !== undefined) {
+          setPatient(prev => prev ? {
+            ...prev,
+            currentTreatmentPlan: d.currentTreatmentPlan,
+            treatmentStage: d.treatmentStage,
+            targetShade: d.targetShade
+          } : prev);
+        }
+      }
+    };
+    window.addEventListener('dentia:patient-modality-updated', handleModalityUpdate);
+    return () => window.removeEventListener('dentia:patient-modality-updated', handleModalityUpdate);
   }, [patientId]);
 
   // Query parameter listener for tab switches
@@ -8859,76 +8896,257 @@ export default function ChartPage() {
               </div>
             )}
 
-            {/* Active Clinical Modality Banner (Braces / Teeth Whitening / Cavity Restorative) */}
-            {patient && patient.currentTreatmentPlan && (
-              (() => {
-                const plan = (patient.currentTreatmentPlan || '').toLowerCase();
-                const isBraces = plan.includes('brace') || plan.includes('ortho');
-                const isWhitening = plan.includes('whiten') || plan.includes('bleach');
-                const isCavity = plan.includes('cavity') || plan.includes('restor');
+            {/* 🌟 TRIPARTITE CLINICAL MODALITIES CURRENT STATUS SUITE (Braces / Teeth Whitening / Cavities) */}
+            {patient && (() => {
+              const braces = modalitiesStatus?.braces || {};
+              const whitening = modalitiesStatus?.whitening || {};
+              const cavity = modalitiesStatus?.cavity || {};
 
-                if (!isBraces && !isWhitening && !isCavity) return null;
+              // Fallbacks from patient object if API payload is pending
+              const pPlan = (patient.currentTreatmentPlan || '').toLowerCase();
+              const isOrthoFallback = pPlan.includes('brace') || pPlan.includes('ortho');
+              const isWhiteningFallback = pPlan.includes('whiten') || pPlan.includes('bleach');
+              const isCavityFallback = pPlan.includes('cavity') || pPlan.includes('restor');
 
-                return (
-                  <div className={`mt-2.5 px-4 py-2.5 rounded-2xl border flex items-center justify-between gap-3 shadow-xs transition-all ${
-                    isBraces 
-                      ? 'bg-sky-50/95 border-sky-300 text-sky-950'
-                      : isWhitening
-                        ? 'bg-amber-50/95 border-amber-300 text-amber-950'
-                        : 'bg-rose-50/95 border-rose-300 text-rose-950'
-                  }`}>
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs ${
-                        isBraces ? 'bg-sky-500 text-white' : isWhitening ? 'bg-amber-500 text-white' : 'bg-rose-500 text-white'
-                      }`}>
-                        {isBraces ? <Smile className="w-5 h-5" /> : isWhitening ? <Sparkles className="w-5 h-5" /> : <ShieldAlert className="w-5 h-5" />}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-black text-xs uppercase tracking-wide">
-                            {isBraces ? 'Braces Active Modality' : isWhitening ? 'Teeth Whitening Active' : 'Cavity Restorative Active'}
-                          </span>
-                          <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-md border ${
-                            isBraces ? 'bg-white text-sky-800 border-sky-200 shadow-2xs' : isWhitening ? 'bg-white text-amber-900 border-amber-200 shadow-2xs' : 'bg-white text-rose-800 border-rose-200 shadow-2xs'
-                          }`}>
-                            {patient.treatmentStage || 'Active Phase'}
-                          </span>
-                          {patient.targetShade && (
-                            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-white/90 border border-slate-200 text-slate-700 shadow-2xs">
-                              {isBraces ? `Wire: ${patient.targetShade}` : isWhitening ? `Shade: ${patient.targetShade}` : `Specs: ${patient.targetShade}`}
+              const isOrthoActive = braces.active ?? isOrthoFallback;
+              const isWhiteningActive = whitening.active ?? isWhiteningFallback;
+              const isCavityActive = cavity.active ?? isCavityFallback;
+
+              return (
+                <div className="mt-2.5 mb-1.5 p-3 rounded-2xl bg-gradient-to-r from-slate-50/90 via-indigo-50/15 to-slate-50/90 border border-slate-200/80 shadow-2xs">
+                  <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-slate-200/60 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
+                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-800">
+                        Clinical Modalities Current Status (Tripartite Suite)
+                      </span>
+                    </div>
+                    <span className="text-[9.5px] font-bold text-slate-500">
+                      Live chairside telemetry & treatment plan synchronization
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                    {/* 1. BRACES / ORTHODONTICS CARD */}
+                    <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between ${
+                      isOrthoActive 
+                        ? 'bg-sky-50/80 border-sky-300 shadow-2xs ring-1 ring-sky-300/40' 
+                        : 'bg-white border-slate-200/80 hover:border-slate-300'
+                    }`}>
+                      <div>
+                        <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                              isOrthoActive ? 'bg-sky-500 text-white shadow-2xs' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              <Smile className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="text-xs font-black text-slate-900 truncate">
+                              1. Braces (Ortho)
                             </span>
-                          )}
+                          </div>
+                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
+                            isOrthoActive 
+                              ? 'bg-sky-100 text-sky-800 border border-sky-300' 
+                              : 'bg-slate-100 text-slate-500 border border-slate-200'
+                          }`}>
+                            {isOrthoActive ? (braces.status || 'Active') : 'Not Started'}
+                          </span>
                         </div>
-                        <p className="text-[11px] text-slate-600 truncate mt-0.5">
-                          Plan: <strong className="font-bold text-slate-900">{patient.currentTreatmentPlan}</strong>
-                          {patient.treatmentStage ? ` • Current Stage: ${patient.treatmentStage}` : ''}
-                        </p>
+
+                        {isOrthoActive ? (
+                          <div className="space-y-1 text-[11px]">
+                            <div className="flex items-center justify-between text-slate-700">
+                              <span className="font-bold text-slate-500 text-[10px]">Stage:</span>
+                              <span className="font-extrabold text-sky-950 truncate max-w-[170px]">
+                                {braces.stage || patient.treatmentStage || 'Active Alignment'}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-slate-700">
+                              <span className="font-bold text-slate-500 text-[10px]">Wire:</span>
+                              <span className="font-bold text-slate-800 font-mono text-[10px] truncate max-w-[170px]">
+                                {braces.specification || patient.targetShade || '0.014 NiTi Heat-Activated'}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-[10.5px] text-slate-500 italic py-1">
+                            No active orthodontics or aligner treatment plan enrolled.
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="mt-2.5 pt-1.5 border-t border-slate-200/60 flex items-center justify-between gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActivePlanCategoryFilter('ortho');
+                            setActiveTab('treatment_plan');
+                          }}
+                          className="text-[10px] font-extrabold text-sky-700 hover:text-sky-900 cursor-pointer flex items-center gap-1 transition"
+                        >
+                          <span>View in Plan</span>
+                          <ArrowUpRight className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowOrthoTmjModal(true)}
+                          className="text-[9.5px] font-bold text-slate-600 hover:text-slate-900 bg-white/80 hover:bg-white px-2 py-0.5 rounded-lg border border-slate-200 transition cursor-pointer"
+                        >
+                          Ortho Suite
+                        </button>
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const cat = isBraces ? 'braces' : isWhitening ? 'whitening' : 'cavity';
-                        setActivePlanCategoryFilter(cat);
-                        setActiveTab('treatment_plan');
-                      }}
-                      className={`shrink-0 text-xs font-black px-3.5 py-2 rounded-xl border shadow-xs transition-all flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95 ${
-                        isBraces
-                          ? 'bg-sky-600 hover:bg-sky-700 text-white border-sky-700'
-                          : isWhitening
-                            ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-700'
-                            : 'bg-rose-600 hover:bg-rose-700 text-white border-rose-700'
-                      }`}
-                      title="Open Treatment Plan filtered by this clinical modality"
-                    >
-                      <span>View in Plan</span>
-                      <ArrowUpRight className="w-3.5 h-3.5" />
-                    </button>
+                    {/* 2. TEETH WHITENING CARD */}
+                    <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between ${
+                      isWhiteningActive 
+                        ? 'bg-amber-50/80 border-amber-300 shadow-2xs ring-1 ring-amber-300/40' 
+                        : 'bg-white border-slate-200/80 hover:border-slate-300'
+                    }`}>
+                      <div>
+                        <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                              isWhiteningActive ? 'bg-amber-500 text-white shadow-2xs' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              <Sparkles className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="text-xs font-black text-slate-900 truncate">
+                              2. Teeth Whitening
+                            </span>
+                          </div>
+                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
+                            isWhiteningActive 
+                              ? 'bg-amber-100 text-amber-900 border border-amber-300' 
+                              : 'bg-slate-100 text-slate-500 border border-slate-200'
+                          }`}>
+                            {isWhiteningActive ? (whitening.status || 'In Progress') : 'Not Started'}
+                          </span>
+                        </div>
+
+                        {isWhiteningActive ? (
+                          <div className="space-y-1 text-[11px]">
+                            <div className="flex items-center justify-between text-slate-700">
+                              <span className="font-bold text-slate-500 text-[10px]">Session:</span>
+                              <span className="font-extrabold text-amber-950 truncate max-w-[170px]">
+                                {whitening.stage || patient.treatmentStage || 'Session 1 of 3'}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-slate-700">
+                              <span className="font-bold text-slate-500 text-[10px]">Shade:</span>
+                              <span className="font-bold text-slate-800 font-mono text-[10px] truncate max-w-[170px]">
+                                {whitening.specification || patient.targetShade || 'Initial A3.5 ➔ Target B1'}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-[10.5px] text-slate-500 italic py-1">
+                            No cosmetic laser teeth whitening prescribed.
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="mt-2.5 pt-1.5 border-t border-slate-200/60 flex items-center justify-between gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActivePlanCategoryFilter('whitening');
+                            setActiveTab('treatment_plan');
+                          }}
+                          className="text-[10px] font-extrabold text-amber-700 hover:text-amber-900 cursor-pointer flex items-center gap-1 transition"
+                        >
+                          <span>View in Plan</span>
+                          <ArrowUpRight className="w-3 h-3" />
+                        </button>
+                        <span className="text-[9.5px] font-bold text-amber-800 bg-amber-100/60 px-1.5 py-0.5 rounded">
+                          35% Laser HP
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 3. CAVITIES & RESTORATIVE CARD */}
+                    <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between ${
+                      isCavityActive 
+                        ? 'bg-rose-50/80 border-rose-300 shadow-2xs ring-1 ring-rose-300/40' 
+                        : 'bg-emerald-50/50 border-emerald-200/70 hover:border-emerald-300'
+                    }`}>
+                      <div>
+                        <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                              isCavityActive ? 'bg-rose-500 text-white shadow-2xs' : 'bg-emerald-500 text-white shadow-2xs'
+                            }`}>
+                              {isCavityActive ? <ShieldAlert className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                            </div>
+                            <span className="text-xs font-black text-slate-900 truncate">
+                              3. Cavities & Restorative
+                            </span>
+                          </div>
+                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
+                            isCavityActive 
+                              ? 'bg-rose-100 text-rose-800 border border-rose-300' 
+                              : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          }`}>
+                            {isCavityActive ? `${cavity.plannedCount || 1} Planned` : 'All Sound (0)'}
+                          </span>
+                        </div>
+
+                        {isCavityActive ? (
+                          <div className="space-y-1 text-[11px]">
+                            <div className="flex items-center justify-between text-slate-700">
+                              <span className="font-bold text-slate-500 text-[10px]">Teeth:</span>
+                              <div className="flex items-center gap-1 flex-wrap justify-end">
+                                {Array.isArray(cavity.affectedTeeth) && cavity.affectedTeeth.length > 0 ? (
+                                  cavity.affectedTeeth.map(t => (
+                                    <span key={t} className="font-black text-[9.5px] bg-white text-rose-800 px-1.5 py-0.2 rounded border border-rose-200">
+                                      {t}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span className="font-extrabold text-rose-950">
+                                    {cavity.stage || patient.treatmentStage || 'Restorative Protocol'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between text-slate-700">
+                              <span className="font-bold text-slate-500 text-[10px]">Material:</span>
+                              <span className="font-bold text-slate-800 text-[10px] truncate max-w-[170px]">
+                                {cavity.specification || 'Composite Resin / GIC'}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-[10.5px] text-emerald-700 font-medium py-1">
+                            ✓ No active caries or untreated cavitations detected on chart.
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="mt-2.5 pt-1.5 border-t border-slate-200/60 flex items-center justify-between gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActivePlanCategoryFilter('restorative');
+                            setActiveTab('treatment_plan');
+                          }}
+                          className={`text-[10px] font-extrabold cursor-pointer flex items-center gap-1 transition ${
+                            isCavityActive ? 'text-rose-700 hover:text-rose-900' : 'text-emerald-700 hover:text-emerald-900'
+                          }`}
+                        >
+                          <span>{isCavityActive ? 'View in Plan' : 'Restorative Care'}</span>
+                          <ArrowUpRight className="w-3 h-3" />
+                        </button>
+                        <span className="text-[9.5px] font-bold text-slate-600 bg-white/80 px-1.5 py-0.5 rounded border border-slate-200">
+                          Odontogram
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                );
-              })()
-            )}
+                </div>
+              );
+            })()}
 
 
             {/* ===== AI NOTES TAB ===== */}

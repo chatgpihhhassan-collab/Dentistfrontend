@@ -529,6 +529,24 @@ export default function TreatmentPlanTab({
                 showToast('success', d.message || `Status updated.`);
                 setConflictModalData(null);
                 setConflictReasonNotes('');
+
+                // Invalidate local clinic directory cache
+                try {
+                    sessionStorage.removeItem('clinic_patients_cache');
+                } catch {}
+
+                // Broadcast modality change event for Directory and ChartPage
+                window.dispatchEvent(new CustomEvent('dentia:patient-modality-updated', {
+                    detail: {
+                        patientId,
+                        currentTreatmentPlan: d.item?.currentTreatmentPlan,
+                        treatmentStage: d.item?.treatmentStage,
+                        targetShade: d.item?.targetShade,
+                        updatedItemId: itemId,
+                        status: newStatus
+                    }
+                }));
+
                 await fetchPlanData();
                 if (onTreatmentStatusChange) onTreatmentStatusChange();
             } else if (res.status === 409) {
@@ -549,6 +567,51 @@ export default function TreatmentPlanTab({
             }
         } catch { showToast('error', 'Network error.'); }
         finally { setActionLoading(p => ({ ...p, [itemId]: false })); }
+    };
+
+    const handleDeleteItem = async (rawId) => {
+        const itemId = resolveId(rawId);
+        if (!itemId) { showToast('error', 'Invalid procedure identifier.'); return; }
+
+        setActionLoading(p => ({ ...p, [itemId]: true }));
+        try {
+            const res = await apiFetch(`/api/treatment-items/${itemId}?userId=${doctorId || 1}&userRole=${userRole || 'Doctor'}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                const d = await res.json().catch(() => ({}));
+                showToast('success', d.message || 'Procedure permanently deleted from plan.');
+                setCancelModalItem(null);
+
+                // 1. Invalidate Directory cache
+                try {
+                    sessionStorage.removeItem('clinic_patients_cache');
+                } catch {}
+
+                // 2. Broadcast modality reset to Directory and ChartPage
+                window.dispatchEvent(new CustomEvent('dentia:patient-modality-updated', {
+                    detail: {
+                        patientId,
+                        currentTreatmentPlan: d.currentTreatmentPlan,
+                        treatmentStage: d.treatmentStage,
+                        targetShade: d.targetShade,
+                        modalityReset: d.modalityReset,
+                        deletedItemId: itemId
+                    }
+                }));
+
+                await fetchPlanData();
+                if (onTreatmentStatusChange) onTreatmentStatusChange();
+            } else {
+                const e = await res.json().catch(() => ({}));
+                showToast('error', e.message || 'Failed to delete procedure.');
+            }
+        } catch {
+            showToast('error', 'Network error deleting procedure.');
+        } finally {
+            setActionLoading(p => ({ ...p, [itemId]: false }));
+            setCancelModalItem(null);
+        }
     };
 
     const handleAddFromCatalog = async (e) => {
@@ -1281,18 +1344,20 @@ export default function TreatmentPlanTab({
 
                                 {/* Actions */}
                                 <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                                    {item.status === 'draft' && isDoctorOrAdmin && (
+                                    {item.status === 'draft' && isDoctorOrAdmin && (<>
                                         <ActionBtn label="Confirm" icon={Check} color="#7C3AED" loading={isBusy} onClick={() => handleStatusTransition(itemId, 'proposed')} />
-                                    )}
+                                        <IconBtn icon={Trash2} color="#EF4444" title="Delete Procedure" onClick={() => { setCancelModalItem(item); setCancelReason(''); }} disabled={isBusy} />
+                                    </>)}
                                     {item.status === 'proposed' && (<>
                                         <ActionBtn label="Accept" icon={CheckCircle2} color="#2563EB" loading={isBusy} onClick={() => handleStatusTransition(itemId, 'accepted')} />
                                         <ActionBtn label="Pay" icon={Banknote} color="#059669" loading={isBusy} onClick={() => { setPaymentModalItem(item); setPaymentAmount(String(bal > 0 ? bal : price)); }} />
+                                        <IconBtn icon={Trash2} color="#EF4444" title="Delete / Cancel" onClick={() => { setCancelModalItem(item); setCancelReason(''); }} disabled={isBusy} />
                                         <IconBtn icon={X} color="#EF4444" title="Decline" onClick={() => handleStatusTransition(itemId, 'declined', 'Patient declined')} disabled={isBusy} />
                                     </>)}
                                     {item.status === 'accepted' && (<>
                                         <ActionBtn label="Start" icon={Play} color="#2563EB" loading={isBusy} onClick={() => handleStatusTransition(itemId, 'in_progress')} />
                                         <IconBtn icon={Banknote} color="#059669" title="Add Advance" onClick={() => { setPaymentModalItem(item); setPaymentAmount(String(bal > 0 ? bal : price)); }} />
-                                        <IconBtn icon={Trash2} color="#EF4444" title="Cancel" onClick={() => { setCancelModalItem(item); setCancelReason(''); }} disabled={isBusy} />
+                                        <IconBtn icon={Trash2} color="#EF4444" title="Delete / Cancel" onClick={() => { setCancelModalItem(item); setCancelReason(''); }} disabled={isBusy} />
                                     </>)}
                                     {item.status === 'in_progress' && (<>
                                         <IconBtn icon={Banknote} color="#059669" title="Payment" onClick={() => { setPaymentModalItem(item); setPaymentAmount(String(bal > 0 ? bal : price)); }} />
@@ -1300,7 +1365,7 @@ export default function TreatmentPlanTab({
                                             ? <ActionBtn label="Done" icon={Check} color="#059669" loading={isBusy} onClick={() => handleStatusTransition(itemId, 'completed')} />
                                             : <span style={{ fontSize: 9.5, color: '#94A3B8', display: 'flex', alignItems: 'center', gap: 3 }}><Lock size={9} />Dr only</span>
                                         }
-                                        <IconBtn icon={Trash2} color="#EF4444" title="Cancel" onClick={() => { setCancelModalItem(item); setCancelReason(''); }} disabled={isBusy} />
+                                        <IconBtn icon={Trash2} color="#EF4444" title="Delete / Cancel" onClick={() => { setCancelModalItem(item); setCancelReason(''); }} disabled={isBusy} />
                                     </>)}
                                 </div>
                             </div>
@@ -1583,23 +1648,34 @@ export default function TreatmentPlanTab({
                 );
             })()}
 
-            {/* Cancel Modal */}
+            {/* Delete / Cancel Treatment Modal */}
             {cancelModalItem && (
-                <ModalOverlay onClose={() => setCancelModalItem(null)} maxWidth={420}>
+                <ModalOverlay onClose={() => setCancelModalItem(null)} maxWidth={440}>
                     <div style={{ width: '100%' }}>
-                        <ModalHeader icon={Trash2} title="Cancel Treatment" subtitle={cancelModalItem.name || cancelModalItem.procedureName || 'Treatment'} onClose={() => setCancelModalItem(null)} danger />
+                        <ModalHeader icon={Trash2} title="Delete or Cancel Procedure" subtitle={cancelModalItem.name || cancelModalItem.procedureName || 'Treatment'} onClose={() => setCancelModalItem(null)} danger />
                         <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 13 }}>
-                            <FormRow label="Cancellation Reason">
-                                <textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)} placeholder="Why is this being cancelled?" rows={3} style={{ ...inputStyle, resize: 'none' }} />
+                            <p style={{ fontSize: 11.5, color: '#64748B', margin: 0, lineHeight: 1.5 }}>
+                                Choose whether to <strong>permanently delete</strong> this procedure from the treatment plan or mark it as <strong>cancelled</strong>. Removing this item automatically updates and resets active clinical tags (Whitening, Braces, or Cavity) across the Patient Directory and Dental Chart.
+                            </p>
+                            <FormRow label="Reason (Optional for deletion, recommended for cancellation)">
+                                <textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)} placeholder="e.g. Added by mistake, or patient opted out" rows={2} style={{ ...inputStyle, resize: 'none' }} />
                             </FormRow>
-                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                                <button type="button" onClick={() => setCancelModalItem(null)} style={{ padding: '8px 16px', borderRadius: 10, background: '#F1F5F9', border: '1px solid #E2E8F0', color: '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Back</button>
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: 4 }}>
+                                <button type="button" onClick={() => setCancelModalItem(null)} style={{ padding: '8px 14px', borderRadius: 10, background: '#F1F5F9', border: '1px solid #E2E8F0', color: '#475569', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                                    Back
+                                </button>
                                 <button type="button" onClick={() => {
                                     const cId = resolveId(cancelModalItem);
-                                    handleStatusTransition(cId, 'cancelled', cancelReason);
+                                    handleStatusTransition(cId, 'cancelled', cancelReason || 'Cancelled by clinician');
                                     setCancelModalItem(null);
-                                }} style={{ padding: '8px 16px', borderRadius: 10, background: '#EF4444', color: '#fff', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}>
-                                    Cancel Procedure
+                                }} style={{ padding: '8px 14px', borderRadius: 10, background: '#F8FAFC', border: '1px solid #CBD5E1', color: '#334155', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                                    Mark Cancelled
+                                </button>
+                                <button type="button" onClick={() => {
+                                    const cId = resolveId(cancelModalItem);
+                                    handleDeleteItem(cId);
+                                }} style={{ padding: '8px 16px', borderRadius: 10, background: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)', color: '#fff', fontSize: 11.5, fontWeight: 800, border: 'none', cursor: 'pointer', boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)' }}>
+                                    Permanently Delete
                                 </button>
                             </div>
                         </div>

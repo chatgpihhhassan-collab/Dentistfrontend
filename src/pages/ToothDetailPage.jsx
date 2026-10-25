@@ -1367,6 +1367,9 @@ export default function ToothDetailPage() {
           >
             <X className="w-3.5 h-3.5" />
           </button>
+        </div>
+      )}
+
       {/* Reusable Bilingual Treatment Policy Modal */}
       <TreatmentPolicyModal
         isOpen={policyModal.isOpen}

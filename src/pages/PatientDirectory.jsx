@@ -408,6 +408,18 @@ export default function PatientDirectory() {
             setActiveTreatmentTag(null);
             setIsTreatmentDrawerOpen(false);
             if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
+
+            // Broadcast reset event to all open tabs and ChartPage
+            window.dispatchEvent(new CustomEvent('dentia:patient-modality-updated', {
+                detail: {
+                    patientId: selectedPatient.patientID,
+                    currentTreatmentPlan: null,
+                    treatmentStage: null,
+                    targetShade: null,
+                    modalityReset: true
+                }
+            }));
+
             showToast('Treatment plan reverted & reset in database!');
         } catch (err) {
             console.error(err);
@@ -807,6 +819,61 @@ export default function PatientDirectory() {
         };
         window.addEventListener('dentia:doctor-profile-updated', handleDocUpdate);
 
+        // 🌟 Real-time bidirectional modality sync (Whitening / Braces / Cavity resets)
+        const handleModalityUpdate = (e) => {
+            const detail = e.detail;
+            if (!detail || !detail.patientId) return;
+
+            // Invalidate local clinic directory cache
+            try {
+                sessionStorage.removeItem('clinic_patients_cache');
+            } catch {}
+
+            setPatients(prev => {
+                const updated = prev.map(p => {
+                    if (p.patientID === detail.patientId) {
+                        return {
+                            ...p,
+                            currentTreatmentPlan: detail.currentTreatmentPlan,
+                            CurrentTreatmentPlan: detail.currentTreatmentPlan,
+                            treatmentStage: detail.treatmentStage,
+                            TreatmentStage: detail.treatmentStage,
+                            targetShade: detail.targetShade,
+                            TargetShade: detail.targetShade
+                        };
+                    }
+                    return p;
+                });
+                try {
+                    sessionStorage.setItem('clinic_patients_cache', JSON.stringify(updated));
+                } catch {}
+                return updated;
+            });
+
+            setSelectedPatient(prev => {
+                if (prev && prev.patientID === detail.patientId) {
+                    const plan = (detail.currentTreatmentPlan || '').toLowerCase();
+                    let tag = null;
+                    if (plan.includes('brace')) tag = 'braces';
+                    else if (plan.includes('whiten')) tag = 'whitening';
+                    else if (plan.includes('cavit')) tag = 'cavity';
+                    setActiveTreatmentTag(tag);
+
+                    return {
+                        ...prev,
+                        currentTreatmentPlan: detail.currentTreatmentPlan,
+                        CurrentTreatmentPlan: detail.currentTreatmentPlan,
+                        treatmentStage: detail.treatmentStage,
+                        TreatmentStage: detail.treatmentStage,
+                        targetShade: detail.targetShade,
+                        TargetShade: detail.targetShade
+                    };
+                }
+                return prev;
+            });
+        };
+        window.addEventListener('dentia:patient-modality-updated', handleModalityUpdate);
+
         let isCancelled = false;
 
         // 🌟 INSTANT SWR RENDER: Check sessionStorage cache immediately (0ms instant display)
@@ -891,6 +958,7 @@ export default function PatientDirectory() {
             isCancelled = true;
             clearTimeout(slowTimer);
             window.removeEventListener('dentia:doctor-profile-updated', handleDocUpdate);
+            window.removeEventListener('dentia:patient-modality-updated', handleModalityUpdate);
         };
     }, [navigate]);
 
