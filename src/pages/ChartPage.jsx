@@ -597,6 +597,210 @@ function OcclusalJawToothThumbnail({ toothNumber, shape = 'molar', status = '', 
   );
 }
 
+// ⏱️ High-Performance Isolated Chairside Timer Micro-Component (Prevents 1s odontogram re-renders)
+export const ChairsideTimerBadge = React.memo(function ChairsideTimerBadge({ startTime, onEnd }) {
+  const [elapsed, setElapsed] = useState(() => {
+    if (!startTime) return 0;
+    return Math.max(0, Math.floor((Date.now() - startTime) / 1000));
+  });
+
+  useEffect(() => {
+    if (!startTime) return;
+    const interval = setInterval(() => {
+      setElapsed(Math.max(0, Math.floor((Date.now() - startTime) / 1000)));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [startTime]);
+
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  const formatted = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+  return (
+    <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-300 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-extrabold shadow-2xs animate-fade-in">
+      <span className="relative flex h-2.5 w-2.5">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+      </span>
+      <Clock className="w-3.5 h-3.5 text-emerald-600" />
+      <span className="font-mono text-xs font-black text-emerald-950 tracking-tight">
+        {formatted}
+      </span>
+      <button
+        type="button"
+        onClick={() => onEnd(elapsed)}
+        className="ml-1 px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[9.5px] font-black uppercase tracking-wider transition-colors cursor-pointer active:scale-95 shadow-2xs"
+        title="Stop timer and record total treatment duration with action audit logs"
+      >
+        Record & End
+      </button>
+    </div>
+  );
+});
+
+// 📋 Chairside Treatment Session Audit Logs & History Modal
+export const SessionHistoryModal = React.memo(function SessionHistoryModal({ 
+  isOpen, 
+  onClose, 
+  patient, 
+  patientId, 
+  sessions, 
+  loading 
+}) {
+  const [expandedSessionId, setExpandedSessionId] = useState(null);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fade-in">
+      <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[85vh] shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
+              <Clock className="w-5 h-5 text-indigo-300" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-extrabold text-white">Chairside Session History & Audit Logs</h3>
+                <span className="text-[10px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 px-2 py-0.5 rounded-full font-bold">
+                  Patient #{patientId}
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                {patient ? `${patient.firstName} ${patient.lastName}` : `Patient #${patientId}`} • Recorded chairside procedures & doctor action history
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Content Body */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-3.5 bg-slate-50/50">
+          {loading ? (
+            <div className="py-12 flex flex-col items-center justify-center gap-3 text-slate-500">
+              <Loader2 className="w-7 h-7 text-indigo-600 animate-spin" />
+              <span className="text-xs font-semibold">Loading session history and action audit logs…</span>
+            </div>
+          ) : (!sessions || sessions.length === 0) ? (
+            <div className="py-12 flex flex-col items-center justify-center gap-3 text-slate-500">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400">
+                <Clock className="w-6 h-6" />
+              </div>
+              <p className="text-xs font-bold text-slate-600">No previous chairside sessions found for this patient.</p>
+              <p className="text-[11px] text-slate-400 max-w-xs text-center">
+                Click "Start Treatment" on the Chart Page to record chairside duration and doctor actions.
+              </p>
+            </div>
+          ) : (
+            sessions.map((sess, idx) => {
+              const isExpanded = expandedSessionId === sess.sessionId || (idx === 0 && expandedSessionId === null);
+              const actions = sess.actionLogs || [];
+              const dateStr = sess.startedAt ? new Date(sess.startedAt).toLocaleString('en-US', {
+                month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
+              }) : 'N/A';
+
+              return (
+                <div key={sess.sessionId || idx} className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all">
+                  <div 
+                    onClick={() => setExpandedSessionId(isExpanded ? -1 : sess.sessionId)}
+                    className="p-4 flex items-center justify-between gap-3 cursor-pointer hover:bg-slate-50/80 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-700 font-mono font-black text-xs shrink-0">
+                        #{sessions.length - idx}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-black text-slate-900">{dateStr}</span>
+                          <span className="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.2 rounded-md font-extrabold">
+                            ⏱️ {sess.formattedDuration || '00:00'}
+                          </span>
+                          <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.2 rounded-md font-bold">
+                            {sess.doctorName || `Doctor #${sess.doctorId}`}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                          {sess.summaryNotes || (actions.length > 0 ? `${actions.length} clinical actions performed` : 'Chairside encounter completed')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-lg">
+                        {actions.length} logs
+                      </span>
+                      {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                    </div>
+                  </div>
+
+                  {/* Expandable Actions Timeline */}
+                  {isExpanded && (
+                    <div className="px-4 pb-4 pt-1 border-t border-slate-100 bg-slate-50/40">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2.5 mt-1">
+                        Session Action Logs ({actions.length})
+                      </div>
+                      {actions.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic">No granular action logs captured for this session.</p>
+                      ) : (
+                        <div className="space-y-2 relative before:absolute before:inset-0 before:left-3.5 before:w-0.5 before:bg-indigo-100">
+                          {actions.map((act, aIdx) => {
+                            const actTime = act.timestamp ? new Date(act.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+                            const mins = Math.floor((act.elapsedSeconds || 0) / 60);
+                            const secs = (act.elapsedSeconds || 0) % 60;
+                            const elapsedStr = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+                            return (
+                              <div key={act.id || aIdx} className="relative flex items-start gap-3 pl-1 text-xs">
+                                <div className="w-5 h-5 rounded-full bg-white border-2 border-indigo-500 text-indigo-700 flex items-center justify-center shrink-0 z-10 shadow-2xs mt-0.5">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                                </div>
+                                <div className="flex-1 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-extrabold text-slate-900 text-[11.5px]">{act.title || act.actionType}</span>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-mono text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded">
+                                        +{elapsedStr}
+                                      </span>
+                                      <span className="text-[9.5px] text-slate-400">{actTime}</span>
+                                    </div>
+                                  </div>
+                                  <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">{act.description}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between">
+          <span className="text-[11px] text-slate-500 font-medium">
+            Total Sessions: <strong>{sessions ? sessions.length : 0}</strong>
+          </span>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+          >
+            Close History
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
 export const TOOTH_ANATOMY = {
   1: { number: 1, name: "Maxillary Right 3rd Molar (Wisdom Tooth)", type: "Molar", arch: "Maxillary (Upper)", quad: "Upper Right", roots: 3, cusps: 4, function: "Grinding & crushing food (often vestigial or impacted)", fdi: "18" },
   2: { number: 2, name: "Maxillary Right 2nd Molar (12-yr Molar)", type: "Molar", arch: "Maxillary (Upper)", quad: "Upper Right", roots: 3, cusps: 4, function: "Heavy crushing & pulverizing bolus", fdi: "17" },
@@ -787,6 +991,74 @@ export default function ChartPage() {
   });
   const [activeAppointmentId, setActiveAppointmentId] = useState(null);
 
+  // 📋 Chairside Treatment Session Audit Logs & Latest Duration States
+  const [activeSessionId, setActiveSessionId] = useState(() => {
+    return typeof window !== 'undefined' ? sessionStorage.getItem(`dentia_session_id_${patientId}`) : null;
+  });
+  const [latestSession, setLatestSession] = useState(null);
+  const [showSessionLogsModal, setShowSessionLogsModal] = useState(false);
+  const [allSessionsList, setAllSessionsList] = useState([]);
+  const [loadingSessionsList, setLoadingSessionsList] = useState(false);
+  const sessionActionsRef = useRef([]);
+
+  // Restore action logs buffer if session was running across page reload
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = sessionStorage.getItem(`dentia_session_actions_${patientId}`);
+        if (saved) sessionActionsRef.current = JSON.parse(saved);
+      } catch {}
+    }
+  }, [patientId]);
+
+  const logSessionAction = (actionType, title, description, metadata = {}) => {
+    const elapsed = Math.max(0, Math.floor((Date.now() - (treatmentStartTime || Date.now())) / 1000));
+    const newAction = {
+      id: `act_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      timestamp: new Date().toISOString(),
+      elapsedSeconds: elapsed,
+      actionType,
+      title,
+      description,
+      metadata
+    };
+    sessionActionsRef.current = [...sessionActionsRef.current, newAction];
+    try {
+      sessionStorage.setItem(`dentia_session_actions_${patientId}`, JSON.stringify(sessionActionsRef.current));
+    } catch {}
+  };
+
+  const fetchLatestSession = async () => {
+    if (!patientId) return;
+    try {
+      const res = await apiFetch(`/api/patients/${patientId}/treatment-sessions/latest`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.hasSession) {
+          setLatestSession(data);
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch latest treatment session:', e);
+    }
+  };
+
+  const fetchSessionHistory = async () => {
+    if (!patientId) return;
+    setLoadingSessionsList(true);
+    try {
+      const res = await apiFetch(`/api/patients/${patientId}/treatment-sessions`);
+      if (res.ok) {
+        const data = await res.json();
+        setAllSessionsList(Array.isArray(data) ? data : []);
+      }
+    } catch (e) {
+      console.warn('Could not fetch session history:', e);
+    } finally {
+      setLoadingSessionsList(false);
+    }
+  };
+
   // 🛡️ Odontogram Unsaved Changes, Baseline Tracking & Revert States (Requirements #2 & #3)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
@@ -921,22 +1193,47 @@ export default function ChartPage() {
     const docId = docData.doctorID || docData.DoctorID || 1;
     const apptId = activeAppointmentId || patientVisits[0]?.appointmentID || patientVisits[0]?.id;
 
+    // Reset and initialize action logs buffer
+    sessionActionsRef.current = [
+      {
+        id: `act_${Date.now()}_start`,
+        timestamp: new Date().toISOString(),
+        elapsedSeconds: 0,
+        actionType: 'session_started',
+        title: 'Session Started',
+        description: `Chairside clinical session started by Doctor #${docId}.`,
+        metadata: { doctorId: docId, appointmentId: apptId }
+      }
+    ];
+    sessionStorage.setItem(`dentia_session_actions_${patientId}`, JSON.stringify(sessionActionsRef.current));
+
     try {
-      await apiFetch('/api/appointments/record-treatment-time', {
+      const startRes = await apiFetch(`/api/patients/${patientId}/treatment-sessions/start`, {
         method: 'POST',
         body: JSON.stringify({
-          appointmentId: apptId ? parseInt(apptId, 10) : null,
-          patientId: parseInt(patientId, 10),
           doctorId: docId,
-          durationSeconds: 0,
-          formattedDuration: '00:00',
-          action: 'START_TREATMENT_SESSION',
-          notes: `Chairside treatment session started on Odontogram for Patient #${patientId}`,
-          startedAt: new Date().toISOString()
+          appointmentId: apptId ? parseInt(apptId, 10) : null,
+          notes: `Chairside treatment session started on Odontogram for Patient #${patientId}`
         })
       });
+      if (startRes.ok) {
+        const startData = await startRes.json();
+        if (startData && startData.sessionId) {
+          setActiveSessionId(startData.sessionId);
+          sessionStorage.setItem(`dentia_session_id_${patientId}`, String(startData.sessionId));
+          if (startData.consultationFeeAdded) {
+            logSessionAction(
+              'consultation_billed',
+              'Consultation Fee Added',
+              `Auto-billed Consultation Fee (Rs ${startData.consultationFee?.toLocaleString() || '5,000'}) to Treatment Plan.`,
+              { fee: startData.consultationFee, procedureCode: 'D0150' }
+            );
+            fetchPlanBadgeCount();
+          }
+        }
+      }
     } catch (e) {
-      console.warn("Non-blocking treatment session init notify:", e);
+      console.warn("Treatment session init notify:", e);
     }
 
     // Auto-bill initial consultation fee if patient is under first observation
@@ -951,9 +1248,11 @@ export default function ChartPage() {
     setActiveTab('chart');
   };
 
-  const handleSaveAndRecordTreatment = async (stopSession = false) => {
+  const handleSaveAndRecordTreatment = async (stopSession = false, passedSecs = null) => {
     if (!treatmentStartTime) return;
-    const currentSecs = Math.max(1, Math.floor((Date.now() - treatmentStartTime) / 1000));
+    const currentSecs = (passedSecs !== null && passedSecs !== undefined)
+      ? passedSecs
+      : Math.max(1, Math.floor((Date.now() - treatmentStartTime) / 1000));
     const mins = Math.floor(currentSecs / 60);
     const secs = currentSecs % 60;
     const hrs = Math.floor(mins / 60);
@@ -966,7 +1265,28 @@ export default function ChartPage() {
     const docId = docData.doctorID || docData.DoctorID || 1;
     const apptId = activeAppointmentId || patientVisits[0]?.appointmentID || patientVisits[0]?.id;
 
+    if (stopSession) {
+      logSessionAction(
+        'session_completed',
+        'Session Completed',
+        `Chairside treatment completed. Duration: ${formatted}. Total actions logged: ${sessionActionsRef.current.length + 1}.`,
+        { durationSeconds: currentSecs, formattedDuration: formatted }
+      );
+    }
+
     try {
+      const sessId = activeSessionId || sessionStorage.getItem(`dentia_session_id_${patientId}`) || 0;
+      await apiFetch(`/api/patients/${patientId}/treatment-sessions/${sessId}/end`, {
+        method: 'POST',
+        body: JSON.stringify({
+          durationSeconds: currentSecs,
+          formattedDuration: formatted,
+          summaryNotes: `Chairside treatment encounter (${formatted}) recorded on Odontogram`,
+          actions: sessionActionsRef.current
+        })
+      }).catch(e => console.warn('Non-blocking treatment session end error:', e));
+
+      // Legacy mirror to appointment
       await apiFetch('/api/appointments/record-treatment-time', {
         method: 'POST',
         body: JSON.stringify({
@@ -979,7 +1299,7 @@ export default function ChartPage() {
           notes: `Chairside treatment session recorded: ${formatted} on Odontogram for Patient #${patientId}`,
           endedAt: stopSession ? new Date().toISOString() : null
         })
-      });
+      }).catch(() => {});
 
       if (stopSession) {
         setIsTreatmentTimerRunning(false);
@@ -987,9 +1307,27 @@ export default function ChartPage() {
         setTreatmentSeconds(0);
         sessionStorage.removeItem(`dentia_treatment_running_${patientId}`);
         sessionStorage.removeItem(`dentia_treatment_start_${patientId}`);
+        sessionStorage.removeItem(`dentia_session_id_${patientId}`);
+        sessionStorage.removeItem(`dentia_session_actions_${patientId}`);
+
+        setLatestSession({
+          hasSession: true,
+          sessionId: sessId,
+          patientId: parseInt(patientId, 10),
+          doctorId: docId,
+          doctorName: docData.name ? `Dr. ${docData.name}` : undefined,
+          startedAt: new Date(treatmentStartTime).toISOString(),
+          endedAt: new Date().toISOString(),
+          durationSeconds: currentSecs,
+          formattedDuration: formatted,
+          status: 'completed',
+          actionCount: sessionActionsRef.current.length,
+          actionLogs: [...sessionActionsRef.current]
+        });
+
         setToast({ 
           visible: true, 
-          message: `✓ Total treatment time (${formatted}) appended to Appointment & Patient #${patientId} record!` 
+          message: `✓ Total treatment time (${formatted}) & clinical action logs recorded for Patient #${patientId}!` 
         });
         setTimeout(() => setToast({ visible: false, message: '' }), 5000);
       } else {
@@ -1196,9 +1534,8 @@ export default function ChartPage() {
     try {
       const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
       const docId = doctorData.doctorID || doctorData.DoctorID || doctor?.doctorID || 1;
-      const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/auto-diagnostic-fee`, {
+      const res = await apiFetch(`/api/patients/${patientId}/auto-diagnostic-fee`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           feeType: 'consultation',
           doctorId: docId,
@@ -1206,10 +1543,16 @@ export default function ChartPage() {
         })
       });
       if (res.ok) {
-        const data = await res.json();
-        if (data.billed) {
+        const data = await res.json().catch(() => ({}));
+        if (data.added || data.Added || data.billed) {
           console.log('🩺 [AUTO-BILL] Added initial consultation fee to Treatment Plan:', data);
           fetchPlanBadgeCount();
+          logSessionAction(
+            'consultation_billed',
+            'Consultation Fee Billed',
+            `Added Dental Consultation Fee (${data.fee ? 'Rs ' + data.fee.toLocaleString() : 'Rs 5,000'}) to Treatment Plan`,
+            { fee: data.fee, procedureCode: 'D0150' }
+          );
         }
       }
     } catch (err) {
@@ -1219,9 +1562,12 @@ export default function ChartPage() {
 
   useEffect(() => {
     if (patientId) {
-      fetchPlanBadgeCount();
-      refreshTreatmentPolicy(patientId);
-      checkAndAutoBillConsultation();
+      Promise.all([
+        fetchPlanBadgeCount(),
+        refreshTreatmentPolicy(patientId),
+        checkAndAutoBillConsultation(),
+        fetchLatestSession()
+      ]).catch(() => {});
     }
   }, [patientId]);
 
@@ -1401,9 +1747,8 @@ export default function ChartPage() {
       try {
         const docData = JSON.parse(localStorage.getItem('doctor') || '{}');
         const dId = docData.doctorID || docData.DoctorID || 1;
-        const dFeeRes = await fetch(`${API_BASE_URL}/api/patients/${patientId}/auto-diagnostic-fee`, {
+        const dFeeRes = await apiFetch(`/api/patients/${patientId}/auto-diagnostic-fee`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             feeType: 'rvg_xray',
             doctorId: dId,
@@ -1411,10 +1756,16 @@ export default function ChartPage() {
           })
         });
         if (dFeeRes.ok) {
-          const dFeeData = await dFeeRes.json();
-          if (dFeeData.billed) {
+          const dFeeData = await dFeeRes.json().catch(() => ({}));
+          if (dFeeData.added || dFeeData.Added || dFeeData.billed) {
             console.log('📸 [AUTO-BILL] Added DIGORA X-Ray fee to Treatment Plan:', dFeeData);
             fetchPlanBadgeCount();
+            logSessionAction(
+              'radiograph_acquired',
+              'DIGORA X-Ray Digitized',
+              `Soredex DIGORA Optime X-Ray captured & added to Treatment Plan (${dFeeData.fee ? 'Rs ' + dFeeData.fee.toLocaleString() : 'Rs 2,500'})`,
+              { fee: dFeeData.fee, device: 'DIGORA Optime', modality: 'RVG' }
+            );
           }
         }
       } catch (dFeeErr) {
@@ -1516,9 +1867,8 @@ export default function ChartPage() {
 
             // Auto-bill Hardware RVG X-Ray Fee in Treatment Plan
             try {
-              const xFeeRes = await fetch(`${API_BASE_URL}/api/patients/${patientId}/auto-diagnostic-fee`, {
+              const xFeeRes = await apiFetch(`/api/patients/${patientId}/auto-diagnostic-fee`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   feeType: 'rvg_xray',
                   toothNumber: tKey ? String(tKey) : null,
@@ -1527,10 +1877,16 @@ export default function ChartPage() {
                 })
               });
               if (xFeeRes.ok) {
-                const xFeeData = await xFeeRes.json();
-                if (xFeeData.billed) {
+                const xFeeData = await xFeeRes.json().catch(() => ({}));
+                if (xFeeData.added || xFeeData.Added || xFeeData.billed) {
                   console.log('📸 [AUTO-BILL] Added RVG X-Ray fee to Treatment Plan:', xFeeData);
                   fetchPlanBadgeCount();
+                  logSessionAction(
+                    'radiograph_acquired',
+                    'Nano-Pix RVG X-Ray Acquired',
+                    `Eighteeth Nano-Pix RVG X-Ray on Tooth #${tKey || 'general'} captured & added to Treatment Plan (${xFeeData.fee ? 'Rs ' + xFeeData.fee.toLocaleString() : 'Rs 2,500'})`,
+                    { fee: xFeeData.fee, device: 'Nano-Pix RVG', toothNumber: tKey }
+                  );
                 }
               }
             } catch (xFeeErr) {
@@ -8197,36 +8553,44 @@ export default function ChartPage() {
                   <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Directory
                 </button>
 
-                {/* ⏱️ Operatory Treatment Timer Widget (Requirement #1) */}
+                {/* ⏱️ Operatory Treatment Timer & Latest Session Duration Widget */}
                 {isTreatmentTimerRunning ? (
-                  <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-300 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-extrabold shadow-2xs">
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                    </span>
-                    <Clock className="w-3.5 h-3.5 text-emerald-600" />
-                    <span className="font-mono text-xs font-black text-emerald-950 tracking-tight">
-                      {Math.floor(treatmentSeconds / 60).toString().padStart(2, '0')}:{(treatmentSeconds % 60).toString().padStart(2, '0')}
-                    </span>
+                  <ChairsideTimerBadge 
+                    startTime={treatmentStartTime} 
+                    onEnd={(elapsedSecs) => handleSaveAndRecordTreatment(true, elapsedSecs)} 
+                  />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    {latestSession && latestSession.hasSession && (latestSession.durationSeconds > 0 || (latestSession.formattedDuration && latestSession.formattedDuration !== '00:00')) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          fetchSessionHistory();
+                          setShowSessionLogsModal(true);
+                        }}
+                        className="bg-indigo-50/90 hover:bg-indigo-100 text-indigo-900 border border-indigo-200/90 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs group"
+                        title="Click to view full chairside clinical session history & action logs"
+                      >
+                        <Clock className="w-3.5 h-3.5 text-indigo-600 group-hover:rotate-45 transition-transform" />
+                        <span>Last Session: <strong className="font-black text-indigo-950">{latestSession.formattedDuration}</strong></span>
+                        {latestSession.actionCount > 0 && (
+                          <span className="bg-indigo-200/70 text-indigo-800 text-[9.5px] font-black px-1.5 py-0.2 rounded-md">
+                            {latestSession.actionCount} actions
+                          </span>
+                        )}
+                        <Eye className="w-3 h-3 text-indigo-500" />
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => handleSaveAndRecordTreatment(true)}
-                      className="ml-1 px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[9.5px] font-black uppercase tracking-wider transition-colors cursor-pointer active:scale-95 shadow-2xs"
-                      title="Stop timer and record total treatment duration for this appointment/patient"
+                      onClick={() => setShowStartTreatmentModal(true)}
+                      className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                      title="Start treatment timer to record procedure time"
                     >
-                      Record & End
+                      <Play className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
+                      <span>Start Treatment</span>
                     </button>
                   </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowStartTreatmentModal(true)}
-                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-                    title="Start treatment timer to record procedure time"
-                  >
-                    <Play className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
-                    <span>Start Treatment</span>
-                  </button>
                 )}
 
                 {/* ↺ Revert Unsaved Changes Button (Requirement #3) */}
@@ -13607,6 +13971,16 @@ export default function ChartPage() {
           </div>
         </div>
       )}
+
+      {/* 📋 Chairside Treatment Session Audit Logs & History Modal */}
+      <SessionHistoryModal
+        isOpen={showSessionLogsModal}
+        onClose={() => setShowSessionLogsModal(false)}
+        patient={patient}
+        patientId={patientId}
+        sessions={allSessionsList}
+        loading={loadingSessionsList}
+      />
 
       {/* ⚠️ Odontogram Unsaved Changes Confirmation Modal (Requirements #2 & #3) */}
       {showUnsavedModal && (

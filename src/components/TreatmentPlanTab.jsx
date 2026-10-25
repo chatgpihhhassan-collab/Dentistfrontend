@@ -382,7 +382,7 @@ export default function TreatmentPlanTab({
             }
             if (iR.ok) {
                 const data = await iR.json();
-                setTreatmentItems((Array.isArray(data) ? data : []).map(i => ({
+                const itemsList = (Array.isArray(data) ? data : []).map(i => ({
                     ...i,
                     id: i.id || i.treatmentItemID || i.treatmentItemId,
                     treatmentItemID: i.treatmentItemID || i.id || i.treatmentItemId,
@@ -392,7 +392,46 @@ export default function TreatmentPlanTab({
                     estimatedPrice: i.estimatedPrice || i.finalPrice || 0,
                     paid: i.paid || 0,
                     balance: i.balance !== undefined ? i.balance : Math.max(0, (i.finalPrice || i.estimatedPrice || 0) - (i.paid || 0)),
-                })));
+                }));
+
+                // Auto-ensure Consultation Fee for new patient if treatment plan is currently empty
+                if (itemsList.length === 0) {
+                    try {
+                        const autoRes = await apiFetch(`/api/patients/${patientId}/auto-diagnostic-fee`, {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                feeType: 'consultation',
+                                doctorId: effectiveDocId,
+                                notes: 'Initial observation consultation auto-bill'
+                            })
+                        });
+                        if (autoRes.ok) {
+                            const autoData = await autoRes.json().catch(() => ({}));
+                            if (autoData.added || autoData.Added || autoData.billed) {
+                                const retryRes = await apiFetch(`/api/patients/${patientId}/treatment-items?view=plan`);
+                                if (retryRes.ok) {
+                                    const retryData = await retryRes.json();
+                                    if (Array.isArray(retryData) && retryData.length > 0) {
+                                        setTreatmentItems(retryData.map(i => ({
+                                            ...i,
+                                            id: i.id || i.treatmentItemID || i.treatmentItemId,
+                                            treatmentItemID: i.treatmentItemID || i.id || i.treatmentItemId,
+                                            name: i.name || i.procedureName || 'Treatment',
+                                            toothNo: i.toothNo !== undefined ? i.toothNo : (i.toothNumber || 0),
+                                            finalPrice: i.finalPrice || i.estimatedPrice || 0,
+                                            estimatedPrice: i.estimatedPrice || i.finalPrice || 0,
+                                            paid: i.paid || 0,
+                                            balance: i.balance !== undefined ? i.balance : Math.max(0, (i.finalPrice || i.estimatedPrice || 0) - (i.paid || 0)),
+                                        })));
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) { /* non-blocking */ }
+                }
+
+                setTreatmentItems(itemsList);
             }
             if (fR.ok) setUnplannedFindings(await fR.json().then(d => Array.isArray(d) ? d : []));
             if (cR.ok) setCatalog(await cR.json().then(d => Array.isArray(d) ? d : []));
@@ -411,9 +450,8 @@ export default function TreatmentPlanTab({
         setActionLoading(p => ({ ...p, [feeType]: true }));
         try {
             const effectiveDocId = doctorId || patient?.doctorID || patient?.DoctorID || 1;
-            const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/auto-diagnostic-fee`, {
+            const res = await apiFetch(`/api/patients/${patientId}/auto-diagnostic-fee`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     feeType,
                     doctorId: effectiveDocId,
@@ -422,7 +460,7 @@ export default function TreatmentPlanTab({
             });
             const data = await res.json().catch(() => ({}));
             if (res.ok) {
-                if (data.billed) {
+                if (data.added || data.Added || data.billed) {
                     showToast('success', `Added ${label} (${fmtMoney(data.fee)}) to Treatment Plan`);
                     await fetchPlanData();
                     if (onTreatmentStatusChange) onTreatmentStatusChange();
@@ -709,21 +747,26 @@ export default function TreatmentPlanTab({
         }
     };
 
-    // ── Derived Data ──────────────────────────────────────────────────────────
+    // ── Category Matching & Derived Data ──────────────────────────────────────
+    const matchesCategory = (item, catUpper) => {
+        if (!catUpper || catUpper === 'ALL') return true;
+        const cat = (item.category || '').toLowerCase();
+        const name = (item.name || item.procedureName || '').toLowerCase();
+        const code = (item.procedureCode || '').toUpperCase();
+        const sel = catUpper.toLowerCase();
+
+        if (cat === sel) return true;
+        if (sel === 'braces' && (cat.includes('ortho') || cat.includes('brace') || name.includes('brace') || code.startsWith('D8'))) return true;
+        if (sel === 'whitening' && (cat.includes('whiten') || cat.includes('bleach') || name.includes('whiten') || name.includes('bleach'))) return true;
+        if (sel === 'cavity' && (cat.includes('cavity') || cat.includes('restor') || name.includes('cavity') || name.includes('composite') || name.includes('amalgam') || code.startsWith('D21') || code.startsWith('D23'))) return true;
+        if (sel === 'consultation' && (cat.includes('consult') || name.includes('consult') || name.includes('eval') || code === 'D0150' || code === 'D0120')) return true;
+        if ((sel === 'xray' || sel === 'x-ray') && (cat.includes('xray') || cat.includes('x-ray') || cat.includes('radio') || name.includes('x-ray') || name.includes('radiograph') || code === 'D0220' || code === 'D0330')) return true;
+        return false;
+    };
+
     const filteredItems = useMemo(() => {
         if (selectedCategory === 'ALL') return treatmentItems;
-        const sel = selectedCategory.toLowerCase();
-        return treatmentItems.filter(i => {
-            const cat = (i.category || '').toLowerCase();
-            const name = (i.name || i.procedureName || '').toLowerCase();
-            if (cat === sel) return true;
-            if (sel === 'braces' && (cat.includes('ortho') || name.includes('brace'))) return true;
-            if (sel === 'whitening' && (cat.includes('whiten') || name.includes('whiten') || name.includes('bleach'))) return true;
-            if (sel === 'cavity' && (cat.includes('cavity') || cat.includes('restor') || name.includes('cavity') || name.includes('composite'))) return true;
-            if (sel === 'consultation' && (cat.includes('consult') || name.includes('consult') || name.includes('eval'))) return true;
-            if (sel === 'xray' && (cat.includes('xray') || cat.includes('radio') || name.includes('x-ray') || name.includes('radiograph'))) return true;
-            return false;
-        });
+        return treatmentItems.filter(i => matchesCategory(i, selectedCategory));
     }, [treatmentItems, selectedCategory]);
 
     const totalPlanned = useMemo(() => treatmentItems.reduce((a, i) => a + (Number(i.finalPrice || i.estimatedPrice) || 0), 0), [treatmentItems]);
@@ -731,9 +774,15 @@ export default function TreatmentPlanTab({
     const totalBalance = Math.max(0, totalPlanned - totalPaid);
 
     const availableCats = useMemo(() => {
-        const defaultModalityCats = ['BRACES', 'WHITENING', 'CAVITY', 'CONSULTATION', 'XRAY'];
-        const s = new Set(defaultModalityCats);
-        treatmentItems.forEach(i => { if (i.category) s.add(i.category.toUpperCase()); });
+        const standardCats = ['CONSULTATION', 'X-RAY', 'BRACES', 'WHITENING', 'CAVITY'];
+        const s = new Set(standardCats);
+        treatmentItems.forEach(i => {
+            if (i.category) {
+                const up = i.category.toUpperCase();
+                if (up === 'XRAY') s.add('X-RAY');
+                else s.add(up);
+            }
+        });
         return Array.from(s);
     }, [treatmentItems]);
 
@@ -839,56 +888,63 @@ export default function TreatmentPlanTab({
             </div>
 
             {/* ── Quick Add Diagnostic / Modality Action Bar ────────────────────────── */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 18px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 10, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Zap size={11} color="#6366F1" /> Quick Diagnostic:
-                </span>
-                <button
-                    type="button"
-                    onClick={() => handleQuickAddDiagnosticFee('consultation', 'Consultation Fee')}
-                    disabled={actionLoading.consultation}
-                    title="Add doctor's configured consultation fee (D0150) to plan"
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: 5, padding: '3.5px 10px', borderRadius: 8,
-                        background: '#fff', border: '1px solid #CBD5E1', fontSize: 10.5, fontWeight: 700, color: '#1E293B',
-                        cursor: actionLoading.consultation ? 'wait' : 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-                        transition: 'all 0.15s'
-                    }}
-                >
-                    {actionLoading.consultation ? <RefreshCw size={11} style={{ animation: 'tp-spin 0.8s linear infinite' }} /> : <span>🩺</span>}
-                    <span>+ Consultation</span>
-                </button>
-                <button
-                    type="button"
-                    onClick={() => handleQuickAddDiagnosticFee('rvg_xray', 'Digital RVG X-Ray')}
-                    disabled={actionLoading.rvg_xray}
-                    title="Add doctor's configured RVG radiograph fee (D0220) to plan"
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: 5, padding: '3.5px 10px', borderRadius: 8,
-                        background: '#fff', border: '1px solid #CBD5E1', fontSize: 10.5, fontWeight: 700, color: '#1E293B',
-                        cursor: actionLoading.rvg_xray ? 'wait' : 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-                        transition: 'all 0.15s'
-                    }}
-                >
-                    {actionLoading.rvg_xray ? <RefreshCw size={11} style={{ animation: 'tp-spin 0.8s linear infinite' }} /> : <span>📸</span>}
-                    <span>+ Digital RVG X-Ray</span>
-                </button>
-                <button
-                    type="button"
-                    onClick={() => handleQuickAddDiagnosticFee('opg_xray', 'Panoramic OPG X-Ray')}
-                    disabled={actionLoading.opg_xray}
-                    title="Add doctor's configured panoramic OPG fee (D0330) to plan"
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: 5, padding: '3.5px 10px', borderRadius: 8,
-                        background: '#fff', border: '1px solid #CBD5E1', fontSize: 10.5, fontWeight: 700, color: '#1E293B',
-                        cursor: actionLoading.opg_xray ? 'wait' : 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-                        transition: 'all 0.15s'
-                    }}
-                >
-                    {actionLoading.opg_xray ? <RefreshCw size={11} style={{ animation: 'tp-spin 0.8s linear infinite' }} /> : <span>🌐</span>}
-                    <span>+ Panoramic OPG</span>
-                </button>
-            </div>
+            {(() => {
+                const docConsultFee = doctorFeeSchedule.find(p => p.procedureCode === 'D0150' || (p.category || '').toLowerCase() === 'consultation')?.standardFee || 5000;
+                const docRvgFee = doctorFeeSchedule.find(p => p.procedureCode === 'D0220' || (p.category || '').toLowerCase() === 'xray')?.standardFee || 2500;
+                const docOpgFee = doctorFeeSchedule.find(p => p.procedureCode === 'D0330')?.standardFee || 8500;
+                return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 18px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Zap size={11} color="#6366F1" /> Quick Diagnostic:
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => handleQuickAddDiagnosticFee('consultation', 'Consultation Fee')}
+                            disabled={actionLoading.consultation}
+                            title="Add doctor's configured consultation fee (D0150) to plan"
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 5, padding: '3.5px 10px', borderRadius: 8,
+                                background: '#fff', border: '1px solid #CBD5E1', fontSize: 10.5, fontWeight: 700, color: '#1E293B',
+                                cursor: actionLoading.consultation ? 'wait' : 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                                transition: 'all 0.15s'
+                            }}
+                        >
+                            {actionLoading.consultation ? <RefreshCw size={11} style={{ animation: 'tp-spin 0.8s linear infinite' }} /> : <span>🩺</span>}
+                            <span>+ Consultation ({fmtMoney(docConsultFee)})</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleQuickAddDiagnosticFee('rvg_xray', 'Digital RVG X-Ray')}
+                            disabled={actionLoading.rvg_xray}
+                            title="Add doctor's configured RVG radiograph fee (D0220) to plan"
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 5, padding: '3.5px 10px', borderRadius: 8,
+                                background: '#fff', border: '1px solid #CBD5E1', fontSize: 10.5, fontWeight: 700, color: '#1E293B',
+                                cursor: actionLoading.rvg_xray ? 'wait' : 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                                transition: 'all 0.15s'
+                            }}
+                        >
+                            {actionLoading.rvg_xray ? <RefreshCw size={11} style={{ animation: 'tp-spin 0.8s linear infinite' }} /> : <span>📸</span>}
+                            <span>+ RVG X-Ray ({fmtMoney(docRvgFee)})</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleQuickAddDiagnosticFee('opg_xray', 'Panoramic OPG X-Ray')}
+                            disabled={actionLoading.opg_xray}
+                            title="Add doctor's configured panoramic OPG fee (D0330) to plan"
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 5, padding: '3.5px 10px', borderRadius: 8,
+                                background: '#fff', border: '1px solid #CBD5E1', fontSize: 10.5, fontWeight: 700, color: '#1E293B',
+                                cursor: actionLoading.opg_xray ? 'wait' : 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                                transition: 'all 0.15s'
+                            }}
+                        >
+                            {actionLoading.opg_xray ? <RefreshCw size={11} style={{ animation: 'tp-spin 0.8s linear infinite' }} /> : <span>🌐</span>}
+                            <span>+ Panoramic OPG ({fmtMoney(docOpgFee)})</span>
+                        </button>
+                    </div>
+                );
+            })()}
 
             {/* ── Integrated In-Page Clinical Findings Studio (Scales from 1 to 32 Teeth, Zero Popups) ── */}
             {unplannedFindings.length > 0 && findingsExpanded && (
@@ -1110,7 +1166,7 @@ export default function TreatmentPlanTab({
             <div style={{ display: 'flex', gap: 3, padding: '7px 18px', background: '#FAFBFC', borderBottom: '1px solid #EEF2F7', flexShrink: 0, overflowX: 'auto' }}>
                 {['ALL', ...availableCats].map(cat => {
                     const active = selectedCategory === cat;
-                    const cnt = cat === 'ALL' ? treatmentItems.length : treatmentItems.filter(i => (i.category || '').toUpperCase() === cat).length;
+                    const cnt = cat === 'ALL' ? treatmentItems.length : treatmentItems.filter(i => matchesCategory(i, cat)).length;
                     return (
                         <button key={cat} onClick={() => setSelectedCategory(cat)} style={{
                             display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 7,
