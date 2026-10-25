@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
-import { ArrowLeft, Send, Mic, MicOff, AudioLines, Calendar, Clock, CheckCircle, CheckCircle2, AlertTriangle, AlertCircle, Save, KeyRound, FileText, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Brain, Stethoscope, Pill, ListChecks, Loader2, Printer, Download, Check, X, Edit, Image, Activity, Sparkles, Trash2, RotateCcw, Search, ExternalLink, CreditCard, ArrowUpRight, RefreshCw, HardDrive, Eye, Zap, Layers, Maximize2, Play, Smile, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Send, Mic, MicOff, AudioLines, Calendar, Clock, CheckCircle, CheckCircle2, AlertTriangle, AlertCircle, Save, KeyRound, FileText, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Brain, Stethoscope, Pill, ListChecks, Loader2, Printer, Download, Check, X, Edit, Image, Activity, Sparkles, Trash2, RotateCcw, Search, ExternalLink, CreditCard, ArrowUpRight, RefreshCw, HardDrive, Eye, Zap, Layers, Maximize2, Minimize2, Play, Smile, ShieldAlert } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import RadiologyReportViewer from '../components/RadiologyReportViewer';
@@ -1504,6 +1504,24 @@ export default function ChartPage() {
   const [financialPill, setFinancialPill] = useState(null);
   const [activePlanCategoryFilter, setActivePlanCategoryFilter] = useState(null);
   const [modalitiesStatus, setModalitiesStatus] = useState(null);
+  const [isTripartiteMinimized, setIsTripartiteMinimized] = useState(() => {
+    try {
+      return localStorage.getItem('dentia_modalities_minimized') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [isRefreshingModalities, setIsRefreshingModalities] = useState(false);
+
+  const toggleTripartiteMinimized = () => {
+    setIsTripartiteMinimized(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('dentia_modalities_minimized', String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   const fetchModalitiesStatus = async (pId = patientId) => {
     if (!pId) return;
@@ -1515,6 +1533,16 @@ export default function ChartPage() {
       }
     } catch (err) {
       console.warn('Could not load modalities status:', err);
+    }
+  };
+
+  const handleRefreshModalities = async () => {
+    if (isRefreshingModalities || !patientId) return;
+    setIsRefreshingModalities(true);
+    try {
+      await fetchModalitiesStatus(patientId);
+    } finally {
+      setTimeout(() => setIsRefreshingModalities(false), 500);
     }
   };
 
@@ -8917,86 +8945,253 @@ export default function ChartPage() {
               const isWhiteningActive = whitening.active ?? isWhiteningFallback;
               const isCavityActive = cavity.active ?? isCavityFallback;
 
-              return (
-                <div className="mt-2.5 mb-1.5 p-3 rounded-2xl bg-gradient-to-r from-slate-50/90 via-indigo-50/15 to-slate-50/90 border border-slate-200/80 shadow-2xs">
-                  <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-slate-200/60 flex-wrap">
-                    <div className="flex items-center gap-2">
+              // Parse shade progression (e.g., "Initial: A3 -> Target: A1" or "A3.5 ➔ B1")
+              const rawShade = whitening.specification || patient.targetShade || 'Initial: A3 ➔ Target: A1';
+              let initialShade = 'A3';
+              let targetShade = 'A1';
+              if (rawShade.includes('->') || rawShade.includes('➔') || rawShade.includes('to')) {
+                const parts = rawShade.split(/->|➔|to/i);
+                if (parts.length >= 2) {
+                  initialShade = parts[0].replace(/initial:?/i, '').trim();
+                  targetShade = parts[1].replace(/target:?/i, '').trim();
+                }
+              } else if (rawShade) {
+                targetShade = rawShade.trim();
+                initialShade = 'A3';
+              }
+
+              // Parse session number (e.g., "Session 1 of 3")
+              const rawStage = whitening.stage || patient.treatmentStage || 'Session 1 of 3';
+              let currentSession = 1;
+              let totalSessions = 3;
+              const sessMatch = rawStage.match(/(\d+)\s*(?:of|\/)\s*(\d+)/i);
+              if (sessMatch) {
+                currentSession = parseInt(sessMatch[1], 10) || 1;
+                totalSessions = parseInt(sessMatch[2], 10) || 3;
+              }
+
+              return isTripartiteMinimized ? (
+                /* ── MINIMIZED VIEW: Ultra-compact chairside summary ribbon ── */
+                <div className="mt-2.5 mb-1.5 px-3 py-1.5 rounded-2xl bg-gradient-to-r from-slate-50 via-indigo-50/25 to-slate-50 border border-slate-200/90 shadow-2xs flex items-center justify-between gap-2.5 transition-all duration-300">
+                  <div className="flex items-center gap-2 min-w-0 flex-1 overflow-x-auto no-scrollbar py-0.5">
+                    <div className="flex items-center gap-1.5 shrink-0 pr-1 border-r border-slate-200/80">
                       <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-800 hidden sm:inline">
+                        Modalities:
+                      </span>
+                    </div>
+
+                    {/* 1. Braces Mini Chip */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActivePlanCategoryFilter('ortho');
+                        setActiveTab('treatment_plan');
+                      }}
+                      className={`px-2.5 py-1 rounded-xl text-[10.5px] font-bold flex items-center gap-1.5 border transition-all cursor-pointer shrink-0 shadow-2xs ${
+                        isOrthoActive 
+                          ? 'bg-sky-50/90 text-sky-900 border-sky-300 hover:bg-sky-100 hover:border-sky-400' 
+                          : 'bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:border-slate-300'
+                      }`}
+                      title="1. Braces & Orthodontics status (Click to open plan)"
+                    >
+                      <Smile className={`w-3.5 h-3.5 shrink-0 ${isOrthoActive ? 'text-sky-600' : 'text-slate-400'}`} />
+                      <span className="font-medium text-slate-500">1. Braces:</span>
+                      <span className={isOrthoActive ? 'font-black text-sky-950' : 'font-semibold text-slate-600'}>
+                        {isOrthoActive ? (braces.stage || braces.status || 'Active Alignment') : 'Not Started'}
+                      </span>
+                    </button>
+
+                    {/* 2. Whitening Mini Chip */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActivePlanCategoryFilter('whitening');
+                        setActiveTab('treatment_plan');
+                      }}
+                      className={`px-2.5 py-1 rounded-xl text-[10.5px] font-bold flex items-center gap-1.5 border transition-all cursor-pointer shrink-0 shadow-2xs ${
+                        isWhiteningActive 
+                          ? 'bg-amber-50/90 text-amber-950 border-amber-300 hover:bg-amber-100 hover:border-amber-400' 
+                          : 'bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:border-slate-300'
+                      }`}
+                      title="2. Teeth Whitening status (Click to open plan)"
+                    >
+                      <Sparkles className={`w-3.5 h-3.5 shrink-0 ${isWhiteningActive ? 'text-amber-500' : 'text-slate-400'}`} />
+                      <span className="font-medium text-slate-500">2. Whitening:</span>
+                      <span className={isWhiteningActive ? 'font-black text-amber-950' : 'font-semibold text-slate-600'}>
+                        {isWhiteningActive ? `${rawStage} (${initialShade}➔${targetShade})` : 'Not Started'}
+                      </span>
+                    </button>
+
+                    {/* 3. Cavities Mini Chip */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActivePlanCategoryFilter('restorative');
+                        setActiveTab('treatment_plan');
+                      }}
+                      className={`px-2.5 py-1 rounded-xl text-[10.5px] font-bold flex items-center gap-1.5 border transition-all cursor-pointer shrink-0 shadow-2xs ${
+                        isCavityActive 
+                          ? 'bg-rose-50/90 text-rose-950 border-rose-300 hover:bg-rose-100 hover:border-rose-400' 
+                          : 'bg-emerald-50/90 text-emerald-950 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400'
+                      }`}
+                      title="3. Cavities & Restorative status (Click to open plan)"
+                    >
+                      {isCavityActive ? (
+                        <ShieldAlert className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                      ) : (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      )}
+                      <span className="font-medium text-slate-500">3. Cavities:</span>
+                      <span className="font-black">
+                        {isCavityActive ? `${cavity.plannedCount || 1} Planned Sites` : 'All Sound (0)'}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Actions & Maximize Toggle */}
+                  <div className="flex items-center gap-1.5 shrink-0 pl-1 border-l border-slate-200/80">
+                    <button
+                      type="button"
+                      onClick={handleRefreshModalities}
+                      disabled={isRefreshingModalities}
+                      className="p-1.5 text-slate-500 hover:text-indigo-600 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 transition cursor-pointer"
+                      title="Refresh live chairside telemetry"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingModalities ? 'animate-spin text-indigo-600' : ''}`} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={toggleTripartiteMinimized}
+                      className="flex items-center gap-1 text-[10.5px] font-black text-indigo-700 hover:text-indigo-900 bg-white hover:bg-indigo-50 border border-indigo-200/90 px-2.5 py-1 rounded-xl transition shadow-2xs cursor-pointer group"
+                      title="Maximize full clinical modalities suite"
+                    >
+                      <Maximize2 className="w-3 h-3 text-indigo-600 group-hover:scale-110 transition-transform" />
+                      <span className="hidden md:inline">Maximize</span>
+                      <ChevronDown className="w-3.5 h-3.5 text-indigo-500" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* ── MAXIMIZED VIEW: Full Clinical Modalities Suite ── */
+                <div className="mt-2.5 mb-1.5 p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-slate-50/95 via-indigo-50/20 to-slate-50/95 border border-slate-200/90 shadow-2xs transition-all duration-300">
+                  {/* Header Row */}
+                  <div className="flex items-center justify-between gap-2 mb-2.5 pb-2 border-b border-slate-200/70 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex items-center justify-center">
+                        <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-ping absolute opacity-70" />
+                        <span className="w-2 h-2 rounded-full bg-indigo-600 relative" />
+                      </div>
                       <span className="text-[11px] font-black uppercase tracking-wider text-slate-800">
                         Clinical Modalities Current Status (Tripartite Suite)
                       </span>
+                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 uppercase tracking-widest hidden sm:inline-block">
+                        Live Telemetry
+                      </span>
                     </div>
-                    <span className="text-[9.5px] font-bold text-slate-500">
-                      Live chairside telemetry & treatment plan synchronization
-                    </span>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9.5px] font-medium text-slate-500 hidden md:inline">
+                        Live chairside telemetry & treatment plan synchronization
+                      </span>
+                      <div className="h-3 w-px bg-slate-200 hidden md:inline" />
+                      <button
+                        type="button"
+                        onClick={handleRefreshModalities}
+                        disabled={isRefreshingModalities}
+                        className="p-1.5 text-slate-500 hover:text-indigo-600 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 transition cursor-pointer"
+                        title="Refresh live chairside telemetry"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingModalities ? 'animate-spin text-indigo-600' : ''}`} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={toggleTripartiteMinimized}
+                        className="flex items-center gap-1 text-[10.5px] font-bold text-slate-600 hover:text-indigo-700 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 px-2.5 py-1 rounded-xl transition shadow-2xs cursor-pointer group"
+                        title="Minimize to compact bar"
+                      >
+                        <Minimize2 className="w-3 h-3 text-slate-500 group-hover:scale-110 transition-transform" />
+                        <span className="hidden sm:inline">Minimize</span>
+                        <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                  {/* 3 Modality Cards Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3">
+                    
                     {/* 1. BRACES / ORTHODONTICS CARD */}
-                    <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between ${
+                    <div className={`p-3 rounded-2xl border transition-all flex flex-col justify-between ${
                       isOrthoActive 
-                        ? 'bg-sky-50/80 border-sky-300 shadow-2xs ring-1 ring-sky-300/40' 
-                        : 'bg-white border-slate-200/80 hover:border-slate-300'
+                        ? 'bg-gradient-to-br from-sky-50/90 via-white to-sky-50/40 border-sky-300 shadow-2xs ring-1 ring-sky-300/40' 
+                        : 'bg-white border-slate-200/90 hover:border-slate-300 shadow-2xs'
                     }`}>
                       <div>
-                        <div className="flex items-center justify-between gap-1.5 mb-1.5">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                        <div className="flex items-center justify-between gap-1.5 mb-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${
                               isOrthoActive ? 'bg-sky-500 text-white shadow-2xs' : 'bg-slate-100 text-slate-500'
                             }`}>
-                              <Smile className="w-3.5 h-3.5" />
+                              <Smile className="w-4 h-4" />
                             </div>
-                            <span className="text-xs font-black text-slate-900 truncate">
-                              1. Braces (Ortho)
-                            </span>
+                            <div className="min-w-0">
+                              <span className="text-xs font-black text-slate-900 block truncate leading-tight">
+                                1. Braces (Ortho)
+                              </span>
+                              <span className="text-[9.5px] text-slate-400 block font-medium">
+                                Orthodontic Alignment
+                              </span>
+                            </div>
                           </div>
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
+                          <span className={`text-[9.5px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
                             isOrthoActive 
-                              ? 'bg-sky-100 text-sky-800 border border-sky-300' 
-                              : 'bg-slate-100 text-slate-500 border border-slate-200'
+                              ? 'bg-sky-100 text-sky-800 border border-sky-300 shadow-2xs' 
+                              : 'bg-slate-100 text-slate-600 border border-slate-200'
                           }`}>
                             {isOrthoActive ? (braces.status || 'Active') : 'Not Started'}
                           </span>
                         </div>
 
                         {isOrthoActive ? (
-                          <div className="space-y-1 text-[11px]">
+                          <div className="space-y-1.5 bg-white/80 p-2.5 rounded-xl border border-sky-200/70 text-[11px] mb-1">
                             <div className="flex items-center justify-between text-slate-700">
-                              <span className="font-bold text-slate-500 text-[10px]">Stage:</span>
+                              <span className="font-bold text-slate-500 text-[10.5px]">Stage:</span>
                               <span className="font-extrabold text-sky-950 truncate max-w-[170px]">
                                 {braces.stage || patient.treatmentStage || 'Active Alignment'}
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-slate-700">
-                              <span className="font-bold text-slate-500 text-[10px]">Wire:</span>
-                              <span className="font-bold text-slate-800 font-mono text-[10px] truncate max-w-[170px]">
+                              <span className="font-bold text-slate-500 text-[10.5px]">Archwire:</span>
+                              <span className="font-bold text-slate-800 font-mono text-[10.5px] truncate max-w-[170px]">
                                 {braces.specification || patient.targetShade || '0.014 NiTi Heat-Activated'}
                               </span>
                             </div>
                           </div>
                         ) : (
-                          <p className="text-[10.5px] text-slate-500 italic py-1">
-                            No active orthodontics or aligner treatment plan enrolled.
-                          </p>
+                          <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200/60 mb-1">
+                            <p className="text-[11px] text-slate-500 italic leading-relaxed">
+                              No active orthodontics or aligner treatment plan enrolled.
+                            </p>
+                          </div>
                         )}
                       </div>
 
-                      <div className="mt-2.5 pt-1.5 border-t border-slate-200/60 flex items-center justify-between gap-1">
+                      <div className="mt-2 pt-2 border-t border-slate-200/70 flex items-center justify-between gap-1.5">
                         <button
                           type="button"
                           onClick={() => {
                             setActivePlanCategoryFilter('ortho');
                             setActiveTab('treatment_plan');
                           }}
-                          className="text-[10px] font-extrabold text-sky-700 hover:text-sky-900 cursor-pointer flex items-center gap-1 transition"
+                          className="text-[10.5px] font-extrabold text-sky-700 hover:text-sky-950 hover:bg-sky-100/60 px-2 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1"
                         >
                           <span>View in Plan</span>
-                          <ArrowUpRight className="w-3 h-3" />
+                          <ArrowUpRight className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
                           onClick={() => setShowOrthoTmjModal(true)}
-                          className="text-[9.5px] font-bold text-slate-600 hover:text-slate-900 bg-white/80 hover:bg-white px-2 py-0.5 rounded-lg border border-slate-200 transition cursor-pointer"
+                          className="text-[10px] font-bold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/90 shadow-2xs transition cursor-pointer"
                         >
                           Ortho Suite
                         </button>
@@ -9004,108 +9199,138 @@ export default function ChartPage() {
                     </div>
 
                     {/* 2. TEETH WHITENING CARD */}
-                    <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between ${
+                    <div className={`p-3 rounded-2xl border transition-all flex flex-col justify-between ${
                       isWhiteningActive 
-                        ? 'bg-amber-50/80 border-amber-300 shadow-2xs ring-1 ring-amber-300/40' 
-                        : 'bg-white border-slate-200/80 hover:border-slate-300'
+                        ? 'bg-gradient-to-br from-amber-50/95 via-white to-amber-50/40 border-amber-300 shadow-2xs ring-1 ring-amber-300/40' 
+                        : 'bg-white border-slate-200/90 hover:border-slate-300 shadow-2xs'
                     }`}>
                       <div>
-                        <div className="flex items-center justify-between gap-1.5 mb-1.5">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                        <div className="flex items-center justify-between gap-1.5 mb-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${
                               isWhiteningActive ? 'bg-amber-500 text-white shadow-2xs' : 'bg-slate-100 text-slate-500'
                             }`}>
-                              <Sparkles className="w-3.5 h-3.5" />
+                              <Sparkles className="w-4 h-4" />
                             </div>
-                            <span className="text-xs font-black text-slate-900 truncate">
-                              2. Teeth Whitening
-                            </span>
+                            <div className="min-w-0">
+                              <span className="text-xs font-black text-slate-900 block truncate leading-tight">
+                                2. Teeth Whitening
+                              </span>
+                              <span className="text-[9.5px] text-slate-400 block font-medium">
+                                In-Chair Laser Bleaching
+                              </span>
+                            </div>
                           </div>
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
+                          <span className={`text-[9.5px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
                             isWhiteningActive 
-                              ? 'bg-amber-100 text-amber-900 border border-amber-300' 
-                              : 'bg-slate-100 text-slate-500 border border-slate-200'
+                              ? 'bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs' 
+                              : 'bg-slate-100 text-slate-600 border border-slate-200'
                           }`}>
-                            {isWhiteningActive ? (whitening.status || 'In Progress') : 'Not Started'}
+                            {isWhiteningActive ? (whitening.status || 'Accepted') : 'Not Started'}
                           </span>
                         </div>
 
                         {isWhiteningActive ? (
-                          <div className="space-y-1 text-[11px]">
+                          <div className="space-y-1.5 bg-white/80 p-2.5 rounded-xl border border-amber-200/70 text-[11px] mb-1">
                             <div className="flex items-center justify-between text-slate-700">
-                              <span className="font-bold text-slate-500 text-[10px]">Session:</span>
-                              <span className="font-extrabold text-amber-950 truncate max-w-[170px]">
-                                {whitening.stage || patient.treatmentStage || 'Session 1 of 3'}
-                              </span>
+                              <span className="font-bold text-slate-500 text-[10.5px]">Session:</span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-extrabold text-amber-950">
+                                  {rawStage}
+                                </span>
+                                <div className="flex items-center gap-0.5 w-14">
+                                  {[1, 2, 3].map(step => (
+                                    <div 
+                                      key={step} 
+                                      className={`h-1.5 flex-1 rounded-full ${
+                                        step <= currentSession ? 'bg-amber-500' : 'bg-amber-200/60'
+                                      }`} 
+                                    />
+                                  ))}
+                                </div>
+                              </div>
                             </div>
                             <div className="flex items-center justify-between text-slate-700">
-                              <span className="font-bold text-slate-500 text-[10px]">Shade:</span>
-                              <span className="font-bold text-slate-800 font-mono text-[10px] truncate max-w-[170px]">
-                                {whitening.specification || patient.targetShade || 'Initial A3.5 ➔ Target B1'}
-                              </span>
+                              <span className="font-bold text-slate-500 text-[10.5px]">Shade:</span>
+                              <div className="flex items-center gap-1.5 font-bold text-[10.5px]">
+                                <span className="px-1.5 py-0.2 rounded bg-white border border-amber-200 text-amber-900 font-mono">
+                                  {initialShade}
+                                </span>
+                                <span className="text-amber-500 font-black">➔</span>
+                                <span className="px-1.5 py-0.2 rounded bg-amber-100 border border-amber-300 text-amber-950 font-black font-mono">
+                                  {targetShade}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         ) : (
-                          <p className="text-[10.5px] text-slate-500 italic py-1">
-                            No cosmetic laser teeth whitening prescribed.
-                          </p>
+                          <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-200/60 mb-1">
+                            <p className="text-[11px] text-slate-500 italic leading-relaxed">
+                              No cosmetic laser teeth whitening prescribed.
+                            </p>
+                          </div>
                         )}
                       </div>
 
-                      <div className="mt-2.5 pt-1.5 border-t border-slate-200/60 flex items-center justify-between gap-1">
+                      <div className="mt-2 pt-2 border-t border-slate-200/70 flex items-center justify-between gap-1.5">
                         <button
                           type="button"
                           onClick={() => {
                             setActivePlanCategoryFilter('whitening');
                             setActiveTab('treatment_plan');
                           }}
-                          className="text-[10px] font-extrabold text-amber-700 hover:text-amber-900 cursor-pointer flex items-center gap-1 transition"
+                          className="text-[10.5px] font-extrabold text-amber-700 hover:text-amber-950 hover:bg-amber-100/60 px-2 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1"
                         >
                           <span>View in Plan</span>
-                          <ArrowUpRight className="w-3 h-3" />
+                          <ArrowUpRight className="w-3.5 h-3.5" />
                         </button>
-                        <span className="text-[9.5px] font-bold text-amber-800 bg-amber-100/60 px-1.5 py-0.5 rounded">
+                        <span className="text-[9.5px] font-extrabold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200">
                           35% Laser HP
                         </span>
                       </div>
                     </div>
 
                     {/* 3. CAVITIES & RESTORATIVE CARD */}
-                    <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between ${
+                    <div className={`p-3 rounded-2xl border transition-all flex flex-col justify-between ${
                       isCavityActive 
-                        ? 'bg-rose-50/80 border-rose-300 shadow-2xs ring-1 ring-rose-300/40' 
-                        : 'bg-emerald-50/50 border-emerald-200/70 hover:border-emerald-300'
+                        ? 'bg-gradient-to-br from-rose-50/90 via-white to-rose-50/40 border-rose-300 shadow-2xs ring-1 ring-rose-300/40' 
+                        : 'bg-gradient-to-br from-emerald-50/90 via-white to-emerald-50/40 border-emerald-300 shadow-2xs'
                     }`}>
                       <div>
-                        <div className="flex items-center justify-between gap-1.5 mb-1.5">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                        <div className="flex items-center justify-between gap-1.5 mb-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${
                               isCavityActive ? 'bg-rose-500 text-white shadow-2xs' : 'bg-emerald-500 text-white shadow-2xs'
                             }`}>
-                              {isCavityActive ? <ShieldAlert className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                              {isCavityActive ? <ShieldAlert className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
                             </div>
-                            <span className="text-xs font-black text-slate-900 truncate">
-                              3. Cavities & Restorative
-                            </span>
+                            <div className="min-w-0">
+                              <span className="text-xs font-black text-slate-900 block truncate leading-tight">
+                                3. Cavities & Restorative
+                              </span>
+                              <span className="text-[9.5px] text-slate-400 block font-medium">
+                                Coronal & Root Health
+                              </span>
+                            </div>
                           </div>
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
+                          <span className={`text-[9.5px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
                             isCavityActive 
-                              ? 'bg-rose-100 text-rose-800 border border-rose-300' 
-                              : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              ? 'bg-rose-100 text-rose-800 border border-rose-300 shadow-2xs' 
+                              : 'bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs'
                           }`}>
                             {isCavityActive ? `${cavity.plannedCount || 1} Planned` : 'All Sound (0)'}
                           </span>
                         </div>
 
                         {isCavityActive ? (
-                          <div className="space-y-1 text-[11px]">
+                          <div className="space-y-1.5 bg-white/80 p-2.5 rounded-xl border border-rose-200/70 text-[11px] mb-1">
                             <div className="flex items-center justify-between text-slate-700">
-                              <span className="font-bold text-slate-500 text-[10px]">Teeth:</span>
+                              <span className="font-bold text-slate-500 text-[10.5px]">Teeth:</span>
                               <div className="flex items-center gap-1 flex-wrap justify-end">
                                 {Array.isArray(cavity.affectedTeeth) && cavity.affectedTeeth.length > 0 ? (
                                   cavity.affectedTeeth.map(t => (
-                                    <span key={t} className="font-black text-[9.5px] bg-white text-rose-800 px-1.5 py-0.2 rounded border border-rose-200">
-                                      {t}
+                                    <span key={t} className="font-black text-[10px] bg-white text-rose-800 px-1.5 py-0.2 rounded border border-rose-200 shadow-2xs">
+                                      #{t}
                                     </span>
                                   ))
                                 ) : (
@@ -9116,38 +9341,44 @@ export default function ChartPage() {
                               </div>
                             </div>
                             <div className="flex items-center justify-between text-slate-700">
-                              <span className="font-bold text-slate-500 text-[10px]">Material:</span>
-                              <span className="font-bold text-slate-800 text-[10px] truncate max-w-[170px]">
+                              <span className="font-bold text-slate-500 text-[10.5px]">Material:</span>
+                              <span className="font-bold text-slate-800 text-[10.5px] truncate max-w-[170px]">
                                 {cavity.specification || 'Composite Resin / GIC'}
                               </span>
                             </div>
                           </div>
                         ) : (
-                          <p className="text-[10.5px] text-emerald-700 font-medium py-1">
-                            ✓ No active caries or untreated cavitations detected on chart.
-                          </p>
+                          <div className="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-200/60 mb-1">
+                            <p className="text-[11px] text-emerald-800 font-semibold leading-relaxed flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span>No active caries or untreated cavitations detected on chart.</span>
+                            </p>
+                          </div>
                         )}
                       </div>
 
-                      <div className="mt-2.5 pt-1.5 border-t border-slate-200/60 flex items-center justify-between gap-1">
+                      <div className="mt-2 pt-2 border-t border-slate-200/70 flex items-center justify-between gap-1.5">
                         <button
                           type="button"
                           onClick={() => {
                             setActivePlanCategoryFilter('restorative');
                             setActiveTab('treatment_plan');
                           }}
-                          className={`text-[10px] font-extrabold cursor-pointer flex items-center gap-1 transition ${
-                            isCavityActive ? 'text-rose-700 hover:text-rose-900' : 'text-emerald-700 hover:text-emerald-900'
+                          className={`text-[10.5px] font-extrabold px-2 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                            isCavityActive 
+                              ? 'text-rose-700 hover:text-rose-950 hover:bg-rose-100/60' 
+                              : 'text-emerald-700 hover:text-emerald-950 hover:bg-emerald-100/60'
                           }`}
                         >
                           <span>{isCavityActive ? 'View in Plan' : 'Restorative Care'}</span>
-                          <ArrowUpRight className="w-3 h-3" />
+                          <ArrowUpRight className="w-3.5 h-3.5" />
                         </button>
-                        <span className="text-[9.5px] font-bold text-slate-600 bg-white/80 px-1.5 py-0.5 rounded border border-slate-200">
+                        <span className="text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/90 shadow-2xs transition">
                           Odontogram
                         </span>
                       </div>
                     </div>
+
                   </div>
                 </div>
               );
