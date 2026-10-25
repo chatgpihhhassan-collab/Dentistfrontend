@@ -20,6 +20,7 @@ import { updatePatientWhatsAppOptIn } from '../services/whatsappService';
 import { formatDatePK, formatDateTimePK, parseDobForInput, formatDobForSave } from '../utils/dateUtils';
 import { normalizePakistaniPhone } from '../validators';
 import { hasPermission } from '../utils/permissionUtils';
+import TreatmentPolicyModal from '../components/TreatmentPolicyModal';
 
 export default function PatientDirectory() {
     const [patients, setPatients] = useState([]);
@@ -77,6 +78,16 @@ export default function PatientDirectory() {
 
     // Edit Patient Info Modal States
     const [editPatientModal, setEditPatientModal] = useState({ visible: false, patient: null });
+    const [policyModal, setPolicyModal] = useState({
+        isOpen: false,
+        title: '',
+        titleUrdu: '',
+        message: '',
+        messageUrdu: '',
+        toothNumber: null,
+        treatmentName: '',
+        errorCode: ''
+    });
     const [editForm, setEditForm] = useState({
         firstName: '',
         lastName: '',
@@ -277,6 +288,18 @@ export default function PatientDirectory() {
                 setCachedData(`patient_${updated.patientID}`, updated);
                 setEditPatientModal({ visible: false, patient: null });
                 showToast('Patient information updated successfully!');
+            } else if (res.status === 409) {
+                const errData = await res.json().catch(() => ({}));
+                setPolicyModal({
+                    isOpen: true,
+                    title: 'Doctor Locked',
+                    titleUrdu: 'معالج کی تبدیلی مقفل ہے',
+                    message: errData.message || 'Treatment is already in progress. The doctor cannot be changed until this treatment is completed.',
+                    messageUrdu: errData.messageUrdu || 'علاج جاری ہے۔ جب تک یہ علاج مکمل نہیں ہو جاتا، ڈاکٹر تبدیل نہیں کیا جا سکتا۔',
+                    toothNumber: errData.toothNumber,
+                    treatmentName: errData.treatmentName,
+                    errorCode: 'DOCTOR_LOCKED'
+                });
             } else {
                 const errData = await res.json().catch(() => null);
                 const errMsg = errData?.message || await res.text().catch(() => "");
@@ -3026,6 +3049,19 @@ export default function PatientDirectory() {
             <div className="block lg:hidden flex-shrink-0">
                 <Footer />
             </div>
+
+            {/* Reusable Bilingual Policy Locked Modal */}
+            <TreatmentPolicyModal
+                isOpen={policyModal.isOpen}
+                onClose={() => setPolicyModal(prev => ({ ...prev, isOpen: false }))}
+                title={policyModal.title}
+                titleUrdu={policyModal.titleUrdu}
+                message={policyModal.message}
+                messageUrdu={policyModal.messageUrdu}
+                toothNumber={policyModal.toothNumber}
+                treatmentName={policyModal.treatmentName}
+                errorCode={policyModal.errorCode}
+            />
         </div>
     );
 }

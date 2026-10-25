@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
-import { ArrowLeft, Send, Mic, MicOff, AudioLines, Calendar, Clock, CheckCircle, AlertTriangle, AlertCircle, Save, KeyRound, FileText, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Brain, Stethoscope, Pill, ListChecks, Loader2, Printer, Download, Check, X, Edit, Image, Activity, Sparkles, Trash2, RotateCcw, Search, ExternalLink, CreditCard, ArrowUpRight, RefreshCw, HardDrive, Eye, Zap, Layers, Maximize2, Play } from 'lucide-react';
+import { ArrowLeft, Send, Mic, MicOff, AudioLines, Calendar, Clock, CheckCircle, AlertTriangle, AlertCircle, Save, KeyRound, FileText, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Brain, Stethoscope, Pill, ListChecks, Loader2, Printer, Download, Check, X, Edit, Image, Activity, Sparkles, Trash2, RotateCcw, Search, ExternalLink, CreditCard, ArrowUpRight, RefreshCw, HardDrive, Eye, Zap, Layers, Maximize2, Play, Smile, ShieldAlert } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import RadiologyReportViewer from '../components/RadiologyReportViewer';
@@ -40,6 +40,8 @@ import ImplantPlanningModal from '../components/clinicalSpecialties/ImplantPlann
 import BiopsyPathologyModal from '../components/clinicalSpecialties/BiopsyPathologyModal';
 import ClearAlignerModal from '../components/clinicalSpecialties/ClearAlignerModal';
 import ClinicalSpecialtiesDossierBar from '../components/clinicalSpecialties/ClinicalSpecialtiesDossierBar';
+import TreatmentPolicyModal from '../components/TreatmentPolicyModal';
+import { fetchPatientTreatmentPolicy, isToothChartLocked, getPolicyAlertMessage } from '../utils/treatmentPolicyUtils';
 
 // Real Anatomical Maxilla (Upper Jaw) Coordinate & Rotation Mapping for Empty Jaw Template (Exact 16 Sockets)
 export const MAXILLA_COORDS = {
@@ -741,6 +743,30 @@ export default function ChartPage() {
   const [isChartReadyBadge, setIsChartReadyBadge] = useState(false);
   const [isChartSlowConnection, setIsChartSlowConnection] = useState(false);
 
+  // Dental Treatment Lifecycle Policy State (Rule 1-5 enforcement)
+  const [treatmentPolicy, setTreatmentPolicy] = useState(null);
+  const [policyModalData, setPolicyModalData] = useState({
+    isOpen: false,
+    title: '',
+    reasonCode: '',
+    toothNumber: '',
+    procedureName: '',
+    messageEn: '',
+    messageUrdu: ''
+  });
+
+  const refreshTreatmentPolicy = async (pid) => {
+    const p = pid || patientId;
+    if (!p) return;
+    try {
+      const pol = await fetchPatientTreatmentPolicy(p);
+      setTreatmentPolicy(pol);
+      return pol;
+    } catch (e) {
+      console.warn('Could not fetch treatment policy:', e);
+    }
+  };
+
   // ⏱️ Treatment Session & Chairside Operatory Timer States (Requirement #1)
   const [showStartTreatmentModal, setShowStartTreatmentModal] = useState(false);
   const [isTreatmentTimerRunning, setIsTreatmentTimerRunning] = useState(() => {
@@ -912,6 +938,9 @@ export default function ChartPage() {
     } catch (e) {
       console.warn("Non-blocking treatment session init notify:", e);
     }
+
+    // Auto-bill initial consultation fee if patient is under first observation
+    checkAndAutoBillConsultation();
 
     setToast({ visible: true, message: '⏱️ Treatment timer started! Operatory duration is now being recorded.' });
     setTimeout(() => setToast({ visible: false, message: '' }), 4000);
@@ -1161,9 +1190,38 @@ export default function ChartPage() {
 
   const fetchPlanBadgeCount = fetchActivePlansAndBadges;
 
+  // Auto-bill Consultation Fee for First-Time Observation / Charting (Idempotent)
+  const checkAndAutoBillConsultation = async () => {
+    if (!patientId) return;
+    try {
+      const doctorData = JSON.parse(localStorage.getItem('doctor') || '{}');
+      const docId = doctorData.doctorID || doctorData.DoctorID || doctor?.doctorID || 1;
+      const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/auto-diagnostic-fee`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          feeType: 'consultation',
+          doctorId: docId,
+          notes: 'Initial clinical observation & consultation fee'
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.billed) {
+          console.log('🩺 [AUTO-BILL] Added initial consultation fee to Treatment Plan:', data);
+          fetchPlanBadgeCount();
+        }
+      }
+    } catch (err) {
+      console.warn('Consultation fee auto-billing check failed non-blockingly:', err);
+    }
+  };
+
   useEffect(() => {
     if (patientId) {
       fetchPlanBadgeCount();
+      refreshTreatmentPolicy(patientId);
+      checkAndAutoBillConsultation();
     }
   }, [patientId]);
 
@@ -1235,7 +1293,7 @@ export default function ChartPage() {
     patientId,
     operatoryId: 'Op-1',
     autoArm: false,
-    onRadiographAcquired: (scanData) => {
+    onRadiographAcquired: async (scanData) => {
       const radId = scanData.RadiographID || scanData.radiographID || scanData.id || Date.now();
       const imgName = scanData.ImageName || scanData.imageName || `DIGORA_OPTIME_${new Date().toLocaleTimeString().replace(/:/g, '-')}.png`;
       const cleanBase = (API_BASE_URL || 'https://dentist-api-dev.vitonta.com').replace(/\/$/, '');
@@ -1338,6 +1396,30 @@ export default function ChartPage() {
         message: `✨ DIGORA Optime X-Ray digitized & AI Diagnostic Report generated for Patient #${patientId}!`
       });
       setTimeout(() => setToast({ visible: false, message: '' }), 5000);
+
+      // Auto-bill DIGORA X-Ray Fee in Treatment Plan
+      try {
+        const docData = JSON.parse(localStorage.getItem('doctor') || '{}');
+        const dId = docData.doctorID || docData.DoctorID || 1;
+        const dFeeRes = await fetch(`${API_BASE_URL}/api/patients/${patientId}/auto-diagnostic-fee`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            feeType: 'rvg_xray',
+            doctorId: dId,
+            notes: 'Auto-billed Soredex DIGORA Optime X-Ray capture'
+          })
+        });
+        if (dFeeRes.ok) {
+          const dFeeData = await dFeeRes.json();
+          if (dFeeData.billed) {
+            console.log('📸 [AUTO-BILL] Added DIGORA X-Ray fee to Treatment Plan:', dFeeData);
+            fetchPlanBadgeCount();
+          }
+        }
+      } catch (dFeeErr) {
+        console.warn('DIGORA X-Ray auto-billing failed non-blockingly:', dFeeErr);
+      }
     }
   });
 
@@ -1430,6 +1512,29 @@ export default function ChartPage() {
             const findings = extractAiFindingsFromReport(savedRecord.analysisSummary || savedRecord.AnalysisSummary);
             if (findings && findings.length > 0 && handleApplyAiFindingsRef.current) {
               handleApplyAiFindingsRef.current(findings, savedRecord);
+            }
+
+            // Auto-bill Hardware RVG X-Ray Fee in Treatment Plan
+            try {
+              const xFeeRes = await fetch(`${API_BASE_URL}/api/patients/${patientId}/auto-diagnostic-fee`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  feeType: 'rvg_xray',
+                  toothNumber: tKey ? String(tKey) : null,
+                  doctorId: doctorId,
+                  notes: `Auto-billed Eighteeth Nano-Pix RVG X-Ray capture on Tooth #${tKey || 'general'}`
+                })
+              });
+              if (xFeeRes.ok) {
+                const xFeeData = await xFeeRes.json();
+                if (xFeeData.billed) {
+                  console.log('📸 [AUTO-BILL] Added RVG X-Ray fee to Treatment Plan:', xFeeData);
+                  fetchPlanBadgeCount();
+                }
+              }
+            } catch (xFeeErr) {
+              console.warn('RVG X-Ray auto-billing failed non-blockingly:', xFeeErr);
             }
           }
         }
@@ -4619,6 +4724,23 @@ export default function ChartPage() {
   };
 
   const handleSaveSingleToothObservation = async (toothNum, updatedStatus, updatedComment, updatedColor) => {
+    if (treatmentPolicy && isToothChartLocked(toothNum, treatmentPolicy)) {
+      const bilingual = getPolicyAlertMessage('CHART_LOCKED', {
+        toothNumber: toothNum,
+        procedureName: treatmentPolicy.activeTreatment?.procedureName
+      });
+      setPolicyModalData({
+        isOpen: true,
+        title: 'Dental Chart Locked / دانتوں کا چارٹ مقفل ہے',
+        reasonCode: 'CHART_LOCKED',
+        toothNumber: String(toothNum),
+        procedureName: treatmentPolicy.activeTreatment?.procedureName || 'In-Progress Treatment',
+        messageEn: bilingual.en,
+        messageUrdu: bilingual.ur
+      });
+      return;
+    }
+
     setSavingToothData(true);
     try {
       const pid = parseInt(patientId) || (patient?.patientID ? parseInt(patient.patientID) : 5);
@@ -4645,6 +4767,24 @@ export default function ChartPage() {
           updates
         })
       });
+
+      if (res.status === 409) {
+        const errData = await res.json().catch(() => null);
+        const bilingual = getPolicyAlertMessage(errData?.errorCode || 'CHART_LOCKED', {
+          toothNumber: errData?.conflictItem?.toothNumber || toothNum,
+          procedureName: errData?.conflictItem?.procedureName
+        });
+        setPolicyModalData({
+          isOpen: true,
+          title: 'Dental Chart Locked / دانتوں کا چارٹ مقفل ہے',
+          reasonCode: errData?.errorCode || 'CHART_LOCKED',
+          toothNumber: String(errData?.conflictItem?.toothNumber || toothNum),
+          procedureName: errData?.conflictItem?.procedureName || '',
+          messageEn: errData?.message || bilingual.en,
+          messageUrdu: errData?.messageUrdu || bilingual.ur
+        });
+        return;
+      }
 
       if (res.ok) {
         setTeethState(prev => {
@@ -4678,6 +4818,7 @@ export default function ChartPage() {
           })}).catch(() => {});
 
         setEditingToothData(null);
+        checkAndAutoBillConsultation();
       }
     } catch (err) {
       console.error("Save single tooth observation failed:", err);
@@ -4734,6 +4875,24 @@ export default function ChartPage() {
           updates
         })
       });
+
+      if (res.status === 409) {
+        const errData = await res.json().catch(() => null);
+        const bilingual = getPolicyAlertMessage(errData?.errorCode || 'CHART_LOCKED', {
+          toothNumber: errData?.conflictItem?.toothNumber,
+          procedureName: errData?.conflictItem?.procedureName
+        });
+        setPolicyModalData({
+          isOpen: true,
+          title: 'Dental Chart Locked / دانتوں کا چارٹ مقفل ہے',
+          reasonCode: errData?.errorCode || 'CHART_LOCKED',
+          toothNumber: String(errData?.conflictItem?.toothNumber || ''),
+          procedureName: errData?.conflictItem?.procedureName || '',
+          messageEn: errData?.message || bilingual.en,
+          messageUrdu: errData?.messageUrdu || bilingual.ur
+        });
+        return;
+      }
 
       if (res.ok) {
         savedTeethBaselineRef.current = JSON.parse(JSON.stringify(teethState));
@@ -4810,6 +4969,9 @@ export default function ChartPage() {
             console.warn("Non-fatal observation sync error:", obsErr);
           }
         }
+
+        // Auto-bill consultation fee if first observation
+        checkAndAutoBillConsultation();
 
         setToast({ visible: true, message: toastMsg });
         setTimeout(() => setToast({ visible: false, message: '' }), 4500);
@@ -8333,6 +8495,77 @@ export default function ChartPage() {
               </div>
             )}
 
+            {/* Active Clinical Modality Banner (Braces / Teeth Whitening / Cavity Restorative) */}
+            {patient && patient.currentTreatmentPlan && (
+              (() => {
+                const plan = (patient.currentTreatmentPlan || '').toLowerCase();
+                const isBraces = plan.includes('brace') || plan.includes('ortho');
+                const isWhitening = plan.includes('whiten') || plan.includes('bleach');
+                const isCavity = plan.includes('cavity') || plan.includes('restor');
+
+                if (!isBraces && !isWhitening && !isCavity) return null;
+
+                return (
+                  <div className={`mt-2.5 px-4 py-2.5 rounded-2xl border flex items-center justify-between gap-3 shadow-xs transition-all ${
+                    isBraces 
+                      ? 'bg-sky-50/95 border-sky-300 text-sky-950'
+                      : isWhitening
+                        ? 'bg-amber-50/95 border-amber-300 text-amber-950'
+                        : 'bg-rose-50/95 border-rose-300 text-rose-950'
+                  }`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs ${
+                        isBraces ? 'bg-sky-500 text-white' : isWhitening ? 'bg-amber-500 text-white' : 'bg-rose-500 text-white'
+                      }`}>
+                        {isBraces ? <Smile className="w-5 h-5" /> : isWhitening ? <Sparkles className="w-5 h-5" /> : <ShieldAlert className="w-5 h-5" />}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-black text-xs uppercase tracking-wide">
+                            {isBraces ? 'Braces Active Modality' : isWhitening ? 'Teeth Whitening Active' : 'Cavity Restorative Active'}
+                          </span>
+                          <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-md border ${
+                            isBraces ? 'bg-white text-sky-800 border-sky-200 shadow-2xs' : isWhitening ? 'bg-white text-amber-900 border-amber-200 shadow-2xs' : 'bg-white text-rose-800 border-rose-200 shadow-2xs'
+                          }`}>
+                            {patient.treatmentStage || 'Active Phase'}
+                          </span>
+                          {patient.targetShade && (
+                            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-white/90 border border-slate-200 text-slate-700 shadow-2xs">
+                              {isBraces ? `Wire: ${patient.targetShade}` : isWhitening ? `Shade: ${patient.targetShade}` : `Specs: ${patient.targetShade}`}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-600 truncate mt-0.5">
+                          Plan: <strong className="font-bold text-slate-900">{patient.currentTreatmentPlan}</strong>
+                          {patient.treatmentStage ? ` • Current Stage: ${patient.treatmentStage}` : ''}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const cat = isBraces ? 'braces' : isWhitening ? 'whitening' : 'cavity';
+                        setActivePlanCategoryFilter(cat);
+                        setActiveTab('treatment_plan');
+                      }}
+                      className={`shrink-0 text-xs font-black px-3.5 py-2 rounded-xl border shadow-xs transition-all flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95 ${
+                        isBraces
+                          ? 'bg-sky-600 hover:bg-sky-700 text-white border-sky-700'
+                          : isWhitening
+                            ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-700'
+                            : 'bg-rose-600 hover:bg-rose-700 text-white border-rose-700'
+                      }`}
+                      title="Open Treatment Plan filtered by this clinical modality"
+                    >
+                      <span>View in Plan</span>
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })()
+            )}
+
 
             {/* ===== AI NOTES TAB ===== */}
             {activeTab === 'notes' && (
@@ -9485,6 +9718,7 @@ export default function ChartPage() {
                   onClearCategoryFilter={() => setActivePlanCategoryFilter(null)}
                   onTreatmentStatusChange={() => {
                     fetchPlanBadgeCount();
+                    refreshTreatmentPolicy(patientId);
                   }}
                   onNavigateToInvoices={() => setActiveTab('billing')}
                 />
@@ -11709,6 +11943,22 @@ export default function ChartPage() {
                               type="button"
                               onClick={() => {
                                 const tNum = editingToothData.toothNumber;
+                                if (treatmentPolicy && isToothChartLocked(tNum, treatmentPolicy)) {
+                                  const bilingual = getPolicyAlertMessage('CHART_LOCKED', {
+                                    toothNumber: tNum,
+                                    procedureName: treatmentPolicy.activeTreatment?.procedureName
+                                  });
+                                  setPolicyModalData({
+                                    isOpen: true,
+                                    title: 'Dental Chart Locked / دانتوں کا چارٹ مقفل ہے',
+                                    reasonCode: 'CHART_LOCKED',
+                                    toothNumber: String(tNum),
+                                    procedureName: treatmentPolicy.activeTreatment?.procedureName || 'In-Progress Treatment',
+                                    messageEn: bilingual.en,
+                                    messageUrdu: bilingual.ur
+                                  });
+                                  return;
+                                }
                                 setTeethState(prev => {
                                   const toothKeyStr = String(tNum).toUpperCase();
                                   const idx = prev.findIndex(x => String(x.toothNumber ?? x.ToothNumber).toUpperCase() === toothKeyStr);
@@ -13504,6 +13754,18 @@ export default function ChartPage() {
           </div>
         </div>
       )}
+
+      {/* Dental Treatment Lifecycle Policy Modal (Bilingual) */}
+      <TreatmentPolicyModal
+        isOpen={policyModalData.isOpen}
+        onClose={() => setPolicyModalData(prev => ({ ...prev, isOpen: false }))}
+        title={policyModalData.title}
+        reasonCode={policyModalData.reasonCode}
+        toothNumber={policyModalData.toothNumber}
+        procedureName={policyModalData.procedureName}
+        messageEn={policyModalData.messageEn}
+        messageUrdu={policyModalData.messageUrdu}
+      />
 
       <Footer />
     </div>

@@ -28,6 +28,7 @@ import OrthoTmjDiagnosticSuite from '../components/orthoTmjSuite/OrthoTmjDiagnos
 import ImplantPlanningModal from '../components/clinicalSpecialties/ImplantPlanningModal';
 import BiopsyPathologyModal from '../components/clinicalSpecialties/BiopsyPathologyModal';
 import ClearAlignerModal from '../components/clinicalSpecialties/ClearAlignerModal';
+import TreatmentPolicyModal from '../components/TreatmentPolicyModal';
 
 // Re-export for compatibility with other pages
 export { parseSurfacesFromRecord, calculatePatientAge, TOOTH_NAMES, PEDIATRIC_TOOTH_NAMES };
@@ -49,6 +50,19 @@ export default function ToothDetailPage() {
   const [showBiopsyModal, setShowBiopsyModal] = useState(false);
   const [showAlignerModal, setShowAlignerModal] = useState(false);
   const [specialtyRefreshTrigger, setSpecialtyRefreshTrigger] = useState(0);
+
+  // Policy & Chart Lock State (Rule 4 & Decision D2)
+  const [policyData, setPolicyData] = useState(null);
+  const [policyModal, setPolicyModal] = useState({
+    isOpen: false,
+    title: '',
+    titleUrdu: '',
+    message: '',
+    messageUrdu: '',
+    toothNumber: null,
+    treatmentName: '',
+    errorCode: ''
+  });
 
   // Surface Matrix State
   const [surfaceData, setSurfaceData] = useState({
@@ -83,6 +97,15 @@ export default function ToothDetailPage() {
 
   const toothName = toothMeta.name;
   const patientAge = calculatePatientAge(patient?.dob);
+
+  // Check if this specific tooth is chart-locked per Rule 4
+  const isToothChartLocked = React.useMemo(() => {
+    if (!policyData) return false;
+    const isNumLocked = policyData.lockedToothNumbers?.includes(tNum);
+    const isKeyLocked = policyData.lockedToothKeys?.includes(String(tKey));
+    const isActiveMatch = policyData.activeToothNumber === tNum && policyData.activeNetPaid > 0;
+    return Boolean(isNumLocked || isKeyLocked || isActiveMatch);
+  }, [policyData, tNum, tKey]);
 
   // Synchronize surfaceData & activePaletteItem with toothData
   // Synchronize surfaceData, activePaletteItem & probingDepths with toothData
@@ -322,7 +345,7 @@ export default function ToothDetailPage() {
         setLoading(true);
         console.log(`🧭 [ToothDetailPage:TMJ] Starting parallel load for Patient #${pid}, tooth: ${tKey}`);
 
-        const [pRes, teethRes, diagRes] = await Promise.all([
+        const [pRes, teethRes, diagRes, policyRes] = await Promise.all([
           fetch(`/api/patients/${pid}`).catch(err => {
             console.error("[ToothDetailPage] Patient fetch error:", err);
             return null;
@@ -334,10 +357,21 @@ export default function ToothDetailPage() {
           fetch(`/api/patients/${pid}/diagnostic-assessment`).catch(err => {
             console.warn("[ToothDetailPage:TMJ] Diagnostic assessment fetch error:", err);
             return null;
+          }),
+          fetch(`/api/patients/${pid}/treatment-policy`).catch(err => {
+            console.warn("[ToothDetailPage] Treatment policy fetch error:", err);
+            return null;
           })
         ]);
 
         if (isCancelled) return;
+
+        if (policyRes && policyRes.ok) {
+          try {
+            const pol = await policyRes.json();
+            if (pol && !isCancelled) setPolicyData(pol);
+          } catch (e) {}
+        }
 
         let pData = null;
         if (pRes && pRes.ok) {
@@ -548,6 +582,22 @@ export default function ToothDetailPage() {
 
   // Handle Save / Update Observation
   const handleSaveObservation = async (newStatus, newComment, newColor, customSurfaces = null) => {
+    // Rule 4: Prevent editing chart if tooth has an in_progress treatment and payment received
+    if (isToothChartLocked) {
+      const activeTreat = policyData?.activeTreatmentName || 'Active Treatment';
+      setPolicyModal({
+        isOpen: true,
+        title: 'Dental Chart Locked',
+        titleUrdu: 'دانت کا چارٹ مقفل ہے',
+        message: `Treatment has started and payment has been received for Tooth #${isPediatric ? tKey : tNum}. The chart cannot be updated until this treatment is completed.`,
+        messageUrdu: `دانت نمبر ${isPediatric ? tKey : tNum} کا علاج شروع ہو چکا ہے اور ادائیگی موصول ہو چکی ہے۔ جب تک یہ علاج مکمل نہیں ہو جاتا، چارٹ تبدیل نہیں کیا جا سکتا۔`,
+        toothNumber: isPediatric ? tKey : tNum,
+        treatmentName: activeTreat,
+        errorCode: 'CHART_LOCKED'
+      });
+      return;
+    }
+
     try {
       setSaving(true);
       const pid = parseInt(patientId) || 17;
@@ -650,6 +700,18 @@ export default function ToothDetailPage() {
         setIsEditingNotes(false);
         setToast({ visible: true, message: `Saved & Synced: ${statusToSave} on ${isPediatric ? `Primary Tooth ${tKey}` : `Tooth #${tNum}`}` });
         setTimeout(() => setToast({ visible: false, message: '' }), 3000);
+      } else if (res.status === 409) {
+        const errData = await res.json().catch(() => ({}));
+        setPolicyModal({
+          isOpen: true,
+          title: 'Dental Chart Locked',
+          titleUrdu: 'دانت کا چارٹ مقفل ہے',
+          message: errData.message || `Treatment has started and payment has been received for Tooth #${isPediatric ? tKey : tNum}. The chart cannot be updated until this treatment is completed.`,
+          messageUrdu: errData.messageUrdu || `دانت نمبر ${isPediatric ? tKey : tNum} کا علاج شروع ہو چکا ہے اور ادائیگی موصول ہو چکی ہے۔ جب تک یہ علاج مکمل نہیں ہو جاتا، چارٹ تبدیل نہیں کیا جا سکتا۔`,
+          toothNumber: errData.toothNumber || (isPediatric ? tKey : tNum),
+          treatmentName: errData.treatmentName || policyData?.activeTreatmentName,
+          errorCode: 'CHART_LOCKED'
+        });
       } else {
         const errTxt = await res.text();
         console.error("Save failed with status:", res.status, errTxt);
@@ -1305,8 +1367,18 @@ export default function ToothDetailPage() {
           >
             <X className="w-3.5 h-3.5" />
           </button>
-        </div>
-      )}
+      {/* Reusable Bilingual Treatment Policy Modal */}
+      <TreatmentPolicyModal
+        isOpen={policyModal.isOpen}
+        onClose={() => setPolicyModal(prev => ({ ...prev, isOpen: false }))}
+        title={policyModal.title}
+        titleUrdu={policyModal.titleUrdu}
+        message={policyModal.message}
+        messageUrdu={policyModal.messageUrdu}
+        toothNumber={policyModal.toothNumber}
+        treatmentName={policyModal.treatmentName}
+        errorCode={policyModal.errorCode}
+      />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
 import API_BASE_URL from '../config/apiConfig';
 import { apiFetch } from '../utils/apiClient';
 import { TOOTH_NAMES } from './PatientTreatmentInvoiceTab';
+import TreatmentPolicyModal from './TreatmentPolicyModal';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const STATUS_CFG = {
@@ -23,11 +24,14 @@ const STATUS_CFG = {
 const CAT_COLORS = {
     restorative:  ['#FEF3C7', '#92400E', '#FDE68A'],
     ortho:        ['#EDE9FE', '#5B21B6', '#DDD6FE'],
-    whitening:    ['#FEE2E2', '#991B1B', '#FECACA'],
+    braces:       ['#E0F2FE', '#0369A1', '#BAE6FD'],
+    whitening:    ['#FEF3C7', '#B45309', '#FDE68A'],
+    cavity:       ['#FFE4E6', '#BE123C', '#FECDD3'],
     endo:         ['#DBEAFE', '#1E40AF', '#BFDBFE'],
     surgery:      ['#FCE7F3', '#9D174D', '#FBCFE8'],
     periodontal:  ['#D1FAE5', '#065F46', '#A7F3D0'],
     consultation: ['#F3F4F6', '#374151', '#E5E7EB'],
+    xray:         ['#F3E8FF', '#6B21A8', '#E9D5FF'],
 };
 const catColor = (cat) => CAT_COLORS[(cat||'').toLowerCase()] || ['#F1F5F9', '#475569', '#CBD5E1'];
 
@@ -249,15 +253,29 @@ export default function TreatmentPlanTab({
     const [catalogNote, setCatalogNote] = useState('');
     // Custom form
     const [customName, setCustomName] = useState('');
-    const [customCategory, setCustomCategory] = useState('restorative');
+    const [customCategory, setCustomCategory] = useState('braces');
     const [customTooth, setCustomTooth] = useState('0');
     const [customPrice, setCustomPrice] = useState('');
     const [customVisits, setCustomVisits] = useState('1');
     const [customNote, setCustomNote] = useState('');
+    const [doctorFeeSchedule, setDoctorFeeSchedule] = useState([]);
     // Payment form
     const [paymentAmount, setPaymentAmount] = useState('');
     const [paymentMethod, setPaymentMethod] = useState('cash');
     const [paymentNotes, setPaymentNotes] = useState('');
+
+    // Treatment Policy & Blocked Popup state (Rules 1-5)
+    const [policyData, setPolicyData] = useState(null);
+    const [policyModal, setPolicyModal] = useState({
+        isOpen: false,
+        title: '',
+        titleUrdu: '',
+        message: '',
+        messageUrdu: '',
+        toothNumber: null,
+        treatmentName: '',
+        errorCode: ''
+    });
 
     // Single active treatment per tooth constraint state
     const [conflictModalData, setConflictModalData] = useState(null);
@@ -268,16 +286,100 @@ export default function TreatmentPlanTab({
 
     useEffect(() => { if (categoryFilter) setSelectedCategory(categoryFilter.toUpperCase()); }, [categoryFilter]);
 
+    // ── Dynamic Doctor Fee Schedule Resolution ────────────────────────────────
+    const getDoctorProcedureRate = (category, procCode = null) => {
+        const catLower = (category || '').toLowerCase();
+        
+        // 1. Direct code lookup if given
+        if (procCode && doctorFeeSchedule.length > 0) {
+            const direct = doctorFeeSchedule.find(p => (p.procedureCode || '').toUpperCase() === procCode.toUpperCase());
+            if (direct) return direct;
+        }
+
+        // 2. Specific standard procedure code mappings
+        let targetCode = null;
+        if (catLower === 'braces' || catLower.includes('brace')) targetCode = 'D8080';
+        else if (catLower === 'whitening' || catLower.includes('whiten')) targetCode = 'D9972';
+        else if (catLower === 'cavity' || catLower.includes('cavity')) targetCode = 'D2391';
+        else if (catLower === 'consultation' || catLower.includes('consult')) targetCode = 'D0150';
+        else if (catLower === 'xray' || catLower.includes('x-ray') || catLower.includes('radiograph')) targetCode = 'D0220';
+
+        if (targetCode && doctorFeeSchedule.length > 0) {
+            const matched = doctorFeeSchedule.find(p => (p.procedureCode || '').toUpperCase() === targetCode);
+            if (matched) return matched;
+        }
+
+        // 3. Fallback match by category or procedure name from doctor fee schedule
+        if (doctorFeeSchedule.length > 0) {
+            const byCat = doctorFeeSchedule.find(p => {
+                const pCat = (p.category || '').toLowerCase();
+                const pName = (p.procedureName || '').toLowerCase();
+                return pCat === catLower || pName.includes(catLower);
+            });
+            if (byCat) return byCat;
+        }
+
+        // 4. Fallback to catalog if doctor hasn't set custom fee
+        if (catalog.length > 0) {
+            if (targetCode) {
+                const catMatch = catalog.find(c => (c.procedureCode || '').toUpperCase() === targetCode);
+                if (catMatch) return { procedureCode: catMatch.procedureCode, procedureName: catMatch.procedureName, standardFee: catMatch.standardFee, doctorPrice: catMatch.standardFee };
+            }
+            const catByCat = catalog.find(c => (c.category || '').toLowerCase() === catLower);
+            if (catByCat) return { procedureCode: catByCat.procedureCode, procedureName: catByCat.procedureName, standardFee: catByCat.standardFee, doctorPrice: catByCat.standardFee };
+        }
+
+        return null;
+    };
+
+    const handleCategoryChange = (newCat) => {
+        setCustomCategory(newCat);
+        const proc = getDoctorProcedureRate(newCat);
+        if (proc) {
+            const fee = proc.doctorPrice || proc.standardFee || '';
+            setCustomPrice(fee ? String(fee) : '');
+            if (newCat === 'braces') {
+                setCustomName(proc.procedureName || 'Comprehensive Orthodontic Treatment (Braces)');
+                setCustomVisits('8');
+            } else if (newCat === 'whitening') {
+                setCustomName(proc.procedureName || 'In-Office Teeth Whitening Session');
+                setCustomVisits('3');
+            } else if (newCat === 'cavity') {
+                setCustomName(proc.procedureName || 'Resin-Based Composite Restoration (Cavity)');
+                setCustomVisits('1');
+            } else if (newCat === 'consultation') {
+                setCustomName(proc.procedureName || 'Comprehensive Oral Evaluation / Consultation');
+                setCustomVisits('1');
+            } else if (newCat === 'xray') {
+                setCustomName(proc.procedureName || 'Digital Intraoral RVG Radiograph');
+                setCustomVisits('1');
+            }
+        }
+    };
+
     // ── Data Fetching ─────────────────────────────────────────────────────────
     const fetchPlanData = async () => {
         if (!patientId) return;
         setLoading(true);
         try {
-            const [iR, fR, cR] = await Promise.all([
+            const effectiveDocId = doctorId || patient?.doctorID || patient?.DoctorID || 1;
+            const [iR, fR, cR, polR, feeR] = await Promise.all([
                 apiFetch(`/api/patients/${patientId}/treatment-items?view=plan`),
                 apiFetch(`/api/patients/${patientId}/findings/unplanned`),
                 apiFetch(`/api/treatment-catalog`),
+                apiFetch(`/api/patients/${patientId}/treatment-policy`).catch(() => null),
+                apiFetch(`/api/treatment-pricing/doctor/${effectiveDocId}`).catch(() => null),
             ]);
+            if (feeR && feeR.ok) {
+                const feeData = await feeR.json().catch(() => ({}));
+                if (Array.isArray(feeData.procedures)) {
+                    setDoctorFeeSchedule(feeData.procedures);
+                }
+            }
+            if (polR && polR.ok) {
+                const pol = await polR.json();
+                setPolicyData(pol);
+            }
             if (iR.ok) {
                 const data = await iR.json();
                 setTreatmentItems((Array.isArray(data) ? data : []).map(i => ({
@@ -305,6 +407,38 @@ export default function TreatmentPlanTab({
         setTimeout(() => setFeedback({ type: '', message: '' }), 4000);
     };
 
+    const handleQuickAddDiagnosticFee = async (feeType, label) => {
+        setActionLoading(p => ({ ...p, [feeType]: true }));
+        try {
+            const effectiveDocId = doctorId || patient?.doctorID || patient?.DoctorID || 1;
+            const res = await fetch(`${API_BASE_URL}/api/patients/${patientId}/auto-diagnostic-fee`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    feeType,
+                    doctorId: effectiveDocId,
+                    notes: `Doctor Quick-Add: ${label}`
+                })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                if (data.billed) {
+                    showToast('success', `Added ${label} (${fmtMoney(data.fee)}) to Treatment Plan`);
+                    await fetchPlanData();
+                    if (onTreatmentStatusChange) onTreatmentStatusChange();
+                } else {
+                    showToast('info', data.message || `${label} is already in the Treatment Plan.`);
+                }
+            } else {
+                showToast('error', data.message || `Failed to add ${label}`);
+            }
+        } catch (e) {
+            showToast('error', 'Network error adding diagnostic fee.');
+        } finally {
+            setActionLoading(p => ({ ...p, [feeType]: false }));
+        }
+    };
+
     const resolveId = (raw) =>
         typeof raw === 'object' && raw !== null
             ? (raw.id || raw.treatmentItemID || raw.treatmentItemId)
@@ -316,21 +450,25 @@ export default function TreatmentPlanTab({
 
         const currentItem = treatmentItems.find(i => resolveId(i) === itemId);
 
-        // CLINICAL RULE: Enforce Single Active Treatment per Tooth in Single Appointment
-        if (newStatus === 'in_progress' && currentItem && (currentItem.toothNo > 0 || currentItem.toothNumber > 0) && !reason) {
-            const tNum = currentItem.toothNo || currentItem.toothNumber;
-            const activeOther = treatmentItems.find(i => 
-                (i.toothNo === tNum || i.toothNumber === tNum) && 
-                i.status === 'in_progress' && 
-                resolveId(i) !== itemId
-            );
+        // CLINICAL RULE (Rule 2 & D1): A patient can have ONLY ONE treatment IN_PROGRESS at any time (patient-level)
+        if (newStatus === 'in_progress') {
+            const activeOther = treatmentItems.find(i => i.status === 'in_progress' && resolveId(i) !== itemId) 
+                || (policyData?.hasActiveTreatment && resolveId(policyData.activeTreatmentItemId) !== itemId ? policyData : null);
+
             if (activeOther) {
-                setConflictModalData({
-                    activeItem: activeOther,
-                    nextItem: currentItem,
-                    toothNumber: tNum
+                const tNum = activeOther.toothNo || activeOther.toothNumber || activeOther.activeToothNumber || 'Active';
+                const treatName = activeOther.name || activeOther.procedureName || activeOther.activeTreatmentName || 'Existing Procedure';
+
+                setPolicyModal({
+                    isOpen: true,
+                    title: 'Active Treatment In Progress',
+                    titleUrdu: 'فعال علاج جاری ہے',
+                    message: `Treatment on Tooth #${tNum} (${treatName}) is still in progress. Please complete it before starting a new treatment.`,
+                    messageUrdu: `دانت نمبر ${tNum} پر (${treatName}) کا علاج ابھی جاری ہے۔ نیا علاج شروع کرنے سے پہلے براہ کرم اسے مکمل کریں۔`,
+                    toothNumber: tNum,
+                    treatmentName: treatName,
+                    errorCode: 'ACTIVE_TREATMENT_EXISTS'
                 });
-                setConflictReasonNotes('');
                 return;
             }
         }
@@ -355,6 +493,18 @@ export default function TreatmentPlanTab({
                 setConflictReasonNotes('');
                 await fetchPlanData();
                 if (onTreatmentStatusChange) onTreatmentStatusChange();
+            } else if (res.status === 409) {
+                const errData = await res.json().catch(() => ({}));
+                setPolicyModal({
+                    isOpen: true,
+                    title: errData.errorCode === 'DOCTOR_LOCKED' ? 'Doctor Locked' : (errData.errorCode === 'CHART_LOCKED' ? 'Dental Chart Locked' : 'Active Treatment In Progress'),
+                    titleUrdu: errData.errorCode === 'DOCTOR_LOCKED' ? 'معالج کی تبدیلی مقفل ہے' : (errData.errorCode === 'CHART_LOCKED' ? 'دانت کا چارٹ مقفل ہے' : 'فعال علاج جاری ہے'),
+                    message: errData.message || 'Action locked by clinical treatment policy.',
+                    messageUrdu: errData.messageUrdu || '',
+                    toothNumber: errData.toothNumber,
+                    treatmentName: errData.treatmentName,
+                    errorCode: errData.errorCode
+                });
             } else {
                 const e = await res.json().catch(() => ({}));
                 showToast('error', e.message || (e.errors ? Object.values(e.errors).flat().join(', ') : '') || e.title || 'Failed.');
@@ -562,7 +712,18 @@ export default function TreatmentPlanTab({
     // ── Derived Data ──────────────────────────────────────────────────────────
     const filteredItems = useMemo(() => {
         if (selectedCategory === 'ALL') return treatmentItems;
-        return treatmentItems.filter(i => (i.category || '').toUpperCase() === selectedCategory);
+        const sel = selectedCategory.toLowerCase();
+        return treatmentItems.filter(i => {
+            const cat = (i.category || '').toLowerCase();
+            const name = (i.name || i.procedureName || '').toLowerCase();
+            if (cat === sel) return true;
+            if (sel === 'braces' && (cat.includes('ortho') || name.includes('brace'))) return true;
+            if (sel === 'whitening' && (cat.includes('whiten') || name.includes('whiten') || name.includes('bleach'))) return true;
+            if (sel === 'cavity' && (cat.includes('cavity') || cat.includes('restor') || name.includes('cavity') || name.includes('composite'))) return true;
+            if (sel === 'consultation' && (cat.includes('consult') || name.includes('consult') || name.includes('eval'))) return true;
+            if (sel === 'xray' && (cat.includes('xray') || cat.includes('radio') || name.includes('x-ray') || name.includes('radiograph'))) return true;
+            return false;
+        });
     }, [treatmentItems, selectedCategory]);
 
     const totalPlanned = useMemo(() => treatmentItems.reduce((a, i) => a + (Number(i.finalPrice || i.estimatedPrice) || 0), 0), [treatmentItems]);
@@ -570,7 +731,8 @@ export default function TreatmentPlanTab({
     const totalBalance = Math.max(0, totalPlanned - totalPaid);
 
     const availableCats = useMemo(() => {
-        const s = new Set();
+        const defaultModalityCats = ['BRACES', 'WHITENING', 'CAVITY', 'CONSULTATION', 'XRAY'];
+        const s = new Set(defaultModalityCats);
         treatmentItems.forEach(i => { if (i.category) s.add(i.category.toUpperCase()); });
         return Array.from(s);
     }, [treatmentItems]);
@@ -654,7 +816,10 @@ export default function TreatmentPlanTab({
                     <button onClick={() => setShowCatalogModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 9, background: 'linear-gradient(135deg,#3B82F6,#6366F1)', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', border: 'none', boxShadow: '0 2px 8px rgba(99,102,241,0.3)' }}>
                         <Plus size={12} />Add
                     </button>
-                    <button onClick={() => setShowCustomModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 9, background: '#F1F5F9', color: '#475569', fontSize: 11, fontWeight: 700, cursor: 'pointer', border: '1px solid #E2E8F0' }}>
+                    <button onClick={() => {
+                        handleCategoryChange('braces');
+                        setShowCustomModal(true);
+                    }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 9, background: '#F1F5F9', color: '#475569', fontSize: 11, fontWeight: 700, cursor: 'pointer', border: '1px solid #E2E8F0' }}>
                         <Zap size={12} />Custom
                     </button>
                     <button
@@ -671,6 +836,58 @@ export default function TreatmentPlanTab({
                         <RefreshCw size={13} style={actionLoading.sync ? { animation: 'tp-spin 0.8s linear infinite' } : {}} />
                     </button>
                 </div>
+            </div>
+
+            {/* ── Quick Add Diagnostic / Modality Action Bar ────────────────────────── */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 18px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 10, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Zap size={11} color="#6366F1" /> Quick Diagnostic:
+                </span>
+                <button
+                    type="button"
+                    onClick={() => handleQuickAddDiagnosticFee('consultation', 'Consultation Fee')}
+                    disabled={actionLoading.consultation}
+                    title="Add doctor's configured consultation fee (D0150) to plan"
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: 5, padding: '3.5px 10px', borderRadius: 8,
+                        background: '#fff', border: '1px solid #CBD5E1', fontSize: 10.5, fontWeight: 700, color: '#1E293B',
+                        cursor: actionLoading.consultation ? 'wait' : 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                        transition: 'all 0.15s'
+                    }}
+                >
+                    {actionLoading.consultation ? <RefreshCw size={11} style={{ animation: 'tp-spin 0.8s linear infinite' }} /> : <span>🩺</span>}
+                    <span>+ Consultation</span>
+                </button>
+                <button
+                    type="button"
+                    onClick={() => handleQuickAddDiagnosticFee('rvg_xray', 'Digital RVG X-Ray')}
+                    disabled={actionLoading.rvg_xray}
+                    title="Add doctor's configured RVG radiograph fee (D0220) to plan"
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: 5, padding: '3.5px 10px', borderRadius: 8,
+                        background: '#fff', border: '1px solid #CBD5E1', fontSize: 10.5, fontWeight: 700, color: '#1E293B',
+                        cursor: actionLoading.rvg_xray ? 'wait' : 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                        transition: 'all 0.15s'
+                    }}
+                >
+                    {actionLoading.rvg_xray ? <RefreshCw size={11} style={{ animation: 'tp-spin 0.8s linear infinite' }} /> : <span>📸</span>}
+                    <span>+ Digital RVG X-Ray</span>
+                </button>
+                <button
+                    type="button"
+                    onClick={() => handleQuickAddDiagnosticFee('opg_xray', 'Panoramic OPG X-Ray')}
+                    disabled={actionLoading.opg_xray}
+                    title="Add doctor's configured panoramic OPG fee (D0330) to plan"
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: 5, padding: '3.5px 10px', borderRadius: 8,
+                        background: '#fff', border: '1px solid #CBD5E1', fontSize: 10.5, fontWeight: 700, color: '#1E293B',
+                        cursor: actionLoading.opg_xray ? 'wait' : 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                        transition: 'all 0.15s'
+                    }}
+                >
+                    {actionLoading.opg_xray ? <RefreshCw size={11} style={{ animation: 'tp-spin 0.8s linear infinite' }} /> : <span>🌐</span>}
+                    <span>+ Panoramic OPG</span>
+                </button>
             </div>
 
             {/* ── Integrated In-Page Clinical Findings Studio (Scales from 1 to 32 Teeth, Zero Popups) ── */}
@@ -1119,8 +1336,19 @@ export default function TreatmentPlanTab({
                                 </FormRow>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                                     <FormRow label="Category">
-                                        <select value={customCategory} onChange={e => setCustomCategory(e.target.value)} style={selectStyle}>
-                                            {['restorative','ortho','whitening','endo','surgery','periodontal','consultation'].map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+                                        <select value={customCategory} onChange={e => handleCategoryChange(e.target.value)} style={selectStyle}>
+                                            {[
+                                                { value: 'braces', label: 'Braces (Orthodontics)' },
+                                                { value: 'whitening', label: 'Teeth Whitening' },
+                                                { value: 'cavity', label: 'Cavity Restorative' },
+                                                { value: 'consultation', label: 'Consultation Fee' },
+                                                { value: 'xray', label: 'Digital X-Ray / Radiograph' },
+                                                { value: 'restorative', label: 'Restorative Care' },
+                                                { value: 'ortho', label: 'Orthodontics' },
+                                                { value: 'endo', label: 'Endodontics (RCT)' },
+                                                { value: 'surgery', label: 'Oral Surgery' },
+                                                { value: 'periodontal', label: 'Periodontics' }
+                                            ].map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                                         </select>
                                     </FormRow>
                                     <FormRow label="Tooth #">
@@ -1144,11 +1372,21 @@ export default function TreatmentPlanTab({
                                                     background: isFeeInvalid ? '#FEF2F2' : '#fff'
                                                 }} 
                                             />
-                                            {isFeeInvalid && (
+                                            {isFeeInvalid ? (
                                                 <span style={{ fontSize: 10.5, color: '#DC2626', fontWeight: 700 }}>
                                                     Fee must be greater than 0
                                                 </span>
-                                            )}
+                                            ) : (() => {
+                                                const docRate = getDoctorProcedureRate(customCategory);
+                                                if (docRate && (docRate.doctorPrice || docRate.standardFee)) {
+                                                    return (
+                                                        <span style={{ fontSize: 10, color: '#059669', fontWeight: 700 }}>
+                                                            ✓ Doctor Configured Rate: {fmtMoney(docRate.doctorPrice || docRate.standardFee)}
+                                                        </span>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
                                         </div>
                                     </FormRow>
                                     <FormRow label="Visits">
@@ -1313,72 +1551,18 @@ export default function TreatmentPlanTab({
                 </ModalOverlay>
             )}
 
-            {/* Single Treatment Conflict Resolution Modal */}
-            {conflictModalData && (
-                <ModalOverlay onClose={() => setConflictModalData(null)} maxWidth={480}>
-                    <div style={{ width: '100%' }}>
-                        <ModalHeader 
-                            icon={AlertCircle} 
-                            title="Single-Treatment Rule Notice" 
-                            subtitle={`Tooth #${conflictModalData.toothNumber} Treatment Conflict`} 
-                            onClose={() => setConflictModalData(null)} 
-                            danger 
-                        />
-                        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                            <div style={{ padding: 12, borderRadius: 14, background: '#FFF1F2', border: '1px solid #FECDD3', fontSize: 12, color: '#9F1239' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 900, fontSize: 13 }}>
-                                    <span>⚠️ Active Treatment In Progress:</span>
-                                </div>
-                                <div style={{ fontSize: 13, fontWeight: 800, color: '#881337', marginTop: 4 }}>
-                                    {conflictModalData.activeItem?.name || conflictModalData.activeItem?.procedureName || 'Existing Procedure'}
-                                </div>
-                                <p style={{ marginTop: 6, fontSize: 11.5, color: '#BE123C', lineHeight: 1.4 }}>
-                                    Only <strong>one treatment at a time</strong> can be implemented on a tooth in a single appointment. To begin <strong>"{conflictModalData.nextItem?.name || conflictModalData.nextItem?.procedureName}"</strong>, the current treatment must be stopped, and clinical notes recorded explaining the transition.
-                                </p>
-                            </div>
-
-                            <FormRow label="Reason & Clinical Notes for Starting Next Treatment *">
-                                <textarea 
-                                    value={conflictReasonNotes} 
-                                    onChange={e => setConflictReasonNotes(e.target.value)} 
-                                    placeholder="Explain why the current treatment is being stopped and why the next treatment is required (e.g., pulp exposure noted, unexpected fracture, procedural pivot)..." 
-                                    rows={3} 
-                                    style={{ ...inputStyle, resize: 'none' }} 
-                                    required 
-                                    autoFocus
-                                />
-                            </FormRow>
-
-                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 4 }}>
-                                <button 
-                                    type="button" 
-                                    onClick={() => setConflictModalData(null)} 
-                                    style={{ padding: '8px 16px', borderRadius: 10, background: '#F1F5F9', border: '1px solid #CBD5E1', color: '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                                >
-                                    Keep Current Treatment
-                                </button>
-                                <button 
-                                    type="button" 
-                                    disabled={!conflictReasonNotes.trim() || actionLoading[resolveId(conflictModalData.nextItem)]}
-                                    onClick={() => {
-                                        const nextId = resolveId(conflictModalData.nextItem);
-                                        handleStatusTransition(nextId, 'in_progress', conflictReasonNotes.trim());
-                                    }} 
-                                    style={{ 
-                                        padding: '8px 18px', borderRadius: 10, 
-                                        background: conflictReasonNotes.trim() ? '#2563EB' : '#94A3B8', 
-                                        color: '#fff', fontSize: 12, fontWeight: 800, border: 'none', 
-                                        cursor: conflictReasonNotes.trim() ? 'pointer' : 'not-allowed',
-                                        boxShadow: conflictReasonNotes.trim() ? '0 2px 8px rgba(37,99,235,0.3)' : 'none'
-                                    }}
-                                >
-                                    Stop Previous & Start Next Treatment
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </ModalOverlay>
-            )}
+            {/* Treatment Policy Reusable Bilingual Modal */}
+            <TreatmentPolicyModal
+                isOpen={policyModal.isOpen}
+                onClose={() => setPolicyModal(prev => ({ ...prev, isOpen: false }))}
+                title={policyModal.title}
+                titleUrdu={policyModal.titleUrdu}
+                message={policyModal.message}
+                messageUrdu={policyModal.messageUrdu}
+                toothNumber={policyModal.toothNumber}
+                treatmentName={policyModal.treatmentName}
+                errorCode={policyModal.errorCode}
+            />
 
             {/* Keyframe definitions */}
             <style>{`
