@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
-import { ArrowLeft, Send, Mic, MicOff, AudioLines, Calendar, Clock, CheckCircle, CheckCircle2, AlertTriangle, AlertCircle, Save, KeyRound, FileText, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Brain, Stethoscope, Pill, ListChecks, Loader2, Printer, Download, Check, X, Edit, Image, Activity, Sparkles, Trash2, RotateCcw, Search, ExternalLink, CreditCard, ArrowUpRight, RefreshCw, HardDrive, Eye, Zap, Layers, Maximize2, Minimize2, Play, Smile, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Send, Mic, MicOff, AudioLines, Calendar, Clock, CheckCircle, CheckCircle2, AlertTriangle, AlertCircle, Save, KeyRound, FileText, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Brain, Stethoscope, Pill, ListChecks, Loader2, Printer, Download, Check, X, Edit, Plus, Image, Activity, Sparkles, Trash2, RotateCcw, Search, ExternalLink, CreditCard, ArrowUpRight, RefreshCw, HardDrive, Eye, Zap, Layers, Maximize2, Minimize2, Play, Smile, ShieldAlert } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import RadiologyReportViewer from '../components/RadiologyReportViewer';
@@ -1543,6 +1543,314 @@ export default function ChartPage() {
       await fetchModalitiesStatus(patientId);
     } finally {
       setTimeout(() => setIsRefreshingModalities(false), 500);
+    }
+  };
+
+  // ─── Chairside Modalities Editor State & Handlers ─────────────────────────
+  const [editModalityModal, setEditModalityModal] = useState({
+    isOpen: false,
+    activeTab: 'braces' // 'braces' | 'whitening' | 'cavity'
+  });
+
+  const [bracesFormStage, setBracesFormStage] = useState('Stage 1 (Leveling)');
+  const [bracesFormWire, setBracesFormWire] = useState('0.014 NiTi');
+
+  const [whiteningFormSession, setWhiteningFormSession] = useState('Session 1 of 3');
+  const [whiteningFormPreShade, setWhiteningFormPreShade] = useState('A3.5');
+  const [whiteningFormTargetShade, setWhiteningFormTargetShade] = useState('B1');
+  const [whiteningFormProtocol, setWhiteningFormProtocol] = useState('35% Laser HP');
+
+  const [cavityFormTooth, setCavityFormTooth] = useState('14');
+  const [cavityFormMaterial, setCavityFormMaterial] = useState('Composite Resin');
+  const [cavityFormSurfaces, setCavityFormSurfaces] = useState('Occlusal');
+
+  const [savingModality, setSavingModality] = useState(false);
+
+  const openModalityEdit = (modalityKey = 'braces') => {
+    const braces = modalitiesStatus?.braces || {};
+    const whitening = modalitiesStatus?.whitening || {};
+    const cavity = modalitiesStatus?.cavity || {};
+
+    if (modalityKey === 'braces') {
+      if (braces.stage || patient?.treatmentStage) setBracesFormStage(braces.stage || patient.treatmentStage);
+      if (braces.specification || patient?.targetShade) setBracesFormWire(braces.specification || patient.targetShade);
+    } else if (modalityKey === 'whitening') {
+      if (whitening.stage || patient?.treatmentStage) setWhiteningFormSession(whitening.stage || patient.treatmentStage);
+      const rawShade = whitening.specification || patient?.targetShade || '';
+      if (rawShade.includes('->') || rawShade.includes('➔')) {
+        const parts = rawShade.split(/->|➔/);
+        if (parts[0]) setWhiteningFormPreShade(parts[0].replace(/initial:?/i, '').trim());
+        if (parts[1]) setWhiteningFormTargetShade(parts[1].replace(/target:?/i, '').trim());
+      }
+    } else if (modalityKey === 'cavity') {
+      if (Array.isArray(cavity.affectedTeeth) && cavity.affectedTeeth.length > 0) {
+        setCavityFormTooth(String(cavity.affectedTeeth[0]));
+      }
+      if (cavity.specification) setCavityFormMaterial(cavity.specification);
+    }
+
+    setEditModalityModal({ isOpen: true, activeTab: modalityKey });
+  };
+
+  const handleSaveBracesModality = async () => {
+    if (!patientId) return;
+    setSavingModality(true);
+    try {
+      const docId = doctor?.doctorID || 1;
+      const resPlan = await apiFetch(`/api/patients/${patientId}/treatment-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          treatmentPlan: 'Braces (Orthodontics)',
+          treatmentStage: bracesFormStage,
+          targetShade: bracesFormWire
+        })
+      });
+      if (!resPlan.ok) throw new Error('Failed to save braces plan');
+
+      await apiFetch(`/api/patients/${patientId}/sync-directory?doctorId=${docId}`, { method: 'POST' }).catch(() => {});
+
+      await apiFetch(`/api/patients/${patientId}/clinical-logs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          doctorID: docId,
+          message: `Orthodontic Adjustment: ${bracesFormStage}. Archwire engaged: ${bracesFormWire}.`,
+          logType: 'Orthodontics'
+        })
+      }).catch(() => {});
+
+      const updated = {
+        ...patient,
+        currentTreatmentPlan: 'Braces (Orthodontics)',
+        treatmentStage: bracesFormStage,
+        targetShade: bracesFormWire
+      };
+      setPatient(updated);
+
+      try {
+        sessionStorage.removeItem('clinic_patients_cache');
+      } catch {}
+      window.dispatchEvent(new CustomEvent('dentia:patient-modality-updated', {
+        detail: { patientId: Number(patientId), currentTreatmentPlan: 'Braces (Orthodontics)', treatmentStage: bracesFormStage }
+      }));
+
+      await fetchModalitiesStatus(patientId);
+      setEditModalityModal(prev => ({ ...prev, isOpen: false }));
+      setToast({ visible: true, message: `Orthodontic plan updated: ${bracesFormStage}` });
+      setTimeout(() => setToast({ visible: false, message: '' }), 4000);
+    } catch (err) {
+      console.error('Error saving braces:', err);
+      setToast({ visible: true, message: `Error saving braces plan: ${err.message}` });
+      setTimeout(() => setToast({ visible: false, message: '' }), 4000);
+    } finally {
+      setSavingModality(false);
+    }
+  };
+
+  const handleSaveWhiteningModality = async () => {
+    if (!patientId) return;
+    setSavingModality(true);
+    try {
+      const docId = doctor?.doctorID || 1;
+      const targetShadeStr = `Initial: ${whiteningFormPreShade} ➔ Target: ${whiteningFormTargetShade}`;
+
+      const resPlan = await apiFetch(`/api/patients/${patientId}/treatment-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          treatmentPlan: 'Teeth Whitening',
+          treatmentStage: whiteningFormSession,
+          targetShade: targetShadeStr
+        })
+      });
+      if (!resPlan.ok) throw new Error('Failed to save whitening plan');
+
+      await apiFetch(`/api/patients/${patientId}/sync-directory?doctorId=${docId}`, { method: 'POST' }).catch(() => {});
+
+      await apiFetch(`/api/patients/${patientId}/clinical-logs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          doctorID: docId,
+          message: `Cosmetic Whitening (${whiteningFormSession}): Shade ${whiteningFormPreShade} ➔ ${whiteningFormTargetShade} (${whiteningFormProtocol}).`,
+          logType: 'Cosmetic'
+        })
+      }).catch(() => {});
+
+      const updated = {
+        ...patient,
+        currentTreatmentPlan: 'Teeth Whitening',
+        treatmentStage: whiteningFormSession,
+        targetShade: targetShadeStr
+      };
+      setPatient(updated);
+
+      try {
+        sessionStorage.removeItem('clinic_patients_cache');
+      } catch {}
+      window.dispatchEvent(new CustomEvent('dentia:patient-modality-updated', {
+        detail: { patientId: Number(patientId), currentTreatmentPlan: 'Teeth Whitening', treatmentStage: whiteningFormSession }
+      }));
+
+      await fetchModalitiesStatus(patientId);
+      setEditModalityModal(prev => ({ ...prev, isOpen: false }));
+      setToast({ visible: true, message: `Teeth Whitening updated: ${whiteningFormSession}` });
+      setTimeout(() => setToast({ visible: false, message: '' }), 4000);
+    } catch (err) {
+      console.error('Error saving whitening:', err);
+      setToast({ visible: true, message: `Error saving whitening plan: ${err.message}` });
+      setTimeout(() => setToast({ visible: false, message: '' }), 4000);
+    } finally {
+      setSavingModality(false);
+    }
+  };
+
+  const handleSaveCavityModality = async () => {
+    if (!patientId) return;
+    setSavingModality(true);
+    try {
+      const docId = doctor?.doctorID || 1;
+      const toothNumInt = parseInt(cavityFormTooth, 10);
+      const treatmentStageStr = `Tooth #${cavityFormTooth} (${cavityFormMaterial} - ${cavityFormSurfaces})`;
+
+      await apiFetch('/api/patients/teeth/update-bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patientId: Number(patientId),
+          updates: [{
+            toothNumber: toothNumInt,
+            toothKey: String(toothNumInt),
+            dentitionCategory: patient?.dentitionType || 'Adult',
+            color: '#EF4444',
+            status: 'Damaged / Decay',
+            conditionStatus: 'Damaged / Decay',
+            comment: `${cavityFormMaterial} restoration planned for caries (${cavityFormSurfaces})`,
+            doctorId: docId
+          }]
+        })
+      }).catch(() => {});
+
+      await apiFetch(`/api/patients/${patientId}/treatment-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          treatmentPlan: 'Cavity Restorative',
+          treatmentStage: treatmentStageStr,
+          targetShade: ''
+        })
+      }).catch(() => {});
+
+      await apiFetch(`/api/patients/${patientId}/sync-directory?doctorId=${docId}`, { method: 'POST' }).catch(() => {});
+
+      await apiFetch(`/api/patients/${patientId}/clinical-logs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          doctorID: docId,
+          message: `Caries identified on Tooth #${cavityFormTooth} (${cavityFormSurfaces}). Marked for ${cavityFormMaterial} restoration.`,
+          logType: 'Restorative'
+        })
+      }).catch(() => {});
+
+      const updated = {
+        ...patient,
+        currentTreatmentPlan: 'Cavity Restorative',
+        treatmentStage: treatmentStageStr
+      };
+      setPatient(updated);
+
+      fetchTeethChart();
+
+      try {
+        sessionStorage.removeItem('clinic_patients_cache');
+      } catch {}
+      window.dispatchEvent(new CustomEvent('dentia:patient-modality-updated', {
+        detail: { patientId: Number(patientId), currentTreatmentPlan: 'Cavity Restorative', treatmentStage: treatmentStageStr }
+      }));
+
+      await fetchModalitiesStatus(patientId);
+      setEditModalityModal(prev => ({ ...prev, isOpen: false }));
+      setToast({ visible: true, message: `Cavity restoration saved on Tooth #${cavityFormTooth}` });
+      setTimeout(() => setToast({ visible: false, message: '' }), 4000);
+    } catch (err) {
+      console.error('Error saving cavity:', err);
+      setToast({ visible: true, message: `Error saving cavity plan: ${err.message}` });
+      setTimeout(() => setToast({ visible: false, message: '' }), 4000);
+    } finally {
+      setSavingModality(false);
+    }
+  };
+
+  const handleResetModality = async (modalityName) => {
+    if (!patientId) return;
+    setSavingModality(true);
+    try {
+      const docId = doctor?.doctorID || 1;
+      await apiFetch(`/api/patients/${patientId}/treatment-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          treatmentPlan: '',
+          treatmentStage: '',
+          targetShade: ''
+        })
+      });
+
+      // If resetting cavity modality, restore affected teeth to Healthy status
+      if (modalityName.toLowerCase().includes('cavit')) {
+        const affTeeth = modalitiesStatus?.cavity?.affectedTeeth || [];
+        if (affTeeth.length > 0) {
+          const bulkUpdates = affTeeth.map(tNum => ({
+            toothNumber: Number(tNum),
+            toothKey: String(tNum),
+            dentitionCategory: patient?.dentitionType || 'Adult',
+            color: '#10B981',
+            status: 'Healthy',
+            conditionStatus: 'Healthy',
+            comment: 'Marked sound chairside',
+            doctorId: docId
+          }));
+          await apiFetch('/api/patients/teeth/update-bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              patientId: Number(patientId),
+              updates: bulkUpdates
+            })
+          }).catch(() => {});
+          fetchTeethChart();
+        }
+      }
+
+      await apiFetch(`/api/patients/${patientId}/sync-directory?doctorId=${docId}`, { method: 'POST' }).catch(() => {});
+
+      const updated = {
+        ...patient,
+        currentTreatmentPlan: null,
+        treatmentStage: null,
+        targetShade: null
+      };
+      setPatient(updated);
+
+      try {
+        sessionStorage.removeItem('clinic_patients_cache');
+      } catch {}
+      window.dispatchEvent(new CustomEvent('dentia:patient-modality-updated', {
+        detail: { patientId: Number(patientId), currentTreatmentPlan: null, treatmentStage: null }
+      }));
+
+      await fetchModalitiesStatus(patientId);
+      setEditModalityModal(prev => ({ ...prev, isOpen: false }));
+      setToast({ visible: true, message: `${modalityName} plan reset and cleared.` });
+      setTimeout(() => setToast({ visible: false, message: '' }), 4000);
+    } catch (err) {
+      console.error('Error resetting modality:', err);
+      setToast({ visible: true, message: `Error resetting modality: ${err.message}` });
+      setTimeout(() => setToast({ visible: false, message: '' }), 4000);
+    } finally {
+      setSavingModality(false);
     }
   };
 
@@ -9053,6 +9361,15 @@ export default function ChartPage() {
                   <div className="flex items-center gap-1.5 shrink-0 pl-1 border-l border-slate-200/80">
                     <button
                       type="button"
+                      onClick={() => openModalityEdit('braces')}
+                      className="flex items-center gap-1 text-[10.5px] font-black text-indigo-700 hover:text-indigo-900 bg-white hover:bg-indigo-50 border border-indigo-200/90 px-2 py-1 rounded-xl transition shadow-2xs cursor-pointer group"
+                      title="Chairside Modalities Editor (Add & Edit)"
+                    >
+                      <Plus className="w-3 h-3 text-indigo-600 group-hover:scale-110 transition-transform" />
+                      <span>Edit</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={handleRefreshModalities}
                       disabled={isRefreshingModalities}
                       className="p-1.5 text-slate-500 hover:text-indigo-600 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 transition cursor-pointer"
@@ -9095,6 +9412,15 @@ export default function ChartPage() {
                         Live chairside telemetry & treatment plan synchronization
                       </span>
                       <div className="h-3 w-px bg-slate-200 hidden md:inline" />
+                      <button
+                        type="button"
+                        onClick={() => openModalityEdit('braces')}
+                        className="flex items-center gap-1.5 text-[10.5px] font-black text-indigo-700 hover:text-indigo-900 bg-white hover:bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-xl transition shadow-2xs cursor-pointer group"
+                        title="Add or Edit Modalities directly chairside"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-indigo-600 group-hover:rotate-90 transition-transform" />
+                        <span>Add / Edit Modality</span>
+                      </button>
                       <button
                         type="button"
                         onClick={handleRefreshModalities}
@@ -9188,13 +9514,24 @@ export default function ChartPage() {
                           <span>View in Plan</span>
                           <ArrowUpRight className="w-3.5 h-3.5" />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowOrthoTmjModal(true)}
-                          className="text-[10px] font-bold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/90 shadow-2xs transition cursor-pointer"
-                        >
-                          Ortho Suite
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openModalityEdit('braces')}
+                            className="text-[10px] font-black text-sky-700 hover:text-sky-900 bg-white hover:bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200 shadow-2xs transition cursor-pointer flex items-center gap-1"
+                            title="Edit / Enroll Ortho Modality"
+                          >
+                            <Edit className="w-3 h-3 text-sky-600" />
+                            <span>{isOrthoActive ? 'Edit' : '+ Add Plan'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowOrthoTmjModal(true)}
+                            className="text-[10px] font-bold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 px-2 py-1 rounded-lg border border-slate-200/90 shadow-2xs transition cursor-pointer"
+                          >
+                            Ortho Suite
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -9284,9 +9621,20 @@ export default function ChartPage() {
                           <span>View in Plan</span>
                           <ArrowUpRight className="w-3.5 h-3.5" />
                         </button>
-                        <span className="text-[9.5px] font-extrabold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200">
-                          35% Laser HP
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openModalityEdit('whitening')}
+                            className="text-[10px] font-black text-amber-900 hover:text-amber-950 bg-white hover:bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 shadow-2xs transition cursor-pointer flex items-center gap-1"
+                            title="Edit / Enroll Whitening Modality"
+                          >
+                            <Edit className="w-3 h-3 text-amber-600" />
+                            <span>{isWhiteningActive ? 'Edit' : '+ Add Plan'}</span>
+                          </button>
+                          <span className="text-[9.5px] font-extrabold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200">
+                            35% Laser HP
+                          </span>
+                        </div>
                       </div>
                     </div>
 
@@ -9373,9 +9721,24 @@ export default function ChartPage() {
                           <span>{isCavityActive ? 'View in Plan' : 'Restorative Care'}</span>
                           <ArrowUpRight className="w-3.5 h-3.5" />
                         </button>
-                        <span className="text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/90 shadow-2xs transition">
-                          Odontogram
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openModalityEdit('cavity')}
+                            className={`text-[10px] font-black px-2.5 py-1 rounded-lg border shadow-2xs transition cursor-pointer flex items-center gap-1 ${
+                              isCavityActive
+                                ? 'text-rose-800 hover:text-rose-950 bg-white hover:bg-rose-50 border-rose-200'
+                                : 'text-emerald-800 hover:text-emerald-950 bg-white hover:bg-emerald-50 border-emerald-200'
+                            }`}
+                            title="Add or Edit Caries / Restorative Cavity Plan"
+                          >
+                            <Edit className="w-3 h-3" />
+                            <span>{isCavityActive ? 'Edit' : '+ Add Cavity'}</span>
+                          </button>
+                          <span className="text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/90 shadow-2xs transition">
+                            Odontogram
+                          </span>
+                        </div>
                       </div>
                     </div>
 
@@ -14578,6 +14941,485 @@ export default function ChartPage() {
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CHAIRSIDE MODALITIES CONFIGURATION MODAL (Tripartite Suite Editor) ── */}
+      {editModalityModal.isOpen && (
+        <div className="fixed inset-0 z-[120] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200/90 max-w-xl w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col my-auto max-h-[90vh]">
+            
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 sm:p-5 flex items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600/30 border border-indigo-400/40 flex items-center justify-center text-indigo-300 shadow-inner shrink-0">
+                  <Sparkles className="w-5 h-5 text-indigo-300" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-2">
+                    Chairside Modalities Suite
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
+                      Live Chairside Sync
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-300 font-medium">
+                    Configure active clinical modality, stage tracking & chairside progression
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditModalityModal(prev => ({ ...prev, isOpen: false }))}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white flex items-center justify-center transition cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Tabs Bar */}
+            <div className="bg-slate-100 p-1.5 flex gap-1 border-b border-slate-200 shrink-0">
+              <button
+                type="button"
+                onClick={() => setEditModalityModal(prev => ({ ...prev, activeTab: 'braces' }))}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  editModalityModal.activeTab === 'braces'
+                    ? 'bg-white text-sky-900 shadow-2xs border border-sky-200/80'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                }`}
+              >
+                <Smile className="w-4 h-4 text-sky-600 shrink-0" />
+                <span>1. Braces (Ortho)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditModalityModal(prev => ({ ...prev, activeTab: 'whitening' }))}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  editModalityModal.activeTab === 'whitening'
+                    ? 'bg-white text-amber-950 shadow-2xs border border-amber-200/80'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                }`}
+              >
+                <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                <span>2. Teeth Whitening</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditModalityModal(prev => ({ ...prev, activeTab: 'cavity' }))}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  editModalityModal.activeTab === 'cavity'
+                    ? 'bg-white text-rose-950 shadow-2xs border border-rose-200/80'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                }`}
+              >
+                <ShieldAlert className="w-4 h-4 text-rose-500 shrink-0" />
+                <span>3. Cavities & Restorative</span>
+              </button>
+            </div>
+
+            {/* Modal Body / Tab Content */}
+            <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
+
+              {/* ── TAB 1: BRACES (ORTHODONTICS) ── */}
+              {editModalityModal.activeTab === 'braces' && (
+                <div className="space-y-4 animate-in fade-in-50 duration-150">
+                  <div className="p-3 rounded-2xl bg-sky-50/70 border border-sky-200 flex items-start gap-2.5">
+                    <Smile className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />
+                    <div className="text-xs text-sky-950 leading-relaxed">
+                      <p className="font-extrabold text-[12.5px] text-sky-950">Orthodontic Treatment Modality</p>
+                      <p className="text-sky-800 text-[11px] mt-0.5">
+                        Set active alignment stage and current engaged archwire gauge. Saving updates patient record, treatment plan items, clinical logs, and live directory telemetry.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-slate-800 mb-1.5 uppercase tracking-wide">
+                      Treatment Phase / Alignment Stage
+                    </label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {[
+                        'Stage 1 (Leveling)',
+                        'Stage 1 (Alignment)',
+                        'Stage 2 (Space Closure)',
+                        'Stage 3 (Finishing)',
+                        'Debond & Retention'
+                      ].map(stage => (
+                        <button
+                          key={stage}
+                          type="button"
+                          onClick={() => setBracesFormStage(stage)}
+                          className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                            bracesFormStage === stage
+                              ? 'bg-sky-600 text-white border-sky-600 shadow-2xs'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-sky-50 hover:border-sky-200'
+                          }`}
+                        >
+                          {stage}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      value={bracesFormStage}
+                      onChange={e => setBracesFormStage(e.target.value)}
+                      placeholder="e.g. Stage 1 (Leveling)"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-slate-800 mb-1.5 uppercase tracking-wide">
+                      Current Engaged Archwire / Appliance
+                    </label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {[
+                        '0.014 NiTi',
+                        '0.016 NiTi',
+                        '0.016x0.022 SS',
+                        '0.019x0.025 SS',
+                        'TMA Wire',
+                        'Clear Aligner Tray'
+                      ].map(wire => (
+                        <button
+                          key={wire}
+                          type="button"
+                          onClick={() => setBracesFormWire(wire)}
+                          className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                            bracesFormWire === wire
+                              ? 'bg-sky-600 text-white border-sky-600 shadow-2xs'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-sky-50 hover:border-sky-200'
+                          }`}
+                        >
+                          {wire}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      value={bracesFormWire}
+                      onChange={e => setBracesFormWire(e.target.value)}
+                      placeholder="e.g. 0.014 NiTi Heat-Activated"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
+                    />
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleResetModality('Braces')}
+                      disabled={savingModality}
+                      className="px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:text-rose-800 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition cursor-pointer"
+                    >
+                      Clear / Reset Braces
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditModalityModal(prev => ({ ...prev, isOpen: false }))}
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveBracesModality}
+                        disabled={savingModality}
+                        className="px-4 py-2 rounded-xl text-xs font-black text-white bg-sky-600 hover:bg-sky-700 transition shadow-2xs cursor-pointer flex items-center gap-1.5"
+                      >
+                        {savingModality ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                        <span>Save & Sync Braces</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── TAB 2: TEETH WHITENING ── */}
+              {editModalityModal.activeTab === 'whitening' && (
+                <div className="space-y-4 animate-in fade-in-50 duration-150">
+                  <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200 flex items-start gap-2.5">
+                    <Sparkles className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                    <div className="text-xs text-amber-950 leading-relaxed">
+                      <p className="font-extrabold text-[12.5px] text-amber-950">Cosmetic Teeth Whitening Modality</p>
+                      <p className="text-amber-800 text-[11px] mt-0.5">
+                        Set bleaching session progress, pre-treatment shade, and target shade. Updates shade progression telemetry chairside and across directory.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-slate-800 mb-1.5 uppercase tracking-wide">
+                      Bleaching Session Number
+                    </label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {['Session 1 of 3', 'Session 2 of 3', 'Session 3 of 3', 'Touch-up Maintenance'].map(sess => (
+                        <button
+                          key={sess}
+                          type="button"
+                          onClick={() => setWhiteningFormSession(sess)}
+                          className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                            whiteningFormSession === sess
+                              ? 'bg-amber-500 text-white border-amber-500 shadow-2xs'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-amber-50 hover:border-amber-200'
+                          }`}
+                        >
+                          {sess}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      value={whiteningFormSession}
+                      onChange={e => setWhiteningFormSession(e.target.value)}
+                      placeholder="e.g. Session 1 of 3"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                    />
+                  </div>
+
+                  {/* Shade Selection Matrix */}
+                  <div>
+                    <label className="block text-xs font-black text-slate-800 mb-1.5 uppercase tracking-wide">
+                      VITA Classical Shade Transformation
+                    </label>
+                    <div className="grid grid-cols-2 gap-3 p-3 bg-amber-50/40 border border-amber-200/80 rounded-2xl mb-2">
+                      <div>
+                        <span className="block text-[10.5px] font-black text-slate-600 mb-1">Pre-Bleach Initial Shade</span>
+                        <select
+                          value={whiteningFormPreShade}
+                          onChange={e => setWhiteningFormPreShade(e.target.value)}
+                          className="w-full px-2.5 py-2 rounded-xl bg-white border border-amber-300 text-xs font-extrabold text-amber-950 font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        >
+                          {['A1', 'A2', 'A3', 'A3.5', 'A4', 'B1', 'B2', 'B3', 'B4', 'C1', 'C2', 'C3', 'C4', 'D2', 'D3', 'D4'].map(sh => (
+                            <option key={sh} value={sh}>{sh}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <span className="block text-[10.5px] font-black text-slate-600 mb-1">Target Desired Shade</span>
+                        <select
+                          value={whiteningFormTargetShade}
+                          onChange={e => setWhiteningFormTargetShade(e.target.value)}
+                          className="w-full px-2.5 py-2 rounded-xl bg-white border border-amber-300 text-xs font-extrabold text-amber-950 font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        >
+                          {['B1', 'BL1', 'BL2', 'BL3', 'BL4', 'A1', 'A2', 'B2'].map(sh => (
+                            <option key={sh} value={sh}>{sh}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 p-2 bg-amber-100/60 rounded-xl text-xs font-black text-amber-950">
+                      <span>Live Preview:</span>
+                      <span className="px-2 py-0.5 rounded bg-white border border-amber-300 font-mono">{whiteningFormPreShade}</span>
+                      <span className="text-amber-600">➔</span>
+                      <span className="px-2 py-0.5 rounded bg-amber-200 border border-amber-400 font-mono">{whiteningFormTargetShade}</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-slate-800 mb-1.5 uppercase tracking-wide">
+                      Bleaching Protocol / Concentration
+                    </label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {['35% Laser HP', '40% Opalescence Boost', '22% CP Take-Home', 'LED In-Office Power'].map(proto => (
+                        <button
+                          key={proto}
+                          type="button"
+                          onClick={() => setWhiteningFormProtocol(proto)}
+                          className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                            whiteningFormProtocol === proto
+                              ? 'bg-amber-500 text-white border-amber-500 shadow-2xs'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-amber-50 hover:border-amber-200'
+                          }`}
+                        >
+                          {proto}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      value={whiteningFormProtocol}
+                      onChange={e => setWhiteningFormProtocol(e.target.value)}
+                      placeholder="e.g. 35% Laser HP"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleResetModality('Teeth Whitening')}
+                      disabled={savingModality}
+                      className="px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:text-rose-800 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition cursor-pointer"
+                    >
+                      Clear / Reset Whitening
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditModalityModal(prev => ({ ...prev, isOpen: false }))}
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveWhiteningModality}
+                        disabled={savingModality}
+                        className="px-4 py-2 rounded-xl text-xs font-black text-white bg-amber-500 hover:bg-amber-600 transition shadow-2xs cursor-pointer flex items-center gap-1.5"
+                      >
+                        {savingModality ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                        <span>Save & Sync Whitening</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── TAB 3: CAVITIES & RESTORATIVE ── */}
+              {editModalityModal.activeTab === 'cavity' && (
+                <div className="space-y-4 animate-in fade-in-50 duration-150">
+                  <div className="p-3 rounded-2xl bg-rose-50/70 border border-rose-200 flex items-start gap-2.5">
+                    <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                    <div className="text-xs text-rose-950 leading-relaxed">
+                      <p className="font-extrabold text-[12.5px] text-rose-950">Caries & Restorative Modality</p>
+                      <p className="text-rose-800 text-[11px] mt-0.5">
+                        Chart caries or restorations on specific teeth. Saving automatically marks the tooth red on the interactive Odontogram, updates treatment plan records, and notifies the Patient Directory.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Target Tooth Number */}
+                  <div>
+                    <label className="block text-xs font-black text-slate-800 mb-1.5 uppercase tracking-wide">
+                      Target Tooth Number (Universal 1–32)
+                    </label>
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {['3', '4', '14', '15', '19', '20', '30', '31'].map(t => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setCavityFormTooth(t)}
+                          className={`px-2.5 py-1 rounded-xl text-xs font-black border transition cursor-pointer ${
+                            cavityFormTooth === t
+                              ? 'bg-rose-600 text-white border-rose-600 shadow-2xs'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-rose-50 hover:border-rose-200'
+                          }`}
+                        >
+                          #{t}
+                        </button>
+                      ))}
+                    </div>
+                    <select
+                      value={cavityFormTooth}
+                      onChange={e => setCavityFormTooth(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                    >
+                      {Array.from({ length: 32 }, (_, i) => i + 1).map(num => {
+                        const anat = TOOTH_ANATOMY[num] || {};
+                        return (
+                          <option key={num} value={String(num)}>
+                            Tooth #{num} - {anat.name || `Tooth ${num}`} (FDI {anat.fdi || num})
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  {/* Affected Surfaces */}
+                  <div>
+                    <label className="block text-xs font-black text-slate-800 mb-1.5 uppercase tracking-wide">
+                      Involved Tooth Surface(s)
+                    </label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {['Occlusal', 'Mesial-Occlusal', 'Distal-Occlusal', 'MOD', 'Buccal (Class V)', 'Incisal (Class IV)'].map(surf => (
+                        <button
+                          key={surf}
+                          type="button"
+                          onClick={() => setCavityFormSurfaces(surf)}
+                          className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                            cavityFormSurfaces === surf
+                              ? 'bg-rose-600 text-white border-rose-600 shadow-2xs'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-rose-50 hover:border-rose-200'
+                          }`}
+                        >
+                          {surf}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      value={cavityFormSurfaces}
+                      onChange={e => setCavityFormSurfaces(e.target.value)}
+                      placeholder="e.g. Occlusal"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                    />
+                  </div>
+
+                  {/* Restorative Material */}
+                  <div>
+                    <label className="block text-xs font-black text-slate-800 mb-1.5 uppercase tracking-wide">
+                      Prescribed Restorative Material
+                    </label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {['Composite Resin', 'Glass Ionomer (GIC)', 'Bio-ceramic Base', 'Flowable Composite', 'Zirconia Onlay'].map(mat => (
+                        <button
+                          key={mat}
+                          type="button"
+                          onClick={() => setCavityFormMaterial(mat)}
+                          className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                            cavityFormMaterial === mat
+                              ? 'bg-rose-600 text-white border-rose-600 shadow-2xs'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-rose-50 hover:border-rose-200'
+                          }`}
+                        >
+                          {mat}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      value={cavityFormMaterial}
+                      onChange={e => setCavityFormMaterial(e.target.value)}
+                      placeholder="e.g. Composite Resin"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                    />
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleResetModality('Cavities & Restorative')}
+                      disabled={savingModality}
+                      className="px-3 py-2 rounded-xl text-xs font-bold text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 border border-emerald-200 transition cursor-pointer flex items-center gap-1"
+                      title="Clear cavities and mark odontogram sound"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Mark All Sound (0)</span>
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditModalityModal(prev => ({ ...prev, isOpen: false }))}
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveCavityModality}
+                        disabled={savingModality}
+                        className="px-4 py-2 rounded-xl text-xs font-black text-white bg-rose-600 hover:bg-rose-700 transition shadow-2xs cursor-pointer flex items-center gap-1.5"
+                      >
+                        {savingModality ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                        <span>Save & Mark Tooth #{cavityFormTooth}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
         </div>
