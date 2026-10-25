@@ -1231,14 +1231,20 @@ export default function TreatmentPlanTab({
                     const active = selectedCategory === cat;
                     const cnt = cat === 'ALL' ? treatmentItems.length : treatmentItems.filter(i => matchesCategory(i, cat)).length;
                     return (
-                        <button key={cat} onClick={() => setSelectedCategory(cat)} style={{
-                            display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 7,
-                            border: active ? '1px solid #3B82F6' : '1px solid transparent',
-                            background: active ? '#EFF6FF' : 'transparent',
-                            color: active ? '#1D4ED8' : '#64748B',
-                            fontSize: 10.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
-                            transition: 'all 0.12s',
-                        }}>
+                        <button 
+                            key={cat} 
+                            type="button"
+                            onClick={() => setSelectedCategory(cat)} 
+                            className={`transition-all ${active ? '' : 'hover:bg-white hover:border-slate-300 hover:text-blue-600 hover:shadow-2xs'}`}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 7,
+                                border: active ? '1px solid #3B82F6' : '1px solid transparent',
+                                background: active ? '#EFF6FF' : 'transparent',
+                                color: active ? '#1D4ED8' : '#64748B',
+                                fontSize: 10.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                                transition: 'all 0.15s ease',
+                            }}
+                        >
                             {cat}
                             <span style={{ background: active ? '#3B82F6' : '#E2E8F0', color: active ? '#fff' : '#64748B', borderRadius: 999, fontSize: 8.5, fontWeight: 800, padding: '0 5px', lineHeight: '16px' }}>{cnt}</span>
                         </button>

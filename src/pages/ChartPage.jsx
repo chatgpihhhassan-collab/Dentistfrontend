@@ -8526,41 +8526,45 @@ export default function ChartPage() {
             <div className="flex justify-between items-center border-b border-light-teal/20 pb-4">
               <div className="flex items-center gap-1.5 bg-[#F4F6FA] p-1 rounded-2xl border border-light-teal/30">
                 <button
+                  type="button"
                   onClick={() => setActiveTab('chart')}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-medium transition-all duration-200 ${
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-medium transition-all duration-200 cursor-pointer ${
                     activeTab === 'chart'
-                      ? 'bg-[#EAF0FC]/80 text-[#4A7CD2] shadow-md border border-[#4A7CD2]/40'
-                      : 'text-muted-text hover:text-dark-slate'
+                      ? 'bg-[#EAF0FC] text-[#4A7CD2] shadow-sm border border-[#4A7CD2]/40 font-bold'
+                      : 'text-muted-text border border-transparent hover:bg-white hover:text-[#4A7CD2] hover:border-[#4A7CD2]/30 hover:shadow-xs'
                   }`}
                 >
                   <Stethoscope className="w-3.5 h-3.5" /> Dental Chart
                 </button>
                 <button
+                  type="button"
                   onClick={() => loadNotesTab(showDeletedNotes)}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-medium transition-all duration-200 ${
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-medium transition-all duration-200 cursor-pointer ${
                     activeTab === 'notes'
-                      ? 'bg-[#EAF0FC]/80 text-[#4A7CD2] shadow-md border border-[#4A7CD2]/40'
-                      : 'text-muted-text hover:text-dark-slate'
+                      ? 'bg-[#EAF0FC] text-[#4A7CD2] shadow-sm border border-[#4A7CD2]/40 font-bold'
+                      : 'text-muted-text border border-transparent hover:bg-white hover:text-[#4A7CD2] hover:border-[#4A7CD2]/30 hover:shadow-xs'
                   }`}
                 >
                   <Brain className="w-3.5 h-3.5" /> AI Notes
                 </button>
                 <button
+                  type="button"
                   onClick={loadRadiographsTab}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-medium transition-all duration-200 ${
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-medium transition-all duration-200 cursor-pointer ${
                     activeTab === 'radiographs'
-                      ? 'bg-[#EAF0FC]/80 text-[#4A7CD2] shadow-md border border-[#4A7CD2]/40'
-                      : 'text-muted-text hover:text-dark-slate'
+                      ? 'bg-[#EAF0FC] text-[#4A7CD2] shadow-sm border border-[#4A7CD2]/40 font-bold'
+                      : 'text-muted-text border border-transparent hover:bg-white hover:text-[#4A7CD2] hover:border-[#4A7CD2]/30 hover:shadow-xs'
                   }`}
                 >
                   <Image className="w-3.5 h-3.5" /> Imaging & X-Rays
                 </button>
                 <button
+                  type="button"
                   onClick={() => setActiveTab('treatment_plan')}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-medium transition-all duration-200 ${
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-medium transition-all duration-200 cursor-pointer ${
                     activeTab === 'treatment_plan'
-                      ? 'bg-[#EAF0FC]/80 text-[#4A7CD2] shadow-md border border-[#4A7CD2]/40 font-bold'
-                      : 'text-muted-text hover:text-dark-slate'
+                      ? 'bg-[#EAF0FC] text-[#4A7CD2] shadow-sm border border-[#4A7CD2]/40 font-bold'
+                      : 'text-muted-text border border-transparent hover:bg-white hover:text-[#4A7CD2] hover:border-[#4A7CD2]/30 hover:shadow-xs'
                   }`}
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-500" />
@@ -8572,11 +8576,12 @@ export default function ChartPage() {
                   )}
                 </button>
                 <button
+                  type="button"
                   onClick={() => setActiveTab('billing')}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-medium transition-all duration-200 ${
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-medium transition-all duration-200 cursor-pointer ${
                     activeTab === 'billing'
-                      ? 'bg-[#EAF0FC]/80 text-[#4A7CD2] shadow-md border border-[#4A7CD2]/40'
-                      : 'text-muted-text hover:text-dark-slate'
+                      ? 'bg-[#EAF0FC] text-[#4A7CD2] shadow-sm border border-[#4A7CD2]/40 font-bold'
+                      : 'text-muted-text border border-transparent hover:bg-white hover:text-[#4A7CD2] hover:border-[#4A7CD2]/30 hover:shadow-xs'
                   }`}
                 >
                   <CreditCard className="w-3.5 h-3.5" /> Treatment & Invoices
